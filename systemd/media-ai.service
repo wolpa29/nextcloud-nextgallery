@@ -1,0 +1,22 @@
+[Unit]
+Description=Private Nextcloud OCR and image analysis controller
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Adapt this existing unprivileged user and the paths before installing.
+User=paul
+WorkingDirectory=/opt/nextcloud-media-ai-pipeline
+EnvironmentFile=/etc/media-ai/pipeline.env
+ExecStart=/opt/nextcloud-media-ai-pipeline/.venv/bin/python /opt/nextcloud-media-ai-pipeline/media_pipeline.py run --config /opt/nextcloud-media-ai-pipeline/config.json --limit 1000 --max-seconds 14400
+TimeoutStartSec=5h
+UMask=0077
+Nice=10
+IOSchedulingClass=idle
+CPUWeight=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/opt/nextcloud-media-ai-pipeline/state
