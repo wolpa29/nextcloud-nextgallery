@@ -93,7 +93,9 @@ namespace {
     $metadata = ['vision' => ['type' => 'foto', 'description' => 'Fahrrad am Strand', 'tags' => ['Fahrrad'], 'objects' => [], 'uncertain_details' => []], 'ocr' => ['text' => 'Rechnung 123']];
     $args = [12, 'v1', str_repeat('a', 64), str_repeat('b', 64), $metadata, []];
     $data = Metadata::validate(...$args);
-    check($data['ocr_text'] === 'Rechnung 123', 'OCR lost');
+    check($data['ocr_text'] === 'rechnung 123', 'search text normalization lost');
+    check(json_decode($data['metadata_json'],true)['analysis']['ocr']['text']==='Rechnung 123','original OCR case lost');
+    check($data['description']==='fahrrad am strand','description index normalization lost');
     check(json_decode($data['metadata_json'], true)['source_exif'] === [], 'EXIF separation lost');
     $bad = $args; $bad[2] = 'invalid'; refuses(fn() => Metadata::validate(...$bad));
     $bad = $args; $bad[4]['vision']['tags'] = [7]; refuses(fn() => Metadata::validate(...$bad));

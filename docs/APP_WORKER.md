@@ -1,4 +1,4 @@
-# Integrierte App (0.2)
+# Integrierte App (0.2.8)
 
 Die Nextcloud-App enthält den Python-Worker. Er läuft als eigener systemd-Dienst
 mit niedriger CPU-/IO-Priorität, unabhängig von PHP-FPM und Nextcloud-Cron.
@@ -103,6 +103,10 @@ MariaDB erstellt einen gemeinsamen FULLTEXT-Index über `description`,
 `ocr_text`, `tags_text` und `objects_text`. Der Provider zerlegt die Eingabe in
 bis zu 16 Wörter ab drei Zeichen und fragt im Boolean Mode `+Wort*` ab:
 alle Wörter müssen beim selben Bild vorkommen, Wortanfänge sind erlaubt.
+Suchbegriffe und die vier indexierten Textkopien werden klein geschrieben,
+weil Nextclouds binäre Tabellen-Kollation sonst Groß-/Kleinschreibung trennt.
+Das Original einschließlich Schreibweise bleibt in `metadata_json` erhalten
+und wird für Oberfläche und Suchvorschau verwendet.
 Die Suche liest gespeicherte Analysen, startet keine Modellanfrage und arbeitet
 auch bei ausgeschaltetem GPU-PC. Synonyme, Tippfehler, beliebige Teilwörter und
 semantische Ähnlichkeit sind nicht implementiert. MariaDB-Stopwörter gelten.

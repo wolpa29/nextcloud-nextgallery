@@ -1,12 +1,12 @@
 # Validierung – 2026-10-02
 
-**App 0.2.7 auf Nextcloud 32.0.5 installiert und aktiviert; eigener Worker als www-data aktiv.**
+**App 0.2.7 (UI/Suchkorrekturen aus 0.2.8) auf Nextcloud 32.0.5 installiert und aktiviert; eigener Worker als www-data aktiv.**
 
 | Prüfung | Ergebnis |
 | --- | --- |
 | Python 3.13.7 | 42 Tests erfolgreich, letzter Lauf 0,701 s |
-| PHP 8.3 in isoliertem Nextcloud-32-Container | 87 Assertions: Admin/Owner 21, Metadaten/Suche 21, Sprache 6, Einstellungen 20, Worker-Auth 19 |
-| Alle 21 PHP-Dateien | Syntaxprüfung erfolgreich |
+| PHP 8.3 in isoliertem Nextcloud-32-Container | 89 Assertions: Admin/Owner 21, Metadaten/Suche 23, Sprache 6, Einstellungen 20, Worker-Auth 19 |
+| Alle PHP-Dateien | Syntaxprüfung erfolgreich |
 | JavaScript | Alle drei App-Skripte mit `node --check` geprüft |
 | Echte Installation | MariaDB-Migration, DI, Routen und systemd-Dienst erfolgreich |
 | Native Worker-API | Ohne gültiges Bearer-Token HTTP 401 |
@@ -16,6 +16,9 @@
 | Echter KI-Reset über Pauls Oberfläche | Eigene MariaDB-Datensätze 0; SQLite files/results/search jeweils 0 |
 | Echte Log-Löschung über Oberfläche | Logdateien 0; alle 45 Originale danach weiterhin unverändert |
 | Dialogzentrierung | Globales Nextcloud-CSS überschrieben; 560 × 252 Dialog bei 1754 × 991 Viewport exakt zentriert (597; 369,5) |
+| Dateiseitenleiste | Reale Bildanalyse, OCR, Tags und Unsicherheiten im Media-AI-Tab sichtbar |
+| Browser-Volltextsuche | OCR-Wort LUNA findet das zugehörige Bild; Luna und LUNA liefern dieselbe Datei-ID |
+| Native Dateiverknüpfung | `/f/538885` öffnet tatsächlich das Bild im Juni-Ordner |
 | Ausgabe ohne App-Tokenlimit | Beide Stufen max_tokens=0; Wire-Regressionstest prüft, dass kein Ausgabe-/Reasoning-Limit gesendet wird |
 
 Der frische vollständige Juni-Lauf umfasst **45 JPEG-Bilder, keine Videos**, 186.148.617 Bytes.
@@ -40,7 +43,7 @@ Nextcloud-Integration getrennt. Lokaler isolierter Nextcloud-32/MariaDB-10.11-
 Integrationstest bestätigt Migration, Inventar und API-Authentifizierung.
 
 Noch offen: kompletter frischer Juni-Lauf mit menschlichem Qualitätsvergleich,
-Browser-Suche und Sidebar-Ergebnisprüfung nach dem Reset, reales Android-Gerät,
+reales Android-Gerät,
 HEIC/AVIF aus der Sammlung, Durchsatz der gesamten Sammlung und GPU-VRAM-Messung.
 Responsive Regeln sind vorhanden; eine Handyansicht gilt erst bei tatsächlich
 verifiziertem schmalem Browser-Viewport als geprüft.

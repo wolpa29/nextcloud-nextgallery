@@ -7,6 +7,6 @@ use OCP\Util;
 class FilesListener implements IEventListener {
     public function handle(Event $event): void {
         if (!$event instanceof LoadAdditionalScriptsEvent) { return; }
-        Util::addScript('media_ai','i18n'); Util::addScript('media_ai','sidebar'); Util::addStyle('media_ai','admin');
+        Util::addScript('media_ai','i18n'); Util::addScript('media_ai','image-metadata'); Util::addStyle('media_ai','admin');
     }
 }

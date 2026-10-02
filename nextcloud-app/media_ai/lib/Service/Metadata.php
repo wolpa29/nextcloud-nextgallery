@@ -25,8 +25,8 @@ class Metadata {
         $json = json_encode(['analysis' => $metadata, 'source_exif' => $exif], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
         if (strlen($json) > 1048576) { throw new OCSBadRequestException('Metadata too large'); }
         return ['file_id' => $fileId, 'etag' => $etag, 'sha256' => $sha256, 'revision' => $revision,
-                'type' => $vision['type'], 'description' => $vision['description'], 'ocr_text' => $ocr,
-                'tags_text' => implode(' ', $vision['tags']), 'objects_text' => implode(' ', $vision['objects']),
+                'type' => $vision['type'], 'description' => mb_strtolower($vision['description']), 'ocr_text' => mb_strtolower($ocr),
+                'tags_text' => mb_strtolower(implode(' ', $vision['tags'])), 'objects_text' => mb_strtolower(implode(' ', $vision['objects'])),
                 'metadata_json' => $json, 'updated_at' => time()];
     }
     public function upsert(string $uid, array $data): void {
@@ -37,6 +37,11 @@ class Metadata {
         $updates = [];
         foreach ($columns as $column) { if (!in_array($column, ['user_id', 'file_id'], true)) { $updates[] = "`$column`=VALUES(`$column`)"; } }
         $this->db->executeStatement($sql . implode(',', $updates), array_values($data));
+    }
+    public function normalizeIndex(): void {
+        // Nextcloud tables use binary collation. Normalize indexed copies;
+        // metadata_json preserves the complete original case and wording.
+        $this->db->executeStatement('UPDATE `*PREFIX*media_ai_meta` SET description=LOWER(description),ocr_text=LOWER(ocr_text),tags_text=LOWER(tags_text),objects_text=LOWER(objects_text)',[]);
     }
     public function reset(string $uid): void {
         $this->db->executeStatement('DELETE FROM `*PREFIX*media_ai_meta` WHERE user_id=?',[$uid]);
@@ -49,8 +54,8 @@ class Metadata {
         preg_match_all('/[\p{L}\p{N}_]+/u', $term, $matches);
         $words = array_slice(array_filter($matches[0], fn($word) => mb_strlen($word) >= 3), 0, 16);
         if (!$words) { return []; }
-        $query = implode(' ', array_map(fn($word) => '+' . $word . '*', $words));
-        $result = $this->db->executeQuery('SELECT id,file_id,etag,description,ocr_text FROM `*PREFIX*media_ai_meta` WHERE user_id=? AND id>? AND MATCH(description,ocr_text,tags_text,objects_text) AGAINST (? IN BOOLEAN MODE) ORDER BY id LIMIT ' . min(50, max(1, $limit)), [$uid, $cursor, $query]);
+        $query = implode(' ', array_map(fn($word) => '+' . mb_strtolower($word) . '*', $words));
+        $result = $this->db->executeQuery('SELECT id,file_id,etag,description,ocr_text,metadata_json FROM `*PREFIX*media_ai_meta` WHERE user_id=? AND id>? AND MATCH(description,ocr_text,tags_text,objects_text) AGAINST (? IN BOOLEAN MODE) ORDER BY id LIMIT ' . min(50, max(1, $limit)), [$uid, $cursor, $query]);
         try { return $result->fetchAll(); } finally { $result->closeCursor(); }
     }
 }
