@@ -84,7 +84,7 @@ class Reporter:
         self.directory=directory; self.directory.joinpath('logs').mkdir(mode=0o700,exist_ok=True)
         self.value=read(directory/'status.json',{})
         self.value.update(state='idle',current=None)
-        self.lock=threading.RLock(); self.stop=threading.Event(); self.run_id=None
+        self.lock=threading.RLock(); self.stop=threading.Event(); self.run_id=None; self.timezone="Europe/Vienna"
         self.thread=threading.Thread(target=self.beat,daemon=True); self.thread.start()
     def beat(self):
         while not self.stop.is_set():
@@ -95,8 +95,9 @@ class Reporter:
         with self.lock:
             self.value.update(fields); self.value['heartbeat_at']=time.time(); atomic(self.directory/'status.json',self.value)
     def event(self,event,**fields):
-        row={'time':datetime.now().astimezone().isoformat(timespec='seconds'),'run_id':self.run_id,'event':event,'level':fields.pop('level','info'),**fields}
-        path=self.directory/'logs'/ (datetime.now().strftime('%Y-%m-%d')+'.jsonl')
+        now=datetime.now(ZoneInfo(self.timezone))
+        row={'time':now.isoformat(timespec='seconds'),'run_id':self.run_id,'event':event,'level':fields.pop('level','info'),**fields}
+        path=self.directory/'logs'/ (now.strftime('%Y-%m-%d')+'.jsonl')
         with path.open('a') as stream: stream.write(json.dumps(row,ensure_ascii=False)+'\n')
         changes={}
         if 'stats' in fields: changes['stats']=fields['stats']
@@ -115,6 +116,22 @@ def consume(directory, request_id):
         control=read(directory/'control.json',{'paused':True})
         if control.get('request_id')==request_id:
             control['requested']=False; control['retry_errors']=False; atomic(directory/'control.json',control)
+
+
+def reset_ai(api,directory,reporter,control):
+    api.call('reset',{})
+    store=p.Store(directory/'native.sqlite3')
+    try:
+        with store.db:
+            for table in ['files','results','search','locks']:store.db.execute('DELETE FROM '+table)
+    finally:store.db.close()
+    with (directory/'control.lock').open('a') as stream:
+        fcntl.flock(stream,fcntl.LOCK_EX)
+        current=read(directory/'control.json',{})
+        if current.get('reset_request_id')==control.get('reset_request_id'):
+            current['reset_requested']=False;atomic(directory/'control.json',current)
+    reporter.update(stats={},last_run=None,current=None,state='paused',message='KI-Daten zurückgesetzt')
+    reporter.event('ai_reset_finished')
 
 
 def is_due(config,control,schedule,now=None):
@@ -160,9 +177,12 @@ def main():
         try:
             while True:
                 try:
-                    config=api.call('config'); control=read(directory/'control.json',{'paused':True}); schedule=read(directory/'schedule.json',{})
+                    config=api.call('config'); reporter.timezone=config['timezone']; control=read(directory/'control.json',{'paused':True}); schedule=read(directory/'schedule.json',{})
                     reporter.update(paused=control.get('paused',True))
-                    if is_due(config,control,schedule):
+                    if control.get('reset_requested'):
+                        if not control.get('paused',True):raise p.PipelineError('Reset requires paused worker')
+                        reset_ai(api,directory,reporter,control)
+                    elif is_due(config,control,schedule):
                         consume(directory,control.get('request_id'))
                         result_date=datetime.now(ZoneInfo(config['timezone'])).strftime('%Y-%m-%d')
                         cycle(api,config,directory,reporter,control)

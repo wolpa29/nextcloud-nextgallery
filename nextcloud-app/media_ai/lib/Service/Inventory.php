@@ -32,7 +32,7 @@ class Inventory {
         // Read core file cache only; versions, paths and metadata are never modified.
         $sql = 'SELECT DISTINCT f.fileid,f.storage,f.path,f.etag,f.size,m.mimetype FROM `*PREFIX*filecache` f JOIN `*PREFIX*mimetypes` m ON m.id=f.mimetype WHERE f.fileid>? AND m.mimetype LIKE \'image/%\' AND (' . implode(' OR ', $conditions) . ') ORDER BY f.fileid LIMIT 1000';
         $result = $this->db->executeQuery($sql, $parameters);
-        try { $rows = $result->fetchAllAssociative(); } finally { $result->closeCursor(); }
+        try { $rows = $result->fetchAll(); } finally { $result->closeCursor(); }
         $config = $this->settings->get(); $items = [];
         foreach ($rows as $row) {
             $path = null;

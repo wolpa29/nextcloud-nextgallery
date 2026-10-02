@@ -15,11 +15,11 @@ class Settings {
             'max_image_pixels' => 80000000,
             'vision' => ['url' => 'http://10.1.10.78:1234/v1', 'model' => 'qwen/qwen3.8-27b',
                 'model_revision' => 'qwen3.8-27b-Q4_K_M-20261002', 'max_edge' => 2048,
-                'max_tokens' => 1600, 'timeout_seconds' => 300, 'temperature' => 0.2,
+                'max_tokens' => 0, 'timeout_seconds' => 300, 'temperature' => 0.2,
                 'allow_reasoning_json' => true, 'prompt' => ''],
             'ocr' => ['url' => 'http://10.1.10.78:1234/v1', 'model' => 'qwen/qwen3.8-27b',
                 'model_revision' => 'qwen3.8-27b-Q4_K_M-20261002', 'max_edge' => 4096,
-                'max_tokens' => 4096, 'timeout_seconds' => 300, 'temperature' => 0.0, 'prompt' => '']];
+                'max_tokens' => 0, 'timeout_seconds' => 300, 'temperature' => 0.0, 'prompt' => '']];
     }
     public function get(): array {
         $saved = json_decode($this->config->getAppValue('media_ai', 'settings', '{}'), true, 64, JSON_THROW_ON_ERROR);
@@ -75,7 +75,7 @@ class Settings {
         if (!is_int($value) || $value < $min || $value > $max) { throw new OCSBadRequestException("Ungültiger Wert für $name"); }
         return $value;
     }
-    public function save(array $value): array {
+    public function save(array $value, ?callable $validateFolders = null): array {
         $result = $this->defaults();
         if (!is_bool($value['enabled'] ?? null) || !is_string($value['user_id'] ?? null)
             || !preg_match('/^[^\/\\\\\x00]{1,64}$/uD', $value['user_id'])
@@ -101,7 +101,7 @@ class Settings {
                     || ($key !== 'prompt' && trim($text) === '')) { throw new OCSBadRequestException("Ungültige Einstellung: $stage/$key"); }
                 $result[$stage][$key] = $text;
             }
-            foreach (['max_edge' => [256,8192], 'max_tokens' => [128,32768], 'timeout_seconds' => [15,900]] as $key => [$min,$max]) {
+            foreach (['max_edge' => [256,8192], 'max_tokens' => [0,32768], 'timeout_seconds' => [15,7200]] as $key => [$min,$max]) {
                 $result[$stage][$key] = $this->integer($data[$key] ?? null, $min, $max, "$stage/$key");
             }
             $temperature = $data['temperature'] ?? null;
@@ -113,6 +113,7 @@ class Settings {
             if ($secret !== '' || !empty($data['clear_api_key'])) { $secrets[$stage . '_api_key'] = $secret; }
         }
         // Validate the entire form before writing any value or encrypted secret.
+        if ($validateFolders !== null) { $validateFolders($result); }
         $this->config->setAppValue('media_ai', 'settings', json_encode($result, JSON_THROW_ON_ERROR));
         foreach ($secrets as $key => $secret) { $this->setSecret($key, $secret); }
         return $this->publicConfig();

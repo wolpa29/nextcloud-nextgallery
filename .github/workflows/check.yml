@@ -27,4 +27,7 @@ jobs:
             for file in $(find /work/nextcloud-app -name "*.php"); do php -l "$file"; done
             php /work/tests/php_contract.php
             php /work/tests/php_settings.php
+            php /work/tests/php_worker.php
+            php /work/tests/php_admin.php
+            php /work/tests/php_preferences.php
           '

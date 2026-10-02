@@ -11,7 +11,7 @@ import media_pipeline as p
 root=Path(__file__).resolve().parents[1]/'nextcloud-app/media_ai/worker'
 spec=importlib.util.spec_from_file_location('app_worker',root/'app_worker.py')
 w=importlib.util.module_from_spec(spec);spec.loader.exec_module(w)
-from test_pipeline import Source,Model
+from test_pipeline import Source,Model,Publisher
 
 class WorkerTests(unittest.TestCase):
     def test_pause_finishes_current_file_and_stops_next(self):
@@ -19,6 +19,14 @@ class WorkerTests(unittest.TestCase):
             store=p.Store(Path(d)/'state.sqlite3'); source=Source(); source.items.append(p.Item('2','b.jpg','b','v1',100)); events=[]
             report=p.run({},store,source,{s:Model(s) for s in ['vision','ocr']},observe=lambda event,**fields:events.append((event,fields)),should_stop=lambda:any(e[0]=='file_finished' for e in events))
             self.assertEqual(report['processed'],1);self.assertEqual(report['stats'],{'done':1,'pending':1});self.assertEqual(sum(e[0]=='stage_finished' for e in events),2);store.db.close()
+    def test_results_published_before_completion_event(self):
+        with tempfile.TemporaryDirectory() as d:
+            store=p.Store(Path(d)/'state.sqlite3');publisher=Publisher();events=[]
+            def observe(event,**fields):
+                if event=='file_finished':events.append(len(publisher.sent))
+            report=p.run({},store,Source(),{s:Model(s) for s in ['vision','ocr']},publisher=publisher,observe=observe)
+            self.assertEqual(events,[1]);self.assertEqual(report['published'],1);store.db.close()
+
     def test_daily_once_manual_override_and_pause(self):
         config={'enabled':True,'schedule_time':'03:00','timezone':'Europe/Vienna'}; now=datetime(2026,10,2,4,tzinfo=ZoneInfo('Europe/Vienna'))
         self.assertFalse(w.is_due(config,{'paused':True,'requested':True},{},now))
@@ -45,6 +53,20 @@ class WorkerTests(unittest.TestCase):
         with self.assertRaises(p.PipelineError):w.NativeSource(API(),{'user_id':'paul','folders':['/'],'exclude_folders':[]}).inventory()
     def test_custom_prompts_affect_incremental_revision(self):
         first=p.Model({'prompt':'One','url':'http://localhost'},'vision');second=p.Model({'prompt':'Two','url':'http://localhost'},'vision');self.assertEqual(first.prompt,'One');self.assertNotEqual(first.revision,second.revision)
+    def test_ai_reset_clears_only_own_store_and_preserves_original(self):
+        class API:
+            def call(self,endpoint,body):self.endpoint=endpoint
+        class Reporter:
+            def update(self,**fields):self.fields=fields
+            def event(self,event):self.event_name=event
+        with tempfile.TemporaryDirectory() as d:
+            directory=Path(d); original=directory/'original.jpg';original.write_bytes(b'unchanged')
+            store=p.Store(directory/'native.sqlite3');source=Source();p.run({},store,source,{s:Model(s) for s in ['vision','ocr']});store.db.close()
+            control={'reset_requested':True,'reset_request_id':'one','paused':True};w.atomic(directory/'control.json',control)
+            api=API();reporter=Reporter();w.reset_ai(api,directory,reporter,control)
+            store=p.Store(directory/'native.sqlite3');self.assertEqual(store.stats(),{});self.assertEqual(store.db.execute('SELECT COUNT(*) FROM results').fetchone()[0],0);store.db.close()
+            self.assertEqual(original.read_bytes(),b'unchanged');self.assertEqual(api.endpoint,'reset');self.assertFalse(w.read(directory/'control.json',{})['reset_requested'])
+
     def test_bootstrap_refuses_http_and_url_credentials(self):
         for url in ['http://10.1.10.186','https://secret@10.1.10.186','https://10.1.10.186?token=x']:
             with self.assertRaises(p.PipelineError):w.API({'url':url,'token':'x'})

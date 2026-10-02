@@ -17,6 +17,7 @@ $v['vision']['api_key']='';$s->save($v);check($s->workerConfig()['vision']['api_
 $bad=$v;$bad['folders']=['/Camera/../secret'];reject(fn()=>$s->save($bad));$bad=$v;$bad['vision']['url']='https://user:secret@example.test';reject(fn()=>$s->save($bad));$bad=$v;$bad['limit']=0;reject(fn()=>$s->save($bad));$bad=$v;$bad['vision']['api_key']="x\nheader";reject(fn()=>$s->save($bad));
 check(\OCA\MediaAI\Service\Settings::endpoint('http://10.1.10.78:1234')==='http://10.1.10.78:1234/v1');
 $v['vision']['clear_api_key']=true;$s->save($v);check($s->workerConfig()['vision']['api_key']==='');
+$v['vision']['max_tokens']=0;$v['ocr']['max_tokens']=0;$v['ocr']['timeout_seconds']=7200;$s->save($v);check($s->get()['vision']['max_tokens']===0);check($s->get()['ocr']['timeout_seconds']===7200);$bad=$v;$bad['ocr']['max_tokens']=-1;reject(fn()=>$s->save($bad));
 $dir=sys_get_temp_dir().'/media-ai-test-'.bin2hex(random_bytes(8));mkdir($dir,0700);$c->values['datadirectory']=$dir;$state=new \OCA\MediaAI\Service\State($c);check($state->control()['paused']);$state->setControl('start');check(!$state->control()['paused']);$state->setControl('pause');check($state->control()['paused']);reject(fn()=>$state->logs('../secret'));reject(fn()=>$state->setControl('delete'));
 foreach(glob($dir.'/.media_ai/*') as $file)unlink($file);rmdir($dir.'/.media_ai');rmdir($dir);
 echo "$count PHP settings/control assertions passed\n";

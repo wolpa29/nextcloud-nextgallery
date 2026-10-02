@@ -1,45 +1,48 @@
-# Lokale Validierung – 2026-10-02
+# Validierung – 2026-10-02
 
-**Grundgerüst vorhanden; keine App-Installation/Aktivierung auf 10.1.10.186. Echter GPU-Pilot auf dem bereits laufenden LM-Studio-Endpunkt erfolgreich; ausschließlich künstliche Testbilder verarbeitet.**
+**App 0.2.7 auf Nextcloud 32.0.5 installiert und aktiviert; eigener Worker als www-data aktiv.**
 
 | Prüfung | Ergebnis |
-|---|---|
-| Python 3.13.7, Pillow 11.3.0; `python3 -m unittest discover -s tests -q` | 31 Tests erfolgreich, letzter Lauf 0,664 s. |
-| Python- und Beispiel-JSON-Syntax | Gültig. |
-| Nextcloud-App `info.xml` | Wohlgeformtes XML; keine vollständige Nextcloud-App-Store/XSD-Validierung behauptet. |
-| Sieben PHP-Dateien, `php -l` in isoliertem PHP-8.2-CLI-Container | Alle ohne Syntaxfehler. |
-| `tests/php_contract.php` im selben Container ohne Netzwerk | 21 Assertions erfolgreich; Nextcloud-Schnittstellen hier durch kleine Test-Doubles ersetzt. |
-| systemd-Vorlagen | `systemd-analyze verify` mit temporär auf vorhandenes Python umgeschriebenen Pfaden: Exit 0. Keine Units installiert oder aktiviert. Originale `/opt`-Pfade sind Installationsplatzhalter. |
-| Öffentliche Nextcloud-CA-Datei | X.509 lesbar, CN `Paul Nextcloud Local CA`, Gültigkeit 2026-09-30 bis 2036-09-27. Live-Zertifikatskette nicht erneut abgefragt. |
+| --- | --- |
+| Python 3.13.7 | 42 Tests erfolgreich, letzter Lauf 0,701 s |
+| PHP 8.3 in isoliertem Nextcloud-32-Container | 87 Assertions: Admin/Owner 21, Metadaten/Suche 21, Sprache 6, Einstellungen 20, Worker-Auth 19 |
+| Alle 21 PHP-Dateien | Syntaxprüfung erfolgreich |
+| JavaScript | Alle drei App-Skripte mit `node --check` geprüft |
+| Echte Installation | MariaDB-Migration, DI, Routen und systemd-Dienst erfolgreich |
+| Native Worker-API | Ohne gültiges Bearer-Token HTTP 401 |
+| Erster echter Pilot | 5 Bilder in 133,225 s, 0 Fehler, 5 publiziert, SHA256/ETag aller Originale unverändert |
+| Initiales Inventar | 81.473 Bilder in 20,6 s; nur konfigurierte Batches analysiert |
+| Vor Reset | 17 eigene KI-Datensätze; Prüfsummen aller 45 Juni-Originale unverändert |
+| Echter KI-Reset über Pauls Oberfläche | Eigene MariaDB-Datensätze 0; SQLite files/results/search jeweils 0 |
+| Echte Log-Löschung über Oberfläche | Logdateien 0; alle 45 Originale danach weiterhin unverändert |
+| Dialogzentrierung | Globales Nextcloud-CSS überschrieben; 560 × 252 Dialog bei 1754 × 991 Viewport exakt zentriert (597; 369,5) |
+| Ausgabe ohne App-Tokenlimit | Beide Stufen max_tokens=0; Wire-Regressionstest prüft, dass kein Ausgabe-/Reasoning-Limit gesendet wird |
 
-## Welche Fehlerfälle wurden geprüft?
+Der frische vollständige Juni-Lauf umfasst **45 JPEG-Bilder, keine Videos**, 186.148.617 Bytes.
+Tägliche Automation ist ausgeschaltet. Maximal 45 Dateien pro manuellem Lauf,
+6 Stunden Batchbudget; bis zu 2 Stunden Netzwerkzeit pro Modellanfrage.
+Das Batchbudget wird zwischen Dateien geprüft, beendet kein laufendes Reasoning.
+Der Modellserver meldet aktuell einen geladenen Kontext von 114.810 Tokens.
 
-- Neuer Durchlauf und Suche nach Beschreibung sowie wörtlichem OCR-Text.
-- Unveränderte Datei: kein zweiter Download und keine zweite Inferenz.
-- Geänderte Bytes/Version: erneute Analyse; neue Modellrevision: nur betroffene Stufe neu.
-- Umbenennung mit gleicher Datei-ID: aktualisierter Suchpfad ohne Inferenz.
-- Entfernte Dateien: nicht mehr lokal auffindbar, gespeicherter Verlauf bleibt erhalten.
-- Bytegleiche Duplikate: zwei Dateitreffer, nur ein Aufruf je Modellstufe.
-- Teilfehler nach erfolgreicher Vision-Stufe: OCR wird erneut versucht, Vision aus Cache.
-- GPU offline: keine Inventarisierung und kein Bilddownload; fertige Ergebnisse bleiben bestehen.
-- Unvollständiges WebDAV-Inventar: keine vorhandenen Dateien als verschwunden markieren.
-- Quelle während Analyse geändert: kein fertiger Suchtreffer für diese Version.
-- Überlappende Controller gesperrt, Sperre nach Ende freigegeben.
-- Nextcloud-Publishing ausgefallen: lokales Ergebnis bleibt fertig; Übermittlung auch ohne GPU nachholbar und idempotent.
-- Pilot-Paketgröße und Bildgrößenlimits eingehalten.
-- EXIF ausgelesen, Bildkopien verkleinert, Originalbytes unverändert.
-- Symlinks ausgeschlossen, ersetzte Dateien erkannt, Hardlinks als getrennte Pfade erfasst.
-- Echte lokale HTTP-Testserver: Modellliste, Bild-Data-URL, API-Key, getrennte OCR-Antwort und OCS-POST mit App-Authentifizierung.
-- Abgeschnittene Modellantwort, ungültiges JSON-Schema, Redirect, übergroße Antwort, ungültiger WebDAV-Pfad und API-Konflikt verworfen.
-- PHP: Zugriff auf unlesbare/nicht vorhandene Bilder, nicht angemeldete Benutzer, fehlender OCS-Header, ungültiger Hash und geänderter ETag verweigert; abgelehnte Anfragen schreiben keine Daten.
-- PHP: Suchtreffer mit geändertem ETag oder entzogenem Lesezugriff unterdrückt; Metadaten nur über gebundene Parameter in eigener Tabelle geschrieben.
+Die frühere begrenzte OCR-Konfiguration lieferte bei vier Bildern einen
+nicht normal beendeten Modellaufruf. Diese Antworten wurden nicht publiziert.
+Auf Benutzerwunsch wurden eigene KI-Ergebnisse/Cache/Logs zurückgesetzt und
+beide Ausgabegrenzen entfernt. Finalbeschreibung knapp, OCR vollständig,
+Reasoning unverändert dem Modell überlassen. Die anschließende Qualitätsprüfung
+wird nach Abschluss getrennt dokumentiert; persönliche Bilder und OCR-Texte
+werden nicht in dieses Repository aufgenommen.
 
-PHP-Testimage: `php:8.2-cli`, Digest `sha256:8c0ac7363ba26de6279a0614a9072277e3c86f90d11447002bdf74ad7db9aac3`.
+Die Tests umfassen unveränderte/geänderte Quellen, Cache/Wiederaufnahme,
+getrennte Stufen, Publikationsfehler, eigene Daten-Resets, Authentifizierung,
+Admin/Owner-Rechte, unzulässige Pfade und Werte, per-user DE/EN, ungültige und
+abgeschnittene Modellantworten. Unit-Doubles sind ausdrücklich von echter
+Nextcloud-Integration getrennt. Lokaler isolierter Nextcloud-32/MariaDB-10.11-
+Integrationstest bestätigt Migration, Inventar und API-Authentifizierung.
 
-## Noch nicht live validiert
+Noch offen: kompletter frischer Juni-Lauf mit menschlichem Qualitätsvergleich,
+Browser-Suche und Sidebar-Ergebnisprüfung nach dem Reset, reales Android-Gerät,
+HEIC/AVIF aus der Sammlung, Durchsatz der gesamten Sammlung und GPU-VRAM-Messung.
+Responsive Regeln sind vorhanden; eine Handyansicht gilt erst bei tatsächlich
+verifiziertem schmalem Browser-Viewport als geprüft.
 
-GPU-PC inzwischen erreichbar: API-Anbindung und Modell `qwen/qwen3.8-27b` in Q4_K_M mit vier künstlichen Dateien erfolgreich live geprüft, Details in `docs/LIVE_PILOT.md`. VRAM-Verbrauch, repräsentative Foto-/OCR-Qualität und Durchsatz bei echten großen Bildern noch offen. HEIC/AVIF/seltene Bildformate mit realen Dateien noch nicht geprüft. Keine System-/Modellkonfiguration auf dem GPU-PC geändert.
-
-Nextcloud-App nicht aktiviert: echte Routing-/Authentifizierungs-Middleware, MariaDB-Migration/Volltextindex, Server-Dependency-Injection und Browser-/Android-Suche müssen auf dem tatsächlichen Nextcloud-System geprüft werden. Die PHP-Prüfungen ersetzen diesen Integrationstest nicht.
-
-Vor dem Gesamtlauf: 100 reale Bilder verschiedener Typen testen, Qualität manuell prüfen, Laufzeit/VRAM/Controllerlast und zusätzlichen Indexplatz messen. Danach Tagespaket und Laufzeitbudget festlegen. Originaldateien bleiben in allen vorgesehenen Stufen nur lesbar.
+Historischer Test mit künstlichen Bildern: [Live-GPU-Pilot](docs/LIVE_PILOT.md).

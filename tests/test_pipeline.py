@@ -260,6 +260,16 @@ class HTTPTests(unittest.TestCase):
         self.assertTrue(body['messages'][0]['content'][1]['image_url']['url'].startswith('data:image/jpeg;base64,'))
         self.assertEqual(self.calls[-1][2]['Authorization'], 'Bearer test-only')
         self.assertNotIn('tools', body)
+    def test_unlimited_output_does_not_send_token_or_reasoning_limit(self):
+        model = p.Model({'url': self.url+'/v1', 'model': 'test-model', 'max_tokens': 0}, 'vision')
+        model.analyze(b'x', 'image/jpeg')
+        body = self.calls[-1][3]
+        for key in ('max_tokens', 'max_completion_tokens', 'reasoning_effort', 'thinking_budget'):
+            self.assertNotIn(key, body)
+        self.assertEqual(body['messages'][0]['content'][0]['text'], p.VISION_PROMPT)
+    def test_explicit_optional_output_limit_is_sent(self):
+        p.Model({'url': self.url+'/v1', 'model': 'test-model', 'max_tokens': 2000}, 'vision').analyze(b'x', 'image/jpeg')
+        self.assertEqual(self.calls[-1][3]['max_tokens'], 2000)
     def test_truncated_response_rejected(self):
         type(self).finish_reason = 'length'
         with self.assertRaises(p.PipelineError):

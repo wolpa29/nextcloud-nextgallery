@@ -11,21 +11,22 @@ use OCP\AppFramework\OCS\OCSException;
 use OCA\MediaAI\Service\{Settings,Inventory,Metadata};
 class WorkerController extends Controller {
     public function __construct(IRequest $request, private Settings $settings, private Inventory $inventory, private Metadata $metadata) { parent::__construct('media_ai', $request); }
-    private function authorize(): void {
-        if (!$this->settings->verifyWorker($this->request->getHeader('Authorization'))) { throw new OCSException('Worker authentication required', 401); }
+    private function denied(): ?DataResponse {
+        if (!$this->settings->verifyWorker($this->request->getHeader('Authorization'))) { return new DataResponse(['error'=>'Worker authentication required'],401); }
+        return null;
     }
     #[PublicPage] #[NoCSRFRequired]
-    public function config(): DataResponse { $this->authorize(); return new DataResponse($this->settings->workerConfig()); }
+    public function config(): DataResponse { if ($denied = $this->denied()) { return $denied; } $response = new DataResponse($this->settings->workerConfig()); $response->addHeader('Cache-Control','no-store'); return $response; }
     #[PublicPage] #[NoCSRFRequired]
-    public function inventory(int $cursor = 0): DataResponse { $this->authorize(); return new DataResponse($this->inventory->page($cursor)); }
+    public function inventory(int $cursor = 0): DataResponse { if ($denied = $this->denied()) { return $denied; } return new DataResponse($this->inventory->page($cursor)); }
     #[PublicPage] #[NoCSRFRequired]
     public function resolve(int $file_id): DataResponse {
-        $this->authorize(); $file = $this->inventory->allowedFile($file_id);
+        if ($denied = $this->denied()) { return $denied; } $file = $this->inventory->allowedFile($file_id);
         return new DataResponse(['file_id'=>$file->getId(), 'etag'=>$file->getEtag(), 'size'=>$file->getSize()]);
     }
     #[PublicPage] #[NoCSRFRequired]
-    public function image(int $file_id, string $etag): DataDownloadResponse {
-        $this->authorize(); $file = $this->inventory->allowedFile($file_id);
+    public function image(int $file_id, string $etag): DataDownloadResponse|DataResponse {
+        if ($denied = $this->denied()) { return $denied; } $file = $this->inventory->allowedFile($file_id);
         if (!hash_equals($file->getEtag(), $etag)) { throw new OCSException('Image changed', 409); }
         $maximum = $this->settings->get()['max_download_bytes'];
         if ($file->getSize() > $maximum) { throw new OCSException('Image exceeds download limit', 413); }
@@ -39,8 +40,14 @@ class WorkerController extends Controller {
         return $response;
     }
     #[PublicPage] #[NoCSRFRequired]
+    public function reset(): DataResponse {
+        if($denied=$this->denied())return $denied;
+        $this->metadata->reset($this->settings->get()['user_id']);
+        return new DataResponse(['reset'=>true]);
+    }
+    #[PublicPage] #[NoCSRFRequired]
     public function publish(int $file_id, string $etag, string $sha256, string $revision, array $metadata, array $exif = []): DataResponse {
-        $this->authorize(); $data = Metadata::validate($file_id,$etag,$sha256,$revision,$metadata,$exif);
+        if ($denied = $this->denied()) { return $denied; } $data = Metadata::validate($file_id,$etag,$sha256,$revision,$metadata,$exif);
         $file = $this->inventory->allowedFile($file_id);
         if (!hash_equals($file->getEtag(),$etag)) { throw new OCSException('Image changed',409); }
         $this->metadata->upsert($this->settings->get()['user_id'],$data);

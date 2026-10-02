@@ -21,12 +21,13 @@ class State {
     }
     public function control(): array { return $this->read('control.json', ['paused' => true, 'requested' => false]); }
     public function setControl(string $action): array {
-        if (!in_array($action, ['start','pause','resume','retry'], true)) { throw new OCSBadRequestException('Unbekannte Aktion'); }
+        if (!in_array($action, ['start','pause','resume','retry','reset'], true)) { throw new OCSBadRequestException('Unbekannte Aktion'); }
         $lock = fopen($this->directory() . '/control.lock', 'c');
         if (!$lock || !flock($lock, LOCK_EX)) { throw new \RuntimeException('Steuerung ist gesperrt'); }
         try {
             $value = $this->control();
-            if ($action === 'pause') { $value['paused'] = true; }
+            if ($action === 'reset') { $value['paused']=true; $value['requested']=false; $value['reset_requested']=true; $value['reset_request_id']=bin2hex(random_bytes(12)); }
+            elseif ($action === 'pause') { $value['paused'] = true; }
             else { $value['paused'] = false; $value['requested'] = true; $value['request_id'] = bin2hex(random_bytes(12)); }
             if ($action === 'retry') { $value['retry_errors'] = true; }
             $value['updated_at'] = time();
@@ -46,6 +47,11 @@ class State {
         $value['online'] = isset($value['heartbeat_at']) && time() - (float)$value['heartbeat_at'] < 20;
         $value['control'] = $this->control();
         return $value;
+    }
+    public function clearLogs(): int {
+        $count=0;
+        foreach(glob($this->directory().'/logs/????-??-??.jsonl') ?: [] as $path) { if(is_file($path) && !is_link($path) && unlink($path))$count++; }
+        return $count;
     }
     public function logs(string $date, int $cursor = 0): array {
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/D', $date) || $cursor < 0) { throw new OCSBadRequestException('Log-Auswahl ungültig'); }

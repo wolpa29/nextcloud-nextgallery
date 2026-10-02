@@ -11,7 +11,9 @@ app_path=$(runuser -u www-data -- php "$nc_root/occ" app:getpath media_ai)
 state_path=$(runuser -u www-data -- php "$nc_root/occ" config:system:get datadirectory)/.media_ai
 [[ -f "$app_path/worker/app_worker.py" && "$state_path" == /* && "$state_path" != /\.media_ai && ! -L "$state_path" ]]
 # Nextcloud CLI creates private bootstrap and an encrypted worker token.
-runuser -u www-data -- php "$nc_root/occ" media-ai:setup --url "$nc_url" ${ca_file:+--ca-file "$ca_file"}
+setup_options=(--url "$nc_url")
+if [[ -n "$ca_file" ]]; then setup_options+=(--ca-file "$ca_file"); fi
+runuser -u www-data -- php "$nc_root/occ" media-ai:setup "${setup_options[@]}"
 python3 -m venv /opt/nextcloud-media-ai-venv
 /opt/nextcloud-media-ai-venv/bin/pip install -r "$app_path/worker/requirements.txt"
 cat > /etc/systemd/system/nextcloud-media-ai.service <<EOF

@@ -38,9 +38,12 @@ class Metadata {
         foreach ($columns as $column) { if (!in_array($column, ['user_id', 'file_id'], true)) { $updates[] = "`$column`=VALUES(`$column`)"; } }
         $this->db->executeStatement($sql . implode(',', $updates), array_values($data));
     }
+    public function reset(string $uid): void {
+        $this->db->executeStatement('DELETE FROM `*PREFIX*media_ai_meta` WHERE user_id=?',[$uid]);
+    }
     public function get(string $uid, int $fileId): ?array {
         $result=$this->db->executeQuery('SELECT etag,metadata_json,updated_at FROM `*PREFIX*media_ai_meta` WHERE user_id=? AND file_id=?',[$uid,$fileId]);
-        try { $row=$result->fetchAssociative(); return $row ?: null; } finally { $result->closeCursor(); }
+        try { $row=$result->fetch(); return $row ?: null; } finally { $result->closeCursor(); }
     }
     public function search(string $uid, string $term, int $cursor, int $limit): array {
         preg_match_all('/[\p{L}\p{N}_]+/u', $term, $matches);
@@ -48,6 +51,6 @@ class Metadata {
         if (!$words) { return []; }
         $query = implode(' ', array_map(fn($word) => '+' . $word . '*', $words));
         $result = $this->db->executeQuery('SELECT id,file_id,etag,description,ocr_text FROM `*PREFIX*media_ai_meta` WHERE user_id=? AND id>? AND MATCH(description,ocr_text,tags_text,objects_text) AGAINST (? IN BOOLEAN MODE) ORDER BY id LIMIT ' . min(50, max(1, $limit)), [$uid, $cursor, $query]);
-        try { return $result->fetchAllAssociative(); } finally { $result->closeCursor(); }
+        try { return $result->fetchAll(); } finally { $result->closeCursor(); }
     }
 }

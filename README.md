@@ -1,6 +1,17 @@
 # Nextcloud: private OCR- und Bildsuche
 
-**Stand: lokales Grundgerüst mit erfolgreichem Live-GPU-Pilot. Nextcloud-App noch nicht installiert.**
+**Stand 0.2.6: integrierte App und Python-Worker auf Nextcloud 32 installiert.**
+
+Die App enthält den Worker und eine Oberfläche für Ordnerauswahl, Zeitplan,
+Start/Pause, DE/EN, Ergebnisse und Wartung. Installation und Bedienung:
+[Integrierte App](docs/APP_WORKER.md). Die folgenden CLI-Abschnitte beschreiben
+zusätzlich den eigenständig ausführbaren Controller.
+
+`max_tokens: 0` bedeutet **kein Ausgabe-Tokenlimit durch die Pipeline**;
+`max_tokens` wird dann in der API-Anfrage weggelassen. Reasoning bleibt dem
+Modell überlassen. Nur die finale Bildbeschreibung soll kurz ausfallen;
+OCR transkribiert vollständig. Kontextfenster und etwaige serverseitige
+Ausgabegrenzen bleiben Einstellungen des Modellservers.
 
 ```text
 Bilder in Nextcloud (nur lesen)
@@ -43,11 +54,11 @@ Der Controller braucht **keinen direkten Zugang zur MariaDB**. Er meldet sich mi
 
 ## Umfang und Grenzen dieses Grundgerüsts
 
-**Bilder**: JPEG/PNG/WebP/TIFF/BMP/GIF/HEIF/HEIC/AVIF, soweit die installierten Bilddecoder sie öffnen können. HEIF/HEIC wird über `pillow-heif` ergänzt. Animationen: erstes Bild. Dateilimit 64 MiB, Pixellimit 80 Megapixel, größere/defekte Dateien werden als Fehler erfasst. Keine Videos, PDF-Dateien, Office-Dokumente, Gesichtsnamen, Ähnlichkeitssuche oder Vektor-/Embedding-Suche in Version 0.1.
+**Bilder**: JPEG/PNG/WebP/TIFF/BMP/GIF/HEIF/HEIC/AVIF, soweit die installierten Bilddecoder sie öffnen können. HEIF/HEIC wird über `pillow-heif` ergänzt. Animationen: erstes Bild. Dateilimit 64 MiB, Pixellimit 80 Megapixel, größere/defekte Dateien werden als Fehler erfasst. Keine Videos, PDF-Dateien, Office-Dokumente, Gesichtsnamen, Ähnlichkeitssuche oder Vektor-/Embedding-Suche in Version 0.2.
 
 Die Nextcloud-App ist für **Nextcloud 32 mit MariaDB/MySQL** vorbereitet. Ihre globale Suche kombiniert Wörter in OCR, Beschreibungen und Suchbegriffen. MariaDB-Stopwörter, Tokenisierung und Mindestwortlänge gelten; der Provider nimmt Wörter ab drei Zeichen auf. Es handelt sich noch nicht um semantische Freitextsuche. Die Android-App muss den eigenen Suchanbieter unterstützen; die Einbindung wird zunächst in der Browser-Suche geprüft. Die normale Dateinamen-Suche wird nicht automatisch erweitert.
 
-## Controller vorbereiten (noch nicht ausgeführt)
+## Eigenständigen Controller vorbereiten
 
 Python **3.10 oder neuer**, SQLite mit FTS5, Internet für die einmalige Installation der Bibliotheken. Die privaten Bilder gehen danach nur an deine konfigurierten Server.
 
@@ -105,7 +116,7 @@ Die Laufzeitgrenze wird zwischen Dateien geprüft; eine bereits laufende Anfrage
 
 ## Modellplanung und Quellen
 
-Qwen3.8-27B unterstützt Bildverarbeitung laut [offizieller Modellkarte](https://huggingface.co/Qwen/Qwen3.8-27B). Ein geeigneter quantisierter Vision-Build für die RTX 3090 ist ein **zu testender Kandidat**, keine bereits validierte Hardware-Konfiguration. 27B in FP16 passt nicht allein in 24 GB VRAM. Gewichte, Vision-Encoder und KV-Cache müssen zusammen passen; maximale Kontextlänge nicht unnötig hoch einstellen. Die tatsächliche VRAM-Größe deiner RTX 3060 wird vor der Verteilung geprüft. Reasoning/Thinking im gewählten Server ausschalten bzw. konfigurieren, damit die OCR-Stufe ausschließlich Text und die Vision-Stufe das erwartete JSON liefert. Der Controller verwirft abgeschnittene oder ungültige Antworten.
+Qwen3.8-27B unterstützt Bildverarbeitung laut [offizieller Modellkarte](https://huggingface.co/Qwen/Qwen3.8-27B). Ein geeigneter quantisierter Vision-Build für die RTX 3090 ist ein **zu testender Kandidat**, keine bereits validierte Hardware-Konfiguration. 27B in FP16 passt nicht allein in 24 GB VRAM. Gewichte, Vision-Encoder und KV-Cache müssen zusammen passen; maximale Kontextlänge nicht unnötig hoch einstellen. Die tatsächliche VRAM-Größe deiner RTX 3060 wird vor der Verteilung geprüft. Reasoning wird nicht durch die Pipeline beschränkt oder abgeschaltet. Die finale OCR-Antwort muss ausschließlich Text und die Vision-Antwort das erwartete JSON liefern. Der Controller verwirft abgeschnittene oder ungültige Antworten.
 
 Weitere Primärquellen: [LM Studio Chat Completions mit Bildern](https://lmstudio.ai/docs/developer/openai-compat/chat-completions), [PaddleOCR-VL-1.6](https://huggingface.co/PaddlePaddle/PaddleOCR-VL-1.6), [Nextcloud 32 Suchanbieter](https://docs.nextcloud.com/server/32/developer_manual/digging_deeper/search.html), [Nextcloud OCS-Authentifizierung](https://docs.nextcloud.com/server/32/developer_manual/client_apis/OCS/ocs-api-overview.html).
 
@@ -119,4 +130,4 @@ Der Pilot erzeugt ausschließlich künstliche Testbilder (Rechnung, Chat-Ansicht
 .venv/bin/python scripts/live_pilot.py --output /tmp/media-ai-live-pilot-neu
 ```
 
-Konkrete Prüfergebnisse: `VALIDATION.md` und `docs/LIVE_PILOT.md`. Der kleine Live-Pilot validiert API-Anbindung und Verarbeitung dieser Testbilder; repräsentative Foto-Qualität, HEIC/AVIF, Gesamtdurchsatz, tatsächliche App-Migration und echte Nextcloud-Suche bleiben noch zu prüfen. Live-State, echte Konfiguration, Zertifikate und Schlüssel werden nicht ins Git-Repository aufgenommen.
+Konkrete Prüfergebnisse: `VALIDATION.md` und `docs/LIVE_PILOT.md`. Der kleine Live-Pilot validiert API-Anbindung und Verarbeitung dieser Testbilder; die Qualitätsprüfung der 45 Juni-Bilder wird separat dokumentiert. HEIC/AVIF mit echten Dateien, Gesamtdurchsatz und Android-Suchanbieter-Unterstützung bleiben gesondert zu prüfen. Live-State, echte Konfiguration, Zertifikate und Schlüssel werden nicht ins Git-Repository aufgenommen.

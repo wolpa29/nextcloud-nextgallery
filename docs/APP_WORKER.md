@@ -7,24 +7,38 @@ Vision-Endpunkt (hier LM Studio). Dort wird kein Nextcloud-Plugin installiert.
 
 ## Bedienung
 
-- Apps: **Media AI search**, App-ID `media_ai`.
+- Apps: **Media AI**, App-ID `media_ai`.
 - Administration → **Media AI**: Status, Einstellungen, täglicher Start,
   Ordner/Ausschlüsse, getrennte Vision-/OCR-Endpunkte, Modelle, Prompts,
   Größen-/Zeit-/Token-Grenzen und API-Keys.
 - Start/Pause/Fortsetzen/Fehler erneut versuchen. Pause greift zwischen Dateien.
 - Tageslogs: Datei, Stufe, Dauer, Cache-Treffer und Fehler; ältere Einträge
-  paginiert und Filter nach Fehlern. Keine API-Keys oder vollständigen OCR-Texte
-  im Aktivitätslog.
+  paginiert. Standardansicht: Dateien und Ergebnisse; sämtliche Stufen bleiben
+  unter „Alle Ereignisse“ sichtbar. Nur abgeschlossene Dateien erhalten einen
+  Ergebnisbereich, der Beschreibung/OCR bei Bedarf aus der eigenen Tabelle
+  nachlädt. Keine API-Keys oder vollständigen OCR-Texte in JSONL-Logs.
 - In Dateien: Details-Seitenleiste → **Media AI** für Beschreibung, OCR,
   Suchbegriffe, unsichere Angaben und vollständige gespeicherte Metadaten.
-- In der globalen Nextcloud-Suche: Suchanbieter **Media AI**.
+- In der globalen Nextcloud-Suche: Suchanbieter **Bildinhalt und OCR**.
 
 Standardmäßig sind tägliche Verarbeitung deaktiviert und der Worker pausiert.
-Speichern ändert die Konfiguration für den nächsten Lauf. Ein manueller Start
+Während einer aktiven Analyse wird Speichern abgewiesen; zuerst pausieren und die aktuelle Datei beenden lassen. Ein manueller Start
 arbeitet maximal `limit` Dateien und bis zur Zeitgrenze; eine angefangene Datei
 wird fertiggestellt. Eine Wiederaufnahme ist ein neuer begrenzter Lauf.
 Ist der GPU-Endpunkt nicht verfügbar, startet keine Bildanalyse; ein neuer
 manueller Lauf oder der nächste tägliche Lauf versucht es erneut.
+
+Die konfigurierte Person kann eigene Ordner, Ausschlüsse, Laufgrenzen und
+Zeitplan verwalten. Modellserver, Prompts, API-Keys und Zielbenutzer ändern nur
+Nextcloud-Administratoren. Der Sprachschalter ist pro Benutzer gespeichert und
+ändert nur die Oberfläche. Analysesprache bleibt Deutsch, OCR Originalsprache;
+ein Sprachwechsel startet keine erneute Analyse.
+
+Unter Wartung können pausiert die Aktivitätslogs geleert oder sämtliche eigenen
+KI-Ergebnisse und der SQLite-Analysecache zurückgesetzt werden. Beide Aktionen
+benötigen eine ausdrückliche Bestätigung im Dialog; Originale und andere
+Nextcloud-Tabellen sind nicht Teil des Resets. Der KI-Reset benötigt den Worker
+online, läuft zwischen Analysen und bleibt bei Fehlern als Anforderung erhalten.
 
 ## Speicherorte und Zugriff
 
@@ -51,6 +65,10 @@ verknüpft sie mit Nextcloud Unified Search.
 OCR ist momentan ein eigener zweiter Modellaufruf, kein installiertes
 Tesseract. Vision und OCR können verschiedene kompatible Modelle verwenden.
 Modelländerungen oder Promptänderungen invalidieren die entsprechende Stufe.
+Ausgabe-Tokens: `0` lässt den Parameter vollständig weg. Die App setzt weder
+Reasoning-Effort noch Thinking-Budget. Der Standardprompt begrenzt nur die finale
+Beschreibung auf 2–4 Sätze; OCR wird nicht gekürzt. Eine Zeitgrenze pro Anfrage
+bleibt für Verbindungsprobleme konfigurierbar (15–7200 Sekunden).
 Die Resultate bleiben KI-Ausgaben: Erkennung kann falsch sein; unsichere Details
 sind separat gespeichert, keine automatischen Verschiebungen oder Löschungen.
 
@@ -78,3 +96,15 @@ Zum Anhalten den App-Pause-Knopf oder `systemctl stop nextcloud-media-ai`
 verwenden; Cache/Metadaten werden nicht gelöscht. Datenbank-Backup niemals
 pauschal in eine laufende Instanz zurückspielen: es würde neuere Benutzerdaten
 zurücksetzen. Bei App-Problemen zuerst Dienst stoppen/App deaktivieren.
+
+## Wie die Suche arbeitet
+
+MariaDB erstellt einen gemeinsamen FULLTEXT-Index über `description`,
+`ocr_text`, `tags_text` und `objects_text`. Der Provider zerlegt die Eingabe in
+bis zu 16 Wörter ab drei Zeichen und fragt im Boolean Mode `+Wort*` ab:
+alle Wörter müssen beim selben Bild vorkommen, Wortanfänge sind erlaubt.
+Die Suche liest gespeicherte Analysen, startet keine Modellanfrage und arbeitet
+auch bei ausgeschaltetem GPU-PC. Synonyme, Tippfehler, beliebige Teilwörter und
+semantische Ähnlichkeit sind nicht implementiert. MariaDB-Stopwörter gelten.
+Dateizugriff und ETag werden vor Anzeige erneut geprüft. Treffer verlinken auf
+den nativen Nextcloud-Dateilink `/f/{fileid}`.

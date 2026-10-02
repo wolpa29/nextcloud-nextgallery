@@ -10,10 +10,11 @@ use OCP\Search\SearchResultEntry;
 use OCP\AppFramework\OCS\OCSNotFoundException;
 use OCA\MediaAI\Service\Files;
 use OCA\MediaAI\Service\Metadata;
+use OCA\MediaAI\Service\Preferences;
 class Provider implements IProvider {
-    public function __construct(private Metadata $metadata, private Files $files, private IURLGenerator $urls) {}
+    public function __construct(private Metadata $metadata, private Files $files, private IURLGenerator $urls, private ?Preferences $preferences = null) {}
     public function getId(): string { return 'media_ai'; }
-    public function getName(): string { return 'Bildinhalt und OCR'; }
+    public function getName(): string { return $this->preferences?->language()==='en'?'Image content and OCR':'Bildinhalt und OCR'; }
     public function getOrder(string $route, array $routeParameters): int { return 20; }
     public function search(IUser $user, ISearchQuery $query): SearchResult {
         $cursor = max(0, (int)$query->getCursor());
@@ -27,7 +28,7 @@ class Provider implements IProvider {
             // Old/deleted/inaccessible versions never appear, even before the next daily run.
             if (!hash_equals($file->getEtag(), $row['etag'])) { continue; }
             $path = $this->files->relativePath($user->getUID(), $file);
-            $url = $this->urls->linkToRoute('files.view.index', ['dir' => dirname($path), 'scrollto' => $file->getName()]);
+            $url = $this->urls->linkToRoute('files.View.showFile', ['fileid' => $file->getId()]);
             $snippet = mb_substr($row['description'] . ' · ' . $row['ocr_text'], 0, 600);
             $entries[] = new SearchResultEntry('', $file->getName(), $snippet, $url, 'icon-image');
         }
