@@ -94,6 +94,37 @@ class PipelineTests(unittest.TestCase):
         row = self.store.db.execute('SELECT * FROM files').fetchone()
         self.assertEqual(row['sha256'], hashlib.sha256(self.source.data).hexdigest())
         self.assertEqual(json.loads(row['exif'])['camera_make'], 'Testkamera')
+    def test_repetition_is_error_not_cached_published_or_searchable_and_can_retry(self):
+        publisher = Publisher()
+        original = self.models['ocr'].analyze
+        self.models['ocr'].analyze = lambda data, mime: {'text': '[unlesbar]\n' * 100, 'source': 'ocr_model'}
+        result = self.run_pipeline(publisher=publisher)
+        self.assertEqual(result['errors'], 1)
+        self.assertEqual(result['processed'], 0)
+        self.assertEqual(self.store.stats(), {'error': 1})
+        self.assertEqual(publisher.sent, [])
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM results WHERE stage='ocr'").fetchone()[0], 0)
+        self.assertEqual(self.store.search('Fahrrad'), [])
+        self.models['ocr'].analyze = original
+        self.store.db.execute("UPDATE files SET retry_at=0 WHERE status='error'")
+        self.store.db.commit()
+        self.assertEqual(self.run_pipeline(publisher=publisher)['processed'], 1)
+        self.assertEqual(len(publisher.sent), 1)
+        self.assertEqual(self.models['vision'].calls, 1)
+    def test_invalid_legacy_cached_loop_is_removed_before_manual_retry(self):
+        hash_ = hashlib.sha256(self.source.data).hexdigest()
+        self.store.cache(hash_, 'ocr', self.models['ocr'].revision, {'text': '[unlesbar]\n' * 100})
+        self.assertEqual(self.run_pipeline()['errors'], 1)
+        self.assertIsNone(self.store.cached(hash_, 'ocr', self.models['ocr'].revision))
+        self.store.db.execute("UPDATE files SET retry_at=0")
+        self.store.db.commit()
+        self.assertEqual(self.run_pipeline()['processed'], 1)
+    def test_repetition_detector_handles_inline_loops_and_allows_receipts(self):
+        for text in ('[unlesbar] ' * 100, 'Hier steht immer derselbe Satz. ' * 50):
+            with self.assertRaises(p.PipelineError): p.assert_no_repetition(text, 'OCR')
+        receipt = '\n'.join(f'Artikel {n}\n0,00 EUR' for n in range(60))
+        p.assert_no_repetition(receipt, 'OCR')
+        p.assert_no_repetition('[unlesbar]\nDatum 1.6\n[unlesbar]', 'OCR')
     def test_unchanged_file_skips_download_and_inference(self):
         self.run_pipeline()
         self.run_pipeline()

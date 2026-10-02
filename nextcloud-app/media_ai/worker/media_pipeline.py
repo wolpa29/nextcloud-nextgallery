@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+from collections import Counter
 import contextlib
 import gzip
 import hashlib
@@ -273,6 +274,25 @@ def prepare_image(data, max_edge, max_pixels, stage):
         return buffer.getvalue(), mime, exif
 
 
+def assert_no_repetition(text, label):
+    """Reject dominant repetition loops; preserve legitimate repeated text."""
+    lines = [" ".join(line.casefold().split()) for line in text.splitlines() if line.strip()]
+    if len(lines) >= 20:
+        count = Counter(lines).most_common(1)[0][1]
+        if count >= 20 and count / len(lines) >= 0.8:
+            raise PipelineError(f"Wiederholungsschleife in {label} erkannt ({count} gleiche Zeilen). Bitte erneut versuchen.")
+    tokens = re.findall(r"\w+|[^\w\s]", text.casefold())
+    if len(tokens) < 40:
+        return
+    for period in range(1, min(16, len(tokens) // 20) + 1):
+        equal_run = 0
+        for index in range(period, len(tokens)):
+            equal_run = equal_run + 1 if tokens[index] == tokens[index-period] else 0
+            covered = equal_run + period
+            if equal_run and covered >= period * 20 and covered >= len(tokens) * 0.8:
+                raise PipelineError(f"Wiederholungsschleife in {label} erkannt (dominanter wiederholter Textblock). Bitte erneut versuchen.")
+
+
 def validate_vision(value):
     expected = {"type", "description", "tags", "objects", "uncertain_details"}
     if not isinstance(value, dict) or set(value) != expected or not isinstance(value['type'], str) or value["type"] not in KINDS:
@@ -282,6 +302,9 @@ def validate_vision(value):
     for field in ("tags", "objects", "uncertain_details"):
         if not isinstance(value[field], list) or len(value[field]) > 64 or any(not isinstance(x, str) or len(x) > 500 for x in value[field]):
             raise PipelineError(f"Invalid metadata field: {field}")
+    assert_no_repetition(value["description"], "Bildbeschreibung")
+    for field in ("tags", "objects", "uncertain_details"):
+        assert_no_repetition("\n".join(value[field]), "Bildanalyse")
     return value
 
 
@@ -349,6 +372,7 @@ class Model:
         if not isinstance(content, str) or not content.strip():
             raise PipelineError("Model returned no final text result")
         if self.stage == "ocr":
+            assert_no_repetition(content, "OCR")
             return {"text": "" if content.strip() == "<NO_TEXT>" else content, "source": "ocr_model"}
         return validate_vision(json.loads(content))
 
@@ -565,8 +589,17 @@ def run(config, store, source, models, limit=100, max_seconds=3600, preprocess=p
                     was_cached = result is not None
                     if result is None:
                         result = model.analyze(resized, mime)
+                        if stage == "ocr": assert_no_repetition(result["text"], "OCR")
+                        else: validate_vision(result)
                         store.cache(hash_, stage, model.revision, result)
                     else:
+                        try:
+                            if stage == "ocr": assert_no_repetition(result["text"], "OCR")
+                            else: validate_vision(result)
+                        except PipelineError:
+                            with store.db:
+                                store.db.execute("DELETE FROM results WHERE sha256=? AND stage=? AND revision=?", (hash_, stage, model.revision))
+                            raise
                         cache_hits += 1
                     observe("stage_finished", path=item.path, file_id=item.locator, stage=stage, seconds=round(time.monotonic()-stage_start,3), cached=was_cached, usage={} if was_cached else getattr(model, "usage", {}))
                     metadata[stage] = result

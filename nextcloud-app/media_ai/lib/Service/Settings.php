@@ -15,11 +15,11 @@ class Settings {
             'max_image_pixels' => 80000000,
             'vision' => ['url' => 'http://10.1.10.78:1234/v1', 'model' => 'qwen/qwen3.8-27b',
                 'model_revision' => 'qwen3.8-27b-Q4_K_M-20261002', 'max_edge' => 2048,
-                'max_tokens' => 0, 'timeout_seconds' => 300, 'temperature' => 0.2,
+                'max_tokens' => 0, 'timeout_seconds' => 7200, 'temperature' => 0.2,
                 'allow_reasoning_json' => true, 'prompt' => ''],
             'ocr' => ['url' => 'http://10.1.10.78:1234/v1', 'model' => 'qwen/qwen3.8-27b',
                 'model_revision' => 'qwen3.8-27b-Q4_K_M-20261002', 'max_edge' => 4096,
-                'max_tokens' => 0, 'timeout_seconds' => 300, 'temperature' => 0.0, 'prompt' => '']];
+                'max_tokens' => 0, 'timeout_seconds' => 7200, 'temperature' => 0.0, 'prompt' => '']];
     }
     public function get(): array {
         $saved = json_decode($this->config->getAppValue('media_ai', 'settings', '{}'), true, 64, JSON_THROW_ON_ERROR);

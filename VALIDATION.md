@@ -1,10 +1,10 @@
 # Validierung – 2026-10-02
 
-**App 0.2.7 (UI/Suchkorrekturen aus 0.2.8) auf Nextcloud 32.0.5 installiert und aktiviert; eigener Worker als www-data aktiv.**
+**App 0.2.9 auf Nextcloud 32.0.5 installiert und aktiviert; eigener Worker als www-data aktiv.**
 
 | Prüfung | Ergebnis |
 | --- | --- |
-| Python 3.13.7 | 42 Tests erfolgreich, letzter Lauf 0,701 s |
+| Python 3.13.7 | 45 Tests erfolgreich, letzter Lauf 0,747 s |
 | PHP 8.3 in isoliertem Nextcloud-32-Container | 89 Assertions: Admin/Owner 21, Metadaten/Suche 23, Sprache 6, Einstellungen 20, Worker-Auth 19 |
 | Alle PHP-Dateien | Syntaxprüfung erfolgreich |
 | JavaScript | Alle drei App-Skripte mit `node --check` geprüft |
@@ -49,3 +49,11 @@ Responsive Regeln sind vorhanden; eine Handyansicht gilt erst bei tatsächlich
 verifiziertem schmalem Browser-Viewport als geprüft.
 
 Historischer Test mit künstlichen Bildern: [Live-GPU-Pilot](docs/LIVE_PILOT.md).
+
+Der echte 28.872-Zeichen-OCR-Fehler mit 2.624 Wiederholungen von
+`[unlesbar]` wird von der neuen Prüfung ausdrücklich abgewiesen.
+Regressionstests bestätigen: Dateifehler, kein OCR-Cache/Suchtreffer/Publishing,
+normaler Kassenzettel erlaubt, manuelle Wiederholung verarbeitet erneut und
+verwendet die erfolgreiche Vision-Stufe weiter. Nutzer hat in LM Studio
+Reasoning auf Medium gesetzt und einen zweiten vollständigen eigenen
+KI-/Log-Reset mit frischem Juni-Lauf angefordert.

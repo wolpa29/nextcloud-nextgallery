@@ -1,4 +1,4 @@
-# Integrierte App (0.2.8)
+# Integrierte App (0.2.9)
 
 Die Nextcloud-App enthält den Python-Worker. Er läuft als eigener systemd-Dienst
 mit niedriger CPU-/IO-Priorität, unabhängig von PHP-FPM und Nextcloud-Cron.
@@ -112,3 +112,22 @@ auch bei ausgeschaltetem GPU-PC. Synonyme, Tippfehler, beliebige Teilwörter und
 semantische Ähnlichkeit sind nicht implementiert. MariaDB-Stopwörter gelten.
 Dateizugriff und ETag werden vor Anzeige erneut geprüft. Treffer verlinken auf
 den nativen Nextcloud-Dateilink `/f/{fileid}`.
+
+## Fehler durch Wiederholungen
+
+Fertige OCR-Texte und Bildbeschreibungen werden vor Cache/Publikation auf
+offensichtliche dominante Schleifen geprüft: mindestens 20 gleiche Zeilen
+mit mindestens 80 Prozent Anteil, oder ein kurzer Textblock mit mindestens
+20 Wiederholungen und mindestens 80 Prozent Anteil. Vereinzelte unlesbare
+Stellen und normale wiederkehrende Beträge auf Belegen werden zugelassen.
+Die Prüfung kürzt keinen Text und beschränkt kein Reasoning. Sie ist eine
+konservative Heuristik, keine Garantie gegen sämtliche Modellfehler.
+
+Bei Erkennung bleibt die Datei im Status Fehler; der fehlerhafte Stufentext
+wird weder gecacht noch als Suche publiziert. Der Button „Fehler erneut
+versuchen“ hebt die Wartezeit auf und wiederholt die fehlgeschlagene Stufe.
+Eine bereits erfolgreiche Bildanalyse kann dabei aus dem Cache kommen.
+Ungültige ältere Cache-Einträge werden verworfen, damit ein Retry tatsächlich
+eine neue Modellanfrage auslösen kann. Im Aktivitätslog steht die Ursache
+ohne den wiederholten privaten Text. Die Erkennung prüft die fertige Antwort;
+es handelt sich nicht um einen Abbruch während des Reasonings.
