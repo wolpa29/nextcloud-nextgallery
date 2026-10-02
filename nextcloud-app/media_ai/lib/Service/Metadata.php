@@ -38,6 +38,10 @@ class Metadata {
         foreach ($columns as $column) { if (!in_array($column, ['user_id', 'file_id'], true)) { $updates[] = "`$column`=VALUES(`$column`)"; } }
         $this->db->executeStatement($sql . implode(',', $updates), array_values($data));
     }
+    public function get(string $uid, int $fileId): ?array {
+        $result=$this->db->executeQuery('SELECT etag,metadata_json,updated_at FROM `*PREFIX*media_ai_meta` WHERE user_id=? AND file_id=?',[$uid,$fileId]);
+        try { $row=$result->fetchAssociative(); return $row ?: null; } finally { $result->closeCursor(); }
+    }
     public function search(string $uid, string $term, int $cursor, int $limit): array {
         preg_match_all('/[\p{L}\p{N}_]+/u', $term, $matches);
         $words = array_slice(array_filter($matches[0], fn($word) => mb_strlen($word) >= 3), 0, 16);

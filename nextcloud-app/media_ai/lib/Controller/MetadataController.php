@@ -27,6 +27,15 @@ class MetadataController extends OCSController {
     }
     #[NoAdminRequired]
     #[NoCSRFRequired]
+    public function show(int $file_id): DataResponse {
+        $uid=$this->uid(); $file=$this->files->byId($uid,$file_id);
+        $row=$this->metadata->get($uid,$file_id);
+        if (!$row) { return new DataResponse(['available'=>false]); }
+        if (!hash_equals($file->getEtag(),$row['etag'])) { return new DataResponse(['available'=>false,'stale'=>true]); }
+        return new DataResponse(['available'=>true,'updated_at'=>$row['updated_at'],'metadata'=>json_decode($row['metadata_json'],true,64,JSON_THROW_ON_ERROR)]);
+    }
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function upsert(int $file_id, string $etag, string $sha256, string $revision, array $metadata, array $exif = []): DataResponse {
         // A browser form cannot set this custom header; authentication is still required.
         if ($this->request->getHeader('OCS-APIRequest') !== 'true') { throw new OCSException('OCS API header required', 403); }

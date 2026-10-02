@@ -26,4 +26,5 @@ jobs:
           docker run --rm --network none -v "$PWD:/work:ro" php:8.2-cli sh -ec '
             for file in $(find /work/nextcloud-app -name "*.php"); do php -l "$file"; done
             php /work/tests/php_contract.php
+            php /work/tests/php_settings.php
           '

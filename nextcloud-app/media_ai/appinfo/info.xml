@@ -3,7 +3,10 @@
   <id>media_ai</id><name>Media AI search</name>
   <summary>Private OCR and image descriptions in unified search</summary>
   <description>Stores externally generated image analysis in its own tables. Originals and existing application metadata are preserved.</description>
-  <version>0.1.0</version><licence>agpl</licence>
+  <version>0.2.0</version><licence>agpl</licence>
   <author>Paul</author><namespace>MediaAI</namespace><category>search</category>
+  <settings><admin>OCA\MediaAI\Settings\Admin</admin><admin-section>OCA\MediaAI\Settings\Section</admin-section></settings>
+  <commands><command>OCA\MediaAI\Command\Setup</command></commands>
+  <navigations><navigation><name>Media AI</name><route>media_ai.page.index</route><order>80</order></navigation></navigations>
   <dependencies><php min-version="8.2"/><database>mysql</database><nextcloud min-version="32" max-version="32"/></dependencies>
 </info>
