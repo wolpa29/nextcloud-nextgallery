@@ -67,6 +67,18 @@ class WorkerTests(unittest.TestCase):
             store=p.Store(directory/'native.sqlite3');self.assertEqual(store.stats(),{});self.assertEqual(store.db.execute('SELECT COUNT(*) FROM results').fetchone()[0],0);store.db.close()
             self.assertEqual(original.read_bytes(),b'unchanged');self.assertEqual(api.endpoint,'reset');self.assertFalse(w.read(directory/'control.json',{})['reset_requested'])
 
+    def test_stream_progress_updates_current_without_flooding_logs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            reporter=w.Reporter(Path(directory))
+            try:
+                reporter.event('inference_attempt_start',path='a.jpg',file_id='1',stage='ocr',attempt=2,total_attempts=4)
+                reporter.event('inference_progress',path='a.jpg',file_id='1',stage='ocr',attempt=2,total_attempts=4,reasoning_chars=12000,content_chars=0)
+                self.assertEqual(reporter.value['current']['attempt'],2)
+                self.assertEqual(reporter.value['current']['reasoning_chars'],12000)
+                logs=list(Path(directory).joinpath('logs').glob('*.jsonl'))
+                self.assertEqual(len(logs),1);self.assertEqual(len(logs[0].read_text().splitlines()),1)
+            finally:reporter.close()
+
     def test_bootstrap_refuses_http_and_url_credentials(self):
         for url in ['http://10.1.10.186','https://secret@10.1.10.186','https://10.1.10.186?token=x']:
             with self.assertRaises(p.PipelineError):w.API({'url':url,'token':'x'})

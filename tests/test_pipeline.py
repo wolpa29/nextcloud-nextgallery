@@ -338,7 +338,7 @@ class HTTPTests(unittest.TestCase):
         with self.assertRaises(p.PipelineError):
             p.Model({'url': self.url+'/v1', 'model': 'test-model'}, 'vision').analyze(b'x', 'image/jpeg')
     def test_ocr_preserves_literal_text(self):
-        type(self).model_content = 'Rechnung\n123 €'
+        type(self).model_content = json.dumps({'text': 'Rechnung\n123 €'})
         result = p.Model({'url': self.url+'/v1', 'model': 'test-model'}, 'ocr').analyze(b'x', 'image/png')
         self.assertEqual(result['text'], 'Rechnung\n123 €')
     def test_redirects_and_oversized_responses_rejected(self):

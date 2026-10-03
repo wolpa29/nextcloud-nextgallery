@@ -16,10 +16,13 @@ class Settings {
             'vision' => ['url' => 'http://10.1.10.78:1234/v1', 'model' => 'qwen/qwen3.8-27b',
                 'model_revision' => 'qwen3.8-27b-Q4_K_M-20261002', 'max_edge' => 2048,
                 'max_tokens' => 0, 'timeout_seconds' => 7200, 'temperature' => 0.2,
-                'allow_reasoning_json' => true, 'prompt' => ''],
+                'allow_reasoning_json' => true, 'prompt' => '', 'stream' => true,
+                'loop_repetitions' => 5, 'numeric_loop_repetitions' => 40, 'loop_retries' => 3, 'retry_temperature' => 1.0, 'retry_prompt' => ''],
             'ocr' => ['url' => 'http://10.1.10.78:1234/v1', 'model' => 'qwen/qwen3.8-27b',
                 'model_revision' => 'qwen3.8-27b-Q4_K_M-20261002', 'max_edge' => 4096,
-                'max_tokens' => 0, 'timeout_seconds' => 7200, 'temperature' => 0.0, 'prompt' => '']];
+                'max_tokens' => 0, 'timeout_seconds' => 7200, 'temperature' => 1.0, 'prompt' => '',
+                'allow_reasoning_json' => true, 'stream' => true, 'loop_repetitions' => 5,
+                'numeric_loop_repetitions' => 40, 'loop_retries' => 3, 'retry_temperature' => 1.0, 'retry_prompt' => '']];
     }
     public function get(): array {
         $saved = json_decode($this->config->getAppValue('media_ai', 'settings', '{}'), true, 64, JSON_THROW_ON_ERROR);
@@ -94,20 +97,31 @@ class Settings {
         $secrets = [];
         foreach (['vision','ocr'] as $stage) {
             $data = $value[$stage] ?? [];
+            if (!is_array($data)) { throw new OCSBadRequestException('Modell-Einstellungen ungültig'); }
             $result[$stage]['url'] = self::endpoint($data['url'] ?? '');
-            foreach (['model','model_revision','prompt'] as $key) {
+            foreach (['model','model_revision','prompt','retry_prompt'] as $key) {
                 $text = $data[$key] ?? '';
-                if (!is_string($text) || strlen($text) > ($key === 'prompt' ? 20000 : 500)
-                    || ($key !== 'prompt' && trim($text) === '')) { throw new OCSBadRequestException("Ungültige Einstellung: $stage/$key"); }
+                if (!is_string($text) || strlen($text) > (str_ends_with($key, 'prompt') ? 20000 : 500)
+                    || (!str_ends_with($key, 'prompt') && trim($text) === '')) { throw new OCSBadRequestException("Ungültige Einstellung: $stage/$key"); }
                 $result[$stage][$key] = $text;
             }
             foreach (['max_edge' => [256,8192], 'max_tokens' => [0,32768], 'timeout_seconds' => [15,7200]] as $key => [$min,$max]) {
                 $result[$stage][$key] = $this->integer($data[$key] ?? null, $min, $max, "$stage/$key");
             }
+            foreach (['loop_repetitions' => [3,20], 'numeric_loop_repetitions' => [20,200], 'loop_retries' => [0,3]] as $key => [$min,$max]) {
+                $result[$stage][$key] = $this->integer((array_key_exists($key,$data) ? $data[$key] : $result[$stage][$key]), $min, $max, "$stage/$key");
+            }
+            foreach (['stream','allow_reasoning_json'] as $key) {
+                $flag = array_key_exists($key,$data) ? $data[$key] : $result[$stage][$key];
+                if (!is_bool($flag)) { throw new OCSBadRequestException("Ungültige Einstellung: $stage/$key"); }
+                $result[$stage][$key] = $flag;
+            }
             $temperature = $data['temperature'] ?? null;
             if (!is_numeric($temperature) || $temperature < 0 || $temperature > 2) { throw new OCSBadRequestException('Temperatur ungültig'); }
             $result[$stage]['temperature'] = (float)$temperature;
-            if ($stage === 'vision') { $result[$stage]['allow_reasoning_json'] = (bool)($data['allow_reasoning_json'] ?? false); }
+            $retryTemperature = $data['retry_temperature'] ?? $result[$stage]['retry_temperature'];
+            if (!is_numeric($retryTemperature) || $retryTemperature < 0 || $retryTemperature > 2) { throw new OCSBadRequestException('Korrektur-Temperatur ungültig'); }
+            $result[$stage]['retry_temperature'] = (float)$retryTemperature;
             $secret = $data['api_key'] ?? '';
             if (!is_string($secret) || strlen($secret) > 4096 || str_contains($secret, "\n") || str_contains($secret, "\r")) { throw new OCSBadRequestException('API-Key ungültig'); }
             if ($secret !== '' || !empty($data['clear_api_key'])) { $secrets[$stage . '_api_key'] = $secret; }

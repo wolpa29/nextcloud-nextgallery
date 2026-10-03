@@ -1,4 +1,46 @@
-# Validierung – 2026-10-02
+# Validierung – 2026-10-03, App 0.3.0
+
+**0.3.0 auf der echten Nextcloud 32.0.5 installiert; eigener Worker aktiv.**
+
+| Neue Prüfung | Ergebnis |
+| --- | --- |
+| Python | 64 Tests erfolgreich, inklusive echter SSE-Testserver |
+| PHP 8.2 | 177 Assertions: Admin/Owner 29, Metadaten/Suche 23, Sprache 6, Einstellungen 100, Worker-Auth 19 |
+| Syntax | Alle PHP-Dateien und drei JavaScript-Dateien gültig |
+| Streaming-Abbruch | Langsamer HTTP-Testserver beobachtet geschlossenen Client deutlich vor Ende der Schleife |
+| Retry-Grenze | Vier Gesamtversuche, keine Vermischung mit folgendem Bild |
+| Formatfehler | Fehlendes/trunkiertes JSON, doppelte/zusätzliche Schlüssel, Tool-Aufrufe, finish_reason=length und fehlendes DONE abgewiesen |
+| Leere OCR | Nur vollständiges {"text":""} bei regulärem Abschluss als leeres Ergebnis akzeptiert |
+| Fehler ohne Publikation | Defekte OCR nicht gecacht, nicht veröffentlicht, nicht im lokalen Suchindex; Vision-Cache beim Retry nutzbar |
+| Korrigierter Erfolg | Veröffentlichung einmalig; unveränderter Kontrolllauf ohne weitere Inferenz |
+| Grenzen / Berechtigungen | Falsche Typen, ungültige Grenzwerte und mehr als drei Korrekturen ohne Schreibeffekt abgewiesen; Owner kann Modellparameter nicht überschreiben |
+| Live-Status | Fortschritt ohne zusätzliche Logzeilen; Versuch und empfangene Zeichen sichtbar |
+| Reale Vorproben | Alle sechs zuvor betroffenen Bilder liefern mit JSON/Kompatibilitätsschalter grundsätzlich parsebare Antworten; einzelne Antworten weiter inhaltlich falsch |
+| Reale Schleifen | Wiederholungen nach 4–22 s abgebrochen; erfolgreiche Korrekturen und vier erfolglose Versuche tatsächlich beobachtet |
+| Versionswechsel | App-/State-Backup geschützt und lesbar; occ upgrade erfolgreich, Worker aktiv |
+| Originale vor neuem Lauf | Alle 45 Juni-Dateien anhand SHA256 und ETag unverändert, eigene KI-Datenbank bereits vor Update leer |
+| Browser DE/EN | Neue Felder und Beschriftungen sichtbar, richtige Grenzen/Owner-Sperre; Desktop 1754 × 991 ohne äußeren Überlauf |
+| Frischer vollständiger Juni-Lauf | Gestartet; Ergebnis folgt nach Abschluss |
+
+Die aktuelle LM-Studio-/Qwen-Kombination legt schema-valides JSON in
+reasoning_content ab. Nur das vollständige Objekt nach regulärem Ende wird
+über den ausdrücklich sichtbaren Kompatibilitätsschalter akzeptiert. Der
+Worker setzt weiterhin kein Ausgabe-/Thinking-Budget bei max_tokens=0 und
+keinen Reasoning-Effort. Die gesamte Konversation wird pro Bild neu erstellt.
+Die initiale OCR-Temperatur wurde für den neuen Test auf 1,0 gestellt, passend
+zur offiziellen Qwen-Empfehlung und nach Vergleich mit 0,0/0,2 an Problemfällen;
+Vision bleibt 0,2. Das garantiert keine richtige Transkription.
+
+Der Vorprobentest entdeckte zusätzlich eine Schleife mit ständig wechselndem
+letzten Wort. Sie wird jetzt über ähnliche Zeilen mit langem gemeinsamem
+Satzanfang erkannt; ein echter vorher durchgekommener Text wurde damit
+nachträglich abgewiesen. Diese Vorproben haben keine Suchdaten veröffentlicht.
+Ein einzelner längerer Diagnoseversuch wurde für die verbesserte Instrumentierung
+unterbrochen; das war ausschließlich der temporäre Testprozess.
+
+---
+
+## Vorheriges Protokoll – 2026-10-02
 
 **App 0.2.11 auf Nextcloud 32.0.5 installiert und aktiviert; eigener Worker als www-data aktiv.**
 

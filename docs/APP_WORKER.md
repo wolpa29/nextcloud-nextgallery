@@ -1,4 +1,4 @@
-# Integrierte App (0.2.11)
+# Integrierte App (0.3.0)
 
 Die Nextcloud-App enthält den Python-Worker. Er läuft als eigener systemd-Dienst
 mit niedriger CPU-/IO-Priorität, unabhängig von PHP-FPM und Nextcloud-Cron.
@@ -67,7 +67,7 @@ Tesseract. Vision und OCR können verschiedene kompatible Modelle verwenden.
 Modelländerungen oder Promptänderungen invalidieren die entsprechende Stufe.
 Ausgabe-Tokens: `0` lässt den Parameter vollständig weg. Die App setzt weder
 Reasoning-Effort noch Thinking-Budget. Der Standardprompt begrenzt nur die finale
-Beschreibung auf 2–4 Sätze; OCR wird nicht gekürzt. Eine Zeitgrenze pro Anfrage
+Beschreibung auf 1–2 Sätze und die unterschiedlichen Suchbegriffe in tags/objects auf zusammen 20; OCR wird nicht gekürzt. Eine Wartezeitgrenze ohne Netzwerkdaten pro Anfrage
 bleibt für Verbindungsprobleme konfigurierbar (15–7200 Sekunden).
 Die Temperatur ist modellabhängig: Qwen empfiehlt für Qwen3.8 im Thinking-Modus
 1,0 mit top_p=0,95 und top_k=20. Die bisherigen Testwerte Vision 0,2 / OCR 0,0
@@ -119,24 +119,60 @@ semantische Ähnlichkeit sind nicht implementiert. MariaDB-Stopwörter gelten.
 Dateizugriff und ETag werden vor Anzeige erneut geprüft. Treffer verlinken auf
 den nativen Nextcloud-Dateilink `/f/{fileid}`.
 
-## Fehler durch Wiederholungen
+## JSON, Streaming und Korrekturen
 
-Fertige OCR-Texte und Bildbeschreibungen werden vor Cache/Publikation auf
-offensichtliche dominante Schleifen geprüft: mindestens 20 gleiche Zeilen
-mit mindestens 80 Prozent Anteil, oder ein kurzer Textblock mit mindestens
-20 Wiederholungen und mindestens 80 Prozent Anteil. Auch mindestens 40
-fortlaufende alphanumerische Labels gleicher Form (etwa JUSB1 bis JUSB1000)
-werden als verdächtige Zahlen-Schleife abgewiesen. Normale nummerierte
-Schritte mit unterschiedlichem Text fallen nicht unter diese Regel. Vereinzelte unlesbare
-Stellen und normale wiederkehrende Beträge auf Belegen werden zugelassen.
-Die Prüfung kürzt keinen Text und beschränkt kein Reasoning. Sie ist eine
-konservative Heuristik, keine Garantie gegen sämtliche Modellfehler.
+Beide Stufen verlangen `response_format: json_schema` mit `strict: true`.
+Vision liefert Typ, kurze Beschreibung, Tags, Objekte und Erkennungsgrenzen.
+OCR liefert genau `{"text":"..."}`. Nur `{"text":""}` bedeutet bei regulärem
+Abschluss sicher eine leere Modellausgabe; ein leeres Antwortfeld, fehlende
+Schlüssel, zusätzliche/duplizierte Schlüssel, ungültiges JSON, Tool-Aufrufe,
+`finish_reason != stop` oder ein Stream ohne `[DONE]` gelten als Fehler.
+Das prüft das Antwortformat, nicht die sachliche Richtigkeit der Erkennung.
 
-Bei Erkennung bleibt die Datei im Status Fehler; der fehlerhafte Stufentext
-wird weder gecacht noch als Suche publiziert. Der Button „Fehler erneut
-versuchen“ hebt die Wartezeit auf und wiederholt die fehlgeschlagene Stufe.
-Eine bereits erfolgreiche Bildanalyse kann dabei aus dem Cache kommen.
-Ungültige ältere Cache-Einträge werden verworfen, damit ein Retry tatsächlich
-eine neue Modellanfrage auslösen kann. Im Aktivitätslog steht die Ursache
-ohne den wiederholten privaten Text. Die Erkennung prüft die fertige Antwort;
-es handelt sich nicht um einen Abbruch während des Reasonings.
+Die derzeitige Qwen-/LM-Studio-Kombination legt das vollständige JSON teilweise
+in `reasoning_content` ab, obwohl die offizielle Schnittstelle `content`
+vorsieht. Der explizite Schalter „schema-valides JSON aus Reasoning-Feld erlauben“
+ist deshalb in beiden Stufen aktiviert. Er akzeptiert ausschließlich das ganze,
+schema-valide Objekt nach regulärem Ende; weder beliebige Gedanken noch ein
+JSON-Fragment aus einem langen Reasoning werden herausgeschnitten.
+[LM-Studio-Dokumentation](https://lmstudio.ai/docs/developer/openai-compat/structured-output).
+
+Streaming prüft Reasoning und Antwort getrennt über beliebige Fragmentgrenzen.
+Standard: Abbruch bei 5 aufeinanderfolgenden gleichen Textblöcken bis 256 Tokens,
+auch bei kurzen Wörtern; verkettete Wörter ohne Trennzeichen und ähnliche Zeilen
+mit langem, gleichbleibendem Satzanfang werden ebenfalls erkannt. Zahlenreihen
+wie JUSB1…JUSB1000 haben einen eigenen konservativen Grenzwert von 40. Normale
+nummerierte Anweisungen mit verschiedenen Inhalten und kurze echte Anschluss-
+beschriftungen werden durch Regressionstests abgesichert. Die Erkennung ist
+eine Heuristik: wiederholt gedruckter Bildtext kann einen Fehlalarm auslösen,
+inhaltliche Halluzinationen ohne Wiederholung können durchkommen.
+
+Bei Erkennung wird die HTTP-Stream-Verbindung geschlossen. Ein neuer Versuch
+enthält dasselbe Bild, eine kurze Assistant-Fehlernotiz und den Korrektur-Prompt;
+das riesige fehlerhafte Reasoning wird nicht erneut mitgesendet. Maximal drei
+Korrekturen ergeben vier Gesamtversuche je Stufe. Jede neue Datei beginnt mit
+einem frischen Chat. Standardtemperatur bei Korrekturen: 1,0; ein anderer Wert
+ist konfigurierbar. Es werden kein Reasoning-Effort und kein Thinking-Budget
+gesendet. `max_tokens=0` lässt den Ausgabeparameter weiterhin vollständig weg.
+
+Pro Stufe stehen Streaming, Textblock-Grenzwert (3–20), Zahlenreihen-Grenzwert
+(20–200), Korrekturen (0–3), Korrektur-Temperatur (0–2) und Korrektur-Prompt in
+den Modelleinstellungen. Änderungen benötigen Administratorrechte. Ohne
+Streaming erfolgt die Prüfung erst nach Eingang der vollständigen Antwort.
+Modellkonfiguration und Prompts sind Bestandteil des Stufen-Fingerprints;
+Änderungen lösen für diese Stufe eine neue Analyse aus.
+
+Das Aktivitätslog zeigt Versuch/Gesamtzahl, Temperatur, Dauer, Schleifenart,
+Reasoning/Antwort und ob eine Korrektur angefordert wurde. Erfolgreich korrigierte
+Dateien tragen die Zahl der Korrekturen. Der Standardfilter und „Nur Fehler“
+zeigen verworfene Versuche auch dann, wenn die Datei später erfolgreich wird.
+Start/Ende jeder einzelnen Inferenz sind unter „Alle Ereignisse“ sichtbar.
+Alle 15 Sekunden wird bei langen Streams nur der Live-Status aktualisiert,
+mit Anzahl empfangener Zeichen; das erzeugt keine zusätzlichen Logzeilen.
+Vollständige Reasoning-Texte, Bilddaten und Keys stehen nicht im Aktivitätslog.
+
+Nach erfolglosen Korrekturen bleibt die Datei im Status Fehler; die fehlerhafte
+Stufe wird weder gecacht noch publiziert. „Fehler erneut versuchen“ hebt die
+Wartezeit auf. Bereits erfolgreiche Stufen bleiben im Cache. Ganze Dateien
+werden erst nach erfolgreicher Vision und OCR und erneut bestätigtem ETag
+in Nextcloud gespeichert. Originaldateien werden nur gelesen.

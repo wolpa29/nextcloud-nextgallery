@@ -95,6 +95,9 @@ class Reporter:
         with self.lock:
             self.value.update(fields); self.value['heartbeat_at']=time.time(); atomic(self.directory/'status.json',self.value)
     def event(self,event,**fields):
+        if event == 'inference_progress':
+            self.update(current={k:fields[k] for k in ['path','file_id','stage','attempt','total_attempts','reasoning_chars','content_chars']})
+            return  # Live progress is status, not an additional activity-log row.
         now=datetime.now(ZoneInfo(self.timezone))
         row={'time':now.isoformat(timespec='seconds'),'run_id':self.run_id,'event':event,'level':fields.pop('level','info'),**fields}
         path=self.directory/'logs'/ (now.strftime('%Y-%m-%d')+'.jsonl')
@@ -102,6 +105,7 @@ class Reporter:
         changes={}
         if 'stats' in fields: changes['stats']=fields['stats']
         if event in {'file_start','stage_start'}: changes['current']={k:fields[k] for k in ['path','file_id','stage']}; changes['stage_started_at']=time.time()
+        if event == 'inference_attempt_start': changes['current']={k:fields[k] for k in ['path','file_id','stage','attempt','total_attempts']}
         if event in {'file_finished','file_error'}: changes['current']=None
         if changes: self.update(**changes)
     def close(self):
