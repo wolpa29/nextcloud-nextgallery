@@ -12,6 +12,7 @@ $count=0;function check($value){global $count;$count++;if(!$value)throw new \Exc
 function reject(callable $f){try{$f();}catch(\OCP\AppFramework\OCS\OCSBadRequestException $e){check(true);return;}throw new \Exception('Unexpected acceptance');}
 $c=new Config();$s=new \OCA\MediaAI\Service\Settings($c,new Crypto());
 check(!$s->verifyWorker('Bearer '));$token=$s->workerToken();check($s->verifyWorker('Bearer '.$token));check(!$s->verifyWorker('Bearer wrong'));
+foreach(['vision','ocr'] as $stage)check($s->defaults()[$stage]['max_edge']===2048);
 $v=$s->defaults();$v['vision']['api_key']='secret-test';$s->save($v);check(!str_contains(json_encode($s->publicConfig()),'secret-test'));check($s->workerConfig()['vision']['api_key']==='secret-test');
 $v['vision']['api_key']='';$s->save($v);check($s->workerConfig()['vision']['api_key']==='secret-test');
 $bad=$v;$bad['folders']=['/Camera/../secret'];reject(fn()=>$s->save($bad));$bad=$v;$bad['vision']['url']='https://user:secret@example.test';reject(fn()=>$s->save($bad));$bad=$v;$bad['image_timeout_seconds']=-1;reject(fn()=>$s->save($bad));$bad=$v;$bad['vision']['api_key']="x\nheader";reject(fn()=>$s->save($bad));

@@ -31,7 +31,7 @@
     "model": "qwen/qwen3.8-27b",
     "model_revision": "qwen3.8-27b-Q4_K_M-20261002",
     "api_key_env": "MEDIA_AI_API_KEY",
-    "max_edge": 4096,
+    "max_edge": 2048,
     "max_tokens": 0,
     "timeout_seconds": 7200,
     "temperature": 1.0,

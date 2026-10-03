@@ -1,6 +1,6 @@
 # Nextcloud: private OCR- und Bildsuche
 
-**Stand 0.3.4: integrierte App und Python-Worker auf Nextcloud 32 installiert.**
+**Stand 0.3.5: integrierte App und Python-Worker auf Nextcloud 32 installiert.**
 
 Die App enthält den Worker und eine Oberfläche für Ordnerauswahl, Zeitplan,
 Start/Pause, DE/EN, Ergebnisse und Wartung. Installation und Bedienung:
@@ -59,7 +59,7 @@ Der Controller braucht **keinen direkten Zugang zur MariaDB**. Er meldet sich mi
 
 ## Umfang und Grenzen dieses Grundgerüsts
 
-**Bilder**: JPEG/PNG/WebP/TIFF/BMP/GIF/HEIF/HEIC/AVIF, soweit die installierten Bilddecoder sie öffnen können. HEIF/HEIC wird über `pillow-heif` ergänzt. Animationen: erstes Bild. Dateilimit 64 MiB, Pixellimit 80 Megapixel, größere/defekte Dateien werden als Fehler erfasst. Keine Videos, PDF-Dateien, Office-Dokumente, Gesichtsnamen, Ähnlichkeitssuche oder Vektor-/Embedding-Suche in Version 0.3.
+**Bilder**: JPEG/PNG/WebP/TIFF/BMP/GIF/HEIF/HEIC/AVIF, soweit die installierten Bilddecoder sie öffnen können. HEIF/HEIC wird über `pillow-heif` ergänzt. Animationen: erstes Bild. Für das aktuelle LM-Studio-Setup werden Vision und OCR vor dem Versand auf höchstens 2048 Pixel an der längsten Kante verkleinert (quadratisch höchstens 4,194 MP; 4:3 höchstens 3,146 MP). EXIF-Drehung vor der Verkleinerung, vollständiger Bildrahmen, keine Vergrößerung. Gesendete Auflösung/Pixelzahl, Format, Bytezahl und SHA256 stehen in der Analyseprovenienz; die Auflösung steht auch im Aktivitätslog. Separater Speicherschutz für Originale: 64 MiB und 80 Megapixel, größere/defekte Dateien werden als Fehler erfasst. Keine Videos, PDF-Dateien, Office-Dokumente, Gesichtsnamen, Ähnlichkeitssuche oder Vektor-/Embedding-Suche in Version 0.3.
 
 Die Nextcloud-App ist für **Nextcloud 32 mit MariaDB/MySQL** vorbereitet. Ihre globale Suche kombiniert Wörter in OCR, Beschreibungen und Suchbegriffen. MariaDB-Stopwörter, Tokenisierung und Mindestwortlänge gelten; der Provider nimmt Wörter ab drei Zeichen auf. Es handelt sich noch nicht um semantische Freitextsuche. Die Android-App muss den eigenen Suchanbieter unterstützen; die Einbindung wird zunächst in der Browser-Suche geprüft. Die normale Dateinamen-Suche wird nicht automatisch erweitert.
 

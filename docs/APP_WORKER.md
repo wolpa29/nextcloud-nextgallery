@@ -1,4 +1,4 @@
-# Integrierte App (0.3.4)
+# Integrierte App (0.3.5)
 
 Die Nextcloud-App enthält den Python-Worker. Er läuft als eigener systemd-Dienst
 mit niedriger CPU-/IO-Priorität, unabhängig von PHP-FPM und Nextcloud-Cron.
@@ -206,3 +206,11 @@ Stufe wird weder gecacht noch publiziert. „Fehler erneut versuchen“ hebt die
 Wartezeit auf. Bereits erfolgreiche Stufen bleiben im Cache. Ganze Dateien
 werden erst nach erfolgreicher Vision und OCR und erneut bestätigtem ETag
 in Nextcloud gespeichert. Originaldateien werden nur gelesen.
+
+## Bildauflösung und vollständiger Bildrahmen (0.3.5)
+
+Der Modellparameter `max_edge` begrenzt die längste Kante der **übertragenen Kopie**, keine Originaldatei. Vision/OCR starten mit 2048, passend zur am 03.10.2026 über das offizielle SDK ausgelesenen LM-Studio-Basiskonfiguration (`userMaxImageDimensionPixels=2048`, `ignoreModelPreferredMaxImageDimension=false`). Das sind bei einem Quadrat 4.194.304 Pixel, bei 4:3 2048×1536. Es handelt sich um die aktuell eingestellte Verarbeitung, nicht um eine universelle API-Annahme oder ein Hardwaremaximum. Höhere App-Werte können erneut im Backend verkleinert werden; bei Änderungen an LM Studio beide Stufen abgleichen.
+
+Die Vorverarbeitung dreht mit EXIF, erhält das Seitenverhältnis und passt den ganzen Rahmen ein. JPEG (Vision) / PNG (OCR) werden komplett als Base64 übertragen. Log und `provenance.images` dokumentieren Quellgröße, orientierte Größe, gesendete Größe, Pixelzahl, Bytezahl, Format, SHA256, Verkleinerung und `full_frame=true`. Das bestätigt den vollständigen Rahmen auf unserer Seite; die API meldet die intern vom Vision-Encoder verwendete Auflösung nicht zurück. Kleine Schrift und Details können bei Verkleinerung verloren gehen. Ein erfolgreicher Aufruf garantiert keine vollständige oder fehlerfreie inhaltliche Erkennung. Animationen bleiben auf das erste Bild beschränkt.
+
+`max_download_bytes` (64 MiB) und `max_image_pixels` (80 MP) sind davon unabhängige Lade-/Decoder-Speichergrenzen im aufklappbaren Bereich „Speichergrenzen für Originaldateien“. Größere Dateien werden mit Fehler sichtbar übersprungen, statt den Container unkontrolliert zu belasten. Beim Wechsel der OCR-Bildkante von 4096 auf 2048 wird beim nächsten Start nur der betreffende OCR-Cache ungültig; passende Vision-Ergebnisse bleiben nutzbar. Vorhandene Metadaten bleiben bis zur vollständigen erfolgreichen neuen Analyse gespeichert.

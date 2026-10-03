@@ -225,6 +225,56 @@ class PipelineTests(unittest.TestCase):
                 self.assertLessEqual(max(img.size), 32)
             self.assertEqual(exif['camera_make'], 'Testkamera')
         self.assertEqual(original, self.source.data)
+    def test_full_frame_landscape_portrait_panorama_and_small_image(self):
+        from PIL import Image, ImageDraw
+        for size in ((4000,3000),(3000,4000),(6000,600),(50,30)):
+            original = Image.new('RGB',size,'white'); draw = ImageDraw.Draw(original)
+            w,h=size; side=min(w,h)//5
+            colors=[(255,0,0),(0,0,255),(0,128,0),(255,255,0)]
+            for (x,y),color in zip(((0,0),(w-side,0),(0,h-side),(w-side,h-side)),colors):
+                draw.rectangle((x,y,x+side-1,y+side-1),fill=color)
+            buffer=io.BytesIO();original.save(buffer,'PNG');data=buffer.getvalue();before=hashlib.sha256(data).hexdigest()
+            for stage in ('vision','ocr'):
+                report={};wire,mime,exif=p.prepare_image(data,2048,80_000_000,stage,report=report)
+                with Image.open(io.BytesIO(wire)) as sent:
+                    sent.load();sw,sh=sent.size
+                    self.assertLessEqual(max(sent.size),2048)
+                    self.assertLessEqual(sw,w);self.assertLessEqual(sh,h)
+                    self.assertAlmostEqual(sw/sh,w/h,delta=(w/h)/min(sw,sh))
+                    for pos,color in zip(((0,0),(sw-1,0),(0,sh-1),(sw-1,sh-1)),colors):
+                        self.assertLess(max(abs(a-b) for a,b in zip(sent.getpixel(pos),color)),15)
+                    self.assertEqual(report['sent_pixels'],sw*sh)
+                    self.assertEqual((report['sent_width'],report['sent_height']),sent.size)
+                    if size==(4000,3000):self.assertEqual(sent.size,(2048,1536))
+                    if size==(50,30):self.assertEqual(sent.size,size);self.assertFalse(report['resized'])
+                self.assertTrue(report['full_frame']);self.assertEqual(report['sha256'],hashlib.sha256(wire).hexdigest())
+                self.assertEqual(report['sent_bytes'],len(wire));self.assertEqual(report['mime'],mime)
+            self.assertEqual(hashlib.sha256(data).hexdigest(),before)
+    def test_exif_rotation_precedes_full_frame_resizing(self):
+        from PIL import Image
+        im=Image.new('RGB',(80,40),'red');exif=Image.Exif();exif[274]=6
+        buffer=io.BytesIO();im.save(buffer,'JPEG',exif=exif)
+        report={};wire,_,_=p.prepare_image(buffer.getvalue(),32,1_000_000,'ocr',report=report)
+        with Image.open(io.BytesIO(wire)) as sent:self.assertEqual(sent.size,(16,32));self.assertNotIn(274,sent.getexif())
+        self.assertEqual((report['source_width'],report['source_height']),(80,40))
+        self.assertEqual((report['oriented_width'],report['oriented_height']),(40,80))
+    def test_decode_guard_is_separate_from_model_resizing(self):
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            with self.assertRaisesRegex(p.PipelineError,'decode memory guard'):
+                p.prepare_image(self.source.data,32,5000,'ocr')
+        with self.assertRaisesRegex(p.PipelineError,'edge limit'):
+            p.prepare_image(self.source.data,0,1_000_000,'ocr')
+    def test_preparation_dimensions_are_in_provenance_and_file_log(self):
+        events=[];self.run_pipeline(observe=lambda event,**fields:events.append((event,fields)))
+        metadata=json.loads(self.store.db.execute('SELECT metadata FROM files').fetchone()[0])
+        images=metadata['provenance']['images']
+        self.assertEqual(images['ocr']['sent_width'],100);self.assertEqual(images['vision']['sent_height'],60)
+        finished=next(fields for event,fields in events if event=='file_finished')
+        self.assertEqual(finished['images'],images)
+        for event,fields in events:
+            if event=='stage_finished':self.assertTrue(fields['image']['full_frame'])
     def test_source_limits_reject_image(self):
         self.config['max_download_bytes'] = 50
         self.assertEqual(self.run_pipeline()['errors'], 1)
@@ -299,6 +349,15 @@ class HTTPTests(unittest.TestCase):
         self.assertTrue(body['messages'][0]['content'][1]['image_url']['url'].startswith('data:image/jpeg;base64,'))
         self.assertEqual(self.calls[-1][2]['Authorization'], 'Bearer test-only')
         self.assertNotIn('tools', body)
+    def test_prepared_image_is_transmitted_as_complete_identical_base64(self):
+        from PIL import Image
+        original=image_bytes();wire,mime,_=p.prepare_image(original,32,1_000_000,'ocr')
+        type(self).model_content=json.dumps({'text':''})
+        model=p.Model({'url':self.url+'/v1','model':'test-model'},'ocr');model.analyze(wire,mime)
+        url=self.calls[-1][3]['messages'][0]['content'][1]['image_url']['url']
+        prefix,encoded=url.split(',',1);self.assertEqual(prefix,'data:'+mime+';base64')
+        decoded=base64.b64decode(encoded,validate=True);self.assertEqual(decoded,wire)
+        with Image.open(io.BytesIO(decoded)) as sent:sent.load();self.assertEqual(sent.size,(32,19))
     def test_unlimited_output_does_not_send_token_or_reasoning_limit(self):
         model = p.Model({'url': self.url+'/v1', 'model': 'test-model', 'max_tokens': 0}, 'vision')
         model.analyze(b'x', 'image/jpeg')

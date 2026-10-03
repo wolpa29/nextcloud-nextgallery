@@ -16,10 +16,10 @@ script('media_ai','i18n'); script('media_ai','admin'); style('media_ai','admin')
    <div><button id="mai-pick-folders" type="button">Ordner auswählen</button><button id="mai-pick-excludes" type="button">Ausschlüsse auswählen</button></div>
    <label>Täglicher Start<input type="time" name="schedule_time" required></label><label>Zeitzone<input name="timezone" required></label>
    <label>Logs aufbewahren (Tage)<input type="number" name="log_days" min="1" max="365" required></label>
-   <label>Max. Dateigröße (Bytes)<input type="number" name="max_download_bytes" min="1048576" max="536870912" required></label><label>Max. Bildpixel<input type="number" name="max_image_pixels" min="1000000" max="200000000" required></label>
   </div><label class="mai-check"><input name="enabled" type="checkbox"> Täglichen Lauf aktivieren</label>
   <p class="mai-muted">Kein Datei- oder Gesamtzeitlimit: Unveränderte fertige Bilder werden übersprungen. Fortsetzen bearbeitet die restlichen Bilder.</p>
   <p class="mai-muted">Die Zeit pro Bild umfasst Download, Bildanalyse, OCR und Korrekturversuche zusammen. Bei Überschreitung wird ein Fehler protokolliert und das nächste Bild bearbeitet.</p>
+  <details><summary>Speichergrenzen für Originaldateien</summary><p class="mai-muted">Diese Grenzen schützen den Worker beim Laden und Decodieren. Sie bestimmen nicht die Auflösung für das Modell. Größere Originale werden als Fehler gemeldet.</p><div class="mai-grid"><label>Max. Originaldateigröße (Bytes)<input type="number" name="max_download_bytes" min="1048576" max="536870912" required></label><label>Max. Originalpixel beim Decodieren<input type="number" name="max_image_pixels" min="1000000" max="200000000" required></label></div></details>
   <p id="mai-permissions" class="mai-muted"></p><div id="mai-model-settings"></div>
   <div class="mai-actions"><button type="submit" class="primary">Speichern</button><button id="mai-test" type="button">Modelle prüfen</button></div><p id="mai-model-result"></p>
  </form></details>

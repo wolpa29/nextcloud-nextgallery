@@ -1,3 +1,15 @@
+# Ergänzung – 2026-10-03, App 0.3.5
+
+- Aktive LM-Studio-Konfiguration über offizielles SDK gelesen: Qwen3.8-27B/Q4_K_M, Qwen35-Architektur, Bildkante 2048, Modellpräferenz wird respektiert, Kontext 114810. Keine globale Änderung am GPU-Server.
+- Reale synthetische Eckmarkierungen: 2048², 4096² sowie 4096² mit ausschließlich für diese Anfrage gesetztem 4096-Kantenwert und deaktivierter bevorzugter Modellkante. Jeweils 4181 Prompttokens (Bild plus identischer kurzer Prompt), keine höhere Bildtokenzahl. Alle vier Ecken/Farben/Beschriftungen im Ergebnis bzw. Reasoning erfasst. Laufzeiten 9,441 / 10,428 / 13,006 s. Ein Tokenlimit von 256 ausschließlich in diesem synthetischen Protokolltest, Produktions-Reasoning/Antwortlimit unverändert bei 0. Daraus folgt kein universelles Hardware-/Uploadmaximum.
+- Vision/OCR in der installierten App auf 2048 längste Kante gesetzt. Anzeige errechnet 4,19 MP nur für quadratische Bilder. Original-Lade-/Decodergrenzen in separatem aufklappbarem Bereich. Seitenverhältnis, EXIF-Rotation und gesamter Rahmen erhalten; keine Vergrößerung. Neue Bildangaben in Provenienz und bestehenden Versuch-/Abschlusslogs, keine zusätzliche Start-/Ende-Logserie.
+- 78 Python-Tests erfolgreich: Quer-/Hochformat, Panorama, kleine Bilder, alle vier Randfarben, EXIF-Drehung, Quellhash unverändert, getrennte Decodergrenze, Bildangaben in Logs/Metadaten sowie vollständige byteidentische Base64-Übertragung über echten HTTP-Testserver.
+- 198 PHP-Assertions erfolgreich, PHP-/JavaScript-Syntax geprüft.
+- Isolierter Live-Pipeline-Test auf zwei echten Juni-Bildern: 56,974 s, 2 vollständig erfolgreich, alle vier Vision-/OCR-Versuche beim ersten Versuch abgeschlossen; nichts im produktiven Suchindex überschrieben. Je Bild 4000×3000 Quellpixel, per EXIF auf Hochformat gedreht und vollständig auf 1536×2048 (3.145.728 Pixel) verkleinert. Vision 7,257/5,978 s; OCR 7,822/35,720 s.
+- Live-UI: beide Felder zeigen 2048 und 4,19-MP-Hinweis, Speichergrenzen standardmäßig eingeklappt, Owner-Modellfelder bleiben schreibgeschützt, Ansicht ohne horizontalen Überlauf bei 1754×991. Keine Android-Geräteprüfung.
+- Installation 0.3.5 erfolgreich, Backup der vorherigen App und gespeicherten Einstellungen geschützt angelegt. Alle 45 Originalhashes/ETags unverändert, 45 alte Ergebnisse erhalten. Worker online/pausiert, tägliche Automation aus. Geänderte OCR-Bildkante wird beim nächsten bewussten Start neu analysiert; kein unbeauftragter Gesamtscan.
+- Das Backend meldet keine interne Encoderauflösung zurück. Übertragung des vollständigen Rahmens und Ende-zu-Ende-Ecktest ersetzen keine Garantie für die Erkennung jeder kleinen Schrift oder jedes Details.
+
 # Ergänzung – 2026-10-03, App 0.3.4
 
 - Standard- und Korrekturprompts stammen für Anzeige/Worker aus einer gemeinsamen JSON-Datei; bisherige Texte byte-identisch.

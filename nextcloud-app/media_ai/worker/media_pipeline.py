@@ -257,17 +257,19 @@ class WebDAVSource:
         return current == item.etag
 
 
-def prepare_image(data, max_edge, max_pixels, stage):
+def prepare_image(data, max_edge, max_pixels, stage, report=None):
     from PIL import Image, ImageOps
     try:
         import pillow_heif
         pillow_heif.register_heif_opener()
     except ImportError:
         pass
+    if not isinstance(max_edge, int) or max_edge < 1:
+        raise PipelineError("Invalid model image edge limit")
     Image.MAX_IMAGE_PIXELS = max_pixels
     with Image.open(io.BytesIO(data)) as original:
         if original.width * original.height > max_pixels:
-            raise PipelineError("Image exceeds configured pixel limit")
+            raise PipelineError("Source image exceeds decode memory guard; this is not the model image limit")
         original.seek(0)  # Animated images: first frame only in this pilot.
         raw_exif = original.getexif()
         exif = {name: str(raw_exif[tag]) for tag, name in [(271,"camera_make"),(272,"camera_model"),(306,"file_datetime")] if tag in raw_exif}
@@ -277,6 +279,8 @@ def prepare_image(data, max_edge, max_pixels, stage):
                 if tag in details:
                     exif[name] = str(details[tag])
         image = ImageOps.exif_transpose(original).convert("RGB")
+        oriented_size = image.size
+        # Fit the entire oriented frame. Never crop, stretch or upscale.
         image.thumbnail((max_edge, max_edge), Image.Resampling.LANCZOS)
         buffer = io.BytesIO()
         if stage == "ocr":
@@ -285,7 +289,14 @@ def prepare_image(data, max_edge, max_pixels, stage):
         else:
             image.save(buffer, format="JPEG", quality=90)
             mime = "image/jpeg"
-        return buffer.getvalue(), mime, exif
+        wire = buffer.getvalue()
+        if report is not None:
+            report.update(source_width=original.width, source_height=original.height,
+                oriented_width=oriented_size[0], oriented_height=oriented_size[1],
+                sent_width=image.width, sent_height=image.height, sent_pixels=image.width*image.height,
+                max_edge=max_edge, resized=image.size != oriented_size, full_frame=True,
+                frame_index=0, mime=mime, sent_bytes=len(wire), sha256=hashlib.sha256(wire).hexdigest())
+        return wire, mime, exif
 
 
 def assert_no_repetition(text, label, numeric_repetitions=40, repetitions=5):
@@ -705,15 +716,19 @@ def run(config, store, source, models, limit=100, max_seconds=3600, preprocess=p
                     for stage, model in models.items():
                         observe("stage_start", path=item.path, file_id=item.locator, stage=stage)
                         stage_start = time.monotonic()
+                        image_info = {}
                         if isinstance(model, Model):
                             def model_event(event, _item=item, _stage=stage, **fields):
                                 heartbeat()  # Renew the lease during healthy long reasoning/retries.
-                                observe(event, path=_item.path, file_id=_item.locator, stage=_stage, **fields)
+                                observe(event, path=_item.path, file_id=_item.locator, stage=_stage, image=dict(image_info), **fields)
                             model.observer = model_event
                         heartbeat()
                         current_stage = stage
                         check_budget()
-                        resized, mime, exif = preprocess(data, model.config.get("max_edge", 2048), config.get("max_image_pixels", 80_000_000), stage)
+                        preparation_args = (data, model.config.get("max_edge", 2048), config.get("max_image_pixels", 80_000_000), stage)
+                        resized, mime, exif = (preprocess(*preparation_args, report=image_info)
+                            if preprocess is prepare_image else preprocess(*preparation_args))
+                        metadata['provenance'].setdefault('images', {})[stage] = image_info
                         check_budget()
                         result = store.cached(hash_, stage, model.revision)
                         was_cached = result is not None
@@ -732,7 +747,7 @@ def run(config, store, source, models, limit=100, max_seconds=3600, preprocess=p
                                     store.db.execute("DELETE FROM results WHERE sha256=? AND stage=? AND revision=?", (hash_, stage, model.revision))
                                 raise
                             cache_hits += 1
-                        observe("stage_finished", path=item.path, file_id=item.locator, stage=stage, seconds=round(time.monotonic()-stage_start,3), cached=was_cached, usage={} if was_cached else getattr(model, "usage", {}))
+                        observe("stage_finished", path=item.path, file_id=item.locator, stage=stage, seconds=round(time.monotonic()-stage_start,3), cached=was_cached, image=image_info, usage={} if was_cached else getattr(model, "usage", {}))
                         metadata[stage] = result
                         metadata['provenance'].setdefault('output_channels', {})[stage] = (
                             'cache' if was_cached else getattr(model, 'output_channel', 'content'))
@@ -749,7 +764,8 @@ def run(config, store, source, models, limit=100, max_seconds=3600, preprocess=p
                 attempts = metadata['provenance'].get('inference_attempts', {})
                 observe("file_finished", path=item.path, file_id=item.locator, stats=store.stats(),
                     corrective_retries=sum(max(0,len(history)-1) for history in attempts.values()),
-                    detected_loops=sum(a['state']=='loop' for history in attempts.values() for a in history))
+                    detected_loops=sum(a['state']=='loop' for history in attempts.values() for a in history),
+                    images=metadata['provenance'].get('images', {}))
             except (ImageTimeout, PipelineError, OSError, ValueError, KeyError, TypeError) as error:
                 store.fail(item, error)
                 errors += 1

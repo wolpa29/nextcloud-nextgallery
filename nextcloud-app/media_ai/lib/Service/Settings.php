@@ -18,7 +18,7 @@ class Settings {
                 'allow_reasoning_json' => true, 'prompt' => '', 'stream' => true,
                 'loop_repetitions' => 5, 'numeric_loop_repetitions' => 40, 'loop_retries' => 3, 'retry_temperature' => 1.0, 'retry_prompt' => ''],
             'ocr' => ['url' => 'http://10.1.10.78:1234/v1', 'model' => 'qwen/qwen3.8-27b',
-                'model_revision' => 'qwen3.8-27b-Q4_K_M-20261002', 'max_edge' => 4096,
+                'model_revision' => 'qwen3.8-27b-Q4_K_M-20261002', 'max_edge' => 2048,
                 'max_tokens' => 0, 'timeout_seconds' => 7200, 'temperature' => 1.0, 'prompt' => '',
                 'allow_reasoning_json' => true, 'stream' => true, 'loop_repetitions' => 5,
                 'numeric_loop_repetitions' => 40, 'loop_retries' => 3, 'retry_temperature' => 1.0, 'retry_prompt' => '']];
