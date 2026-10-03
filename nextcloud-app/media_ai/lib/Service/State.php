@@ -20,12 +20,24 @@ class State {
         return is_array($value) ? $value : $fallback;
     }
     public function control(): array { return $this->read('control.json', ['paused' => true, 'requested' => false]); }
-    public function setControl(string $action): array {
+    public function setControl(string $action, bool $validate = false): array {
         if (!in_array($action, ['start','pause','resume','retry','reset'], true)) { throw new OCSBadRequestException('Unbekannte Aktion'); }
         $lock = fopen($this->directory() . '/control.lock', 'c');
         if (!$lock || !flock($lock, LOCK_EX)) { throw new \RuntimeException('Steuerung ist gesperrt'); }
         try {
             $value = $this->control();
+            if ($validate) {
+                $status=$this->status(); $running=($status['state']??'')==='running';
+                $waiting=!empty($value['requested']); $paused=!empty($value['paused']);
+                $allowed=$status['online'] && empty($value['reset_requested']) && match ($action) {
+                    'start' => !$running && !$waiting,
+                    'pause' => ($running || $waiting) && !$paused,
+                    'resume' => !$running && !$waiting && $paused && ($status['stats']['pending']??0)>0,
+                    'retry' => !$running && !$waiting && ($status['stats']['error']??0)>0,
+                    default => false,
+                };
+                if (!$allowed) { throw new OCSBadRequestException('Diese Aktion ist im aktuellen Zustand nicht verfügbar.'); }
+            }
             if ($action === 'reset') { $value['paused']=true; $value['requested']=false; $value['reset_requested']=true; $value['reset_request_id']=bin2hex(random_bytes(12)); }
             elseif ($action === 'pause') { $value['paused'] = true; }
             else { $value['paused'] = false; $value['requested'] = true; $value['request_id'] = bin2hex(random_bytes(12)); }

@@ -38,4 +38,17 @@ jobs:
             php /work/tests/php_model_connection.php
             php /work/tests/php_admin.php
             php /work/tests/php_preferences.php
+            php /work/tests/php_library.php
           '
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build:files
+      - run: git diff --exit-code -- nextcloud-app/media_ai/js/files-status.js
+      - run: node --check nextcloud-app/media_ai/js/admin.js && node --check nextcloud-app/media_ai/js/workspace.js && node --check nextcloud-app/media_ai/js/i18n.js

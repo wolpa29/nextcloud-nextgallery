@@ -50,6 +50,12 @@ class Metadata {
         $result=$this->db->executeQuery('SELECT etag,metadata_json,updated_at FROM `*PREFIX*media_ai_meta` WHERE user_id=? AND file_id=?',[$uid,$fileId]);
         try { $row=$result->fetch(); return $row ?: null; } finally { $result->closeCursor(); }
     }
+    public function statuses(string $uid, array $ids): array {
+        if (!$ids) { return []; }
+        $result=$this->db->executeQuery('SELECT file_id,etag,updated_at FROM `*PREFIX*media_ai_meta` WHERE user_id=? AND file_id IN ('.implode(',',array_fill(0,count($ids),'?')).')',array_merge([$uid],$ids));
+        try { $rows=$result->fetchAll(); } finally { $result->closeCursor(); }
+        $indexed=[]; foreach($rows as $row) { $indexed[(int)$row['file_id']]=$row; } return $indexed;
+    }
     public function search(string $uid, string $term, int $cursor, int $limit): array {
         preg_match_all('/[\p{L}\p{N}_]+/u', $term, $matches);
         $words = array_slice(array_filter($matches[0], fn($word) => mb_strlen($word) >= 3), 0, 16);

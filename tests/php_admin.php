@@ -19,7 +19,7 @@ class Probe extends \OCA\MediaAI\Service\ModelConnection {public int $calls=0;pu
 class Request implements \OCP\IRequest {}
 $checks=0;function check($v){global $checks;$checks++;if(!$v)throw new \Exception('Assertion '.$checks.' failed');}
 $c=new Config();$settings=new \OCA\MediaAI\Service\Settings($c,new Crypto());$session=new Session();$probe=new Probe();$controller=new \OCA\MediaAI\Controller\AdminController(new Request(),$settings,new \OCA\MediaAI\Service\State($c),$session,new Groups(),new Root(),null,null,$probe);
-foreach([fn()=>$controller->config(),fn()=>$controller->save([]),fn()=>$controller->status(),fn()=>$controller->logs('2026-10-02'),fn()=>$controller->control('start'),fn()=>$controller->folders('/'),fn()=>$controller->result(1),fn()=>$controller->maintenance('reset_ai','reset_ai')] as $call)check($call()->status===403);
+foreach([fn()=>$controller->config(),fn()=>$controller->library(),fn()=>$controller->save([]),fn()=>$controller->status(),fn()=>$controller->logs('2026-10-02'),fn()=>$controller->control('start'),fn()=>$controller->folders('/'),fn()=>$controller->result(1),fn()=>$controller->maintenance('reset_ai','reset_ai')] as $call)check($call()->status===403);
 check($controller->test()->status===200);check($probe->calls===1);check($controller->test()->data['vision']['context_length']===114810);$session->uid=null;check($controller->test()->status===401);check($probe->calls===2);
 $session->uid='paul';check(!$controller->config()->data['can_configure_models']);$v=$settings->defaults();$v['folders']=['/InstantUpload'];$v['vision']['url']='http://127.0.0.1:9/v1';$v['vision']['api_key']='injected';$v['user_id']='admin';$v['ocr']['loop_repetitions']=9;$v['ocr']['loop_retries']=0;$v['ocr']['retry_prompt']='injected';$v['ocr']['stream']=false;$controller->save($v);check($settings->get()['folders']===['/InstantUpload']);check($settings->get()['vision']['url']===$settings->defaults()['vision']['url']);check($settings->get()['user_id']==='paul');check($settings->workerConfig()['vision']['api_key']==='');check($controller->folders('../admin')->status===400);
 $bad=$v;$bad['folders']=['/missing'];check($controller->save($bad)->status===400);check($settings->get()['folders']===['/InstantUpload']);
@@ -27,6 +27,13 @@ check($settings->get()['ocr']['loop_repetitions']===5);check($settings->get()['o
 $session->uid='admin';check($controller->config()->data['can_configure_models']);$controller->save($v);check($settings->get()['vision']['url']==='http://127.0.0.1:9/v1');
 check($settings->get()['ocr']['loop_repetitions']===9);check($settings->get()['ocr']['loop_retries']===0);check($settings->get()['ocr']['retry_prompt']==='injected');check($settings->get()['ocr']['stream']===false);
 $state=new \OCA\MediaAI\Service\State($c);$state->atomic('status.json',['state'=>'running']);$before=$c->values;check($controller->save($v)->status===409);check($c->values===$before);
+$state->atomic('status.json',['state'=>'running','heartbeat_at'=>time(),'stats'=>['pending'=>5,'error'=>1]]);
+$controlBefore=$state->control();foreach(['start','resume','retry'] as $action){check($controller->control($action)->status===409);check($state->control()===$controlBefore);}
+$state->setControl('start');check($controller->control('pause')->status===200);check($controller->control('pause')->status===409);check($controller->control('start')->status===409);
+$state->atomic('status.json',['state'=>'paused','heartbeat_at'=>time(),'stats'=>['pending'=>5,'error'=>1]]);$control=$state->control();$control['requested']=false;$state->atomic('control.json',$control);check($controller->control('resume')->status===200);check($controller->control('resume')->status===409);
+$control['paused']=true;$control['requested']=false;$state->atomic('control.json',$control);$state->atomic('status.json',['state'=>'paused','heartbeat_at'=>time(),'stats'=>['pending'=>0,'error'=>1]]);check($controller->control('resume')->status===409);check($controller->control('retry')->status===200);
+$state->atomic('status.json',['state'=>'finished','heartbeat_at'=>0,'stats'=>[]]);check($controller->control('start')->status===409);
+foreach(['control.json','control.lock'] as $file)unlink($state->directory().'/'.$file);
 unlink($state->directory().'/status.json');rmdir($state->directory());rmdir($c->dataDirectory);
 echo "$checks PHP admin/owner access assertions passed\n";
 }

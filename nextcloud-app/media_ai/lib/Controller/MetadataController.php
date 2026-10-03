@@ -11,7 +11,7 @@ use OCP\AppFramework\OCS\OCSException;
 use OCA\MediaAI\Service\Files;
 use OCA\MediaAI\Service\Metadata;
 class MetadataController extends OCSController {
-    public function __construct(IRequest $request, private IUserSession $session, private Files $files, private Metadata $metadata) {
+    public function __construct(IRequest $request, private IUserSession $session, private Files $files, private Metadata $metadata, private ?\OCP\Files\IRootFolder $root = null, private ?\OCA\MediaAI\Service\Library $library = null, private ?\OCA\MediaAI\Service\Settings $settings = null) {
         parent::__construct('media_ai', $request);
     }
     private function uid(): string {
@@ -33,6 +33,32 @@ class MetadataController extends OCSController {
         if (!$row) { return new DataResponse(['available'=>false]); }
         if (!hash_equals($file->getEtag(),$row['etag'])) { return new DataResponse(['available'=>false,'stale'=>true]); }
         return new DataResponse(['available'=>true,'updated_at'=>$row['updated_at'],'metadata'=>json_decode($row['metadata_json'],true,64,JSON_THROW_ON_ERROR)]);
+    }
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
+    public function statuses(array $file_ids): DataResponse {
+        $uid=$this->uid();
+        if (!array_is_list($file_ids) || count($file_ids)>100) { throw new OCSException('Maximum 100 file IDs',400); }
+        foreach($file_ids as $id) { if(!is_int($id) || $id<1) { throw new OCSException('Invalid file ID',400); } }
+        $home=$this->root->getUserFolder($uid); $nodes=[];
+        foreach(array_unique($file_ids) as $id) {
+            try {
+                foreach($home->getById($id) as $node) {
+                    if(!$node->isReadable()) { continue; }
+                    $folder=$node instanceof \OCP\Files\Folder;
+                    if(!$folder && !preg_match('~^(image|video)/~',$node->getMimeType())) { break; }
+                    $nodes[]=['file_id'=>$id,'path'=>$home->getRelativePath($node->getPath()),'etag'=>$node->getEtag(),'folder'=>$folder]; break;
+                }
+            } catch (\OCP\Files\NotFoundException|\OCP\Files\NotPermittedException $e) { continue; }
+        }
+        $stored=$this->metadata->statuses($uid,array_column($nodes,'file_id'));
+        $selected=$uid===($this->settings?->get()['user_id']??null) ? $this->library->nodeStatuses($nodes) : [];
+        $statuses=[];
+        foreach($nodes as $node) {
+            $row=$stored[$node['file_id']]??null;
+            $statuses[$node['file_id']]=$selected[$node['file_id']]??['status'=>$node['folder']?'unselected':($row?($row['etag']===$node['etag']?'done':'changed'):'unselected'),'updated_at'=>$row['updated_at']??null];
+        }
+        return new DataResponse(['statuses'=>$statuses]);
     }
     #[NoAdminRequired]
     #[NoCSRFRequired]

@@ -10,6 +10,7 @@ Suchbegriffe und erkannten Text auffindbar. Originaldateien bleiben unverändert
 
 - Bildbeschreibungen und OCR in der Nextcloud-Suche und Dateiseitenleiste.
 - Videoanalyse anhand gleichmäßig verteilter Einzelbilder.
+- Übersicht und Datei-Explorer mit Analysestatus, auch in Nextcloud Dateien.
 - Ordnerauswahl, täglicher Zeitplan, Start/Pause und Aktivitätslog.
 - Getrennte Modelle für Bildanalyse und OCR; Ergebnisse werden zwischengespeichert.
 

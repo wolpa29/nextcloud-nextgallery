@@ -1,4 +1,4 @@
-# Integrierte App (0.4.5)
+# Integrierte App (0.5.0)
 
 Die Nextcloud-App enthält den Python-Worker. Er läuft als eigener systemd-Dienst
 mit niedriger CPU-/IO-Priorität, unabhängig von PHP-FPM und Nextcloud-Cron.
@@ -8,17 +8,29 @@ Vision-Endpunkt (hier LM Studio). Dort wird kein Nextcloud-Plugin installiert.
 ## Bedienung
 
 - Apps: **Media AI**, App-ID `media_ai`.
-- Die Seitenleiste führt direkt zu Status, Verarbeitung, Aktivitätslog,
-  Einstellungen und Wartung. Auf schmalen Bildschirmen öffnet **Bereiche** die
-  Navigation; die Auswahl schließt sie wieder. Der Inhalt bleibt zentriert.
-- Administration → **Media AI**: Status, sichtbare Verarbeitung mit Ordnern,
-  Ausschlüssen und täglichem Start, danach Aktivitätslog. Darunter aufklappbare
-  Einstellungen für Modellprüfung, Vision-/OCR-Endpunkte, Modelle, Prompts,
-  Speicher-/Token-Grenzen und API-Keys sowie aufklappbare Wartung.
-  Die Seitenleiste öffnet den gewählten Bereich automatisch; Bildanalyse und
-  OCR haben eigene aufklappbare Modellfelder.
+- Eigene Ansichten: **Übersicht**, **Dateien**, **Verarbeitung**, **Aktivitäten**,
+  **Einstellungen** und **Wartung**. Die Seitenleiste wechselt den sichtbaren
+  Inhalt; URL und Browser-Zurück behalten die gewählte Ansicht. Auf schmalen
+  Bildschirmen öffnet **Bereiche** die Navigation.
+- **Übersicht**: ausgewählte Bilder/Videos, bearbeitete und offene Dateien,
+  Fehler, Fortschrittsring, ausgewählte Ordner und zuletzt gespeicherte Ergebnisse.
+  Der Zeitplan zeigt die nächste Ausführung und die aktuell anstehenden Dateien.
+  Die Vorschau gilt für den gegenwärtigen Bestand; neue Dateien und
+  Modelländerungen werden beim Start erneut geprüft.
+- **Dateien**: Ordnerbaum, Pfadnavigation, Suche, Statusfilter und Ergebnisse.
+  Ordner öffnen eine Ebene; Suche und Filter erfassen die Unterordner mit.
+  Seiten enthalten höchstens 100 Dateien. Ein grüner Haken bedeutet ein
+  gespeichertes Ergebnis für die aktuelle Dateiversion. Ein Ordner erhält den
+  Haken erst, wenn alle ausgewählten Medien darin bearbeitet sind. Ausgeschlossene
+  Ordner und andere Dateitypen zählen nicht zum Bestand.
+- **Verarbeitung**: Ordner/Ausschlüsse, Zeitplan und Dateizeitbudget.
+  **Einstellungen**: Modellprüfung, aufklappbare Vision-/OCR-Felder und
+  Speichergrenzen. **Wartung**: bestätigte Aktionen für Logs und Analysedaten.
 - Ungespeicherte Änderungen werden neben den Speicherbuttons und in einer beim Scrollen sichtbaren Speicherleiste angezeigt. „Gespeichert“ erscheint erst nach erfolgreicher Serverantwort; bei Fehlern bleiben Eingaben erhalten. Zurücksetzen auf den gespeicherten Stand entfernt die Änderungsmarkierung.
-- Start/Pause/Fortsetzen/Fehler erneut versuchen. Pause greift zwischen Dateien.
+- Die Laufsteuerung zeigt nur passende Aktionen: während der Analyse Pause,
+  nach einer Pause mit offenen Dateien Fortsetzen, bei Fehlern erneuter Versuch.
+  Angeforderte Aktionen sind gegen Doppelabsenden gesperrt; der Server prüft den
+  Zustand ebenfalls. Pause greift nach der aktuellen Datei.
 - Tageslogs: Datei, Stufe, Dauer, Cache-Treffer und Fehler; ältere Einträge
   paginiert. Standardansicht: Dateien und Ergebnisse; sämtliche Stufen bleiben
   unter „Alle Ereignisse“ sichtbar. Dateiname und Dauer stehen direkt in der
@@ -28,6 +40,11 @@ Vision-Endpunkt (hier LM Studio). Dort wird kein Nextcloud-Plugin installiert.
   nachlädt. Direkt protokollierte Zeiten erscheinen in der Dauer-Spalte. Bei
   Dateiabschlüssen ohne Sekundenwert wird aus vorhandenen Start-/Endzeitpunkten
   eine gerundete Dauer mit „≈“ angezeigt. Keine API-Keys oder vollständigen OCR-Texte in JSONL-Logs.
+- In Nextcloud **Dateien** zeigt die Listenansicht die Spalte **Media AI**:
+  Dateistatus oder Anzahl bearbeiteter/ausgewählter Medien eines Ordners.
+  Ordnerzahlen beziehen sich ausdrücklich auf die konfigurierte Auswahl.
+  Auf schmalen Listen und in der Kachelansicht blendet Nextcloud zusätzliche
+  Spalten aus; die App-Dateiansicht bietet den Status auch mobil.
 - In Dateien: Details-Seitenleiste → **Media AI** für Beschreibung, OCR,
   Suchbegriffe, unsichere Angaben und vollständige gespeicherte Metadaten.
 - In der globalen Nextcloud-Suche: Suchanbieter **Bildinhalt und OCR**.
@@ -77,6 +94,22 @@ KI-Ergebnisse und der SQLite-Analysecache zurückgesetzt werden. Beide Aktionen
 benötigen eine ausdrückliche Bestätigung im Dialog; Originale und andere
 Nextcloud-Tabellen sind nicht Teil des Resets. Der KI-Reset benötigt den Worker
 online, läuft zwischen Analysen und bleibt bei Fehlern als Anforderung erhalten.
+
+## Bestandsanzeige und Ressourcen
+
+Die Übersicht liest kleine Inventarfelder aus Nextclouds Dateicache und vergleicht
+sie mit gespeicherten ETags und der Warteschlange der aktuellen Ordnerauswahl.
+Die Worker-SQLite-Datenbank wird ausschließlich lesend geöffnet. Analyse-JSON,
+Originaldateien und Vorschaubilder werden dafür nicht geladen. Der Server hält
+den Bestand zehn Sekunden im lokalen Cache; die Ansicht aktualisiert ihn
+höchstens alle 15 Sekunden und nur bei sichtbarem Tab. Nachgeladene Dateiseiten
+werden nicht automatisch wieder auf die erste Seite zurückgesetzt.
+
+Die native Statusspalte bündelt bis zu 100 sichtbare Datei-IDs pro Anfrage.
+Jede ID wird im Dateibaum des angemeldeten Benutzers auf Lesbarkeit geprüft;
+Ergebnisse anderer Benutzer werden nicht übernommen. Metadaten werden erst beim
+Öffnen eines Ergebnisses geladen. Den ausgelieferten Spalten-Code baut
+`npm ci && npm run build:files`; die Installation benötigt kein npm auf Nextcloud.
 
 ## Verbindung, Modell und Auflösung prüfen
 

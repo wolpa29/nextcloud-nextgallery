@@ -50,6 +50,33 @@ class Inventory {
         }
         return ['items' => $items, 'cursor' => count($rows) === 1000 ? (int)end($rows)['fileid'] : null];
     }
+    /** Small inventory fields only: no downloads and no analysis JSON. */
+    public function snapshot(): array {
+        $scopes = $this->scopes(); $config = $this->settings->get();
+        $conditions = []; $parameters = [$config['user_id']];
+        foreach ($scopes as $scope) {
+            $conditions[] = "(f.storage=? AND f.path LIKE ? ESCAPE '!')";
+            $parameters[] = $scope['storage'];
+            $parameters[] = $this->escaped(($scope['path'] === '' ? '' : $scope['path'].'/')).'%';
+        }
+        $sql = "SELECT DISTINCT f.fileid,f.storage,f.path,f.etag,f.size,m.mimetype,a.etag AS analyzed_etag,a.updated_at FROM `*PREFIX*filecache` f JOIN `*PREFIX*mimetypes` m ON m.id=f.mimetype LEFT JOIN `*PREFIX*media_ai_meta` a ON a.file_id=f.fileid AND a.user_id=? WHERE (m.mimetype LIKE 'image/%' OR m.mimetype LIKE 'video/%') AND (".implode(' OR ', $conditions).') ORDER BY f.fileid';
+        $result = $this->db->executeQuery($sql, $parameters); $items = [];
+        try {
+            while ($row = $result->fetch()) {
+                foreach ($scopes as $scope) {
+                    $prefix = $scope['path'] === '' ? '' : $scope['path'].'/';
+                    if ((int)$row['storage'] !== $scope['storage'] || !str_starts_with($row['path'], $prefix)) { continue; }
+                    $path = $scope['user_path'].'/'.substr($row['path'], strlen($prefix));
+                    foreach ($config['exclude_folders'] as $exclude) {
+                        if ($exclude === '/' || $path === $exclude || str_starts_with($path, rtrim($exclude, '/').'/')) { continue 3; }
+                    }
+                    $items[] = ['file_id'=>(int)$row['fileid'],'path'=>ltrim($path,'/'),'etag'=>$row['etag'],'size'=>(int)$row['size'],'mime'=>$row['mimetype'],'analyzed_etag'=>$row['analyzed_etag'],'updated_at'=>(int)$row['updated_at']];
+                    break;
+                }
+            }
+        } finally { $result->closeCursor(); }
+        return $items;
+    }
     public function allowedFile(int $id): \OCP\Files\File {
         $config = $this->settings->get();
         $file = $this->files->byId($config['user_id'], $id);

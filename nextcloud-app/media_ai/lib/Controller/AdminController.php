@@ -10,7 +10,7 @@ use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\DataResponse;
 use OCA\MediaAI\Service\{Settings,State};
 class AdminController extends Controller {
-    public function __construct(IRequest $request, private Settings $settings, private State $state, private IUserSession $session, private IGroupManager $groups, private IRootFolder $root, private ?\OCA\MediaAI\Service\Metadata $metadata = null, private ?\OCA\MediaAI\Service\Files $files = null, private ?\OCA\MediaAI\Service\ModelConnection $modelConnection = null) { parent::__construct('media_ai',$request); }
+    public function __construct(IRequest $request, private Settings $settings, private State $state, private IUserSession $session, private IGroupManager $groups, private IRootFolder $root, private ?\OCA\MediaAI\Service\Metadata $metadata = null, private ?\OCA\MediaAI\Service\Files $files = null, private ?\OCA\MediaAI\Service\ModelConnection $modelConnection = null, private ?\OCA\MediaAI\Service\Library $library = null) { parent::__construct('media_ai',$request); }
     private function admin(): bool { $uid=$this->session->getUser()?->getUID(); return $uid!==null && $this->groups->isAdmin($uid); }
     private function denied(): ?DataResponse {
         $uid=$this->session->getUser()?->getUID();
@@ -40,9 +40,19 @@ class AdminController extends Controller {
         return new DataResponse($this->publicConfig());
     }
     #[NoAdminRequired]
+    public function library(string $path = '', string $filter = 'all', string $query = '', int $offset = 0): DataResponse {
+        if ($denied=$this->denied()) { return $denied; }
+        try { return new DataResponse($this->library->browse($path, $filter, $query, $offset)); }
+        catch (\OCP\AppFramework\OCS\OCSBadRequestException $e) { return new DataResponse(['error'=>$e->getMessage()],400); }
+    }
+    #[NoAdminRequired]
     public function status(): DataResponse { if($denied=$this->denied())return $denied; return new DataResponse($this->state->status()); }
     #[NoAdminRequired]
-    public function control(string $action): DataResponse { if($denied=$this->denied())return $denied; return new DataResponse($this->state->setControl($action)); }
+    public function control(string $action): DataResponse {
+        if($denied=$this->denied())return $denied;
+        try { return new DataResponse($this->state->setControl($action, true)); }
+        catch (\OCP\AppFramework\OCS\OCSBadRequestException $e) { return new DataResponse(['error'=>$e->getMessage()],409); }
+    }
     #[NoAdminRequired]
     public function logs(string $date, int $cursor = 0): DataResponse { if($denied=$this->denied())return $denied; return new DataResponse($this->state->logs($date,$cursor)); }
     #[NoAdminRequired]
