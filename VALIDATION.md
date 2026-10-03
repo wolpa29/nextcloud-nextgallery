@@ -1,6 +1,6 @@
 # Validierung – 2026-10-02
 
-**App 0.2.10 auf Nextcloud 32.0.5 installiert und aktiviert; eigener Worker als www-data aktiv.**
+**App 0.2.11 auf Nextcloud 32.0.5 installiert und aktiviert; eigener Worker als www-data aktiv.**
 
 | Prüfung | Ergebnis |
 | --- | --- |
@@ -15,6 +15,7 @@
 | Vor Reset | 17 eigene KI-Datensätze; Prüfsummen aller 45 Juni-Originale unverändert |
 | Echter KI-Reset über Pauls Oberfläche | Eigene MariaDB-Datensätze 0; SQLite files/results/search jeweils 0 |
 | Echte Log-Löschung über Oberfläche | Logdateien 0; alle 45 Originale danach weiterhin unverändert |
+| Dunkles Design | Fehlertext nutzt color-error-text: #FFCCCC statt Hintergrundfarbe #552121; alle sechs Meldungen im Browser lesbar |
 | Dialogzentrierung | Globales Nextcloud-CSS überschrieben; 560 × 252 Dialog bei 1754 × 991 Viewport exakt zentriert (597; 369,5) |
 | Dateiseitenleiste | Reale Bildanalyse, OCR, Tags und Unsicherheiten im Media-AI-Tab sichtbar |
 | Browser-Volltextsuche | OCR-Wort LUNA findet das zugehörige Bild; Luna und LUNA liefern dieselbe Datei-ID |

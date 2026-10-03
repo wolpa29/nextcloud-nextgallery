@@ -1,6 +1,6 @@
 # Nextcloud: private OCR- und Bildsuche
 
-**Stand 0.2.10: integrierte App und Python-Worker auf Nextcloud 32 installiert.**
+**Stand 0.2.11: integrierte App und Python-Worker auf Nextcloud 32 installiert.**
 
 Die App enthält den Worker und eine Oberfläche für Ordnerauswahl, Zeitplan,
 Start/Pause, DE/EN, Ergebnisse und Wartung. Installation und Bedienung:
