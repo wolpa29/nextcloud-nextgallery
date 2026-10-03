@@ -1,4 +1,4 @@
-# Integrierte App (0.4.2)
+# Integrierte App (0.4.4)
 
 Die Nextcloud-App enthält den Python-Worker. Er läuft als eigener systemd-Dienst
 mit niedriger CPU-/IO-Priorität, unabhängig von PHP-FPM und Nextcloud-Cron.
@@ -8,9 +8,10 @@ Vision-Endpunkt (hier LM Studio). Dort wird kein Nextcloud-Plugin installiert.
 ## Bedienung
 
 - Apps: **Media AI**, App-ID `media_ai`.
-- Administration → **Media AI**: Status, Einstellungen, täglicher Start,
-  Ordner/Ausschlüsse, getrennte Vision-/OCR-Endpunkte, Modelle, Prompts,
-  Größen-/Zeit-/Token-Grenzen und API-Keys.
+- Administration → **Media AI**: Status, sichtbare Verarbeitung mit Ordnern,
+  Ausschlüssen und täglichem Start, danach Aktivitätslog. Darunter aufklappbare
+  Einstellungen für Modellprüfung, Vision-/OCR-Endpunkte, Modelle, Prompts,
+  Speicher-/Token-Grenzen und API-Keys sowie aufklappbare Wartung.
 - Start/Pause/Fortsetzen/Fehler erneut versuchen. Pause greift zwischen Dateien.
 - Tageslogs: Datei, Stufe, Dauer, Cache-Treffer und Fehler; ältere Einträge
   paginiert. Standardansicht: Dateien und Ergebnisse; sämtliche Stufen bleiben

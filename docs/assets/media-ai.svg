@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="64" viewBox="0 0 240 64" role="img" aria-labelledby="title">
+ <title id="title">Media AI</title>
+ <g transform="translate(0 8) scale(1.5)" fill="none" stroke="#25343b" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M12 4h11a5 5 0 0 1 5 5v11"/>
+  <rect x="4" y="9" width="19" height="19" rx="5"/>
+  <path d="m8 23 4-5 4 4 3-3"/>
+  <circle cx="17.5" cy="14.5" r="1" fill="#25343b" stroke="none"/>
+ </g>
+ <text x="62" y="43" fill="#25343b" font-family="Inter, system-ui, -apple-system, Segoe UI, sans-serif" font-size="32" font-weight="600" letter-spacing="-.8">Media AI</text>
+</svg>

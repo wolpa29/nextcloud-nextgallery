@@ -1,3 +1,13 @@
+# Ergänzung – 2026-10-03, App 0.4.4: Reihenfolge und Logo
+
+- Status → sichtbare Verarbeitung mit Ordnern/Ausschlüssen und Speichern → Aktivitätslog → eingeklappte Einstellungen (Modellprüfung, Speichergrenzen, Modelle/Prompts) → eingeklappte Wartung.
+- Ein gemeinsames Formular erhält die bestehende Konfigurationsspeicherung. Logbuttons sind explizit `type="button"`; die neu getrennten erweiterten Einstellungen werden bei fehlender Verwaltungsberechtigung ebenfalls ausgeblendet. Die Modellprüfung bleibt verfügbar.
+- Lokal geprüft: PHP-8.2-Templatesyntax, JS-Syntax, 33 bestehende PHP-Berechtigungsassertions sowie isolierte Chromium-Prüfung für Reihenfolge, eingeklappte Bereiche, sichtbare Ordnerauswahl, Ordnerdialog, Speichern bei eingeklappten Einstellungen, Log-Aktualisierung ohne Speichern und fehlende Verwaltungsberechtigung. Lokale Darstellung visuell geprüft; Fixture/Screenshot unter `/tmp/media-ai-layout-review-20261003`.
+- Version 0.4.4 auf der laufenden Nextcloud installiert und `occ upgrade` erfolgreich abgeschlossen. Zugang über die bereits authentifizierte SSH-Masterverbindung. Geschützte App-Backups unter `/root/media-ai-backups/20261003-layout-0.4.3` und `/root/media-ai-backups/20261003-logo-0.4.4`. Einstellungen und Metadatentabelle vor/nach beiden Updates per SHA256 identisch; Steuerdatei bytegleich, Worker online und pausiert. Installierte App-Dateien stimmen mit dem lokalen Stand überein.
+- Live-Browserprüfung als Owner: Reihenfolge Status/Verarbeitung/Aktivitätslog/Einstellungen/Wartung, beide unteren Bereiche eingeklappt, Ordnerdialog erreichbar, Navigationslogo geladen, Worker online/pausiert und kein horizontaler Seitenüberlauf. Keine Konfiguration gespeichert.
+- Neues monochromes SVG mit zwei Medienkarten; identisches Zeichen in der Nextcloud-Navigation und hell/dunkler GitHub-Wortmarke. SVGs geparst und Darstellung visuell geprüft. README auf 37 Zeilen gekürzt; ausführliche Controller-/Speicherhinweise nach `docs/CONTROLLER.md` verschoben.
+- Das erste Layout-Update ohne Worker-Stopp erzeugte während Nextclouds kurzer Wartungsphase einen HTTP-503-Logeintrag. Beim anschließenden Logo-Update wurde der pausierte Worker für das Upgrade gestoppt und danach erfolgreich gestartet. Kein Scan oder Reset ausgelöst.
+
 # Ergänzung – 2026-10-03, App 0.4.2
 
 - Read-only LM-Studio-Modellprüfung für alle angemeldeten Nutzer; Konfigurations-/Verarbeitungszugriff bleibt auf Administrator und eingestellten Owner begrenzt. Anonyme Requests abgewiesen. Kein Laden eines Modells, keine Inferenz und kein Weitergeben von API-Keys oder rohen Serverantworten.
