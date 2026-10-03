@@ -1,6 +1,6 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/media-ai-dark.svg">
-  <img src="docs/assets/media-ai.svg" alt="Media AI" width="240" height="64">
+  <img src="docs/assets/media-ai.svg" alt="Media AI" width="320" height="80">
 </picture>
 
 Lokale Bild- und Videoanalyse für Nextcloud. Macht Fotos über Bildbeschreibungen,

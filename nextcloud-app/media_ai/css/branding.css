@@ -1,0 +1,7 @@
+/* The Files detail tab uses the same symbol as the app menu and settings. */
+.icon-media-ai {
+ background-image: none !important;
+ background-color: var(--color-main-text, #172127);
+ -webkit-mask: url('../img/app.svg') center / contain no-repeat;
+ mask: url('../img/app.svg') center / contain no-repeat;
+}
