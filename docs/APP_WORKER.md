@@ -1,4 +1,4 @@
-# Integrierte App (0.4.4)
+# Integrierte App (0.4.5)
 
 Die Nextcloud-App enthält den Python-Worker. Er läuft als eigener systemd-Dienst
 mit niedriger CPU-/IO-Priorität, unabhängig von PHP-FPM und Nextcloud-Cron.
@@ -12,6 +12,7 @@ Vision-Endpunkt (hier LM Studio). Dort wird kein Nextcloud-Plugin installiert.
   Ausschlüssen und täglichem Start, danach Aktivitätslog. Darunter aufklappbare
   Einstellungen für Modellprüfung, Vision-/OCR-Endpunkte, Modelle, Prompts,
   Speicher-/Token-Grenzen und API-Keys sowie aufklappbare Wartung.
+- Ungespeicherte Änderungen werden neben den Speicherbuttons und in einer beim Scrollen sichtbaren Speicherleiste angezeigt. „Gespeichert“ erscheint erst nach erfolgreicher Serverantwort; bei Fehlern bleiben Eingaben erhalten. Zurücksetzen auf den gespeicherten Stand entfernt die Änderungsmarkierung.
 - Start/Pause/Fortsetzen/Fehler erneut versuchen. Pause greift zwischen Dateien.
 - Tageslogs: Datei, Stufe, Dauer, Cache-Treffer und Fehler; ältere Einträge
   paginiert. Standardansicht: Dateien und Ergebnisse; sämtliche Stufen bleiben

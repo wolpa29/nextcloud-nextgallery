@@ -10,6 +10,7 @@ script('media_ai','i18n'); script('media_ai','admin'); style('media_ai','admin')
   <p class="mai-muted">Ein Start verarbeitet alle offenen Bilder und Videos der gewählten Ordner. Pausieren greift nach der aktuellen Datei.</p>
  </section>
  <form id="mai-form">
+ <div class="mai-savebar" id="mai-savebar" hidden><span data-save-status role="status" aria-live="polite">Einstellungen werden geladen …</span><button type="submit" class="primary" disabled>Speichern</button></div>
  <section class="mai-panel" id="mai-pipeline-settings"><h3>Verarbeitung</h3><div class="mai-grid">
    <label>Nextcloud-Benutzer<input name="user_id" required></label><label>Max. Zeit pro Datei (Sekunden, 0 = unbegrenzt)<input type="number" name="image_timeout_seconds" min="0" max="86400" required></label>
    <label>Ordner (ein Pfad je Zeile)<textarea name="folders" rows="3" required></textarea></label><label>Ausgeschlossene Ordner<textarea name="exclude_folders" rows="3"></textarea></label>
@@ -20,7 +21,7 @@ script('media_ai','i18n'); script('media_ai','admin'); style('media_ai','admin')
   </div><p class="mai-muted">Video-Frames werden gleichmäßig über die Dauer verteilt und gemeinsam analysiert. OCR wird bei Videos ausgelassen.</p><label class="mai-check"><input name="enabled" type="checkbox"> Täglichen Lauf aktivieren</label>
   <p class="mai-muted">Kein Datei- oder Gesamtzeitlimit: Unveränderte fertige Dateien werden übersprungen. Fortsetzen bearbeitet die restlichen Dateien.</p>
   <p class="mai-muted">Die Zeit pro Datei umfasst Download, Vorbereitung, Modellanfragen und Korrekturversuche. Bei Überschreitung wird ein Fehler protokolliert und die nächste Datei bearbeitet.</p>
-  <div class="mai-actions"><button type="submit" class="primary">Speichern</button></div>
+  <div class="mai-actions"><button type="submit" class="primary" disabled>Speichern</button><span data-save-status role="status" aria-live="polite">Einstellungen werden geladen …</span></div>
  </section>
  <section class="mai-panel" id="mai-pipeline-logs"><div class="mai-title"><h3>Aktivitätslog</h3><div class="mai-actions"><input id="mai-log-date" type="date" aria-label="Logdatum"><select id="mai-log-level" aria-label="Logfilter"><option value="files" selected>Dateien und Ergebnisse</option><option value="all">Alle Ereignisse</option><option value="error">Nur Fehler</option></select><label class="mai-check"><input id="mai-log-live" type="checkbox" checked>Live aktualisieren</label><button id="mai-log-refresh" type="button">Aktualisieren</button></div></div>
   <p class="mai-muted">Zeit, Datei, Arbeitsschritt, Dauer und Cache-Nutzung. KI-Text steht bei der Datei im Tab „Media AI“.</p>
@@ -33,7 +34,7 @@ script('media_ai','i18n'); script('media_ai','admin'); style('media_ai','admin')
   </section>
   <div id="mai-advanced-settings"><details><summary>Speichergrenzen für Originaldateien</summary><p class="mai-muted">Diese Grenzen schützen den Worker beim Laden und Decodieren. Sie bestimmen nicht die Auflösung für das Modell. Größere Originale werden als Fehler gemeldet.</p><div class="mai-grid"><label>Max. Originaldateigröße (Bytes)<input type="number" name="max_download_bytes" min="1048576" max="536870912" required></label><label>Max. Videodateigröße (Bytes)<input type="number" name="max_video_download_bytes" min="1048576" max="2147483648" required></label><label>Max. Originalpixel beim Decodieren<input type="number" name="max_image_pixels" min="1000000" max="200000000" required></label></div></details>
   <p id="mai-permissions" class="mai-muted"></p><div id="mai-model-settings"></div>
-  <div class="mai-actions"><button type="submit" class="primary">Speichern</button></div>
+  <div class="mai-actions"><button type="submit" class="primary" disabled>Speichern</button><span data-save-status role="status" aria-live="polite">Einstellungen werden geladen …</span></div>
   </div>
  </details>
  </form>

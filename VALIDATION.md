@@ -1,3 +1,11 @@
+# Ergänzung – 2026-10-03, App 0.4.5: Zentrierung und Speicherstatus
+
+- App-Inhalt mit automatischen seitlichen Abständen zentriert. Speicherbuttons zeigen „Gespeichert“, „Ungespeicherte Änderungen“, „Wird gespeichert …“ oder „Nicht gespeichert · erneut versuchen“. Bei offenen Änderungen/Speicherung bleibt eine Speicherleiste beim Scrollen sichtbar. Ohne Änderungen und während einer Anfrage sind Speicherbuttons deaktiviert.
+- Vergleich mit dem geladenen/erfolgreich gespeicherten Formularstand; Änderungen zurück auf den Ausgangswert entfernen die Markierung. Ordnerdialog und Prompt-Reset lösen die Änderungsanzeige ebenfalls aus. Fehler erhalten die Eingaben; weitere Eingaben während einer laufenden Speicherung bleiben als neue ungespeicherte Änderungen erhalten. DE/EN unterstützt.
+- Geprüft: PHP-8.2-Templatesyntax, 154 bestehende PHP-Settings-/Berechtigungsassertions, JS-Syntax und isolierte Chromium-Prüfungen für Admin, Owner, Englisch und fehlende Verwaltungsberechtigung. Prüfungen umfassen Rücksetzen, Checkbox, laufende/fehlgeschlagene/erneute Speicherung, Doppelabsenden, weitere Eingaben während der Anfrage, Ordnerdialog, Prompt-Reset und sichtbare Speicherleiste beim Scrollen. Fixtures unter `/tmp/media-ai-save-state-review-20261003`; Speicherantworten dort simuliert.
+- Live als Owner: bei 1754 px links/rechts jeweils 289 px Abstand, kein horizontaler Seitenüberlauf. Änderung des Dateizeitbudgets und einer Speichergrenze zeigt sofort offene Änderungen; Zurücksetzen zeigt wieder „Gespeichert“. Speicherleiste in aufgeklappten Einstellungen bei y=74 sichtbar. Testeingaben zurückgestellt, keine produktive Konfiguration gespeichert.
+- Version 0.4.5 erfolgreich auf Nextcloud installiert; geschütztes Backup unter `/root/media-ai-backups/20261003-layout-save-0.4.5`. Worker während des Upgrades gestoppt und danach online/pausiert. Einstellungen und Metadaten vor/nach Installation per SHA256 identisch, Steuerdatei bytegleich, installierte App-Dateien identisch zum lokalen Stand. Die vorhandene Ordnerauswahl `/InstantUpload/Camera` blieb erhalten.
+
 # Ergänzung – 2026-10-03, App 0.4.4: Reihenfolge und Logo
 
 - Status → sichtbare Verarbeitung mit Ordnern/Ausschlüssen und Speichern → Aktivitätslog → eingeklappte Einstellungen (Modellprüfung, Speichergrenzen, Modelle/Prompts) → eingeklappte Wartung.
