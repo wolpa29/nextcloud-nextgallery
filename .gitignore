@@ -1,0 +1,8 @@
+node_modules/
+artifacts/
+fixtures/
+.env
+*.log
+*.sqlite
+*.pem
+*.key

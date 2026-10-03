@@ -1,0 +1,14 @@
+name: Verify
+on: [push, pull_request]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22', cache: npm}
+      - uses: shivammathur/setup-php@v2
+        with: {php-version: '8.3', extensions: mbstring}
+      - run: npm ci --ignore-scripts && npm run build && npm test
+      - run: find lib templates appinfo tests -name '*.php' -print0 | xargs -0 -n1 php -l
+      - run: php tests/dates.php
