@@ -31,6 +31,11 @@ class StreamingTests(unittest.TestCase):
                 response=cls.responses.pop(0)
                 events,done=response[:2]
                 delay=response[2] if len(response)>2 else 0
+                if delay=='json':
+                    self.send_response(200);self.send_header('Content-Type','application/json');self.end_headers()
+                    self.wfile.write(json.dumps(events).encode());self.wfile.flush()
+                    cls.write_counts.append(1)
+                    return
                 self.send_response(200);self.send_header('Content-Type','text/event-stream');self.end_headers()
                 count=0
                 try:
@@ -85,6 +90,25 @@ class StreamingTests(unittest.TestCase):
         for text in ('<NO_TEXT>','{"text":null}','{"text":"", "extra":1}','{"text":"a", "text":"b"}'):
             type(self).responses=[frames(text)]
             with self.assertRaises(p.PipelineError):self.model(loop_retries=0).analyze(b'x','image/jpeg')
+
+    def test_nonstreaming_setting_and_fallback_validate_result_and_reasoning(self):
+        response={'choices':[{'finish_reason':'stop','message':{'content':'{"text":""}'}}]}
+        type(self).responses=[(response,True,'json')]
+        m=self.model(stream=False,loop_retries=0)
+        self.assertEqual(m.analyze(b'x','image/jpeg')['text'],'')
+        self.assertFalse(self.calls[0]['stream']);self.assertNotIn('stream_options',self.calls[0])
+        self.assertFalse(m.attempt_history[0]['streamed'])
+        response={'choices':[{'finish_reason':'stop','message':{'content':'{"text":"OK"}','reasoning_content':'Warnung '*30}}]}
+        type(self).responses=[(response,True,'json')]
+        with self.assertRaises(p.PipelineError):m.analyze(b'x','image/jpeg')
+        self.assertEqual(m.attempt_history[0]['state'],'loop')
+
+    def test_malformed_nonstreaming_responses_are_logged_as_errors(self):
+        for response in ({'choices':'bad'},{'choices':[]},{'choices':[None]},{'choices':[{'message':'bad'}]},None,[],{'choices':[{'finish_reason':'stop','message':{'content':'{"text":""}'}}],'usage':'bad'}):
+            type(self).responses=[(response,True,'json')]
+            m=self.model(loop_retries=0)
+            with self.assertRaises(p.PipelineError):m.analyze(b'x','image/jpeg')
+            self.assertEqual(m.attempt_history[0]['state'],'invalid')
     def test_final_content_loop_is_rejected_during_stream(self):
         type(self).responses=[frames(json.dumps({'text':'derselbe lange Satz. '*100}))]
         model=self.model(loop_retries=0)
@@ -183,9 +207,29 @@ class StreamingTests(unittest.TestCase):
         text='\n'.join('Please do not use the battery if it is not properly '+word+'.' for word in ['aligned','connected','formatted','encrypted','erased','flushed','packed'])
         for wire in [text,json.dumps({'text':text})]:
             guard=RepetitionGuard(5)
-            with self.assertRaisesRegex(StreamLoop,'Satzanfang'):
+            with self.assertRaisesRegex(StreamLoop,'Satz'):
                 for pos in range(0,len(wire),3):guard.feed(wire[pos:pos+3])
                 guard.feed('',final=True)
+
+    def test_repeated_long_phrase_with_changing_start_and_end_is_rejected(self):
+        text='\n'.join(f'{word} Ein wiederholter sehr langer Abschnitt mit denselben sichtbaren Woertern endet hier anders{word}.' for word in ['alpha','bravo','charlie','delta','echo','foxtrot'])
+        for wire in [text,json.dumps({'text':text})]:
+            guard=RepetitionGuard()
+            with self.assertRaisesRegex(StreamLoop,'Satzteil'):
+                for pos in range(0,len(wire),3):guard.feed(wire[pos:pos+3])
+                guard.feed('',final=True)
+        guard=RepetitionGuard(); healthy=[]
+        for n in range(6):
+            healthy.append('Ein wiederholter langer Referenzsatz mit denselben sichtbaren Woertern.')
+            healthy.extend(f'Anderer Schritt {j+n*30}: unterschiedliches Ergebnis {j*j+n}.' for j in range(30))
+        guard.feed('\n'.join(healthy),final=True)
+
+    def test_numeric_tables_and_real_terminal_templates_are_not_fuzzy_loops(self):
+        table='\n'.join(f'Mo {n:02d}.06.2026 7013 GLAZ TZ Wochentag frei 00:00h GLAZ ohne KZ' for n in range(1,25))
+        terminal='\n'.join(f'{n}: enp{n}s0 BROADCAST MULTICAST UP LOWER_UP mtu 1500 qdisc mq state UP mode DEFAULT group default qlen 1000' for n in range(1,10))
+        for text in [table,terminal]:
+            RepetitionGuard().feed(text,final=True)
+            p.assert_no_repetition(text,'OCR')
 
     def test_vision_has_short_description_prompt_and_twenty_search_term_limit(self):
         from test_pipeline import VISION

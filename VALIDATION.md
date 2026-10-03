@@ -1,42 +1,72 @@
-# Validierung – 2026-10-03, App 0.3.0
+# Validierung – 2026-10-03, App 0.3.2
 
-**0.3.0 auf der echten Nextcloud 32.0.5 installiert; eigener Worker aktiv.**
+**0.3.2 auf der echten Nextcloud 32.0.5 installiert; eigener Worker online, pausiert, tägliche Automation ausgeschaltet.**
 
-| Neue Prüfung | Ergebnis |
+| Prüfung | Ergebnis |
 | --- | --- |
-| Python | 64 Tests erfolgreich, inklusive echter SSE-Testserver |
+| Python | 68 Tests erfolgreich, inklusive echter SSE-Testserver |
 | PHP 8.2 | 177 Assertions: Admin/Owner 29, Metadaten/Suche 23, Sprache 6, Einstellungen 100, Worker-Auth 19 |
 | Syntax | Alle PHP-Dateien und drei JavaScript-Dateien gültig |
 | Streaming-Abbruch | Langsamer HTTP-Testserver beobachtet geschlossenen Client deutlich vor Ende der Schleife |
-| Retry-Grenze | Vier Gesamtversuche, keine Vermischung mit folgendem Bild |
+| Retry-Grenze | Drei Korrekturen, vier Gesamtversuche; neuer Kontext beim nächsten Bild |
 | Formatfehler | Fehlendes/trunkiertes JSON, doppelte/zusätzliche Schlüssel, Tool-Aufrufe, finish_reason=length und fehlendes DONE abgewiesen |
-| Leere OCR | Nur vollständiges {"text":""} bei regulärem Abschluss als leeres Ergebnis akzeptiert |
-| Fehler ohne Publikation | Defekte OCR nicht gecacht, nicht veröffentlicht, nicht im lokalen Suchindex; Vision-Cache beim Retry nutzbar |
-| Korrigierter Erfolg | Veröffentlichung einmalig; unveränderter Kontrolllauf ohne weitere Inferenz |
+| Leere OCR | Nur vollständiges {"text":""} bei regulärem Abschluss als leeres Ergebnis akzeptiert; acht reale gültige leere Ergebnisse |
+| Fehler ohne Publikation | Defekte Antworten nicht gecacht/veröffentlicht; erfolgreiche andere Stufe beim Retry weiter nutzbar |
+| Wiederholungen | Gleiche Blöcke, ähnliche Zeilen, variierende lange Satzteile und fortlaufende Zahlen-Labels erkannt; reale Terminal-/Arbeitszeittabellen als Regression erlaubt |
 | Grenzen / Berechtigungen | Falsche Typen, ungültige Grenzwerte und mehr als drei Korrekturen ohne Schreibeffekt abgewiesen; Owner kann Modellparameter nicht überschreiben |
-| Live-Status | Fortschritt ohne zusätzliche Logzeilen; Versuch und empfangene Zeichen sichtbar |
-| Reale Vorproben | Alle sechs zuvor betroffenen Bilder liefern mit JSON/Kompatibilitätsschalter grundsätzlich parsebare Antworten; einzelne Antworten weiter inhaltlich falsch |
-| Reale Schleifen | Wiederholungen nach 4–22 s abgebrochen; erfolgreiche Korrekturen und vier erfolglose Versuche tatsächlich beobachtet |
-| Versionswechsel | App-/State-Backup geschützt und lesbar; occ upgrade erfolgreich, Worker aktiv |
-| Originale vor neuem Lauf | Alle 45 Juni-Dateien anhand SHA256 und ETag unverändert, eigene KI-Datenbank bereits vor Update leer |
+| Live-Status | Versuch und empfangene Zeichen sichtbar, Fortschritt ohne zusätzliche Logzeilen |
+| Frischer vollständiger Juni-Lauf | 45 Bilder in 1250,582 s (20 min 51 s), 45 veröffentlicht, keine endgültigen Dateifehler |
+| Verwerfungen dieser Vollrunde | Fünf erkannte Schleifen und einmal mehr als 20 eindeutige Suchbegriffe; vier Dateien erfolgreich korrigiert |
+| Nachträgliche OCR-Prüfung | Ein tatsächlich variierender Schleifentext zurückgezogen; nur eigener betroffener Datensatz/OCR-Cache/Suchzeile nach Sicherung entfernt |
+| Reale OCR-Korrektur | 21,434 s, erfolgreiche Vision aus Cache; eine weitere Schleife abgefangen, 45 vollständige Ergebnisse wieder vorhanden |
+| Kürzere Bildbeschreibung / Suchbegriffe | Alle 45 Vision-Stufen erneut in 630,383 s, 45 OCR-Cache-Treffer; ein Versuch mit zu vielen Suchwörtern erfolgreich korrigiert |
+| Abschließender Kontrolllauf | 0,079 s, null Verarbeitung, null Publikation, keine neue Inferenz |
+| Originale / Datenbank | Alle 45 Originale anhand SHA256 und ETag unverändert; eigene MariaDB enthält 45 Ergebnisse |
+| Finale Antwortprüfung | Alle 45 gespeicherten Ergebnisse erneut mit aktueller Schema-/Schleifenprüfung geprüft; maximal 20 eindeutige Vision-Begriffe |
+| Echte native Suche | Luna findet Notizzettel; Staubsauger findet vier passende Dateien, auch im Nextcloud-Browserdialog |
 | Browser DE/EN | Neue Felder und Beschriftungen sichtbar, richtige Grenzen/Owner-Sperre; Desktop 1754 × 991 ohne äußeren Überlauf |
-| Frischer vollständiger Juni-Lauf | Gestartet; Ergebnis folgt nach Abschluss |
+| Versionswechsel | Geschützte App-/State-Backups; occ upgrade erfolgreich, Worker aktiv |
+| Privater Qualitätsvergleich | Alle 45 finalen Ergebnisse gegen vorher gespeicherte unabhängige Sichtprüfung einzeln bewertet; private HTML-Datei außerhalb von Git |
+
+Die frische vollständige JSON-/Streaming-Runde war etwa 46 Prozent kürzer als
+2319,310 s im vorherigen Protokoll. Prompts, JSON, Streaming und Temperatur
+wurden gemeinsam verändert; das ist keine isolierte Temperaturmessung.
+Die spätere OCR-Korrektur und komplette Vision-Verfeinerung sind separate
+Durchläufe und nicht in den 1250,582 s enthalten.
+
+**Gültiges Format und schleifenfreie Antworten bedeuten keine fehlerfreie
+Erkennung.** Die finale qualitative Prüfung markiert acht Bilder mit besonders
+unzuverlässiger OCR; weitere Bilder haben einzelne kleinere Text-/Bildfehler.
+Große, gut lesbare Texte sind meist brauchbar, kleine/gedrehte Folienwarnungen,
+Versandetiketten und Hardware-Kennungen werden teilweise falsch ergänzt.
+Es gibt keine vollständige Referenztranskription und damit keine gemessene
+Wortfehlerrate. Ursprüngliche Typfehler bei Monitorfotos und eine falsche
+Druckerbehauptung sind beseitigt; manche Roboterbilder bleiben zu allgemein
+beschrieben und einzelne ungesicherte Details bestehen.
+
+Vision liefert eine kurze Beschreibung plus maximal 20 eindeutige Suchbegriffe;
+OCR bleibt eine getrennte vollständige Transkription sichtbarer lesbarer Texte.
+Duplikate zwischen tags/objects werden in Log und Seitenleiste ausgeblendet.
+Unsichere Details sind nicht Teil des Suchtextes.
 
 Die aktuelle LM-Studio-/Qwen-Kombination legt schema-valides JSON in
 reasoning_content ab. Nur das vollständige Objekt nach regulärem Ende wird
-über den ausdrücklich sichtbaren Kompatibilitätsschalter akzeptiert. Der
-Worker setzt weiterhin kein Ausgabe-/Thinking-Budget bei max_tokens=0 und
-keinen Reasoning-Effort. Die gesamte Konversation wird pro Bild neu erstellt.
-Die initiale OCR-Temperatur wurde für den neuen Test auf 1,0 gestellt, passend
-zur offiziellen Qwen-Empfehlung und nach Vergleich mit 0,0/0,2 an Problemfällen;
-Vision bleibt 0,2. Das garantiert keine richtige Transkription.
+über den sichtbaren Kompatibilitätsschalter akzeptiert. Der Worker sendet
+bei max_tokens=0 weiterhin kein Ausgabe-/Thinking-Budget und keinen
+Reasoning-Effort. Konversationen beginnen pro Bild neu; Korrekturversuche
+enthalten nur eine kurze Fehlermeldung, keinen vollständigen alten Gedankengang.
+Temperaturen: Vision 0,2, OCR 1,0, Korrektur 1,0. Der Nutzer stellt Medium in
+LM Studio ein; dieser Level wird durch die API nicht unabhängig bestätigt.
 
-Der Vorprobentest entdeckte zusätzlich eine Schleife mit ständig wechselndem
-letzten Wort. Sie wird jetzt über ähnliche Zeilen mit langem gemeinsamem
-Satzanfang erkannt; ein echter vorher durchgekommener Text wurde damit
-nachträglich abgewiesen. Diese Vorproben haben keine Suchdaten veröffentlicht.
-Ein einzelner längerer Diagnoseversuch wurde für die verbesserte Instrumentierung
-unterbrochen; das war ausschließlich der temporäre Testprozess.
+Originaldateien wurden nicht geändert. Private Bilder, OCR und Rohantworten
+bleiben außerhalb des privaten Quellcode-Repositories. Ein OCR-Datensatz wurde
+gezielt nach Sicherung ersetzt; die ursprüngliche vollständige Vergleichsrunde
+und ältere Qualitätsberichte bleiben privat erhalten.
+
+Offen bleiben reales Android-Gerät, ein tatsächlich verifizierter schmaler
+Browser-Viewport, HEIC/AVIF aus der Sammlung, Durchsatz der gesamten Sammlung
+und GPU-VRAM-Messung. HTTP-Abbruch ist am Testserver nachgewiesen; echte
+GPU-Stornierung wurde nicht durch separate GPU-Messungen bestätigt.
 
 ---
 

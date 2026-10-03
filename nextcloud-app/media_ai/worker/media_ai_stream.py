@@ -1,5 +1,5 @@
 """OpenAI-compatible SSE reader and incremental repetition guard."""
-from collections import deque
+from collections import deque, Counter
 import json
 import re
 import time
@@ -31,6 +31,8 @@ class RepetitionGuard:
         self.line_tail = ''
         self.previous_line = []
         self.line_run = 1
+        self.line_grams = deque(maxlen=24)
+        self.gram_counts = Counter()
 
     def feed(self, fragment, final=False):
         text=self.line_tail+fragment.casefold()
@@ -48,6 +50,26 @@ class RepetitionGuard:
         for line in lines:
             words = re.findall(r'\w+', line)
             if not words: continue
+            # Detect the same long phrase across changing sentence openings/endings.
+            # One occurrence per line; bounded window keeps unrelated distant text out.
+            segments=([words] if len(words)<=256 else [words[:128],words[-128:]]) if not any(c.isdigit() for c in line) else []
+            grams=set()
+            for segment in segments:
+                for pos in range(len(segment)-6):
+                    gram=tuple(segment[pos:pos+7])
+                    # Numeric/code tables often repeat real templates (IP links,
+                    # timesheets). This fuzzy rule covers natural-language phrases.
+                    if all(word.isalpha() for word in gram) and sum(map(len,gram))>=24:
+                        grams.add(gram)
+            if len(self.line_grams)==self.line_grams.maxlen:
+                for gram in self.line_grams.popleft():
+                    self.gram_counts[gram]-=1
+                    if self.gram_counts[gram]==0:del self.gram_counts[gram]
+            self.line_grams.append(grams)
+            self.gram_counts.update(grams)
+            if any(self.gram_counts[gram]>=self.repetitions for gram in grams):
+                raise StreamLoop('Wiederholungsschleife im Stream erkannt (gleicher langer Satzteil in '
+                    +str(self.repetitions)+' Zeilen trotz wechselnder Formulierungen).')
             common=0
             for left,right in zip(words,self.previous_line):
                 if left!=right: break

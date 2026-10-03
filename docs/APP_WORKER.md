@@ -1,4 +1,4 @@
-# Integrierte App (0.3.0)
+# Integrierte App (0.3.2)
 
 Die Nextcloud-App enthält den Python-Worker. Er läuft als eigener systemd-Dienst
 mit niedriger CPU-/IO-Priorität, unabhängig von PHP-FPM und Nextcloud-Cron.
@@ -140,7 +140,10 @@ JSON-Fragment aus einem langen Reasoning werden herausgeschnitten.
 Streaming prüft Reasoning und Antwort getrennt über beliebige Fragmentgrenzen.
 Standard: Abbruch bei 5 aufeinanderfolgenden gleichen Textblöcken bis 256 Tokens,
 auch bei kurzen Wörtern; verkettete Wörter ohne Trennzeichen und ähnliche Zeilen
-mit langem, gleichbleibendem Satzanfang werden ebenfalls erkannt. Zahlenreihen
+mit langem, gleichbleibendem Satzanfang werden ebenfalls erkannt. Auch ein
+langer gleicher Satzteil in fünf verschiedenen Zeilen wird geprüft; diese
+zusätzliche Regel spart Zahlen-/Codezeilen aus, damit reale Tabellen und
+Terminalvorlagen nicht als erfundene Schleifen gelten. Zahlenreihen
 wie JUSB1…JUSB1000 haben einen eigenen konservativen Grenzwert von 40. Normale
 nummerierte Anweisungen mit verschiedenen Inhalten und kurze echte Anschluss-
 beschriftungen werden durch Regressionstests abgesichert. Die Erkennung ist
