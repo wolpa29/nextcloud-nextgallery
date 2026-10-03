@@ -9,7 +9,7 @@ $areas = [
 ?>
 <div class="mai-shell">
  <nav id="app-navigation" class="mai-navigation" aria-label="Media AI" data-collapsed="true">
-  <div class="mai-nav-header"><a href="#mai-pipeline-status" class="mai-nav-brand"><span class="mai-brand-mark" aria-hidden="true"></span><span>Media AI</span></a><button type="button" id="mai-nav-toggle" aria-expanded="false" aria-controls="mai-navigation-list">Bereiche</button></div>
+  <div class="mai-nav-header"><a href="#mai-pipeline-status" class="mai-nav-brand"><span class="mai-brand-mark" style="width:30px;height:30px" aria-hidden="true"></span><span>Media AI</span></a><button type="button" id="mai-nav-toggle" aria-expanded="false" aria-controls="mai-navigation-list">Bereiche</button></div>
   <ul id="mai-navigation-list" class="mai-nav-links">
 <?php foreach ($areas as [$id, $label, $icon]): ?>
    <li><a href="#<?php p($id); ?>" data-nav-target="<?php p($id); ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><?php echo $icon; ?></svg><span><?php p($label); ?></span></a></li>

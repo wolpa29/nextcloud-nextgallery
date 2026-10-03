@@ -6,27 +6,14 @@
  mask: url('../img/app.svg') center / contain no-repeat;
 }
 
-/* A wide symbol needs a wide slot; a square slot makes each element too small. */
+/* Keep the compact mark aligned with Nextcloud's normal icon dimensions. */
 #app-navigation.mai-navigation .mai-brand-mark {
- width: 64px;
- height: 32px;
-}
-#header .app-menu-entry__link:has(img[src*="/media_ai/img/app.svg"]) .app-menu-icon {
- width: 40px;
- height: 24px;
-}
-#header .app-menu-entry__link img[src*="/media_ai/img/app.svg"] {
- width: 40px;
- height: 24px;
- max-width: none;
-}
-.icon-media-ai {
- width: 40px !important;
- flex: 0 0 40px;
+ width: 30px !important;
+ height: 30px !important;
 }
 @media (max-width: 850px) {
  #app-navigation.mai-navigation .mai-brand-mark {
-  width: 52px;
-  height: 28px;
+  width: 25px !important;
+  height: 25px !important;
  }
 }
