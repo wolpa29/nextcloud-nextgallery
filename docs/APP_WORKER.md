@@ -1,4 +1,4 @@
-# Integrierte App (0.2.9)
+# Integrierte App (0.2.10)
 
 Die Nextcloud-App enthält den Python-Worker. Er läuft als eigener systemd-Dienst
 mit niedriger CPU-/IO-Priorität, unabhängig von PHP-FPM und Nextcloud-Cron.
@@ -69,6 +69,12 @@ Ausgabe-Tokens: `0` lässt den Parameter vollständig weg. Die App setzt weder
 Reasoning-Effort noch Thinking-Budget. Der Standardprompt begrenzt nur die finale
 Beschreibung auf 2–4 Sätze; OCR wird nicht gekürzt. Eine Zeitgrenze pro Anfrage
 bleibt für Verbindungsprobleme konfigurierbar (15–7200 Sekunden).
+Die Temperatur ist modellabhängig: Qwen empfiehlt für Qwen3.8 im Thinking-Modus
+1,0 mit top_p=0,95 und top_k=20. Die bisherigen Testwerte Vision 0,2 / OCR 0,0
+sind keine allgemeine Empfehlung für dieses Modell. Änderungen zuerst an
+fehlerhaften und klar lesbaren Kontrollbildern vergleichen; niedrige Temperatur
+garantiert weder korrekte OCR noch Schutz vor Wiederholungen.
+Quelle: [offizielle Modellkarte](https://huggingface.co/Qwen/Qwen3.8-27B).
 Die Resultate bleiben KI-Ausgaben: Erkennung kann falsch sein; unsichere Details
 sind separat gespeichert, keine automatischen Verschiebungen oder Löschungen.
 
@@ -118,7 +124,10 @@ den nativen Nextcloud-Dateilink `/f/{fileid}`.
 Fertige OCR-Texte und Bildbeschreibungen werden vor Cache/Publikation auf
 offensichtliche dominante Schleifen geprüft: mindestens 20 gleiche Zeilen
 mit mindestens 80 Prozent Anteil, oder ein kurzer Textblock mit mindestens
-20 Wiederholungen und mindestens 80 Prozent Anteil. Vereinzelte unlesbare
+20 Wiederholungen und mindestens 80 Prozent Anteil. Auch mindestens 40
+fortlaufende alphanumerische Labels gleicher Form (etwa JUSB1 bis JUSB1000)
+werden als verdächtige Zahlen-Schleife abgewiesen. Normale nummerierte
+Schritte mit unterschiedlichem Text fallen nicht unter diese Regel. Vereinzelte unlesbare
 Stellen und normale wiederkehrende Beträge auf Belegen werden zugelassen.
 Die Prüfung kürzt keinen Text und beschränkt kein Reasoning. Sie ist eine
 konservative Heuristik, keine Garantie gegen sämtliche Modellfehler.

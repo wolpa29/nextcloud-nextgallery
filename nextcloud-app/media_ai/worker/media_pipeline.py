@@ -281,6 +281,20 @@ def assert_no_repetition(text, label):
         count = Counter(lines).most_common(1)[0][1]
         if count >= 20 and count / len(lines) >= 0.8:
             raise PipelineError(f"Wiederholungsschleife in {label} erkannt ({count} gleiche Zeilen). Bitte erneut versuchen.")
+    # Runaway generation can vary only a counter: JUSB1 ... JUSB1000.
+    # Require adjacent alphanumeric labels, a stable affix and 40 consecutive
+    # increments. Plain numbered steps and varied receipt rows do not qualify.
+    folded = text.casefold()
+    previous, end, run = None, 0, 0
+    for match in re.finditer(r"\b(?:[^\W\d_]+\d+|\d+[^\W\d_]+)\b", folded):
+        parts = re.fullmatch(r"([^\W\d_]*)(\d+)([^\W\d_]*)", match.group())
+        current = (parts[1], int(parts[2]), parts[3])
+        adjacent = not re.search(r"\w", folded[end:match.start()])
+        follows = previous and current[0] == previous[0] and current[2] == previous[2] and current[1] == previous[1] + 1
+        run = run + 1 if adjacent and follows else 1
+        if run >= 40:
+            raise PipelineError(f"Wiederholungsschleife in {label} erkannt (fortlaufend nummerierte Textbloecke). Bitte erneut versuchen.")
+        previous, end = current, match.end()
     tokens = re.findall(r"\w+|[^\w\s]", text.casefold())
     if len(tokens) < 40:
         return

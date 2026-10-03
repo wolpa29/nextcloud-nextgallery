@@ -125,6 +125,14 @@ class PipelineTests(unittest.TestCase):
         receipt = '\n'.join(f'Artikel {n}\n0,00 EUR' for n in range(60))
         p.assert_no_repetition(receipt, 'OCR')
         p.assert_no_repetition('[unlesbar]\nDatum 1.6\n[unlesbar]', 'OCR')
+    def test_repetition_detector_rejects_runaway_label_counters(self):
+        for text in ('\n'.join(f'JUSB{n}' for n in range(1, 1000)),
+                     'Address\n' + ', '.join(f'{n}F' for n in range(11, 101))):
+            with self.assertRaisesRegex(p.PipelineError, 'nummerierte'):
+                p.assert_no_repetition(text, 'OCR')
+    def test_repetition_detector_preserves_numbered_instructions_and_real_labels(self):
+        p.assert_no_repetition('\n'.join(f'{n}. Schritt: verschiedene Aufgabe {n*n}' for n in range(1, 101)), 'OCR')
+        p.assert_no_repetition('JUSB1\nJUSB2\nJUSB3\nJUSB4\nJFP1\nJFP2\n11F, 12F, 13F, 14F', 'OCR')
     def test_unchanged_file_skips_download_and_inference(self):
         self.run_pipeline()
         self.run_pipeline()
