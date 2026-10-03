@@ -1,3 +1,11 @@
+# Ergänzung – 2026-10-03, App 0.4.2
+
+- Read-only LM-Studio-Modellprüfung für alle angemeldeten Nutzer; Konfigurations-/Verarbeitungszugriff bleibt auf Administrator und eingestellten Owner begrenzt. Anonyme Requests abgewiesen. Kein Laden eines Modells, keine Inferenz und kein Weitergeben von API-Keys oder rohen Serverantworten.
+- 286 PHP-Assertions erfolgreich: 23 Contract, 121 Settings/Control, 19 Worker-Authentifizierung, 34 Media, 50 ModelConnection, 33 Admin-Berechtigungen und 6 Preferences. Neue Tests prüfen geladene Instanzen/Aliase, getrennte tatsächliche/maximale Kontextgrößen, fehlende/ungeladene Modelle, unbekannte Werte, HTTP-/Authentifizierungsfehler, Antwortgrenze, Fallbacks und identische Endpunkt-Abfragen. PHP-8.2-Syntax und JS-Syntax erfolgreich.
+- Live in Nextcloud als nichtadministrativer Owner: beide Stufen verbunden und Qwen3.8-27B geladen; 114.810 Tokens tatsächlicher Kontext, 262.144 Modellmaximum, Q4_K_M, qwen35, Bildfähigkeit bestätigt. Zehn Frames bis zu 40.960 Bildtokens, 73.850 Tokens vor Prompt/Reasoning/Ausgabe übrig. Ungespeichertes Ändern auf zwanzig Frames aktualisiert die Schätzung auf 81.920/32.890; anschließend Feld auf zehn zurückgesetzt, keine Konfiguration gespeichert.
+- Alle vier schreibgeschützten Promptfelder bleiben readOnly und haben wie die gesperrte Modell-ID rgb(153,153,153)/Opacity 0,7. Kein horizontaler Browserüberlauf bei 1754 px. Screenshots außerhalb des Git-Repositories dokumentiert.
+- App 0.4.2 in Nextcloud installiert; geschütztes Backup von vorheriger App, State und eigenen Datenbanktabellen angelegt. Einstellungen und Metadaten vor/nach Update per SHA256 gleich. Bereits vor diesem Update waren nach einem zuvor protokollierten KI-Reset keine Metadatensätze mehr vorhanden; kein Scan oder Reset durch die Modellprüfung ausgelöst. Worker online und pausiert. Python-/SDK-Inferenzcode gegenüber 0.4.1 unverändert.
+
 # Ergänzung – 2026-10-03, App 0.4.1
 
 - Erneut am echten GPU-Server geprüft: SDK ohne zusätzliche Kantengrenze verarbeitet 4096² weiterhin mit rund 4096 Bildtokens. Test-Reload mit `--image-max-tokens 16384` änderte die Bildtokenzahl nicht; ursprüngliche Modell-Ladekonfiguration wiederhergestellt. Die wirksame aktuelle Grenze ist 4.194.304 Pixel bei 32-Pixel-Raster, kein universelles Modell-/LM-Studio-Maximum.

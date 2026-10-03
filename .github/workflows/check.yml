@@ -35,6 +35,7 @@ jobs:
             php /work/tests/php_settings.php
             php /work/tests/php_worker.php
             php /work/tests/php_media.php
+            php /work/tests/php_model_connection.php
             php /work/tests/php_admin.php
             php /work/tests/php_preferences.php
           '

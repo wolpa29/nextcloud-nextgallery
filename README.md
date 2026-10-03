@@ -1,11 +1,18 @@
 # Nextcloud: private OCR- und Bildsuche
 
-**Stand 0.4.1: integrierte App und Python-Worker auf Nextcloud 32 installiert.**
+**Stand 0.4.2: integrierte App und Python-Worker auf Nextcloud 32 installiert.**
 
 Die App enthält den Worker und eine Oberfläche für Ordnerauswahl, Zeitplan,
 Start/Pause, DE/EN, Ergebnisse und Wartung. Installation und Bedienung:
 [Integrierte App](docs/APP_WORKER.md). Die folgenden CLI-Abschnitte beschreiben
 zusätzlich den eigenständig ausführbaren Controller.
+
+Unter Einstellungen kann jeder angemeldete Nutzer mit **LM Studio prüfen** die
+Verbindung, geladene Modelle und deren tatsächliche Kontextgröße abrufen. Das
+Modellmaximum wird separat angezeigt. Für das erkannte Qwen-Setup zeigt die App
+auch eine Schätzung für die eingestellten Video-Frames und OCR-Bilder. Das
+Bildbudget ist für Vision und OCR getrennt einstellbar (Administrator); aktuell
+4.194.304 Pixel je Ansicht. Übertragen wird verlustfreies PNG.
 
 `max_tokens: 0` bedeutet **kein Ausgabe-Tokenlimit durch die Pipeline**;
 `max_tokens` wird dann in der API-Anfrage weggelassen. Reasoning bleibt dem

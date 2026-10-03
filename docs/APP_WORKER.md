@@ -1,4 +1,4 @@
-# Integrierte App (0.4.1)
+# Integrierte App (0.4.2)
 
 Die Nextcloud-App enthält den Python-Worker. Er läuft als eigener systemd-Dienst
 mit niedriger CPU-/IO-Priorität, unabhängig von PHP-FPM und Nextcloud-Cron.
@@ -66,6 +66,40 @@ KI-Ergebnisse und der SQLite-Analysecache zurückgesetzt werden. Beide Aktionen
 benötigen eine ausdrückliche Bestätigung im Dialog; Originale und andere
 Nextcloud-Tabellen sind nicht Teil des Resets. Der KI-Reset benötigt den Worker
 online, läuft zwischen Analysen und bleibt bei Fehlern als Anforderung erhalten.
+
+## Verbindung, Modell und Auflösung prüfen
+
+Unter Einstellungen → **LM Studio prüfen** können alle angemeldeten Nutzer
+Verbindung und Modellstatus abfragen, auch ohne Administrator- oder Ownerrolle.
+Andere Nutzer sehen dabei die Modellprüfung, erhalten aber keinen Zugriff auf
+die globale Konfiguration, Verarbeitung, Dateien oder Logs.
+
+Vision und OCR zeigen das konfigurierte Modell, geladene Instanzen, tatsächliche
+Kontextgröße, Modellmaximum, Bildfähigkeit, Quantisierung und Architektur, soweit
+der Server diese Daten meldet. Der Check lädt kein Modell und startet keine
+Inferenz. API-Keys und rohe Serverantworten werden nicht an den Browser gegeben.
+Über die [LM-Studio-Modellliste](https://lmstudio.ai/docs/developer/rest/list)
+werden `loaded_instances[].config.context_length` und `max_context_length`
+getrennt abgefragt. Ältere LM-Studio-Server nutzen den v0-Endpunkt; ein lediglich
+OpenAI-kompatibler Server wird geprüft, unbekannte Ladestatus-/Kontextwerte
+bleiben ausdrücklich unbekannt.
+
+Bei bekannter geladener Kontextgröße und unterstützter Qwen-Architektur wird aus
+dem eingestellten Pixelbudget eine obere Bildtoken-Schätzung berechnet. Die
+Anzeige aktualisiert sich beim Ändern der Video-Framezahl, des OCR-Bildlimits
+oder des Pixelbudgets bereits vor dem Speichern. Prompt, Denkprozess und Antwort
+müssen zusätzlich im Kontext Platz finden; die angezeigte theoretische Bildzahl
+ist deshalb keine Empfehlung für die maximale Anfragegröße.
+
+Das Feld **Bildbudget des Encoders** gibt es getrennt unter Bildanalyse und OCR.
+Es ist Administratoren vorbehalten und steht derzeit auf 4.194.304 Pixel
+(4,19 MP). Der Worker erhält Seitenverhältnis und vollständigen Bildinhalt,
+berücksichtigt Encoderraster und zusätzliche Kantengrenze und vergrößert keinen
+Bildinhalt. PNG vermeidet zusätzliche JPEG-Kompressionsverluste; eine separate
+JPEG-Qualitätsstufe ist daher nicht nötig. Ein höher eingestelltes Pixelbudget
+ändert nicht automatisch die tatsächliche Encodergrenze des Modellservers.
+Schreibgeschützte Prompts sind wie andere gesperrte Modellfelder grau; sie
+bleiben markier- und kopierbar.
 
 ## Speicherorte und Zugriff
 

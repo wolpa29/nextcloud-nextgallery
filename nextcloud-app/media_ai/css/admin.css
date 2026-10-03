@@ -16,3 +16,11 @@
 .mai table th:first-child,.mai table td:first-child{width:90px}
 .mai table th:nth-child(2),.mai table td:nth-child(2){width:170px}
 .mai table th:last-child,.mai table td:last-child{width:90px}
+
+/* Read-only prompts remain selectable, but match Nextcloud's disabled inputs. */
+.mai-model textarea[readonly]{color:var(--color-text-lighter);opacity:.7;cursor:default}
+.mai-model-checks{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:16px 0}
+.mai-model-check{border:1px solid var(--color-border);border-radius:8px;padding:16px;overflow-wrap:anywhere}
+.mai-model-check h4{font-weight:600;margin:0 0 8px}.mai-model-check dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:12px 0}
+.mai-model-check dt,.mai-model-check dd{width:auto;min-width:0;padding:0;box-sizing:border-box}.mai-model-check dt{color:var(--color-text-maxcontrast)}.mai-model-check dd{margin:0}.mai-model-check ul{padding-left:20px}
+@media(max-width:700px){.mai-model-checks{grid-template-columns:1fr}.mai-model-check dl{grid-template-columns:1fr}}

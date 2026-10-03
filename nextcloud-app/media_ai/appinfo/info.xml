@@ -3,7 +3,7 @@
   <id>media_ai</id><name>Media AI</name>
   <summary>Local OCR and media search with configurable worker</summary>
   <description>Includes a Python worker, folder selection, daily scheduling, status and activity logs. Stores image and video descriptions and OCR in its own tables for unified search and file details. Originals and existing application metadata are preserved.</description>
-  <version>0.4.1</version><licence>agpl</licence>
+  <version>0.4.2</version><licence>agpl</licence>
   <author>Paul</author><namespace>MediaAI</namespace><category>search</category>
   <settings><admin>OCA\MediaAI\Settings\Admin</admin><admin-section>OCA\MediaAI\Settings\Section</admin-section></settings>
   <commands><command>OCA\MediaAI\Command\Setup</command></commands>

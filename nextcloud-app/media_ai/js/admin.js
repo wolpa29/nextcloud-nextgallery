@@ -3,8 +3,8 @@
 async function init() {
  const root=document.getElementById('media-ai-admin'); if(!root || root.dataset.ready)return; root.dataset.ready='1';
  const i18n=window.MediaAIi18n; try {const r=await fetch(OC.generateUrl('/apps/media_ai/preferences'),{credentials:'same-origin',headers:{'Accept':'application/json'}});if(r.ok)i18n.language=(await r.json()).language;}catch{} i18n.apply(root);root.lang=i18n.language;const tr=(key,values)=>i18n.t(key,values);
- const $=id=>document.getElementById(id); let config=null,entries=[],cursor=null,logBusy=false,lastStatus=null;
- const api=async(path,body)=>{const r=await fetch(OC.generateUrl('/apps/media_ai/admin/'+path),{method:body?'POST':'GET',credentials:'same-origin',headers:{'requesttoken':OC.requestToken,'Content-Type':'application/json','Accept':'application/json'},body:body?JSON.stringify(body):undefined}); if(!r.ok){let detail;try{detail=(await r.json()).error;}catch{}throw Error(detail?tr(detail):tr('Anfrage fehlgeschlagen (HTTP {code}).',{code:r.status}));}return r.json();};
+ const $=id=>document.getElementById(id); let config=null,entries=[],cursor=null,logBusy=false,lastStatus=null,canManage=false,modelProbe=null;
+ const api=async(path,body)=>{const r=await fetch(OC.generateUrl('/apps/media_ai/admin/'+path),{method:body?'POST':'GET',credentials:'same-origin',headers:{'requesttoken':OC.requestToken,'Content-Type':'application/json','Accept':'application/json'},body:body?JSON.stringify(body):undefined}); if(!r.ok){let detail;try{detail=(await r.json()).error;}catch{}const error=Error(detail?tr(detail):tr('Anfrage fehlgeschlagen (HTTP {code}).',{code:r.status}));error.status=r.status;throw error;}return r.json();};
  const message=(text,error=false)=>{$('mai-message').textContent=tr(text);$('mai-message').classList.toggle('mai-error',error);};
  const el=(tag,text,raw=false)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=raw?text:tr(text);return n;};
  function promptField(stage,key,label,rows){const l=el('label',label),t=el('textarea');t.name=stage+'.'+key;t.rows=rows;t.maxLength=20000;t.dataset.defaultPrompt='1';l.append(t);const actions=el('div');actions.className='mai-actions mai-prompt-actions';const reset=el('button','Standardprompt wiederherstellen');reset.type='button';reset.dataset.promptReset='1';reset.setAttribute('aria-label',tr('Standardprompt wiederherstellen')+' · '+tr(label)+' · '+stageNameForPrompt(stage));const note=el('span');note.className='mai-muted';const standard=()=>config?.[stage]?.['default_'+key]||'';const update=()=>note.textContent=tr(!t.value||t.value===standard()?'Standardprompt aktiv':'Eigener Prompt');t.addEventListener('input',update);reset.onclick=()=>{t.value=standard();update();};actions.append(reset,note);return [l,actions];}
@@ -32,7 +32,44 @@ async function init() {
  function loadForm(){for(const input of form.elements){if(!input.name)continue;const parts=input.name.split('.');let v=parts.length===2?config[parts[0]][parts[1]]:config[parts[0]];if(input.dataset.defaultPrompt)v=v||config[parts[0]]['default_'+parts[1]];if(input.type==='checkbox')input.checked=Boolean(v);else if(Array.isArray(v))input.value=v.join('\n');else input.value=v??'';} form.querySelectorAll('[data-image-edge]').forEach(i=>i.dispatchEvent(new Event('input')));const allowed=config.can_configure_models;form.elements.user_id.disabled=!allowed; $('mai-model-settings').querySelectorAll('input,select,button').forEach(i=>i.disabled=!allowed);$('mai-model-settings').querySelectorAll('textarea').forEach(i=>{i.readOnly=!allowed;i.dispatchEvent(new Event('input'));});$('mai-permissions').textContent=allowed?'':tr('Modellserver und Benutzer können nur Nextcloud-Administratoren ändern. Du kannst deine Ordner und Verarbeitung hier verwalten.'); }
  form.addEventListener('submit',async e=>{e.preventDefault();const v=structuredClone(config);for(const i of form.elements){if(!i.name)continue;let x=i.type==='checkbox'?i.checked:i.type==='number'?Number(i.value):i.value;const parts=i.name.split('.');if(['folders','exclude_folders'].includes(i.name))x=i.value.split('\n').map(x=>x.trim()).filter(Boolean);if(i.dataset.defaultPrompt && x===config[parts[0]]['default_'+parts[1]])x='';if(parts.length===2)v[parts[0]][parts[1]]=x;else v[parts[0]]=x;}try{config=await api('config',{config:v});loadForm();message('Einstellungen gespeichert. Sie gelten ab dem nächsten Lauf.');}catch(e){message(e.message,true);}});
  root.querySelectorAll('[data-action]').forEach(button=>button.addEventListener('click',async()=>{try{await api('control',{action:button.dataset.action});message(button.dataset.action==='pause'?'Pause angefordert: Die aktuelle Datei wird abgeschlossen.':'Lauf angefordert. Der Worker prüft alle 15 Sekunden.');await status();}catch(e){message(e.message,true);}}));
- $('mai-test').addEventListener('click',async()=>{try{const r=await api('test',{});$('mai-model-result').textContent=['vision','ocr'].map(s=>(s==='vision'?'Vision':'OCR')+': '+tr(r[s].available?'Modell erreichbar':'Modell nicht verfügbar')+' · '+r[s].models.join(', ')).join(' | ');}catch(e){message(e.message,true);}});
+ function renderModels(){
+  if(!modelProbe)return;
+  const result=$('mai-model-result');result.replaceChildren();
+  result.append(el('p',tr('Geprüft: {time}',{time:new Date(modelProbe.checked_at*1000).toLocaleString(i18n.language)})));
+  const cards=el('div');cards.className='mai-model-checks';
+  const errors={connection_failed:'Verbindung fehlgeschlagen oder Zeitüberschreitung.',authentication_failed:'Authentifizierung am Modellserver fehlgeschlagen.',response_too_large:'Modellserver-Antwort ist zu groß.',invalid_response:'Modellserver liefert keine gültige Modellliste.',server_error:'Modellserver meldet einen Fehler.'};
+  const number=x=>Number(x).toLocaleString(i18n.language);
+  for(const stage of ['vision','ocr']){
+   const info=modelProbe[stage],card=el('section');card.className='mai-model-check';card.append(el('h4',stageName(stage)));
+   const state=el('p',!info.reachable?(errors[info.error]||'Verbindung fehlgeschlagen oder Zeitüberschreitung.'):!info.available?'Konfiguriertes Modell nicht verfügbar.':info.loaded===true?'Verbunden · Modell geladen':info.loaded===false?'Verbunden · Modell nicht geladen':'Verbunden · Ladestatus unbekannt');
+   if(!info.reachable||!info.available||info.loaded===false)state.className='mai-error';card.append(state);
+   const list=el('dl');const item=(label,value)=>list.append(el('dt',label),el('dd',value,true));
+   item('Konfiguriertes Modell',info.configured_model);
+   if(info.reachable){
+    item('Geladener Kontext',info.context_length?number(info.context_length)+' '+tr('Tokens'):tr('Nicht gemeldet'));
+    item('Modellmaximum',info.max_context_length?number(info.max_context_length)+' '+tr('Tokens'):tr('Nicht gemeldet'));
+    item('Bilder unterstützt',info.vision===true?tr('Ja'):info.vision===false?tr('Nein'):tr('Nicht gemeldet'));
+    if(info.quantization)item('Quantisierung',info.quantization);
+    if(info.architecture)item('Architektur',info.architecture);
+   }
+   card.append(list);
+   if(info.loaded_models.length){card.append(el('p','Aktuell geladene Modelle'));const loaded=el('ul');for(const m of info.loaded_models){loaded.append(el('li',m.name+' · '+m.instance_id+' · '+(m.context_length?tr('{tokens} Tokens geladen',{tokens:number(m.context_length)}):tr('Kontextgröße nicht gemeldet')),true));}card.append(loaded);}
+   if(info.source==='openai'&&info.reachable)card.append(el('p','Dieser Server meldet keine geladenen Instanzen oder Kontextgrößen.'));
+   if(info.loaded&&info.context_length&&['qwen35','qwen3vl','qwen3_vl'].includes(info.architecture)){
+    const pixels=Number(form.elements[stage+'.model_max_pixels']?.value)||info.model_max_pixels;
+    const count=stage==='vision'?(Number(form.elements['video.frame_count']?.value)||modelProbe.video_frames):(Number(form.elements['ocr.max_batch_images']?.value)||modelProbe.ocr_batch_images);
+    if(pixels>0){const perImage=Math.ceil(pixels/1024),total=count*perImage,remaining=info.context_length-total;
+     card.append(el('p',tr(stage==='vision'?'{count} Video-Frames benötigen bis zu {tokens} Bild-Tokens.':'{count} OCR-Bilder benötigen bis zu {tokens} Bild-Tokens.',{count,tokens:number(total)})));
+     const space=el('p',remaining>0?tr('{tokens} Tokens bleiben vor Prompt, Denkprozess und Antwort.',{tokens:number(remaining)}):tr('Die gewählte Bildanzahl überschreitet bereits den geladenen Kontext.'));if(remaining<=0)space.className='mai-error';card.append(space);
+     card.append(el('p',tr('Rechnerisch bis zu {count} Bilder ohne Prompt und Ausgabe. Schätzung anhand des eingestellten Qwen-Pixelbudgets.',{count:Math.floor(info.context_length/perImage)})));
+    }
+   }
+   cards.append(card);
+  }
+  result.append(cards);
+ }
+ $('mai-test').addEventListener('click',async()=>{const button=$('mai-test');button.disabled=true;$('mai-model-result').textContent=tr('Verbindung und Modellstatus werden geprüft …');try{modelProbe=await api('test',{});renderModels();}catch(e){modelProbe=null;$('mai-model-result').textContent=e.message;}finally{button.disabled=false;}});
+ for(const name of ['video.frame_count','vision.model_max_pixels','ocr.model_max_pixels','ocr.max_batch_images'])form.elements[name].addEventListener('input',renderModels);
  let pickerTarget='folders',pickerPath='/',pickerSelected=new Set();
  async function pick(path){try{const r=await api('folders?'+new URLSearchParams({path}));pickerPath=r.path;$('mai-picker-path').textContent=path;$('mai-picker-current').checked=pickerSelected.has(path);$('mai-picker-list').replaceChildren();for(const f of r.folders){const row=el('div');row.className='mai-picker-row';const label=el('label',f.name),checkbox=el('input');label.className='mai-check';checkbox.type='checkbox';checkbox.checked=pickerSelected.has(f.path);checkbox.onchange=()=>{if(checkbox.checked){pickerSelected.delete('/');pickerSelected.add(f.path);$('mai-picker-current').checked=pickerSelected.has(pickerPath);}else pickerSelected.delete(f.path);selected();};label.prepend(checkbox);const open=el('button','Öffnen');open.type='button';open.onclick=()=>pick(f.path);label.lastChild.textContent=f.name;row.append(label,open);$('mai-picker-list').append(row);}selected();}catch(e){message(e.message,true);}}
  function selected(){$('mai-picker-selected').textContent=[...pickerSelected].join(' · ')||tr('Keine Ordner ausgewählt');}
@@ -52,7 +89,7 @@ async function init() {
  $('mai-maintenance-confirm').onclick=async()=>{try{await api('maintenance',{action:maintenanceAction,confirmation:maintenanceAction});$('mai-maintenance').close();message(maintenanceAction==='clear_logs'?'Aktivitätslog geleert.':'KI-Reset angefordert. Der Worker setzt nur die Analysedaten zurück.');await logs();await status();}catch(e){message(e.message,true);}};
  const now=new Date();$('mai-log-date').value=[now.getFullYear(),String(now.getMonth()+1).padStart(2,'0'),String(now.getDate()).padStart(2,'0')].join('-');
  $('mai-log-refresh').onclick=()=>logs();$('mai-log-older').onclick=()=>{$('mai-log-live').checked=false;logs(true);};$('mai-log-date').onchange=()=>{$('mai-log-live').checked=false;logs();};$('mai-log-level').onchange=renderLogs;
- api('config').then(c=>{config=c;loadForm();}).catch(e=>message(e.message,true));status();logs();let tick=0;const timer=setInterval(()=>{if(!document.contains(root)){clearInterval(timer);return;}status();if(++tick%2===0 && $('mai-log-live').checked && !document.hidden && !root.querySelector('#mai-logs details[open]') && root.querySelector('.mai-table').scrollTop===0)logs();},5000);
+ api('config').then(c=>{canManage=true;config=c;loadForm();status();logs();}).catch(e=>{if(e.status===403){for(const id of ['mai-pipeline-status','mai-pipeline-settings','mai-pipeline-logs','mai-pipeline-maintenance'])$(id).hidden=true;message('Die Verarbeitung gehört einem anderen Benutzer. Die Modellprüfung steht dir zur Verfügung.');}else message(e.message,true);});let tick=0;const timer=setInterval(()=>{if(!document.contains(root)){clearInterval(timer);return;}if(!canManage)return;status();if(++tick%2===0 && $('mai-log-live').checked && !document.hidden && !root.querySelector('#mai-logs details[open]') && root.querySelector('.mai-table').scrollTop===0)logs();},5000);
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
