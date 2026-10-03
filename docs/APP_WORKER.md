@@ -1,4 +1,4 @@
-# Integrierte App (0.3.3)
+# Integrierte App (0.3.4)
 
 Die Nextcloud-App enthält den Python-Worker. Er läuft als eigener systemd-Dienst
 mit niedriger CPU-/IO-Priorität, unabhängig von PHP-FPM und Nextcloud-Cron.
@@ -23,8 +23,35 @@ Vision-Endpunkt (hier LM Studio). Dort wird kein Nextcloud-Plugin installiert.
 
 Standardmäßig sind tägliche Verarbeitung deaktiviert und der Worker pausiert.
 Während einer aktiven Analyse wird Speichern abgewiesen; zuerst pausieren und die aktuelle Datei beenden lassen. Ein manueller Start
-arbeitet maximal `limit` Dateien und bis zur Zeitgrenze; eine angefangene Datei
-wird fertiggestellt. Eine Wiederaufnahme ist ein neuer begrenzter Lauf.
+verarbeitet alle offenen Bilder der gewählten Ordner, ohne Dateilimit und ohne
+Gesamtzeitgrenze. Pause greift nach der aktuellen Datei; Fortsetzen bearbeitet
+die restlichen Bilder. Erfolgreiche unveränderte Bilder werden übersprungen.
+Auch der tägliche Scan bearbeitet alle dann offenen Bilder. Ein über Nacht
+hinaus laufender Scan läuft weiter; es wird kein zweiter Scan parallel gestartet.
+
+`image_timeout_seconds` ist das Zeitbudget für **ein Bild**, gemeinsam für
+Download/Quellprüfung, Vorverarbeitung, Vision, OCR und alle Korrekturversuche.
+Standard: 600 Sekunden (10 Minuten), 0 deaktiviert die Zeitgrenze, maximal
+86.400 Sekunden. Ein Überschreiten beendet den Bildversuch mit einem sichtbaren
+Timeout-Fehler und der Scan arbeitet am nächsten Bild weiter. Bereits
+vollständig erfolgreiche Stufen bleiben für eine spätere Wiederholung im Cache.
+Unvollständige Antworten werden nicht als Ergebnis veröffentlicht.
+Der Worker schließt beim Ablauf aktive HTTP(S)-Sockets auch bei fortlaufendem
+Streaming; CPU-Vorverarbeitung wird an den nächsten Prüfpunkt gebunden, nicht
+mit einem unsicheren Thread-Abbruch beendet. Das separate Modell-Zeitlimit ist
+nur eine Netzwerk-Wartezeit je Anfrage ohne Daten. Es startet das Bildbudget
+nicht neu. Es gibt weiter kein Ausgabe-/Thinking-Tokenlimit bei max_tokens=0.
+Alte gespeicherte `limit`/`max_seconds` werden ignoriert; sie können den ersten
+Gesamtscan nicht mehr unbemerkt beenden.
+
+Die Promptfelder zeigen den vollständigen wirksamen Standard- oder eigenen
+Text. „Standardprompt wiederherstellen“ setzt den Feldinhalt zurück; erst
+Speichern übernimmt Änderungen. Unveränderter Standardtext wird als leerer
+Override gespeichert und folgt zukünftigen Standards. Python und PHP lesen
+die Standard-/Korrekturprompts aus derselben `worker/default_prompts.json`.
+Die Refaktorierung hat keinen Prompttext verändert und invalidiert deshalb
+keine bestehenden Analysen. Der konfigurierte Owner kann Modellprompts lesen
+und kopieren; Änderungen bleiben Administratoren vorbehalten.
 Ist der GPU-Endpunkt nicht verfügbar, startet keine Bildanalyse; ein neuer
 manueller Lauf oder der nächste tägliche Lauf versucht es erneut.
 

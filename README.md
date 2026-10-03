@@ -1,6 +1,6 @@
 # Nextcloud: private OCR- und Bildsuche
 
-**Stand 0.3.3: integrierte App und Python-Worker auf Nextcloud 32 installiert.**
+**Stand 0.3.4: integrierte App und Python-Worker auf Nextcloud 32 installiert.**
 
 Die App enthält den Worker und eine Oberfläche für Ordnerauswahl, Zeitplan,
 Start/Pause, DE/EN, Ergebnisse und Wartung. Installation und Bedienung:
@@ -47,7 +47,7 @@ Der Controller braucht **keinen direkten Zugang zur MariaDB**. Er meldet sich mi
 ## Bestehende Dateien und andere Apps
 
 - Der erste erfolgreiche Lauf inventarisiert rekursiv **alle Bildordner** unter der konfigurierten Quelle. Standard: Pauls vollständiger WebDAV-Dateibereich, also auch `InstantUpload`, `GoPro_Aufnahmen` und andere Ordner, soweit dort Bilder liegen.
-- Er arbeitet anschließend begrenzte Pakete ab, zuerst 100 Bilder als Pilot. Weitere Läufe setzen fort.
+- Die integrierte App verarbeitet alle offenen Bilder der gewählten Ordner, ohne Datei-/Gesamtzeitlimit. Pro Bild gilt standardmäßig ein gemeinsames Zeitbudget von 600 Sekunden (0 = unbegrenzt). Pause/Fortsetzen erhält den Fortschritt. Die portable CLI unterstützt weiterhin ausdrücklich gesetzte Pilotgrenzen.
 - Unveränderte Dateien brauchen weder erneuten Download noch Modellanfragen. Änderungen an ETag, Modellversion oder Prompt lösen eine neue Verarbeitung aus.
 - Bytegleiche Duplikate erhalten dieselben zwischengespeicherten Analyseergebnisse. Sie werden **nicht** gelöscht oder zusammengeführt. Ein SHA-256 erkennt keine nur ähnlich aussehenden/rekomprimierten Duplikate.
 - WebDAV-Datei-ID und unveränderter ETag erlauben Umbenennungen ohne erneute Analyse. Der Suchtreffer verwendet immer den aktuellen Nextcloud-Pfad.
@@ -117,7 +117,7 @@ Vorlagen: `systemd/media-ai.service` und `systemd/media-ai.timer`. **Nicht aktiv
 python3 -m unittest discover -s tests -v
 ```
 
-Die Laufzeitgrenze wird zwischen Dateien geprüft; eine bereits laufende Anfrage kann noch bis zum konfigurierten Timeout dauern. SQLite-/State-Dateien lokal speichern, nicht gemeinsam auf einem Netzlaufwerk. Die Sperre verhindert überlappende Controller auf demselben State; mehrere unabhängige State-Verzeichnisse bilden keine koordinierte gemeinsame Queue.
+Die optionale CLI-Laufzeitgrenze wird zwischen Dateien geprüft. In der integrierten App zählt stattdessen das gemeinsame Zeitbudget pro Bild; aktive Modellstreams werden beim Ablauf abgebrochen. SQLite-/State-Dateien lokal speichern, nicht gemeinsam auf einem Netzlaufwerk. Die Sperre verhindert überlappende Controller auf demselben State; mehrere unabhängige State-Verzeichnisse bilden keine koordinierte gemeinsame Queue.
 
 ## Modellplanung und Quellen
 

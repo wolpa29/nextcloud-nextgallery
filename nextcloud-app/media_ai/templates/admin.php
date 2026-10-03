@@ -7,17 +7,19 @@ script('media_ai','i18n'); script('media_ai','admin'); style('media_ai','admin')
  <section class="mai-panel"><div class="mai-title"><h3>Status</h3><span id="mai-online" class="mai-badge">Verbinde …</span></div>
   <div id="mai-counts" class="mai-counts"></div><p id="mai-current"></p><p id="mai-last" class="mai-muted"></p>
   <div class="mai-actions"><button data-action="start" class="primary">Lauf starten</button><button data-action="pause">Pausieren</button><button data-action="resume">Fortsetzen</button><button data-action="retry">Fehler erneut versuchen</button></div>
-  <p class="mai-muted">Pausieren greift nach der aktuellen Datei. Ein Lauf hält die eingestellten Grenzen ein.</p>
+  <p class="mai-muted">Ein Start verarbeitet alle offenen Bilder der gewählten Ordner. Pausieren greift nach der aktuellen Datei.</p>
  </section>
  <details class="mai-panel" id="mai-settings"><summary>Einstellungen</summary><form id="mai-form">
   <h3>Verarbeitung</h3><div class="mai-grid">
-   <label>Nextcloud-Benutzer<input name="user_id" required></label><label>Max. Dateien pro Lauf<input type="number" name="limit" min="1" max="10000" required></label>
+   <label>Nextcloud-Benutzer<input name="user_id" required></label><label>Max. Zeit pro Bild (Sekunden, 0 = unbegrenzt)<input type="number" name="image_timeout_seconds" min="0" max="86400" required></label>
    <label>Ordner (ein Pfad je Zeile)<textarea name="folders" rows="3" required></textarea></label><label>Ausgeschlossene Ordner<textarea name="exclude_folders" rows="3"></textarea></label>
    <div><button id="mai-pick-folders" type="button">Ordner auswählen</button><button id="mai-pick-excludes" type="button">Ausschlüsse auswählen</button></div>
    <label>Täglicher Start<input type="time" name="schedule_time" required></label><label>Zeitzone<input name="timezone" required></label>
-   <label>Max. Laufzeit (Sekunden)<input type="number" name="max_seconds" min="30" max="86400" required></label><label>Logs aufbewahren (Tage)<input type="number" name="log_days" min="1" max="365" required></label>
+   <label>Logs aufbewahren (Tage)<input type="number" name="log_days" min="1" max="365" required></label>
    <label>Max. Dateigröße (Bytes)<input type="number" name="max_download_bytes" min="1048576" max="536870912" required></label><label>Max. Bildpixel<input type="number" name="max_image_pixels" min="1000000" max="200000000" required></label>
   </div><label class="mai-check"><input name="enabled" type="checkbox"> Täglichen Lauf aktivieren</label>
+  <p class="mai-muted">Kein Datei- oder Gesamtzeitlimit: Unveränderte fertige Bilder werden übersprungen. Fortsetzen bearbeitet die restlichen Bilder.</p>
+  <p class="mai-muted">Die Zeit pro Bild umfasst Download, Bildanalyse, OCR und Korrekturversuche zusammen. Bei Überschreitung wird ein Fehler protokolliert und das nächste Bild bearbeitet.</p>
   <p id="mai-permissions" class="mai-muted"></p><div id="mai-model-settings"></div>
   <div class="mai-actions"><button type="submit" class="primary">Speichern</button><button id="mai-test" type="button">Modelle prüfen</button></div><p id="mai-model-result"></p>
  </form></details>

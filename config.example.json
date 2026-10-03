@@ -52,5 +52,6 @@
     "password_env": "NEXTCLOUD_APP_PASSWORD",
     "ca_file": "./nextcloud-local-ca.crt",
     "path_prefix": ""
-  }
+  },
+  "image_timeout_seconds": 600
 }

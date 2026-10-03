@@ -1,4 +1,5 @@
 """OpenAI-compatible SSE reader and incremental repetition guard."""
+from media_ai_budget import check_budget
 from collections import deque, Counter
 import json
 import re
@@ -140,7 +141,9 @@ def chat_stream(open_response, url, payload, headers, timeout, repetitions=5, nu
     with open_response(url, 'POST', json.dumps(payload).encode(), headers, timeout) as response:
         if 'text/event-stream' not in response.headers.get('Content-Type', '').lower():
             # Some compatible endpoints ignore stream=true; retain explicit evidence.
+            check_budget()
             wire = response.read(2 * 1024 * 1024 + 1)
+            check_budget()
             if len(wire) > 2 * 1024 * 1024:
                 raise StreamFailure('Nicht gestreamte Modellantwort zu gross.')
             result = json.loads(wire)
@@ -163,10 +166,12 @@ def chat_stream(open_response, url, payload, headers, timeout, repetitions=5, nu
             return result
         event_lines = []
         while True:
+            check_budget()
             try:
                 line = response.readline(1024 * 1024 + 1)
             except (OSError, HTTPException) as error:
                 raise StreamFailure('Modellstream unterbrochen: '+str(error), assembled()) from None
+            check_budget()
             if not line:
                 break
             if len(line) > 1024 * 1024:

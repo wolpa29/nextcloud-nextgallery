@@ -27,7 +27,7 @@ class AdminController extends Controller {
         }
         if (!$this->admin()) {
             $safe=$this->settings->get();
-            foreach(['enabled','folders','exclude_folders','schedule_time','timezone','limit','max_seconds','log_days','max_download_bytes','max_image_pixels'] as $key) { if(array_key_exists($key,$config))$safe[$key]=$config[$key]; }
+            foreach(['enabled','folders','exclude_folders','schedule_time','timezone','image_timeout_seconds','log_days','max_download_bytes','max_image_pixels'] as $key) { if(array_key_exists($key,$config))$safe[$key]=$config[$key]; }
             $config=$safe;
         }
         try {

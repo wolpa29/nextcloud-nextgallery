@@ -1,4 +1,4 @@
-"""Bundled daemon. Native Nextcloud API, private state, bounded daily batches."""
+"""Bundled daemon. Native Nextcloud API, private state, per-image time budgets."""
 from __future__ import annotations
 import argparse
 from datetime import datetime, timedelta
@@ -163,7 +163,7 @@ def cycle(api,config,directory,reporter,control):
         reporter.run_id=uuid.uuid4().hex
         reporter.update(state='running',current=None,started_at=time.time(),message='Inventar und Analyse')
         reporter.event('run_start')
-        result=p.run(config,store,source,models,config['limit'],config['max_seconds'],publisher=NativePublisher(api,config),observe=reporter.event,
+        result=p.run(config,store,source,models,limit=0,max_seconds=0,publisher=NativePublisher(api,config),observe=reporter.event,
             should_stop=lambda:read(directory/'control.json',{'paused':True}).get('paused',True))
         reporter.event('run_finished',**result)
         reporter.update(state=result['state'],last_run=result,stats=store.stats(),current=None,message=result.get('reason','Lauf abgeschlossen'))

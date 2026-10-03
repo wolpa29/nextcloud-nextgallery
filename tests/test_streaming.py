@@ -8,6 +8,7 @@ import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import media_pipeline as p
 from media_ai_stream import RepetitionGuard, StreamLoop
+from media_ai_budget import ImageBudget, ImageTimeout, check_budget
 
 
 def frames(text, channel='content', finish='stop', done=True):
@@ -20,6 +21,38 @@ def frames(text, channel='content', finish='stop', done=True):
 
 
 class StreamingTests(unittest.TestCase):
+    def test_image_deadline_interrupts_trickling_stream_and_continues_next_image(self):
+        from test_pipeline import Source, Model, Publisher
+        text=' '.join(f'Eintrag{n} sichtbar{n*n}' for n in range(100))
+        slow=frames(json.dumps({'text':text}));type(self).responses=[(*slow,0.01),frames('{"text":"Nur zweites Bild"}')]
+        ocr=self.model(loop_retries=3);ocr.health=lambda:None
+        source=Source();source.items.append(p.Item('2','Camera/b.jpg','b','v1',100))
+        publisher=Publisher();events=[]
+        with tempfile.TemporaryDirectory() as d:
+            store=p.Store(Path(d)/'state.sqlite3')
+            report=p.run({'image_timeout_seconds':0.15},store,source,{'vision':Model('vision'),'ocr':ocr},limit=0,max_seconds=0,publisher=publisher,observe=lambda event,**kw:events.append((event,kw)))
+            self.assertEqual(report['processed'],1);self.assertEqual(report['errors'],1)
+            self.assertEqual(report['stats'],{'error':1,'done':1})
+            failures=[e[1] for e in events if e[0]=='file_error'];self.assertEqual(failures[0]['state'],'timeout')
+            self.assertLess(failures[0]['seconds'],1)
+            self.assertEqual(len(self.calls),2)  # No fresh time budget for corrective retries.
+            self.assertEqual(len(publisher.sent),1);self.assertEqual(len(store.search('zweites')),1)
+            self.assertEqual(store.db.execute("SELECT COUNT(*) FROM results WHERE stage='ocr'").fetchone()[0],1)
+            store.db.close()
+        for _ in range(30):
+            if len(self.write_counts)>=2:break
+            time.sleep(0.01)
+        self.assertTrue(any(count<len(slow[0]) for count in self.write_counts))
+
+    def test_image_budget_shared_across_stages_and_zero_disables_it(self):
+        with ImageBudget(0):
+            time.sleep(0.02);check_budget()
+        with self.assertRaises(ImageTimeout):
+            with ImageBudget(0.06):
+                time.sleep(0.035);check_budget()  # First stage uses part of the same time.
+                time.sleep(0.04);check_budget()  # Next stage cannot restart the budget.
+        check_budget()  # The following image has no inherited expired context.
+
     @classmethod
     def setUpClass(cls):
         cls.responses=[];cls.calls=[];cls.write_counts=[]

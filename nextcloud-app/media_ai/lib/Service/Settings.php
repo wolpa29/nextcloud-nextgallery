@@ -10,8 +10,7 @@ class Settings {
     public function __construct(private IConfig $config, private ICrypto $crypto) {}
     public function defaults(): array {
         return ['enabled' => false, 'user_id' => 'paul', 'folders' => ['/'], 'exclude_folders' => [],
-            'schedule_time' => '03:00', 'timezone' => 'Europe/Vienna', 'limit' => 100,
-            'max_seconds' => 3600, 'log_days' => 30, 'max_download_bytes' => 67108864,
+            'schedule_time' => '03:00', 'timezone' => 'Europe/Vienna', 'image_timeout_seconds' => 600, 'log_days' => 30, 'max_download_bytes' => 67108864,
             'max_image_pixels' => 80000000,
             'vision' => ['url' => 'http://10.1.10.78:1234/v1', 'model' => 'qwen/qwen3.8-27b',
                 'model_revision' => 'qwen3.8-27b-Q4_K_M-20261002', 'max_edge' => 2048,
@@ -26,7 +25,9 @@ class Settings {
     }
     public function get(): array {
         $saved = json_decode($this->config->getAppValue('media_ai', 'settings', '{}'), true, 64, JSON_THROW_ON_ERROR);
-        return array_replace_recursive($this->defaults(), $saved);
+        $value = array_replace_recursive($this->defaults(), $saved);
+        unset($value['limit'], $value['max_seconds']); // Former batch limits no longer apply.
+        return $value;
     }
     private function secret(string $key): string {
         $raw = $this->config->getAppValue('media_ai', $key, '');
@@ -46,7 +47,12 @@ class Settings {
     }
     public function publicConfig(): array {
         $value = $this->get();
-        foreach (['vision', 'ocr'] as $stage) { $value[$stage]['has_api_key'] = $this->secret($stage . '_api_key') !== ''; }
+        $prompts = json_decode(file_get_contents(dirname(__DIR__, 2) . '/worker/default_prompts.json'), true, 64, JSON_THROW_ON_ERROR);
+        foreach (['vision', 'ocr'] as $stage) {
+            $value[$stage]['has_api_key'] = $this->secret($stage . '_api_key') !== '';
+            $value[$stage]['default_prompt'] = $prompts[$stage]['prompt'];
+            $value[$stage]['default_retry_prompt'] = $prompts[$stage]['retry_prompt'];
+        }
         return $value;
     }
     public function workerConfig(): array {
@@ -90,9 +96,9 @@ class Settings {
         $result['folders'] = $this->paths($value['folders'] ?? []);
         $result['exclude_folders'] = $this->paths($value['exclude_folders'] ?? []);
         if (!$result['folders']) { throw new OCSBadRequestException('Mindestens einen Ordner auswählen'); }
-        foreach (['limit' => [1,10000], 'max_seconds' => [30,86400], 'log_days' => [1,365],
+        foreach (['image_timeout_seconds' => [0,86400], 'log_days' => [1,365],
                   'max_download_bytes' => [1048576,536870912], 'max_image_pixels' => [1000000,200000000]] as $key => [$min,$max]) {
-            $result[$key] = $this->integer($value[$key] ?? null, $min, $max, $key);
+            $result[$key] = $this->integer($value[$key] ?? ($key === 'image_timeout_seconds' ? 600 : null), $min, $max, $key);
         }
         $secrets = [];
         foreach (['vision','ocr'] as $stage) {

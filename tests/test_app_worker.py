@@ -14,6 +14,32 @@ w=importlib.util.module_from_spec(spec);spec.loader.exec_module(w)
 from test_pipeline import Source,Model,Publisher
 
 class WorkerTests(unittest.TestCase):
+    def test_bounded_runs_resume_remaining_images_without_reanalyzing_done(self):
+        with tempfile.TemporaryDirectory() as d:
+            store=p.Store(Path(d)/'state.sqlite3');source=Source()
+            source.items.extend([p.Item('2','b.jpg','b','v1',100),p.Item('3','c.jpg','c','v1',100)])
+            models={s:Model(s) for s in ['vision','ocr']};events=[]
+            first=p.run({},store,source,models,limit=1,observe=lambda event,**fields:events.append((event,fields)))
+            self.assertEqual(first['stats'],{'done':1,'pending':2})
+            events.clear();second=p.run({},store,source,models,limit=10,observe=lambda event,**fields:events.append((event,fields)))
+            self.assertEqual(second['processed'],2);self.assertEqual(second['stats'],{'done':3})
+            self.assertEqual(sum(e[0]=='stage_start' for e in events),4)
+            store.db.close()
+
+    def test_run_time_budget_finishes_current_image_and_resumes_next(self):
+        with tempfile.TemporaryDirectory() as d:
+            store=p.Store(Path(d)/'state.sqlite3');source=Source();source.items.append(p.Item('2','b.jpg','b','v1',100))
+            clock=[0];events=[];models={s:Model(s) for s in ['vision','ocr']}
+            def observe(event,**fields):
+                events.append((event,fields))
+                if event=='stage_finished':clock[0]=60
+            with patch.object(p.time,'monotonic',side_effect=lambda:clock[0]):
+                first=p.run({},store,source,models,max_seconds=30,observe=observe)
+            self.assertEqual(first['processed'],1);self.assertEqual(first['stats'],{'done':1,'pending':1})
+            self.assertEqual(sum(e[0]=='stage_finished' for e in events),2)
+            second=p.run({},store,source,models)
+            self.assertEqual(second['processed'],1);self.assertEqual(second['stats'],{'done':2});store.db.close()
+
     def test_pause_finishes_current_file_and_stops_next(self):
         with tempfile.TemporaryDirectory() as d:
             store=p.Store(Path(d)/'state.sqlite3'); source=Source(); source.items.append(p.Item('2','b.jpg','b','v1',100)); events=[]
