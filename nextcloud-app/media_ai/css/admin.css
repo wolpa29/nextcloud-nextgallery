@@ -1,32 +1,161 @@
-.mai{margin-inline:auto;max-width:1160px;padding:24px;box-sizing:border-box;width:100%;overflow:auto;height:100%}.mai h2{font-size:26px;margin-bottom:4px}.mai h3{font-size:18px;margin:8px 0 14px}.mai-muted{color:var(--color-text-maxcontrast);font-size:13px;margin:8px 0 16px}.mai-panel{border:1px solid var(--color-border);border-radius:12px;padding:20px;margin:20px 0;background:var(--color-main-background)}.mai-title,.mai-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.mai-title{justify-content:space-between}.mai-counts{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:12px 0}.mai-count{background:var(--color-background-dark);padding:16px;border-radius:8px}.mai-count strong{display:block;font-size:28px;line-height:1.5}.mai-badge{padding:5px 10px;background:var(--color-background-dark);border-radius:12px}.mai-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.mai label{display:flex;flex-direction:column;gap:5px;font-size:13px}.mai label input,.mai label textarea{width:100%;box-sizing:border-box;margin:0}.mai textarea{resize:vertical}.mai .mai-check{display:flex;flex-direction:row;align-items:center;margin:16px 0}.mai .mai-check input{width:auto}.mai summary{cursor:pointer;font-weight:600}.mai details[open] summary{margin-bottom:20px}.mai-table{overflow-x:auto;margin:10px 0}.mai table{width:100%;border-collapse:collapse;font-size:13px}.mai th,.mai td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--color-border);vertical-align:top}.mai td:nth-child(3){overflow-wrap:anywhere;max-width:600px}.mai-error{color:var(--color-error-text,var(--color-main-text))}#mai-message{position:sticky;top:0;background:var(--color-main-background);z-index:1;padding:4px}.mai-model{border-top:1px solid var(--color-border);padding-top:16px;margin-top:20px}.mai-model textarea{min-height:120px}.mai-meta{padding:16px;overflow-wrap:anywhere}.mai-meta pre{white-space:pre-wrap;font-family:inherit;background:var(--color-background-dark);padding:12px;border-radius:8px}.mai-meta h3{font-size:16px;margin:20px 0 8px}.mai-meta p{white-space:pre-wrap}@media(max-width:700px){.mai{padding:12px}.mai-panel{padding:14px}.mai-grid{grid-template-columns:1fr}.mai-counts{gap:6px}.mai-count{padding:10px}.mai-count strong{font-size:23px}}
+/* Nextcloud supplies the palette; the app follows both light and dark themes. */
+.mai-shell{display:flex;width:100%;height:100%;min-height:0;overflow:hidden;background:var(--color-main-background)}
+#app-navigation.mai-navigation{display:block;position:relative;inset:auto;float:none;flex:0 0 224px;width:224px;min-width:224px;max-width:224px;height:100%;margin:0;padding:26px 14px;box-sizing:border-box;border-right:1px solid var(--color-border);background:var(--color-main-background);overflow-y:auto;transform:none;visibility:visible;z-index:auto}
+#app-content.mai-app-content{position:relative;float:none;flex:1;min-width:0;width:0;height:100%;margin:0;padding:0;overflow:hidden}
+#app-navigation.mai-navigation .mai-nav-header{display:flex;align-items:center;justify-content:space-between;margin:0 10px 28px}
+#app-navigation.mai-navigation .mai-nav-brand{display:flex;align-items:center;gap:10px;font-size:20px;font-weight:650;letter-spacing:-.5px;color:var(--color-main-text);text-decoration:none}
+.mai-brand-mark{width:30px;height:30px;flex:none;background:currentColor;mask:url('../img/app.svg') center/contain no-repeat}
+#app-navigation.mai-navigation .mai-nav-links{list-style:none;padding:0;margin:0;display:grid;gap:4px}
+#app-navigation.mai-navigation .mai-nav-links li{margin:0;padding:0}#app-navigation.mai-navigation .mai-nav-links li[hidden]{display:none}
+#app-navigation.mai-navigation .mai-nav-links a{display:flex;align-items:center;gap:12px;min-height:44px;padding:8px 12px;box-sizing:border-box;border-radius:8px;color:var(--color-text-maxcontrast);font-size:14px;font-weight:500;text-decoration:none}
+#app-navigation.mai-navigation .mai-nav-links svg{width:20px;height:20px;flex:none}
+#app-navigation.mai-navigation .mai-nav-links a:hover{background:var(--color-background-hover);color:var(--color-main-text)}
+#app-navigation.mai-navigation .mai-nav-links a.is-active{background:var(--color-primary-element-light);color:var(--color-primary-element-light-text,var(--color-main-text));font-weight:600}
+#mai-nav-toggle{display:none;border:1px solid var(--color-border);background:var(--color-main-background);color:var(--color-main-text);font-weight:600}
 
-#mai-picker{color:var(--color-main-text);background:var(--color-main-background);border:1px solid var(--color-border);border-radius:12px;width:min(680px,90vw);max-height:80vh;overflow:auto;padding:24px}#mai-picker::backdrop{background:#0007}.mai-picker-row{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--color-border);gap:16px}.mai-picker-row label{overflow-wrap:anywhere}
+.mai{--mai-border:var(--color-border);--mai-soft:color-mix(in srgb,var(--color-main-text) 4%,var(--color-main-background));margin-inline:auto;max-width:1160px;width:100%;height:100%;padding:28px 30px 40px;box-sizing:border-box;overflow:auto;scrollbar-gutter:stable;color:var(--color-main-text);font-size:14px;line-height:1.5}
+.mai h2{font-size:27px;font-weight:650;letter-spacing:-.7px;line-height:1.25;margin:0}
+.mai h3{font-size:17px;font-weight:600;letter-spacing:-.25px;margin:0 0 14px}
+.mai h4{font-size:14px;font-weight:600;margin:0 0 10px}
+.mai-muted{color:var(--color-text-maxcontrast);font-size:12px;line-height:1.6;margin:8px 0 14px}
+.mai-header{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:24px}
+.mai-header .mai-muted{margin:5px 0 0}.mai-language{min-width:112px}.mai-language select{margin:0}
+.mai-panel{border:1px solid var(--mai-border);border-radius:12px;padding:22px;margin:18px 0;background:var(--color-main-background)}
+.mai-title,.mai-section-header,.mai-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.mai-title,.mai-section-header{justify-content:space-between}
+.mai-title>h3,.mai-section-header>h3{margin:0}.mai-section-header{margin-bottom:18px}.mai-section-header .mai-muted{margin:0}
+.mai-actions button{margin:0}.mai button{min-height:36px;padding:6px 14px;border-radius:8px;font-size:13px;font-weight:600;line-height:22px;box-sizing:border-box}
+.mai button:not(.primary){background-color:transparent;border:1px solid var(--mai-border);color:var(--color-main-text)}
+.mai button:not(.primary):hover:not(:disabled){background-color:var(--mai-soft)}
+.mai button.primary{background-color:var(--color-primary-element);border:1px solid var(--color-primary-element);color:var(--color-primary-element-text)}
+.mai button:disabled{opacity:.5;cursor:default}
+.mai button:focus-visible,.mai summary:focus-visible,#app-navigation.mai-navigation .mai-nav-links a:focus-visible,#app-navigation.mai-navigation .mai-nav-brand:focus-visible{outline:2px solid var(--color-primary-element);outline-offset:3px}
 
-#mai-picker:not([open]),#mai-maintenance:not([open]){display:none}
+/* Status uses one clear metric row, rather than three nested cards. */
+.mai-counts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin:22px 0;padding:4px 0}
+.mai-count{padding:0 22px;border-inline-end:1px solid var(--mai-border)}
+.mai-count:first-child{padding-inline-start:0}.mai-count:last-child{border:0}
+.mai-count strong{display:block;font-size:30px;line-height:1.25;font-weight:600;letter-spacing:-.8px;font-variant-numeric:tabular-nums;margin-bottom:5px}
+.mai-count span{font-size:12px;color:var(--color-text-maxcontrast)}
+.mai-badge{display:inline-flex;align-items:center;gap:8px;padding:5px 10px;border-radius:6px;background:var(--mai-soft);font-size:12px;line-height:20px}
+.mai-badge::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--color-text-maxcontrast);flex:none}
+.mai-badge[data-state=running]::before{background:var(--color-primary-element)}
+.mai-badge[data-state=idle]::before,.mai-badge[data-state=finished]::before{background:var(--color-success)}
+.mai-badge[data-state=error]::before,.mai-badge[data-state=offline]::before{background:var(--color-error)}
+#mai-current{display:flex;align-items:center;gap:8px 14px;flex-wrap:wrap;margin:0 0 14px;font-size:13px}
+#mai-current:empty,#mai-last:empty{display:none}
+.mai-current-path{flex:1 1 280px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}
+.mai-current-stage{font-size:12px;color:var(--color-text-maxcontrast)}
+.mai-current-time{font-size:13px;font-variant-numeric:tabular-nums}
+.mai-current-progress{flex-basis:100%;font-size:12px;color:var(--color-text-maxcontrast)}
+.mai-status-hint{margin:10px 0 0}.mai-status-panel #mai-last{margin-bottom:16px}
 
-.mai-language{min-width:120px}.mai-language select{margin:0}.mai-table{max-height:400px}.mai th{position:sticky;top:0;background:var(--color-main-background)}#mai-message:empty{display:none}.mai-actions input[type=date]{max-width:150px}.mai-actions select{max-width:190px}.mai input:invalid:focus{border-color:var(--color-error)}.mai-title>h3{margin:0}.mai h2{margin:0}.mai-lang-note{max-width:50ch}@media(max-width:700px){.mai-counts{grid-template-columns:repeat(3,minmax(0,1fr))}.mai-title{align-items:flex-start}.mai-actions{gap:6px}.mai-actions button{margin:0}.mai-table{max-height:320px}.mai-dialog{padding:14px}.mai-language{min-width:105px}}
-
-#mai-maintenance{color:var(--color-main-text);background:var(--color-main-background);border:1px solid var(--color-border);border-radius:12px;width:min(560px,85vw);padding:24px}#mai-maintenance::backdrop{background:#0007}.mai td details{margin-top:8px}.mai td details summary{font-size:12px;color:var(--color-primary-element)}.mai td pre{white-space:pre-wrap;font-family:inherit}.mai td h4{font-weight:600;margin-top:12px}.mai td details p{white-space:pre-wrap;margin:8px 0}
-
-#mai-picker,#mai-maintenance{position:fixed;inset:0;margin:auto;box-sizing:border-box;height:fit-content;max-height:85vh;overflow:auto}
-
-/* Nextcloud's global table styles use nowrap; keep long activity messages inside their column. */
-.mai table{table-layout:fixed;min-width:600px}
-.mai table th,.mai table td,.mai table td a{white-space:normal;overflow-wrap:anywhere}
-.mai table th:first-child,.mai table td:first-child{width:90px}
-.mai table th:nth-child(2),.mai table td:nth-child(2){width:170px}
-.mai table th:last-child,.mai table td:last-child{width:90px}
-
-/* Read-only prompts remain selectable, but match Nextcloud's disabled inputs. */
-.mai-model textarea[readonly]{color:var(--color-text-lighter);opacity:.7;cursor:default}
-.mai-model-checks{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:16px 0}
-.mai-model-check{border:1px solid var(--color-border);border-radius:8px;padding:16px;overflow-wrap:anywhere}
-.mai-model-check h4{font-weight:600;margin:0 0 8px}.mai-model-check dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:12px 0}
-.mai-model-check dt,.mai-model-check dd{width:auto;min-width:0;padding:0;box-sizing:border-box}.mai-model-check dt{color:var(--color-text-maxcontrast)}.mai-model-check dd{margin:0}.mai-model-check ul{padding-left:20px}
-@media(max-width:700px){.mai-model-checks{grid-template-columns:1fr}.mai-model-check dl{grid-template-columns:1fr}}
-
-.mai-savebar{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;margin:20px 0;border:1px solid var(--color-border);border-radius:8px;background:var(--color-main-background)}
-.mai-savebar[hidden]{display:none}.mai [data-save-status]{font-size:13px;color:var(--color-text-maxcontrast)}
+/* Fields are grouped by purpose; all inputs remain in the same form. */
+.mai-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.mai label{display:flex;flex-direction:column;gap:6px;font-size:12px;line-height:1.5;color:var(--color-text-maxcontrast)}
+.mai label input,.mai label textarea,.mai label select{width:100%;min-width:0;box-sizing:border-box;margin:0}
+.mai input:not([type=checkbox]),.mai textarea,.mai select{min-height:38px;padding:8px 10px;border:1px solid var(--mai-border);border-radius:7px;background-color:var(--color-main-background);color:var(--color-main-text);font-size:13px;line-height:20px;box-sizing:border-box}
+.mai select{padding-inline-end:30px}.mai textarea{resize:vertical;min-height:72px}
+.mai input:focus-visible,.mai textarea:focus-visible,.mai select:focus-visible{outline:2px solid var(--color-primary-element);outline-offset:1px}
+.mai input:disabled,.mai select:disabled{color:var(--color-text-maxcontrast);opacity:.65}
+.mai textarea[readonly]{color:var(--color-text-maxcontrast);opacity:.75;cursor:default}
+.mai .mai-check{display:flex;flex-direction:row;align-items:center;gap:8px;margin:12px 0;color:var(--color-main-text);font-size:13px}
+.mai .mai-check input{width:16px;height:16px;min-height:0;padding:0;margin:0;flex:none;accent-color:var(--color-primary-element)}
+.mai-folder-field{min-width:0}.mai-folder-field button{margin:8px 0 0;min-height:32px;padding:4px 10px;font-size:12px}
+.mai-options-grid{grid-template-columns:repeat(3,minmax(0,1fr));margin-top:18px;align-items:end}
+.mai-schedule{margin-top:20px;padding-top:14px;border-top:1px solid var(--mai-border)}
+.mai-schedule>.mai-check{margin:0 0 12px}.mai-schedule .mai-options-grid{margin:0}
+.mai-help{margin-top:16px}.mai-help>summary{font-size:12px;color:var(--color-text-maxcontrast);font-weight:500}
+.mai-help .mai-muted{max-width:85ch;margin:10px 0}
+.mai-form-footer{padding-top:18px;margin-top:18px;border-top:1px solid var(--mai-border)}
+.mai [data-save-status]{font-size:12px;color:var(--color-text-maxcontrast)}
 .mai [data-save-status][data-state=dirty]{color:var(--color-main-text);font-weight:600}
 .mai [data-save-status][data-state=error]{color:var(--color-error-text,var(--color-main-text));font-weight:600}
-.mai-savebar button{margin:0;flex-shrink:0}
+.mai-savebar{position:sticky;top:0;z-index:3;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;margin:18px 0;border:1px solid var(--color-primary-element);border-radius:9px;background:var(--color-main-background);box-shadow:0 3px 12px #00000010}
+.mai-savebar[hidden]{display:none}.mai-savebar button{margin:0;flex-shrink:0}
+#mai-message{margin:12px 0;padding:10px 12px;background:var(--mai-soft);border-radius:8px;font-size:13px}
+#mai-message:empty{display:none}.mai-error{color:var(--color-error-text,var(--color-main-text))}
+
+/* Compact activity rows keep filename and duration visible. */
+.mai-log-toolbar{gap:8px;margin-bottom:18px}
+.mai-log-toolbar input[type=date]{max-width:150px}.mai-log-toolbar select{max-width:220px}.mai-log-toolbar .mai-check{margin:0 4px}.mai-log-toolbar button{margin-inline-start:auto}
+.mai-table{max-height:460px;overflow:auto;scrollbar-gutter:stable}
+.mai table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:12px;line-height:1.5}
+.mai table th,.mai table td{white-space:normal;text-align:start;padding:12px 8px;border-bottom:1px solid var(--mai-border);vertical-align:top;overflow-wrap:anywhere}
+.mai table th{position:sticky;top:0;z-index:1;background:var(--color-main-background);color:var(--color-text-maxcontrast);font-size:11px;font-weight:500}
+.mai table th:first-child,.mai table td:first-child{width:72px;padding-inline-start:0;font-variant-numeric:tabular-nums}
+.mai table th:nth-child(2),.mai table td:nth-child(2){width:136px}
+.mai table th:last-child,.mai table td:last-child{width:88px;padding-inline-end:0;text-align:end}
+.mai table tbody tr:hover{background:var(--mai-soft)}
+.mai table td a{white-space:normal;overflow-wrap:anywhere}
+.mai-log-mobile-event{display:none}.mai-log-event{font-size:12px;color:var(--color-text-maxcontrast)}
+.mai-error .mai-log-event{color:inherit}.mai-log-file{display:block;font-size:13px;font-weight:550;color:var(--color-main-text)}
+.mai-log-path{display:block;font-size:11px;color:var(--color-text-maxcontrast);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.mai-duration{font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap!important}
+.mai td details{margin-top:8px}.mai td details:not([open]){display:inline-block;margin-inline-end:14px}
+.mai td details summary{font-size:11px;color:var(--color-primary-element);font-weight:500}
+.mai td details[open]{margin-top:10px;padding:10px 12px;border:1px solid var(--mai-border);border-radius:8px;background:var(--color-main-background)}
+.mai td details[open]>summary{margin-bottom:10px}.mai td details p{white-space:pre-wrap;margin:7px 0;font-size:12px}
+.mai td details h4{font-size:12px;font-weight:600;margin:14px 0 5px}.mai td pre{white-space:pre-wrap;font-family:inherit;font-size:12px}
+.mai td.mai-empty{text-align:center!important;padding:32px 12px;color:var(--color-text-maxcontrast)}
+#mai-log-older{margin-top:14px}
+
+/* Settings and maintenance remain closed until requested. */
+.mai summary{cursor:pointer;font-weight:600}.mai details[open]>summary{margin-bottom:14px}
+.mai-disclosure{padding:0}.mai-disclosure>summary{list-style:none;display:flex;align-items:center;gap:14px;padding:18px 22px;font-size:14px;margin:0!important}
+.mai-disclosure>summary::-webkit-details-marker{display:none}
+.mai-disclosure>summary::after{content:'';width:6px;height:6px;margin-inline-start:auto;border-inline-end:1.5px solid currentColor;border-block-end:1.5px solid currentColor;transform:rotate(45deg);flex:none}
+.mai-disclosure[open]>summary::after{transform:rotate(225deg)}
+.mai-summary-note{font-size:12px;font-weight:400;color:var(--color-text-maxcontrast);margin-inline-start:auto}
+.mai-disclosure[open]>summary{border-bottom:1px solid var(--mai-border)}
+.mai-disclosure>.mai-model-probe,.mai-disclosure>#mai-advanced-settings{padding:20px 22px}
+.mai-model-probe .mai-title>h3{font-size:14px}.mai-model-probe .mai-muted{margin:12px 0 0}
+.mai-subsection{border-top:1px solid var(--mai-border);padding-top:16px}.mai-subsection>summary{font-size:13px}
+.mai-model{margin-top:16px;border:1px solid var(--mai-border);border-radius:9px}
+.mai-model>summary{padding:14px 16px;font-size:13px;margin:0!important}
+.mai-model[open]>summary{border-bottom:1px solid var(--mai-border)}
+.mai-model>*:not(summary){margin:16px}.mai-model>p{color:var(--color-text-maxcontrast);font-size:12px;line-height:1.65}
+.mai-model textarea{min-height:120px;font-size:12px;line-height:1.65}
+.mai-model .mai-muted{margin:4px 0 0;font-size:11px}.mai-model .mai-prompt-actions button{font-size:11px;min-height:30px;padding:3px 10px}
+.mai-model-checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:18px}
+.mai-model-check{border:1px solid var(--mai-border);border-radius:8px;padding:16px;overflow-wrap:anywhere}
+.mai-model-check dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 14px;margin:12px 0;font-size:12px}
+.mai-model-check dt,.mai-model-check dd{width:auto;min-width:0;padding:0;box-sizing:border-box}.mai-model-check dt{color:var(--color-text-maxcontrast)}.mai-model-check dd{margin:0}.mai-model-check ul{padding-inline-start:20px;font-size:12px}
+.mai-disclosure>p,.mai-disclosure>.mai-maintenance-actions{margin:18px 22px}.mai-disclosure>.mai-maintenance-actions{margin-bottom:22px}
+.mai-maintenance-actions #mai-reset-ai{color:var(--color-error-text,var(--color-main-text))}
+
+#mai-picker,#mai-maintenance{position:fixed;inset:0;margin:auto;box-sizing:border-box;height:fit-content;width:min(640px,90vw);max-height:85vh;overflow:auto;padding:24px;color:var(--color-main-text);background:var(--color-main-background);border:1px solid var(--color-border);border-radius:12px;box-shadow:0 16px 64px #0003}
+#mai-maintenance{width:min(520px,90vw)}
+#mai-picker:not([open]),#mai-maintenance:not([open]){display:none}
+#mai-picker::backdrop,#mai-maintenance::backdrop{background:#0007}
+.mai-picker-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:8px 0;border-bottom:1px solid var(--mai-border)}
+.mai-picker-row label{overflow-wrap:anywhere}.mai-picker-row .mai-check{margin:0}
+#mai-picker-path{font-size:12px;color:var(--color-text-maxcontrast);overflow-wrap:anywhere}
+.mai dialog>.mai-actions:last-child{justify-content:flex-end;margin-top:20px}
+
+/* File sidebar styles are independent of the app's main layout. */
+.mai-meta{padding:16px;overflow-wrap:anywhere}.mai-meta pre{white-space:pre-wrap;font-family:inherit;background:var(--color-background-dark);padding:12px;border-radius:8px}.mai-meta h3{font-size:16px;margin:20px 0 8px}.mai-meta p{white-space:pre-wrap}
+
+@media(max-width:1100px){#app-navigation.mai-navigation{flex-basis:204px;width:204px;min-width:204px;max-width:204px}.mai{padding:24px}.mai-options-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:850px){
+ .mai-shell{flex-direction:column}
+ #app-navigation.mai-navigation{flex:none;width:100%;min-width:0;max-width:none;height:auto;padding:12px 18px;border-right:0;border-bottom:1px solid var(--color-border);overflow:visible}
+ #app-navigation.mai-navigation .mai-nav-header{margin:0}#app-navigation.mai-navigation .mai-nav-brand{font-size:17px}.mai-brand-mark{width:25px;height:25px}
+ #mai-nav-toggle{display:block;min-height:34px;padding:5px 12px;font-size:12px;border-radius:7px}
+ #app-navigation.mai-navigation .mai-nav-links{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:12px}#app-navigation.mai-navigation .mai-nav-links a{font-size:13px;min-height:40px}
+ #app-navigation.mai-navigation[data-collapsed=true] .mai-nav-links{display:none}
+ #app-content.mai-app-content{width:100%;height:0;min-height:0}
+ .mai{padding:20px}.mai-header{margin-bottom:18px}.mai h2{font-size:24px}
+}
+@media(max-width:600px){
+ .mai{padding:16px 12px 28px}.mai-panel{padding:16px;margin:14px 0}.mai-header{gap:10px}.mai-language{min-width:100px}
+ .mai-grid,.mai-options-grid,.mai-model-checks{grid-template-columns:minmax(0,1fr)}
+ .mai-section-header{align-items:flex-start;gap:4px}.mai-section-header .mai-muted{font-size:11px}
+ .mai-count{padding:0 12px}.mai-count strong{font-size:25px}.mai-counts{margin:20px 0}.mai-badge{font-size:11px;padding:4px 7px}
+ .mai-actions{gap:8px}.mai-actions button{font-size:12px;padding:5px 10px}
+ .mai-status-hint{font-size:11px}.mai-log-toolbar{gap:8px}.mai-log-toolbar input[type=date]{max-width:140px}.mai-log-toolbar select{max-width:calc(100% - 148px)}.mai-log-toolbar button{margin:0}.mai-log-toolbar .mai-check{font-size:12px}
+ .mai-table{max-height:400px}.mai table th,.mai table td{padding:10px 4px;font-size:11px}.mai table th:first-child,.mai table td:first-child{width:54px}.mai table th:nth-child(2),.mai table td:nth-child(2){display:none}.mai-log-mobile-event{display:block;margin-bottom:3px;font-size:10px;color:var(--color-text-maxcontrast)}.mai table th:last-child,.mai table td:last-child{width:60px}.mai-log-event{font-size:10px}.mai-log-file{font-size:11px}.mai-log-path{font-size:10px}.mai td details summary{font-size:10px}
+ .mai-summary-note{display:none}.mai-disclosure{padding:0}.mai-disclosure>summary{padding:16px}.mai-disclosure>.mai-model-probe,.mai-disclosure>#mai-advanced-settings{padding:16px}.mai-disclosure>p,.mai-disclosure>.mai-maintenance-actions{margin-inline:16px}
+ .mai-model>.mai-grid{gap:12px}.mai-model-check dl{grid-template-columns:1fr;gap:2px}.mai-model-check dd{margin-bottom:8px}
+ .mai-savebar{margin:14px 0}.mai dialog>.mai-actions{flex-wrap:wrap}
+}

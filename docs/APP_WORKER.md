@@ -8,15 +8,22 @@ Vision-Endpunkt (hier LM Studio). Dort wird kein Nextcloud-Plugin installiert.
 ## Bedienung
 
 - Apps: **Media AI**, App-ID `media_ai`.
+- Die Seitenleiste führt direkt zu Status, Verarbeitung, Aktivitätslog,
+  Einstellungen und Wartung. Auf schmalen Bildschirmen öffnet **Bereiche** die
+  Navigation; die Auswahl schließt sie wieder. Der Inhalt bleibt zentriert.
 - Administration → **Media AI**: Status, sichtbare Verarbeitung mit Ordnern,
   Ausschlüssen und täglichem Start, danach Aktivitätslog. Darunter aufklappbare
   Einstellungen für Modellprüfung, Vision-/OCR-Endpunkte, Modelle, Prompts,
   Speicher-/Token-Grenzen und API-Keys sowie aufklappbare Wartung.
+  Die Seitenleiste öffnet den gewählten Bereich automatisch; Bildanalyse und
+  OCR haben eigene aufklappbare Modellfelder.
 - Ungespeicherte Änderungen werden neben den Speicherbuttons und in einer beim Scrollen sichtbaren Speicherleiste angezeigt. „Gespeichert“ erscheint erst nach erfolgreicher Serverantwort; bei Fehlern bleiben Eingaben erhalten. Zurücksetzen auf den gespeicherten Stand entfernt die Änderungsmarkierung.
 - Start/Pause/Fortsetzen/Fehler erneut versuchen. Pause greift zwischen Dateien.
 - Tageslogs: Datei, Stufe, Dauer, Cache-Treffer und Fehler; ältere Einträge
   paginiert. Standardansicht: Dateien und Ergebnisse; sämtliche Stufen bleiben
-  unter „Alle Ereignisse“ sichtbar. Nur abgeschlossene Dateien erhalten einen
+  unter „Alle Ereignisse“ sichtbar. Dateiname und Dauer stehen direkt in der
+  Zeile, Auflösung und weitere technische Angaben unter **Analyse-Details**.
+  Nur abgeschlossene Dateien erhalten einen
   Ergebnisbereich, der Beschreibung/OCR bei Bedarf aus der eigenen Tabelle
   nachlädt. Direkt protokollierte Zeiten erscheinen in der Dauer-Spalte. Bei
   Dateiabschlüssen ohne Sekundenwert wird aus vorhandenen Start-/Endzeitpunkten

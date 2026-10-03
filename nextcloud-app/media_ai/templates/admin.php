@@ -2,43 +2,52 @@
 script('media_ai','i18n'); script('media_ai','admin'); style('media_ai','admin');
 ?>
 <div id="media-ai-admin" class="mai">
- <div class="mai-title"><h2>Media AI</h2><label class="mai-language">Sprache<select id="mai-language" aria-label="Sprache"><option value="de">Deutsch</option><option value="en">English</option></select></label></div><p class="mai-muted">Lokale Bild- und Videoanalyse mit Texterkennung</p>
+ <div class="mai-header"><div><h2 id="mai-page-title">Media AI</h2><p class="mai-muted">Bild- und Videoanalyse</p></div><label class="mai-language">Sprache<select id="mai-language" aria-label="Sprache"><option value="de">Deutsch</option><option value="en">English</option></select></label></div>
  <div id="mai-message" role="status" aria-live="polite"></div>
- <section class="mai-panel" id="mai-pipeline-status"><div class="mai-title"><h3>Status</h3><span id="mai-online" class="mai-badge">Verbinde …</span></div>
+ <section class="mai-panel mai-status-panel" id="mai-pipeline-status"><div class="mai-title"><h3>Status</h3><span id="mai-online" class="mai-badge">Verbinde …</span></div>
   <div id="mai-counts" class="mai-counts"></div><p id="mai-current"></p><p id="mai-last" class="mai-muted"></p>
   <div class="mai-actions"><button data-action="start" class="primary">Lauf starten</button><button data-action="pause">Pausieren</button><button data-action="resume">Fortsetzen</button><button data-action="retry">Fehler erneut versuchen</button></div>
-  <p class="mai-muted">Ein Start verarbeitet alle offenen Bilder und Videos der gewählten Ordner. Pausieren greift nach der aktuellen Datei.</p>
+  <p class="mai-muted mai-status-hint">Pausieren greift nach der aktuellen Datei.</p>
  </section>
  <form id="mai-form">
  <div class="mai-savebar" id="mai-savebar" hidden><span data-save-status role="status" aria-live="polite">Einstellungen werden geladen …</span><button type="submit" class="primary" disabled>Speichern</button></div>
- <section class="mai-panel" id="mai-pipeline-settings"><h3>Verarbeitung</h3><div class="mai-grid">
-   <label>Nextcloud-Benutzer<input name="user_id" required></label><label>Max. Zeit pro Datei (Sekunden, 0 = unbegrenzt)<input type="number" name="image_timeout_seconds" min="0" max="86400" required></label>
-   <label>Ordner (ein Pfad je Zeile)<textarea name="folders" rows="3" required></textarea></label><label>Ausgeschlossene Ordner<textarea name="exclude_folders" rows="3"></textarea></label>
-   <div><button id="mai-pick-folders" type="button">Ordner auswählen</button><button id="mai-pick-excludes" type="button">Ausschlüsse auswählen</button></div>
-   <label>Täglicher Start<input type="time" name="schedule_time" required></label><label>Zeitzone<input name="timezone" required></label>
-   <label>Logs aufbewahren (Tage)<input type="number" name="log_days" min="1" max="365" required></label>
+ <section class="mai-panel" id="mai-pipeline-settings">
+  <div class="mai-section-header"><h3>Verarbeitung</h3><span class="mai-muted">Ordner und Zeitplan</span></div>
+  <div class="mai-grid mai-folder-grid">
+   <div class="mai-folder-field"><label>Ordner (ein Pfad je Zeile)<textarea name="folders" rows="2" required></textarea></label><button id="mai-pick-folders" type="button">Ordner auswählen</button></div>
+   <div class="mai-folder-field"><label>Ausgeschlossene Ordner<textarea name="exclude_folders" rows="2"></textarea></label><button id="mai-pick-excludes" type="button">Ausschlüsse auswählen</button></div>
+  </div>
+  <div class="mai-grid mai-options-grid">
+   <label>Nextcloud-Benutzer<input name="user_id" required></label>
+   <label>Max. Zeit pro Datei (Sekunden, 0 = unbegrenzt)<input type="number" name="image_timeout_seconds" min="0" max="86400" required></label>
    <label>Frames pro Video<input type="number" name="video.frame_count" min="1" max="20" required></label>
-  </div><p class="mai-muted">Video-Frames werden gleichmäßig über die Dauer verteilt und gemeinsam analysiert. OCR wird bei Videos ausgelassen.</p><label class="mai-check"><input name="enabled" type="checkbox"> Täglichen Lauf aktivieren</label>
-  <p class="mai-muted">Kein Datei- oder Gesamtzeitlimit: Unveränderte fertige Dateien werden übersprungen. Fortsetzen bearbeitet die restlichen Dateien.</p>
-  <p class="mai-muted">Die Zeit pro Datei umfasst Download, Vorbereitung, Modellanfragen und Korrekturversuche. Bei Überschreitung wird ein Fehler protokolliert und die nächste Datei bearbeitet.</p>
-  <div class="mai-actions"><button type="submit" class="primary" disabled>Speichern</button><span data-save-status role="status" aria-live="polite">Einstellungen werden geladen …</span></div>
+  </div>
+  <div class="mai-schedule">
+   <label class="mai-check"><input name="enabled" type="checkbox"> Täglichen Lauf aktivieren</label>
+   <div class="mai-grid mai-options-grid"><label>Täglicher Start<input type="time" name="schedule_time" required></label><label>Zeitzone<input name="timezone" required></label><label>Logs aufbewahren (Tage)<input type="number" name="log_days" min="1" max="365" required></label></div>
+  </div>
+  <details class="mai-help"><summary>Hinweise zur Verarbeitung</summary>
+   <p class="mai-muted">Kein Datei- oder Gesamtzeitlimit: Unveränderte fertige Dateien werden übersprungen. Fortsetzen bearbeitet die restlichen Dateien.</p>
+   <p class="mai-muted">Die Zeit pro Datei umfasst Download, Vorbereitung, Modellanfragen und Korrekturversuche. Bei Überschreitung wird ein Fehler protokolliert und die nächste Datei bearbeitet.</p>
+   <p class="mai-muted">Video-Frames werden gleichmäßig über die Dauer verteilt und gemeinsam analysiert. OCR wird bei Videos ausgelassen.</p>
+  </details>
+  <div class="mai-actions mai-form-footer"><button type="submit" class="primary" disabled>Speichern</button><span data-save-status role="status" aria-live="polite">Einstellungen werden geladen …</span></div>
  </section>
- <section class="mai-panel" id="mai-pipeline-logs"><div class="mai-title"><h3>Aktivitätslog</h3><div class="mai-actions"><input id="mai-log-date" type="date" aria-label="Logdatum"><select id="mai-log-level" aria-label="Logfilter"><option value="files" selected>Dateien und Ergebnisse</option><option value="all">Alle Ereignisse</option><option value="error">Nur Fehler</option></select><label class="mai-check"><input id="mai-log-live" type="checkbox" checked>Live aktualisieren</label><button id="mai-log-refresh" type="button">Aktualisieren</button></div></div>
-  <p class="mai-muted">Zeit, Datei, Arbeitsschritt, Dauer und Cache-Nutzung. KI-Text steht bei der Datei im Tab „Media AI“.</p>
+ <section class="mai-panel" id="mai-pipeline-logs"><div class="mai-section-header"><h3>Aktivitätslog</h3></div><div class="mai-actions mai-log-toolbar"><input id="mai-log-date" type="date" aria-label="Logdatum"><select id="mai-log-level" aria-label="Logfilter"><option value="files" selected>Dateien und Ergebnisse</option><option value="all">Alle Ereignisse</option><option value="error">Nur Fehler</option></select><label class="mai-check"><input id="mai-log-live" type="checkbox" checked>Live aktualisieren</label><button id="mai-log-refresh" type="button">Aktualisieren</button></div>
   <div class="mai-table"><table><thead><tr><th>Zeit</th><th>Ereignis</th><th>Datei / Details</th><th>Dauer</th></tr></thead><tbody id="mai-logs"></tbody></table></div><button id="mai-log-older" type="button" hidden>Ältere laden</button>
  </section>
- <details class="mai-panel" id="mai-settings"><summary>Einstellungen</summary>
+ <details class="mai-panel mai-disclosure" id="mai-settings"><summary><span>Einstellungen</span><span class="mai-summary-note">Modelle und Speichergrenzen</span></summary>
   <section class="mai-model-probe"><div class="mai-title"><h3>Verbindung und geladenes Modell</h3><button id="mai-test" type="button">LM Studio prüfen</button></div>
    <p class="mai-muted">Zeigt den aktuellen Modellstatus und die tatsächlich geladene Kontextgröße. Für alle angemeldeten Nutzer; startet keine Analyse.</p>
    <div id="mai-model-result" role="status" aria-live="polite"></div>
   </section>
-  <div id="mai-advanced-settings"><details><summary>Speichergrenzen für Originaldateien</summary><p class="mai-muted">Diese Grenzen schützen den Worker beim Laden und Decodieren. Sie bestimmen nicht die Auflösung für das Modell. Größere Originale werden als Fehler gemeldet.</p><div class="mai-grid"><label>Max. Originaldateigröße (Bytes)<input type="number" name="max_download_bytes" min="1048576" max="536870912" required></label><label>Max. Videodateigröße (Bytes)<input type="number" name="max_video_download_bytes" min="1048576" max="2147483648" required></label><label>Max. Originalpixel beim Decodieren<input type="number" name="max_image_pixels" min="1000000" max="200000000" required></label></div></details>
+  <div id="mai-advanced-settings"><details class="mai-subsection"><summary>Speichergrenzen für Originaldateien</summary><p class="mai-muted">Diese Grenzen schützen den Worker beim Laden und Decodieren. Sie bestimmen nicht die Auflösung für das Modell. Größere Originale werden als Fehler gemeldet.</p><div class="mai-grid"><label>Max. Originaldateigröße (Bytes)<input type="number" name="max_download_bytes" min="1048576" max="536870912" required></label><label>Max. Videodateigröße (Bytes)<input type="number" name="max_video_download_bytes" min="1048576" max="2147483648" required></label><label>Max. Originalpixel beim Decodieren<input type="number" name="max_image_pixels" min="1000000" max="200000000" required></label></div></details>
   <p id="mai-permissions" class="mai-muted"></p><div id="mai-model-settings"></div>
-  <div class="mai-actions"><button type="submit" class="primary" disabled>Speichern</button><span data-save-status role="status" aria-live="polite">Einstellungen werden geladen …</span></div>
+  <div class="mai-actions mai-form-footer"><button type="submit" class="primary" disabled>Speichern</button><span data-save-status role="status" aria-live="polite">Einstellungen werden geladen …</span></div>
   </div>
  </details>
  </form>
- <details class="mai-panel" id="mai-pipeline-maintenance"><summary>Wartung</summary><p class="mai-muted">Diese Aktionen betreffen nur Media AI. Originaldateien und andere Nextcloud-Daten bleiben erhalten.</p><div class="mai-actions"><button id="mai-clear-logs" type="button">Aktivitätslog leeren</button><button id="mai-reset-ai" type="button">KI-Daten zurücksetzen</button></div></details>
+ <details class="mai-panel mai-disclosure" id="mai-pipeline-maintenance"><summary><span>Wartung</span><span class="mai-summary-note">Logs und Analysedaten</span></summary><p class="mai-muted">Diese Aktionen betreffen nur Media AI. Originaldateien und andere Nextcloud-Daten bleiben erhalten.</p><div class="mai-actions mai-maintenance-actions"><button id="mai-clear-logs" type="button">Aktivitätslog leeren</button><button id="mai-reset-ai" type="button">KI-Daten zurücksetzen</button></div></details>
  <dialog id="mai-maintenance"><h3 id="mai-maintenance-title"></h3><p id="mai-maintenance-info"></p><label class="mai-check"><input id="mai-maintenance-check" type="checkbox">Ich bestätige diese Aktion.</label><div class="mai-actions"><button id="mai-maintenance-confirm" type="button" disabled>Bestätigen</button><button id="mai-maintenance-cancel" type="button">Abbrechen</button></div></dialog>
  <dialog id="mai-picker"><h3>Ordner auswählen</h3><p id="mai-picker-path"></p><div class="mai-actions"><button id="mai-picker-parent" type="button">Übergeordneter Ordner</button><label class="mai-check"><input id="mai-picker-current" type="checkbox">Diesen Ordner einbeziehen</label></div><div id="mai-picker-list"></div><p id="mai-picker-selected" class="mai-muted"></p><div class="mai-actions"><button id="mai-picker-apply" class="primary" type="button">Übernehmen</button><button id="mai-picker-close" type="button">Abbrechen</button></div></dialog>
 </div>

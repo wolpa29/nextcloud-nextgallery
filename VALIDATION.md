@@ -1,3 +1,10 @@
+# Ergänzung – 2026-10-03, App 0.4.5: Design und Seitenleiste
+
+- Nextcloud-Seitenleiste mit Status, Verarbeitung, Aktivitätslog, Einstellungen und Wartung. Ausgewählte Bereiche werden angesprungen und bei Bedarf geöffnet; die mobile Navigation klappt nach der Auswahl zu. Zentrierter Inhalt, kompaktere Formulargruppen, flache Statuszahlen und aufklappbare Modellfelder. Farben folgen dem Nextcloud-Theme. Dateiname und Dauer bleiben im Log sichtbar, technische Angaben sind separat aufklappbar. Speicherstatus und vorhandene Berechtigungen bleiben erhalten.
+- PHP-8.2-Templatesyntax, JavaScript-Syntax, `git diff --check` und 177 bestehende PHP-Assertions erfolgreich. Isolierte Chromium-Prüfungen für Sidebar, Admin/Owner/403, DE/EN sowie Regressionen für Speicherzustände und elf Dauerfälle erfolgreich. Speicherantworten in diesen Fixtures simuliert. Helle/dunkle Vorschau und 390-Pixel-Layout visuell geprüft: kein horizontaler Seitenüberlauf, mobile Navigation schließt nach der Auswahl.
+- Frontend auf der echten Nextcloud während einer laufenden Analyse ausgetauscht. Backup: `/root/media-ai-backups/20261003-design-sidebar/frontend-before.tar.gz`. Alle fünf installierten Dateien per SHA256 zum lokalen Stand identisch. Kein Upgrade, Wartungsmodus oder Worker-Neustart; MainPID vor/nach Austausch 345144, Steuerdatei und gespeicherte Konfiguration unverändert. Keine produktive Konfiguration gespeichert.
+- Live-Browser bestätigt 224-Pixel-Seitenleiste, mittigen Inhalt (177 Pixel Abstand links/rechts bei 1754 Pixel Breite), laufenden Worker und „Gespeichert“. Navigation öffnet Einstellungen, Ordnerdialog lässt sich abbrechen, Analyse-Details enthalten weiterhin Pixel-/OCR-Angaben und Datei-Dauern sind sichtbar. Screenshot: `/home/paul/Desktop/Projects/tmp/media-ai-design-live-20261003.png`.
+
 # Ergänzung – 2026-10-03, App 0.4.5: Dauer in Datei-Aktivitäten
 
 - Ursache: `file_finished` enthält kein `seconds`, während Modell-/Stufenabschlüsse gemessene Sekunden enthalten. Der Standardfilter blendet Stufen aus; dadurch stand bei Dateiabschlüssen bisher „—“.
