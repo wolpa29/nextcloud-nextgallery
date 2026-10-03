@@ -76,8 +76,8 @@ class Library {
   } catch (\Throwable) {}
   if ($f->getMimeType()==='image/jpeg' && $f->getSize()<=64*1024*1024 && function_exists('exif_read_data')) {
    $stream=$f->fopen('rb');
-   if (is_resource($stream)) {try {$e=@exif_read_data($stream,'EXIF,GPS',true);if ($e) {
-    $d=$e['EXIF']['DateTimeOriginal']??null;$offset=$e['EXIF']['OffsetTimeOriginal']??'';if ($d) $raw=$d.$offset;
+   if (is_resource($stream)) {try {$chunk=stream_set_chunk_size($stream,1);$e=@exif_read_data($stream,null,true);stream_set_chunk_size($stream,$chunk);if ($e) {
+    $d=$e['EXIF']['DateTimeOriginal']??$e['IFD0']['DateTimeOriginal']??null;$offset=$e['EXIF']['OffsetTimeOriginal']??$e['IFD0']['OffsetTimeOriginal']??'';if ($d) $raw=$d.$offset;
     $gps=Dates::gps($e)??$gps;$width=(int)($e['COMPUTED']['Width']??$width);$height=(int)($e['COMPUTED']['Height']??$height);
    }} finally {fclose($stream);}}
   }
@@ -92,7 +92,7 @@ class Library {
    } catch (\Throwable) {}
   }
   if ($gps && (!is_finite($gps[0]) || !is_finite($gps[1]) || abs($gps[0])>90 || abs($gps[1])>180)) $gps=null;
-  return compact('raw','gps','width','height','duration');
+  return compact('raw','gps','width','height','duration')+['revision'=>2];
  }
  public function step(string $uid,bool $restart=false,int $limit=100,float $seconds=4):array {
   $this->lock($uid);
@@ -103,17 +103,18 @@ class Library {
    $home=$this->root->getUserFolder($uid);$deadline=microtime(true)+$seconds;$handled=0;
    while ($s['root']<count($p['roots']) && $handled<$limit && microtime(true)<$deadline) {
     try {$folder=$home->get($p['roots'][$s['root']]);if (!$folder instanceof Folder || !$folder->isReadable()) throw new \RuntimeException('Ordner nicht lesbar.');$nodes=$folder->search(Search::query((int)$s['after'],min(100,$limit-$handled)));}
-    catch (\Throwable) {$s['errors']++;$s['root']++;$s['after']=0;continue;}
+    catch (\Throwable $e) {$s['errors']++;$s['lastError']=get_class($e).': '.$e->getMessage();$s['root']++;$s['after']=0;continue;}
     if (!$nodes) {$s['root']++;$s['after']=0;continue;}
     foreach ($nodes as $node) {
-     $s['after']=(int)$node->getId();$handled++;
+     $s['after']++;$handled++;
      if ($node instanceof File && $node->isReadable() && ($kind=$this->kind($node->getMimeType()))) {
       try {
        $path='/'.ltrim($home->getRelativePath($node->getPath()),'/');
        if (!$this->inRoots($path,$p['roots'])) continue;
-       $q=$this->db->getQueryBuilder();$q->select('etag','payload')->from('chronicle_media')->where($q->expr()->eq('user_id',$q->createNamedParameter($uid)))->andWhere($q->expr()->eq('file_id',$q->createNamedParameter($node->getId())));$existing=$q->executeQuery()->fetchAssociative();
+       $q=$this->db->getQueryBuilder();$q->select('etag','payload')->from('chronicle_media')->where($q->expr()->eq('user_id',$q->createNamedParameter($uid)))->andWhere($q->expr()->eq('file_id',$q->createNamedParameter($node->getId())));$existing=$q->executeQuery()->fetch();
        $old=$existing?json_decode($existing['payload'],true):null;
-       $meta=$old && $existing['etag']===$node->getEtag()?$old['metadata']:$this->extract($node);
+       $retryVideo=$kind==='video' && ($old['metadata']['duration']??null)===null && $node->getStorage()->isLocal() && is_executable('/usr/bin/ffprobe');
+       $meta=$old && !$retryVideo && $existing['etag']===$node->getEtag() && ($old['metadata']['revision']??0)===2?$old['metadata']:$this->extract($node);
        $date=Dates::resolve($path,$meta['raw'],$node->getMTime(),$p['mode'],$p['timezone']);
        $item=['id'=>$node->getId(),'name'=>$node->getName(),'path'=>$path,'kind'=>$kind,'mime'=>$node->getMimeType(),'etag'=>$node->getEtag(),'date'=>$date,'metadata'=>$meta];
        $values=['sort_key'=>$date['sort'],'period'=>$date['period'],'kind'=>$kind,'etag'=>$node->getEtag(),'generation'=>$s['generation'],'latitude'=>$meta['gps'][0]??null,'longitude'=>$meta['gps'][1]??null,'payload'=>json_encode($item,JSON_THROW_ON_ERROR|JSON_INVALID_UTF8_SUBSTITUTE)];
@@ -148,7 +149,7 @@ class Library {
   return $q;
  }
  public function summary(string $uid,string $kind=''):array {
-  $p=$this->settings($uid);$q=$this->query($uid,$kind);$rows=$q->select('period','kind')->addSelect($q->func()->count('*','n'))->groupBy('period','kind')->executeQuery()->fetchAllAssociative();
+  $p=$this->settings($uid);$q=$this->query($uid,$kind);$rows=$q->select('period','kind')->addSelect($q->func()->count('*','n'))->groupBy('period','kind')->executeQuery()->fetchAll();
   $groups=[];$total=0;$videos=0;
   foreach($rows as $r) {
    $period=$r['period'];$key=match($p['grouping']){'year'=>substr($period,0,4),'day'=>$period,default=>substr($period,0,7)};
@@ -160,7 +161,7 @@ class Library {
  public function items(string $uid,string $kind='',string $period='',int $offset=0,int $limit=150,bool $geo=false):array {
   $p=$this->settings($uid);$q=$this->query($uid,$kind,$period);$q->select('file_id','payload');
   if ($geo) $q->andWhere($q->expr()->isNotNull('latitude'));
-  $direction=$p['order']==='asc'?'ASC':'DESC';$rows=$q->orderBy('sort_key',$direction)->addOrderBy('file_id',$direction)->setFirstResult(max(0,$offset))->setMaxResults(max(1,min(200,$limit)))->executeQuery()->fetchAllAssociative();
+  $direction=$p['order']==='asc'?'ASC':'DESC';$rows=$q->orderBy('sort_key',$direction)->addOrderBy('file_id',$direction)->setFirstResult(max(0,$offset))->setMaxResults(max(1,min(200,$limit)))->executeQuery()->fetchAll();
   $items=[];
   foreach($rows as $row) {
    try {$f=$this->file($uid,(int)$row['file_id']);$item=json_decode($row['payload'],true);

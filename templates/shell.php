@@ -1,4 +1,4 @@
-<div id="chronicle" data-context="<?php p(json_encode($_['context'], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP)); ?>">
+<div id="chronicle" data-context="<?php echo htmlspecialchars(json_encode($_['context'],JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP),ENT_QUOTES,'UTF-8'); ?>">
  <aside class="ch-sidebar" aria-label="Chronik Navigation">
   <a class="ch-brand" href="#timeline"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="3" y="5" width="26" height="22" rx="5"/><circle cx="22" cy="12" r="2"/><path d="m4 24 8-10 7 8 4-4 6 7"/></svg><strong>Chronik</strong></a>
   <nav><button data-view="timeline" class="active"><span data-icon="gallery"></span>Zeitleiste</button><button data-view="map"><span data-icon="map"></span>Karte</button><button data-view="offline"><span data-icon="download"></span>Offline</button></nav>

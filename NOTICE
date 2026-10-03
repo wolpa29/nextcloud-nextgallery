@@ -1,0 +1,5 @@
+Chronik: Copyright 2026 Paul Wolfmajer. AGPL-3.0-or-later.
+Leaflet 1.9.4: Copyright Vladimir Agafonkin and contributors. BSD-2-Clause.
+Leaflet.markercluster 1.5.3: Copyright Dave Leaver, Smartrak and contributors. MIT.
+Natural Earth 1:110m country boundaries: Public domain. Source: nvkelso/natural-earth-vector/geojson/ne_110m_admin_0_countries.geojson. Bundled properties stripped and coordinates rounded to 3 decimal places.
+Third party license texts: docs/licenses/.

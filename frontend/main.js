@@ -8,7 +8,7 @@ async function start(){
  const icon=name=>`<svg class="ch-icon" viewBox="0 0 24 24" aria-hidden="true">${icons[name]||icons.gallery}</svg>`;
  root.querySelectorAll('[data-icon]').forEach(n=>n.innerHTML=icon(n.dataset.icon));
  let settings=ctx.settings,cacheKey=ctx.cacheKey,db=null,offlineItems=[],offlineMeta=null,offlineMode=ctx.offline||!navigator.onLine;
- let summary=null,view='timeline',kind='',version=0,geometry=null,frame=0,blocks=new Map(),pending=[],inflight=0,rendered=new Map(),urls=new Map(),collectionIds=new Set();
+ let summary=null,view='timeline',kind='',version=0,geometry=null,frame=0,blocks=new Map(),pending=[],inflight=0,rendered=new Map(),urls=new Map(),collectionIds=new Set(),localGroups=new Map();
  let scanning=false,pinning=false,pinCancel=false,mapHandle=null,currentItem=null,viewerList=[],folderPath='/',draftRoots=[...settings.roots];
  const scroll=$('ch-scroll'),canvas=$('ch-canvas'),rail=$('ch-rail');
  function message(text){$('ch-message').textContent=text;$('ch-message').hidden=!text;}
@@ -60,7 +60,7 @@ async function start(){
  function indexState(state){$('ch-index-state').textContent=state?.running?`${count(state.seen||0)} Medien erfasst · wird eingelesen …`:state?.completed?`${count(state.seen||0)} Medien · zuletzt ${new Date(state.completed*1000).toLocaleString('de-AT')}${state.errors?' · '+state.errors+' Dateien/Ordner nicht lesbar':''}`:'Noch nicht gestartet.';}
  async function load(){
   const v=++version;blocks.clear();pending=[];rendered.clear();canvas.replaceChildren();releaseUrls();
-  if(offlineMode){const prefs={...offlineMeta?.settings,...settings};summary=localSummary(offlineItems,prefs,kind);settings=prefs;}
+  if(offlineMode){const prefs={...offlineMeta?.settings,...settings};summary=localSummary(offlineItems,prefs,kind);settings=prefs;localGroups=new Map();for(const item of summary.items){const key=groupKey(item,settings.grouping);if(!localGroups.has(key))localGroups.set(key,[]);localGroups.get(key).push(item);}}
   else{const next=await api('summary?kind='+kind);if(v!==version)return;summary=next;settings=summary.settings;}
   updateSettings();indexState(summary.state);$('ch-count').textContent=`${count(summary.total)} Medien${summary.videos?' · '+count(summary.videos)+' Videos':''}${offlineMode?' · gespeicherte Vorschauen':''}`;
   $('ch-empty').hidden=summary.total>0;
@@ -77,7 +77,7 @@ async function start(){
  function trimBlocks(){if(blocks.size<=24)return;for(const[k,b]of blocks){if(b.status==='done'&&!renderedHas(k)){blocks.delete(k);if(blocks.size<=24)break;}}}
  function renderedHas(k){const [g,off]=k.split(':');for(const value of rendered.values())if(value.section===g&&value.offset===Number(off))return true;return false;}
  function itemAt(section,index){
-  if(offlineMode)return summary.items.filter(i=>groupKey(i,settings.grouping)===section.key)[index];
+  if(offlineMode)return localGroups.get(section.key)?.[index];
   const offset=Math.floor(index/150)*150,key=blockKey(section.key,offset),block=blocks.get(key);
   if(!block){blocks.set(key,{status:'loading',items:[]});pending.push({g:section.key,offset,key,v:version});pump();return null;}
   if(block.status==='done'){blocks.delete(key);blocks.set(key,block);return block.items[index-offset];}return null;
