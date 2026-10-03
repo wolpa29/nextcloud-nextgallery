@@ -1,6 +1,6 @@
-# Validierung – 2026-10-03, App 0.3.2
+# Validierung – 2026-10-03, App 0.3.3
 
-**0.3.2 auf der echten Nextcloud 32.0.5 installiert; eigener Worker online, pausiert, tägliche Automation ausgeschaltet.**
+**0.3.3 auf der echten Nextcloud 32.0.5 installiert; eigener Worker online, pausiert, tägliche Automation ausgeschaltet.**
 
 | Prüfung | Ergebnis |
 | --- | --- |
@@ -24,6 +24,7 @@
 | Originale / Datenbank | Alle 45 Originale anhand SHA256 und ETag unverändert; eigene MariaDB enthält 45 Ergebnisse |
 | Finale Antwortprüfung | Alle 45 gespeicherten Ergebnisse erneut mit aktueller Schema-/Schleifenprüfung geprüft; maximal 20 eindeutige Vision-Begriffe |
 | Echte native Suche | Luna findet Notizzettel; Staubsauger findet vier passende Dateien, auch im Nextcloud-Browserdialog |
+| Log-Layout | Nextclouds globales nowrap für die App überschrieben; lange Fehlertexte umbrechen innerhalb ihrer Spalte |
 | Browser DE/EN | Neue Felder und Beschriftungen sichtbar, richtige Grenzen/Owner-Sperre; Desktop 1754 × 991 ohne äußeren Überlauf |
 | Versionswechsel | Geschützte App-/State-Backups; occ upgrade erfolgreich, Worker aktiv |
 | Privater Qualitätsvergleich | Alle 45 finalen Ergebnisse gegen vorher gespeicherte unabhängige Sichtprüfung einzeln bewertet; private HTML-Datei außerhalb von Git |

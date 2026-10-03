@@ -1,4 +1,4 @@
-# Integrierte App (0.3.2)
+# Integrierte App (0.3.3)
 
 Die Nextcloud-App enthält den Python-Worker. Er läuft als eigener systemd-Dienst
 mit niedriger CPU-/IO-Priorität, unabhängig von PHP-FPM und Nextcloud-Cron.
