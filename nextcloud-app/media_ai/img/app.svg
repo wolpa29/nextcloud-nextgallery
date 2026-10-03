@@ -1,9 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 100 100">
- <g transform="translate(0 18)"><g stroke="#fff" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<svg xmlns="http://www.w3.org/2000/svg" width="98" height="46" viewBox="-1 7 98 46">
+ <g stroke="#fff" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
     <path d="M19 12c-5-5-13-1-12 6-6 2-8 9-4 13-3 6 1 12 7 12-1 7 6 11 9 6"/>
     <path d="M19 12c5-5 13-1 12 6 6 2 8 9 4 13 3 6-1 12-7 12 1 7-6 11-9 6"/>
     <path d="M19 12v37M7 18c5 0 7 3 7 7M3 31c5-2 8 0 9 4M10 43c0-5 3-7 9-7"/>
     <path d="M31 18h-5a2 2 0 0 0-2 2v4M35 31h-6a2 2 0 0 0-2 2v3"/>
     <g fill="#fff" stroke="none"><circle cx="24" cy="24" r="1.65"/><circle cx="27" cy="36" r="1.65"/></g>
-    </g><g fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><path d="M49 27h-3a5 5 0 0 0 0 10h3m4-10h3a5 5 0 0 1 0 10h-3M47 32h8"/></g><g transform="translate(67 18) scale(1.0)" stroke="#fff" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="28" height="28" rx="5"/><circle cx="8" cy="8" r="1.9" fill="#fff" stroke="none"/><path d="m5 21 7-8 7 9 4-6"/></g></g>
+    </g><g fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><path d="M49 27h-3a5 5 0 0 0 0 10h3m4-10h3a5 5 0 0 1 0 10h-3M47 32h8"/></g><g transform="translate(67 18) scale(1.0)" stroke="#fff" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="28" height="28" rx="5"/><circle cx="8" cy="8" r="1.9" fill="#fff" stroke="none"/><path d="m5 21 7-8 7 9 4-6"/></g>
 </svg>
