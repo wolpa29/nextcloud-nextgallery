@@ -14,6 +14,14 @@ w=importlib.util.module_from_spec(spec);spec.loader.exec_module(w)
 from test_pipeline import Source,Model,Publisher
 
 class WorkerTests(unittest.TestCase):
+    def test_unlimited_scan_processes_more_than_former_default_batch(self):
+        with tempfile.TemporaryDirectory() as d:
+            store=p.Store(Path(d)/'state.sqlite3');source=Source()
+            source.items=[p.Item(str(n),f'Camera/{n:04d}.jpg',str(n),'v1',100) for n in range(105)]
+            result=p.run({},store,source,{s:Model(s) for s in ['vision','ocr']},limit=0,max_seconds=0)
+            self.assertEqual(result['processed'],105);self.assertEqual(result['stats'],{'done':105})
+            store.db.close()
+
     def test_bounded_runs_resume_remaining_images_without_reanalyzing_done(self):
         with tempfile.TemporaryDirectory() as d:
             store=p.Store(Path(d)/'state.sqlite3');source=Source()

@@ -5,8 +5,9 @@
 - Isolierter Admin-Browsertest bestätigt: unveränderter Standard bleibt leerer Override, eigener Prompt bleibt erhalten, Rücksetzen und Speichern aktivieren wieder Standard.
 - Integrierte App entfernt Dateilimit und Gesamtzeitbudget vollständig; der Worker setzt alte gespeicherte Grenzen nicht mehr ein.
 - Gemeinsames Bildbudget standardmäßig 600 s (0 = unbegrenzt): Download, Vorverarbeitung, Vision/OCR und alle Korrekturen. Sichtbarer Timeout-Fehler, Weiterarbeit am nächsten Bild, keine Publikation unvollständiger Antworten.
-- 72 Python-Tests erfolgreich. Echter HTTP-Testserver mit langsamem fortlaufendem Stream wird innerhalb des Bildbudgets getrennt; erster Bildversuch als Timeout, zweites Bild erfolgreich publiziert, kein zusätzlicher Retry nach Ablauf. Budget wird zwischen Stufen nicht erneuert und kann mit 0 deaktiviert werden.
+- 73 Python-Tests erfolgreich. Echter HTTP-Testserver mit langsamem fortlaufendem Stream wird innerhalb des Bildbudgets getrennt; erster Bildversuch als Timeout, zweites Bild erfolgreich publiziert, kein zusätzlicher Retry nach Ablauf. Budget wird zwischen Stufen nicht erneuert und kann mit 0 deaktiviert werden.
 - 196 PHP-Assertions erfolgreich; öffentliche Promptanzeige, eigene Overrides, Owner-Rechte, Bildbudget-Grenzen und Entfernen alter Laufgrenzen geprüft.
+- Unbegrenzter Regressionstest verarbeitet 105 Bilder über das frühere Standardlimit hinaus. Kontrolllauf auf echter Nextcloud: 0,094 s, keine neue Inferenz/Publikation; alle 45 bisherigen Ergebnisse und Originale unverändert.
 - Echte LM-Studio-Probe: 1-s-Bildbudget beendet den Aufruf nach 1,001 s, nur ein Versuch; der folgende Aufruf endet regulär nach 11,332 s. Isoliert, nichts publiziert.
 - Echte Nextcloud-Speicherung unveränderter Standards hält beide Prompt-Overrides leer; Ordner/Zeitplan bleiben erhalten, alte Laufgrenzen verschwunden.
 - CPU-Vorverarbeitung prüft das Budget an sicheren Prüfpunkten; keine unsichere Unterbrechung nativer Bilddecoder. GPU-Stopp nicht separat instrumentiert.
