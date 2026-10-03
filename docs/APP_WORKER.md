@@ -18,7 +18,9 @@ Vision-Endpunkt (hier LM Studio). Dort wird kein Nextcloud-Plugin installiert.
   paginiert. Standardansicht: Dateien und Ergebnisse; sämtliche Stufen bleiben
   unter „Alle Ereignisse“ sichtbar. Nur abgeschlossene Dateien erhalten einen
   Ergebnisbereich, der Beschreibung/OCR bei Bedarf aus der eigenen Tabelle
-  nachlädt. Keine API-Keys oder vollständigen OCR-Texte in JSONL-Logs.
+  nachlädt. Direkt protokollierte Zeiten erscheinen in der Dauer-Spalte. Bei
+  Dateiabschlüssen ohne Sekundenwert wird aus vorhandenen Start-/Endzeitpunkten
+  eine gerundete Dauer mit „≈“ angezeigt. Keine API-Keys oder vollständigen OCR-Texte in JSONL-Logs.
 - In Dateien: Details-Seitenleiste → **Media AI** für Beschreibung, OCR,
   Suchbegriffe, unsichere Angaben und vollständige gespeicherte Metadaten.
 - In der globalen Nextcloud-Suche: Suchanbieter **Bildinhalt und OCR**.

@@ -1,3 +1,11 @@
+# Ergänzung – 2026-10-03, App 0.4.5: Dauer in Datei-Aktivitäten
+
+- Ursache: `file_finished` enthält kein `seconds`, während Modell-/Stufenabschlüsse gemessene Sekunden enthalten. Der Standardfilter blendet Stufen aus; dadurch stand bei Dateiabschlüssen bisher „—“.
+- Die Oberfläche verbindet vorhandene `file_start`-/Dateiabschluss-Einträge anhand von Lauf-ID und Datei-ID/Pfad. Aus Logzeitpunkten berechnete Dauer ist ausdrücklich mit „≈“ und einem erklärenden Tooltip markiert, da die Zeitpunkte auf Sekunden gerundet sind. Direkt protokollierte Sekunden (auch 0) bleiben maßgeblich. Fehlende/ungültige Startpunkte erhalten keine erfundene Dauer; beim Nachladen älterer Seiten wird neu berechnet.
+- JS-Syntax und elf isolierte Chromium-Prüfungen erfolgreich: Zeitdifferenz, präzise Null/Fehler-/Stufenzeiten, erneute Bearbeitung derselben Datei, Lauftrennung, ungültige/fehlende Zeitpunkte, Seitenrand, Tooltip und Nachladen älterer Einträge. Fixture unter `/tmp/media-ai-log-duration-review-20261003`.
+- Ausschließlich `js/admin.js` und `js/i18n.js` auf Nextcloud aktualisiert; kein `occ upgrade`, Wartungsmodus oder Worker-Neustart. Backup unter `/root/media-ai-backups/20261003-log-duration-hotfix`. Worker-PID vor/nach Austausch identisch (345144), Steuerdatei bytegleich, installierte Skripte identisch zum lokalen Stand. Der zuvor aktive Lauf endete regulär mit 158 verarbeiteten Dateien, 0 Fehlern und 6849,374 s; keine Stopp-/Pause-Anforderung durch diese Arbeit.
+- Live-Browser bestätigt Datei-Dauern „≈ 58 s“, „≈ 58 s“, „≈ 55 s“ und protokollierte Laufdauer „6.849,374 s“. Die Logdateien und bestehende Analyseergebnisse wurden nicht geändert.
+
 # Ergänzung – 2026-10-03, App 0.4.5: Zentrierung und Speicherstatus
 
 - App-Inhalt mit automatischen seitlichen Abständen zentriert. Speicherbuttons zeigen „Gespeichert“, „Ungespeicherte Änderungen“, „Wird gespeichert …“ oder „Nicht gespeichert · erneut versuchen“. Bei offenen Änderungen/Speicherung bleibt eine Speicherleiste beim Scrollen sichtbar. Ohne Änderungen und während einer Anfrage sind Speicherbuttons deaktiviert.
