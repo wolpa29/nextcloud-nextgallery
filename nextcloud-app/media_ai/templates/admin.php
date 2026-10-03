@@ -2,24 +2,25 @@
 script('media_ai','i18n'); script('media_ai','admin'); style('media_ai','admin');
 ?>
 <div id="media-ai-admin" class="mai">
- <div class="mai-title"><h2>Media AI</h2><label class="mai-language">Sprache<select id="mai-language" aria-label="Sprache"><option value="de">Deutsch</option><option value="en">English</option></select></label></div><p class="mai-muted">Lokale Bildanalyse und Texterkennung</p>
+ <div class="mai-title"><h2>Media AI</h2><label class="mai-language">Sprache<select id="mai-language" aria-label="Sprache"><option value="de">Deutsch</option><option value="en">English</option></select></label></div><p class="mai-muted">Lokale Bild- und Videoanalyse mit Texterkennung</p>
  <div id="mai-message" role="status" aria-live="polite"></div>
  <section class="mai-panel"><div class="mai-title"><h3>Status</h3><span id="mai-online" class="mai-badge">Verbinde …</span></div>
   <div id="mai-counts" class="mai-counts"></div><p id="mai-current"></p><p id="mai-last" class="mai-muted"></p>
   <div class="mai-actions"><button data-action="start" class="primary">Lauf starten</button><button data-action="pause">Pausieren</button><button data-action="resume">Fortsetzen</button><button data-action="retry">Fehler erneut versuchen</button></div>
-  <p class="mai-muted">Ein Start verarbeitet alle offenen Bilder der gewählten Ordner. Pausieren greift nach der aktuellen Datei.</p>
+  <p class="mai-muted">Ein Start verarbeitet alle offenen Bilder und Videos der gewählten Ordner. Pausieren greift nach der aktuellen Datei.</p>
  </section>
  <details class="mai-panel" id="mai-settings"><summary>Einstellungen</summary><form id="mai-form">
   <h3>Verarbeitung</h3><div class="mai-grid">
-   <label>Nextcloud-Benutzer<input name="user_id" required></label><label>Max. Zeit pro Bild (Sekunden, 0 = unbegrenzt)<input type="number" name="image_timeout_seconds" min="0" max="86400" required></label>
+   <label>Nextcloud-Benutzer<input name="user_id" required></label><label>Max. Zeit pro Datei (Sekunden, 0 = unbegrenzt)<input type="number" name="image_timeout_seconds" min="0" max="86400" required></label>
    <label>Ordner (ein Pfad je Zeile)<textarea name="folders" rows="3" required></textarea></label><label>Ausgeschlossene Ordner<textarea name="exclude_folders" rows="3"></textarea></label>
    <div><button id="mai-pick-folders" type="button">Ordner auswählen</button><button id="mai-pick-excludes" type="button">Ausschlüsse auswählen</button></div>
    <label>Täglicher Start<input type="time" name="schedule_time" required></label><label>Zeitzone<input name="timezone" required></label>
    <label>Logs aufbewahren (Tage)<input type="number" name="log_days" min="1" max="365" required></label>
-  </div><label class="mai-check"><input name="enabled" type="checkbox"> Täglichen Lauf aktivieren</label>
-  <p class="mai-muted">Kein Datei- oder Gesamtzeitlimit: Unveränderte fertige Bilder werden übersprungen. Fortsetzen bearbeitet die restlichen Bilder.</p>
-  <p class="mai-muted">Die Zeit pro Bild umfasst Download, Bildanalyse, OCR und Korrekturversuche zusammen. Bei Überschreitung wird ein Fehler protokolliert und das nächste Bild bearbeitet.</p>
-  <details><summary>Speichergrenzen für Originaldateien</summary><p class="mai-muted">Diese Grenzen schützen den Worker beim Laden und Decodieren. Sie bestimmen nicht die Auflösung für das Modell. Größere Originale werden als Fehler gemeldet.</p><div class="mai-grid"><label>Max. Originaldateigröße (Bytes)<input type="number" name="max_download_bytes" min="1048576" max="536870912" required></label><label>Max. Originalpixel beim Decodieren<input type="number" name="max_image_pixels" min="1000000" max="200000000" required></label></div></details>
+   <label>Frames pro Video<input type="number" name="video.frame_count" min="1" max="20" required></label>
+  </div><p class="mai-muted">Video-Frames werden gleichmäßig über die Dauer verteilt und gemeinsam analysiert. OCR wird bei Videos ausgelassen.</p><label class="mai-check"><input name="enabled" type="checkbox"> Täglichen Lauf aktivieren</label>
+  <p class="mai-muted">Kein Datei- oder Gesamtzeitlimit: Unveränderte fertige Dateien werden übersprungen. Fortsetzen bearbeitet die restlichen Dateien.</p>
+  <p class="mai-muted">Die Zeit pro Datei umfasst Download, Vorbereitung, Modellanfragen und Korrekturversuche. Bei Überschreitung wird ein Fehler protokolliert und die nächste Datei bearbeitet.</p>
+  <details><summary>Speichergrenzen für Originaldateien</summary><p class="mai-muted">Diese Grenzen schützen den Worker beim Laden und Decodieren. Sie bestimmen nicht die Auflösung für das Modell. Größere Originale werden als Fehler gemeldet.</p><div class="mai-grid"><label>Max. Originaldateigröße (Bytes)<input type="number" name="max_download_bytes" min="1048576" max="536870912" required></label><label>Max. Videodateigröße (Bytes)<input type="number" name="max_video_download_bytes" min="1048576" max="2147483648" required></label><label>Max. Originalpixel beim Decodieren<input type="number" name="max_image_pixels" min="1000000" max="200000000" required></label></div></details>
   <p id="mai-permissions" class="mai-muted"></p><div id="mai-model-settings"></div>
   <div class="mai-actions"><button type="submit" class="primary">Speichern</button><button id="mai-test" type="button">Modelle prüfen</button></div><p id="mai-model-result"></p>
  </form></details>

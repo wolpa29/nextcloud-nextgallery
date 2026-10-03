@@ -10,7 +10,7 @@ class Metadata {
         $ocr = $metadata['ocr']['text'] ?? null;
         if ($fileId < 1 || strlen($etag) < 1 || strlen($etag) > 255 || !preg_match('/^[a-f0-9]{64}$/D', $sha256)
             || !preg_match('/^[a-f0-9]{64}$/D', $revision) || !is_string($ocr) || strlen($ocr) > 500000
-            || !in_array($vision['type'] ?? null, ['foto', 'screenshot', 'dokument', 'meme', 'grafik', 'unklar'], true)
+            || !in_array($vision['type'] ?? null, ['video', 'foto', 'screenshot', 'dokument', 'meme', 'grafik', 'unklar'], true)
             || !is_string($vision['description'] ?? null) || strlen($vision['description']) < 1 || strlen($vision['description']) > 48000) {
             throw new OCSBadRequestException('Invalid metadata');
         }

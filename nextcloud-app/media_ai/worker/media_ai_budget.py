@@ -13,6 +13,25 @@ class ImageTimeout(RuntimeError):
 _current = ContextVar('media_ai_image_budget', default=None)
 
 
+@contextmanager
+def track_cancel(callback):
+    budget = _current.get()
+    if budget is not None:
+        with budget.lock:
+            budget.callbacks.add(callback)
+    try:
+        check_budget()
+        yield
+        check_budget()
+    except Exception:
+        check_budget()
+        raise
+    finally:
+        if budget is not None:
+            with budget.lock:
+                budget.callbacks.discard(callback)
+
+
 def check_budget():
     budget = _current.get()
     if budget is not None:
@@ -54,6 +73,7 @@ class ImageBudget:
             raise ValueError('Image time budget must be nonnegative')
         self.lock = threading.Lock()
         self.sockets = set()
+        self.callbacks = set()
         self.timer = None
         self.expired = False
 
@@ -74,6 +94,12 @@ class ImageBudget:
                     sock.shutdown(socket.SHUT_RDWR)
                 except OSError:
                     pass
+            callbacks = list(self.callbacks)
+        for callback in callbacks:
+            try:
+                callback()
+            except Exception:
+                pass
 
     def check(self):
         if self.seconds and (self.expired or time.monotonic() >= self.deadline):

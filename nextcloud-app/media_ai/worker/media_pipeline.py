@@ -20,18 +20,21 @@ import re
 import sqlite3
 import ssl
 import time
+import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
 import xml.etree.ElementTree as ET
 from dataclasses import asdict, dataclass
+from media_ai_inputs import ImageBatch, prepare_ocr, prepare_video
 from media_ai_budget import ImageBudget, ImageTimeout, check_budget, network_timeout, track_response
 from media_ai_stream import chat_stream, StreamFailure, StreamLoop, RepetitionGuard
 
 VERSION = "structured-stream-2"
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif", ".tif", ".tiff", ".bmp", ".gif", ".avif"}
-KINDS = {"foto", "screenshot", "dokument", "meme", "grafik", "unklar"}
+VIDEO_SUFFIXES = {".mp4", ".mov", ".m4v", ".mkv", ".webm", ".avi", ".mts", ".m2ts", ".mpg", ".mpeg", ".3gp", ".flv", ".ogv"}
+KINDS = {"video", "foto", "screenshot", "dokument", "meme", "grafik", "unklar"}
 DEFAULT_PROMPTS = json.loads(Path(__file__).with_name("default_prompts.json").read_text(encoding="utf-8"))
 VISION_PROMPT = DEFAULT_PROMPTS["vision"]["prompt"]
 OCR_PROMPT = DEFAULT_PROMPTS["ocr"]["prompt"]
@@ -53,6 +56,24 @@ def bounded_read(stream, maximum):
     if len(data) > maximum:
         raise PipelineError("Response exceeds configured size limit")
     return data
+
+
+def is_video(item):
+    return item.mime.startswith('video/') or Path(item.path).suffix.lower() in VIDEO_SUFFIXES
+
+
+def copy_media(stream, destination, maximum):
+    hash_ = hashlib.sha256(); total = 0
+    with Path(destination).open('wb') as output:
+        while True:
+            check_budget()
+            block = stream.read(min(1024*1024, maximum-total+1))
+            if not block: break
+            total += len(block)
+            if total > maximum: raise PipelineError('Media exceeds configured download limit')
+            output.write(block); hash_.update(block)
+    check_budget()
+    return hash_.hexdigest()
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -140,7 +161,7 @@ class DirectorySource:
             dirs[:] = sorted(d for d in dirs if not (Path(parent) / d).is_symlink())
             for name in sorted(files):
                 p = Path(parent) / name
-                if p.is_symlink() or p.suffix.lower() not in IMAGE_SUFFIXES:
+                if p.is_symlink() or p.suffix.lower() not in IMAGE_SUFFIXES | VIDEO_SUFFIXES:
                     continue
                 items.append(self._item(p))
         return items
@@ -155,6 +176,13 @@ class DirectorySource:
             raise PipelineError("File changed before read")
         with resolved.open("rb") as stream:
             return bounded_read(stream, maximum)
+
+    def download_to(self, item, destination, maximum):
+        p = Path(item.locator)
+        if p.is_symlink() or not p.resolve(strict=True).is_relative_to(self.root) or not self.unchanged(item):
+            raise PipelineError('File changed before read or escaped source')
+        with p.open('rb') as stream:
+            return copy_media(stream, destination, maximum)
 
     def unchanged(self, item):
         try:
@@ -230,7 +258,7 @@ class WebDAVSource:
                     continue
                 mime = props.findtext("{DAV:}getcontenttype", "")
                 path = urllib.parse.unquote(urllib.parse.urlsplit(child).path)[len(urllib.parse.unquote(urllib.parse.urlsplit(self.root).path)):]
-                if not mime.startswith("image/") and Path(path).suffix.lower() not in IMAGE_SUFFIXES:
+                if not mime.startswith(("image/", "video/")) and Path(path).suffix.lower() not in IMAGE_SUFFIXES | VIDEO_SUFFIXES:
                     continue
                 version = etag(props.findtext("{DAV:}getetag"))
                 if not version:
@@ -251,13 +279,19 @@ class WebDAVSource:
             raise PipelineError("File changed while downloading")
         return data
 
+    def download_to(self, item, destination, maximum):
+        with open_stream(self._url(item.locator), 'GET', None, self.headers, ca_file=self.config.get('ca_file')) as stream:
+            current = etag(stream.headers.get('ETag', ''))
+            if current and current != item.etag: raise PipelineError('File changed while downloading')
+            return copy_media(stream, destination, maximum)
+
     def unchanged(self, item):
         _, headers = self._request(self._url(item.locator), "HEAD")
         current = etag(next((v for k, v in headers.items() if k.lower() == "etag"), ""))
         return current == item.etag
 
 
-def prepare_image(data, max_edge, max_pixels, stage, report=None):
+def prepare_image(data, max_edge, max_pixels, stage, report=None, model_max_pixels=0):
     from PIL import Image, ImageOps
     try:
         import pillow_heif
@@ -281,9 +315,13 @@ def prepare_image(data, max_edge, max_pixels, stage, report=None):
         image = ImageOps.exif_transpose(original).convert("RGB")
         oriented_size = image.size
         # Fit the entire oriented frame. Never crop, stretch or upscale.
-        image.thumbnail((max_edge, max_edge), Image.Resampling.LANCZOS)
+        if model_max_pixels:
+            from media_ai_resolution import fit_image
+            image = fit_image(image, max_edge, model_max_pixels, report)
+        else:
+            image.thumbnail((max_edge, max_edge), Image.Resampling.LANCZOS)
         buffer = io.BytesIO()
-        if stage == "ocr":
+        if stage == "ocr" or model_max_pixels:
             image.save(buffer, format="PNG")
             mime = "image/png"
         else:
@@ -294,7 +332,7 @@ def prepare_image(data, max_edge, max_pixels, stage, report=None):
             report.update(source_width=original.width, source_height=original.height,
                 oriented_width=oriented_size[0], oriented_height=oriented_size[1],
                 sent_width=image.width, sent_height=image.height, sent_pixels=image.width*image.height,
-                max_edge=max_edge, resized=image.size != oriented_size, full_frame=True,
+                max_edge=max_edge, resized=(report.get('resized', image.size != oriented_size) if model_max_pixels else image.size != oriented_size), full_frame=True,
                 frame_index=0, mime=mime, sent_bytes=len(wire), sha256=hashlib.sha256(wire).hexdigest())
         return wire, mime, exif
 
@@ -360,7 +398,7 @@ class Model:
         self.config, self.stage = config, stage
         self.url = config['url'].rstrip('/')
         self.prompt = config.get('prompt') or (VISION_PROMPT if stage == 'vision' else OCR_PROMPT)
-        self.revision = digest([VERSION, stage, config, self.prompt])
+        self.revision = digest([VERSION, stage, config, self.prompt] + (['ocr-overview-original-tiles-v1'] if stage == 'ocr' else []))
         self.observer = None
         self.usage = {}
         self.attempt_history = []
@@ -435,9 +473,12 @@ class Model:
 
     def analyze(self, data, mime):
         self.attempt_history, self.retry_messages, self.usage = [], [], {}
-        messages = [{'role': 'user', 'content': [
-            {'type': 'text', 'text': self.prompt},
-            {'type': 'image_url', 'image_url': {'url': f'data:{mime};base64,' + base64.b64encode(data).decode()}}]}]
+        batch = data if isinstance(data, ImageBatch) else ImageBatch([(data, mime, '')], '')
+        content = [{'type': 'text', 'text': self.prompt + ('\n\n' + batch.instructions if batch.instructions else '')}]
+        for wire, image_mime, label in batch.images:
+            if label: content.append({'type': 'text', 'text': label})
+            content.append({'type': 'image_url', 'image_url': {'url': f'data:{image_mime};base64,' + base64.b64encode(wire).decode()}})
+        messages = [{'role': 'user', 'content': content}]
         self.retry_messages = messages
         retries = max(0, min(3, int(self.config.get('loop_retries', 3))))
         threshold = max(3, min(20, int(self.config.get('loop_repetitions', 5))))
@@ -465,7 +506,11 @@ class Model:
                     msg=partial['choices'][0]['message']
                     self.emit('inference_progress', attempt=attempt, total_attempts=retries+1,
                         seconds=round(time.monotonic()-start,3), reasoning_chars=len(msg['reasoning_content']), content_chars=len(msg['content']))
-                opener = lambda *args: open_stream(*args, ca_file=self.config.get('ca_file'))
+                if self.config.get('transport', 'openai') == 'lmstudio':
+                    from media_ai_lmstudio import open_sdk_stream
+                    opener = lambda *args: open_sdk_stream(*args, ca_file=self.config.get('ca_file'))
+                else:
+                    opener = lambda *args: open_stream(*args, ca_file=self.config.get('ca_file'))
                 response = chat_stream(opener, self.url+'/chat/completions', payload, headers,
                     self.config.get('timeout_seconds', 7200), threshold, numeric_threshold, progress)
                 check_budget()
@@ -676,7 +721,7 @@ def publish_pending(store, publisher, limit=100, heartbeat=lambda: None):
 
 def run(config, store, source, models, limit=100, max_seconds=3600, preprocess=prepare_image, publisher=None, observe=lambda event, **fields: None, should_stop=lambda: False):
     revision = digest({'models': {stage: model.revision for stage, model in models.items()},
-                       'publication': publisher.config if publisher else None})
+                       'publication': publisher.config if publisher else None, 'video': config.get('video', {})})
     start = time.monotonic()
     with store.lease(duration=max(1800, 2*sum(m.config.get('timeout_seconds', 300) for m in models.values())+300)) as heartbeat:
         publication = publish_pending(store, publisher, limit, heartbeat)
@@ -701,19 +746,29 @@ def run(config, store, source, models, limit=100, max_seconds=3600, preprocess=p
             observe("file_start", path=item.path, file_id=item.locator, stage="download")
             current_stage, image_start = 'download', time.monotonic()
             try:
-                with ImageBudget(config.get('image_timeout_seconds', 0)):
+                video = is_video(item)
+                with ImageBudget(config.get('image_timeout_seconds', 0)), tempfile.TemporaryDirectory(prefix='media-ai-') as temporary:
                     target = publisher.capture(item, source) if publisher else None
-                    maximum = config.get("max_download_bytes", 64*1024*1024)
+                    maximum = config.get('max_video_download_bytes', 512*1024*1024) if video else config.get("max_download_bytes", 64*1024*1024)
                     if item.size > maximum:
-                        raise PipelineError("Image exceeds configured download limit")
-                    data = source.read(item, maximum)
-                    hash_ = hashlib.sha256(data).hexdigest()
+                        raise PipelineError("Media exceeds configured download limit")
+                    if video:
+                        video_path = Path(temporary) / ('source' + Path(item.path).suffix.lower())
+                        hash_ = source.download_to(item, video_path, maximum)
+                        data = None
+                    else:
+                        data = source.read(item, maximum)
+                        hash_ = hashlib.sha256(data).hexdigest()
                     metadata, exif = {'provenance': {'pipeline': VERSION, 'analyzed_at': time.time(),
                         'models': {s: {'id': m.config.get('model'), 'weights': m.config.get('model_revision'),
-                                      'fingerprint': m.revision, 'max_edge': m.config.get('max_edge', 2048)} for s, m in models.items()}}}, {}
+                                      'fingerprint': m.revision, 'max_edge': m.config.get('max_edge', 2048),
+                                      'model_max_pixels': m.config.get('model_max_pixels', 0), 'transport': m.config.get('transport', 'openai')} for s, m in models.items()}}}, {}
                     if target:
                         metadata['nextcloud_target'] = target
+                    if video: metadata['ocr'] = {'text': '', 'source': 'skipped_video'}
                     for stage, model in models.items():
+                        if video and stage == 'ocr': continue
+                        stage_revision = digest([model.revision, 'video-batch-v1', config.get('video', {})]) if video else model.revision
                         observe("stage_start", path=item.path, file_id=item.locator, stage=stage)
                         stage_start = time.monotonic()
                         image_info = {}
@@ -726,25 +781,31 @@ def run(config, store, source, models, limit=100, max_seconds=3600, preprocess=p
                         current_stage = stage
                         check_budget()
                         preparation_args = (data, model.config.get("max_edge", 2048), config.get("max_image_pixels", 80_000_000), stage)
-                        resized, mime, exif = (preprocess(*preparation_args, report=image_info)
-                            if preprocess is prepare_image else preprocess(*preparation_args))
+                        if video:
+                            resized, mime, exif = prepare_video(video_path, config.get('video', {}) | {'max_edge': model.config.get('max_edge', 2048), 'model_max_pixels': model.config.get('model_max_pixels', 0)}, config.get('max_image_pixels', 80_000_000), image_info)
+                        elif stage == 'ocr' and preprocess is prepare_image:
+                            resized, mime, exif = prepare_ocr(data, model.config, config.get('max_image_pixels', 80_000_000), prepare_image, image_info)
+                        else:
+                            resized, mime, exif = (preprocess(*preparation_args, report=image_info, model_max_pixels=model.config.get('model_max_pixels', 0))
+                                if preprocess is prepare_image else preprocess(*preparation_args))
                         metadata['provenance'].setdefault('images', {})[stage] = image_info
                         check_budget()
-                        result = store.cached(hash_, stage, model.revision)
+                        result = store.cached(hash_, stage, stage_revision)
                         was_cached = result is not None
                         if result is None:
                             result = model.analyze(resized, mime)
+                            if video and result.get('type') != 'video': raise PipelineError('Video result must have type video')
                             if stage == "ocr": assert_no_repetition(result["text"], "OCR", model.config.get('numeric_loop_repetitions', 40),model.config.get('loop_repetitions',5))
                             else: validate_vision(result,model.config)
                             check_budget()
-                            store.cache(hash_, stage, model.revision, result)
+                            store.cache(hash_, stage, stage_revision, result)
                         else:
                             try:
                                 if stage == "ocr": assert_no_repetition(result["text"], "OCR", model.config.get('numeric_loop_repetitions', 40),model.config.get('loop_repetitions',5))
                                 else: validate_vision(result,model.config)
                             except PipelineError:
                                 with store.db:
-                                    store.db.execute("DELETE FROM results WHERE sha256=? AND stage=? AND revision=?", (hash_, stage, model.revision))
+                                    store.db.execute("DELETE FROM results WHERE sha256=? AND stage=? AND revision=?", (hash_, stage, stage_revision))
                                 raise
                             cache_hits += 1
                         observe("stage_finished", path=item.path, file_id=item.locator, stage=stage, seconds=round(time.monotonic()-stage_start,3), cached=was_cached, image=image_info, usage={} if was_cached else getattr(model, "usage", {}))

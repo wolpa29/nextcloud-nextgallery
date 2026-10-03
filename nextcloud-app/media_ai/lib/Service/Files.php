@@ -16,12 +16,12 @@ class Files {
     }
     public function byId(string $uid, int $id): File {
         foreach ($this->root->getUserFolder($uid)->getById($id) as $node) {
-            if ($node instanceof File && $node->isReadable() && str_starts_with($node->getMimeType(), 'image/')) { return $node; }
+            if ($node instanceof File && $node->isReadable() && (str_starts_with($node->getMimeType(), 'image/') || str_starts_with($node->getMimeType(), 'video/'))) { return $node; }
         }
         throw new OCSNotFoundException('Image unavailable');
     }
     private function readableImage($node): File {
-        if (!$node instanceof File || !$node->isReadable() || !str_starts_with($node->getMimeType(), 'image/')) {
+        if (!$node instanceof File || !$node->isReadable() || !(str_starts_with($node->getMimeType(), 'image/') || str_starts_with($node->getMimeType(), 'video/'))) {
             throw new OCSNotFoundException('Readable image required');
         }
         return $node;

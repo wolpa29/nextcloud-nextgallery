@@ -4,7 +4,7 @@ namespace OCA\MediaAI\Controller;
 use OCP\IRequest;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\DataResponse;
-use OCP\AppFramework\Http\DataDownloadResponse;
+use OCP\AppFramework\Http\StreamResponse;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\OCS\OCSException;
@@ -25,16 +25,17 @@ class WorkerController extends Controller {
         return new DataResponse(['file_id'=>$file->getId(), 'etag'=>$file->getEtag(), 'size'=>$file->getSize()]);
     }
     #[PublicPage] #[NoCSRFRequired]
-    public function image(int $file_id, string $etag): DataDownloadResponse|DataResponse {
+    public function image(int $file_id, string $etag): StreamResponse|DataResponse {
         if ($denied = $this->denied()) { return $denied; } $file = $this->inventory->allowedFile($file_id);
         if (!hash_equals($file->getEtag(), $etag)) { throw new OCSException('Image changed', 409); }
-        $maximum = $this->settings->get()['max_download_bytes'];
+        $config = $this->settings->get();
+        $maximum = str_starts_with($file->getMimeType(), 'video/') ? $config['max_video_download_bytes'] : $config['max_download_bytes'];
         if ($file->getSize() > $maximum) { throw new OCSException('Image exceeds download limit', 413); }
         $stream = $file->fopen('rb');
         if (!is_resource($stream)) { throw new OCSException('Image unavailable', 503); }
-        try { $data = stream_get_contents($stream, $maximum + 1); } finally { fclose($stream); }
-        if ($data === false || strlen($data) > $maximum || !hash_equals($file->getEtag(), $etag)) { throw new OCSException('Image changed or exceeds limit', 409); }
-        $response = new DataDownloadResponse($data, 'image', $file->getMimeType());
+        $response = new StreamResponse($stream);
+        $response->addHeader('Content-Type', $file->getMimeType());
+        $response->addHeader('Content-Length', (string)$file->getSize());
         $response->addHeader('ETag', '"'.$file->getEtag().'"');
         $response->addHeader('Cache-Control', 'no-store');
         return $response;

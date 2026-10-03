@@ -1,4 +1,4 @@
-# Integrierte App (0.3.5)
+# Integrierte App (0.4.1)
 
 Die Nextcloud-App enthält den Python-Worker. Er läuft als eigener systemd-Dienst
 mit niedriger CPU-/IO-Priorität, unabhängig von PHP-FPM und Nextcloud-Cron.
@@ -23,13 +23,13 @@ Vision-Endpunkt (hier LM Studio). Dort wird kein Nextcloud-Plugin installiert.
 
 Standardmäßig sind tägliche Verarbeitung deaktiviert und der Worker pausiert.
 Während einer aktiven Analyse wird Speichern abgewiesen; zuerst pausieren und die aktuelle Datei beenden lassen. Ein manueller Start
-verarbeitet alle offenen Bilder der gewählten Ordner, ohne Dateilimit und ohne
+verarbeitet alle offenen Bilder und Videos der gewählten Ordner, ohne Dateilimit und ohne
 Gesamtzeitgrenze. Pause greift nach der aktuellen Datei; Fortsetzen bearbeitet
 die restlichen Bilder. Erfolgreiche unveränderte Bilder werden übersprungen.
 Auch der tägliche Scan bearbeitet alle dann offenen Bilder. Ein über Nacht
 hinaus laufender Scan läuft weiter; es wird kein zweiter Scan parallel gestartet.
 
-`image_timeout_seconds` ist das Zeitbudget für **ein Bild**, gemeinsam für
+`image_timeout_seconds` ist das Zeitbudget für **eine Datei**, gemeinsam für
 Download/Quellprüfung, Vorverarbeitung, Vision, OCR und alle Korrekturversuche.
 Standard: 600 Sekunden (10 Minuten), 0 deaktiviert die Zeitgrenze, maximal
 86.400 Sekunden. Ein Überschreiten beendet den Bildversuch mit einem sichtbaren
@@ -89,7 +89,7 @@ Die globale Suche und die Detailanzeige prüfen Benutzer, Leserecht und ETag.
 Eine eigene Tabelle alleine wäre kein Suchanbieter; `lib/Search/Provider.php`
 verknüpft sie mit Nextcloud Unified Search.
 
-OCR ist momentan ein eigener zweiter Modellaufruf, kein installiertes
+OCR ist bei Bildern ein eigener zweiter Modellaufruf, kein installiertes
 Tesseract. Vision und OCR können verschiedene kompatible Modelle verwenden.
 Modelländerungen oder Promptänderungen invalidieren die entsprechende Stufe.
 Ausgabe-Tokens: `0` lässt den Parameter vollständig weg. Die App setzt weder
@@ -116,7 +116,7 @@ ausführen. Anschließend als root:
 scripts/install-worker.sh /var/www/nextcloud https://10.1.10.186 /path/to/public-ca.crt
 ```
 
-Voraussetzung: Python >=3.10 mit venv, MariaDB/MySQL, Nextcloud 32, PHP >=8.2.
+Voraussetzung: FFmpeg und FFprobe im Worker-PATH, Python >=3.10 mit venv, MariaDB/MySQL, Nextcloud 32, PHP >=8.2.
 Die einmalige Installation benötigt root für venv/Dienst; täglicher Betrieb
 und Einstellungen erfolgen aus Nextcloud. Kein Klartextpasswort in Git,
 URLs, CLI-Argumenten oder Terminalausgaben. Ein öffentlicher CA-Key ist kein
@@ -207,10 +207,120 @@ Wartezeit auf. Bereits erfolgreiche Stufen bleiben im Cache. Ganze Dateien
 werden erst nach erfolgreicher Vision und OCR und erneut bestätigtem ETag
 in Nextcloud gespeichert. Originaldateien werden nur gelesen.
 
-## Bildauflösung und vollständiger Bildrahmen (0.3.5)
+## Bildauflösung und vollständiger Bildrahmen (0.4.1)
 
-Der Modellparameter `max_edge` begrenzt die längste Kante der **übertragenen Kopie**, keine Originaldatei. Vision/OCR starten mit 2048, passend zur am 03.10.2026 über das offizielle SDK ausgelesenen LM-Studio-Basiskonfiguration (`userMaxImageDimensionPixels=2048`, `ignoreModelPreferredMaxImageDimension=false`). Das sind bei einem Quadrat 4.194.304 Pixel, bei 4:3 2048×1536. Es handelt sich um die aktuell eingestellte Verarbeitung, nicht um eine universelle API-Annahme oder ein Hardwaremaximum. Höhere App-Werte können erneut im Backend verkleinert werden; bei Änderungen an LM Studio beide Stufen abgleichen.
+Die auf diesem GPU-Server gemessene wirksame Qwen/llama.cpp-Grenze beträgt
+4096 Bildtokens beziehungsweise 4.194.304 Pixel bei 32-Pixel-Raster. Das ist
+**keine universelle LM-Studio- oder Modellgrenze**. Ein 4096²-Testbild wurde
+auch mit deaktivierter SDK-Kantengrenze nur als ungefähr 4096 Bildtokens
+verarbeitet. Ein Test-Reload mit `--image-max-tokens 16384` hob dieses Limit
+in der installierten Engine nicht an; die ursprüngliche Ladekonfiguration
+wurde wiederhergestellt. Die ursprüngliche Qwen-Vorverarbeitung nennt ein
+höheres Standard-Pixelbudget; dessen bloße Konfiguration garantiert keine
+Unterstützung im verwendeten GGUF-Backend.
 
-Die Vorverarbeitung dreht mit EXIF, erhält das Seitenverhältnis und passt den ganzen Rahmen ein. JPEG (Vision) / PNG (OCR) werden komplett als Base64 übertragen. Log und `provenance.images` dokumentieren Quellgröße, orientierte Größe, gesendete Größe, Pixelzahl, Bytezahl, Format, SHA256, Verkleinerung und `full_frame=true`. Das bestätigt den vollständigen Rahmen auf unserer Seite; die API meldet die intern vom Vision-Encoder verwendete Auflösung nicht zurück. Kleine Schrift und Details können bei Verkleinerung verloren gehen. Ein erfolgreicher Aufruf garantiert keine vollständige oder fehlerfreie inhaltliche Erkennung. Animationen bleiben auf das erste Bild beschränkt.
+`model_max_pixels=4194304` begrenzt deshalb **jedes** Gesamtbild, jede
+OCR-Kachel und jeden Video-Frame. Die Vorverarbeitung wählt unter diesem
+Budget die größtmögliche Inhaltsauflösung, erhält den gesamten EXIF-gedrehten
+Rahmen und das Seitenverhältnis und füllt nur zum 32-Pixel-Raster mit Weiß
+auf. Kein Hochskalieren des Bildinhalts, keine JPEG-Neukompression: PNG.
+Beispiel 4000×3000: 2347×1760 Inhalt auf 2368×1760 Leinwand, gegenüber dem
+bisherigen 2048×1536 rund 31 Prozent mehr Inhalts-Pixel. `max_edge=8192`
+ist ein zusätzlicher Kantenschutz und keine behauptete Encodergrenze.
+`model_max_pixels=0` aktiviert für andere kompatible Server die bisherige
+reine Kantenaufbereitung; deren eigene Grenzen bleiben dann zu beachten.
 
-`max_download_bytes` (64 MiB) und `max_image_pixels` (80 MP) sind davon unabhängige Lade-/Decoder-Speichergrenzen im aufklappbaren Bereich „Speichergrenzen für Originaldateien“. Größere Dateien werden mit Fehler sichtbar übersprungen, statt den Container unkontrolliert zu belasten. Beim Wechsel der OCR-Bildkante von 4096 auf 2048 wird beim nächsten Start nur der betreffende OCR-Cache ungültig; passende Vision-Ergebnisse bleiben nutzbar. Vorhandene Metadaten bleiben bis zur vollständigen erfolgreichen neuen Analyse gespeichert.
+`transport=lmstudio` nutzt das offizielle SDK 2.0.0 über einen privaten
+Node-Unterprozess. Je Inferenz setzt es `userMaxImageDimensionPixels=false`
+und `ignoreModelPreferredMaxImageDimension=true`. Die normale
+OpenAI-kompatible HTTP-Schnittstelle ignoriert dieselben Felder (live
+geprüft); `transport=openai` bleibt für andere Anbieter verfügbar.
+Node.js 18+ und npm sind zusätzlich erforderlich; `scripts/install-worker.sh`
+installiert das über `package-lock.json` fixierte SDK mit `npm ci`.
+API-Tokens gehen über stdin, nicht über Kommandozeilen; HTTPS nutzt WSS und
+bei Bedarf dieselbe zusätzliche CA. SDK-Bilddateien liegen in privaten
+Temporärordnern und werden auch bei Abbruch entfernt.
+
+Der SDK-Stream durchläuft dieselbe Schleifen-/Schema-Prüfung und dieselben
+Korrekturversuche. Das gemeinsame Dateibudget beendet blockierte Streams
+über SDK-Cancel und nötigenfalls den Unterprozess. `contextOverflowPolicy`
+ist `stopAtLimit`; ein zu großer Kontext erzeugt einen Fehler statt
+unbemerkter Eingabekürzung. Der SDK-Zugang streamt immer; `stream=false`
+gilt nur für den HTTP-Zugang. Gesunde Denkprozesse behalten bei
+`max_tokens=0` ihr unbegrenztes App-Antwortbudget.
+
+Log und `provenance.images` enthalten Quellgröße, orientierte Größe,
+gesendete Größe, Inhaltsgröße, Rasterränder, Modell-Pixelbudget, Bytezahl,
+Format, SHA256, Verkleinerung und `full_frame=true`. Die API meldet die
+interne Encoderauflösung nicht zurück; Ende-zu-Ende-Tests und gemessene
+Tokenzahlen belegen die aktuelle Verarbeitung, keine Garantie für jedes
+kleine Detail. Animationen bleiben auf das erste Bild beschränkt.
+
+`max_download_bytes` (64 MiB) und `max_image_pixels` (80 MP) sind unabhängige
+Lade-/Decodergrenzen. Vorhandene Metadaten bleiben bis zur vollständigen
+erfolgreichen neuen Analyse gespeichert. Geänderte Modellauflösung oder
+Transport invalidiert den jeweiligen Analyse-Cache beim nächsten Start.
+
+Quellen: [LM Studio Bildübertragung](https://lmstudio.ai/docs/typescript/llm-prediction/image-input),
+[SDK-Auflösungsparameter](https://lmstudio.ai/docs/typescript/api-reference/llm-prediction-config-input),
+[llama.cpp Encoder](https://github.com/ggml-org/llama.cpp/blob/master/tools/mtmd/clip.cpp),
+[Qwen Vorverarbeitung](https://huggingface.co/Qwen/Qwen3.8-27B/blob/main/preprocessor_config.json).
+
+## Gemeinsame OCR-Ausschnitte und Video-Frames (0.4.0)
+
+OCR: Bild 1 zeigt den vollständigen, proportional verkleinerten Rahmen. Bei
+Originalen über dem Encoderbudget oder Kantenschutz folgen vollständig abdeckende Ausschnitte aus
+EXIF-orientierten Originalpixeln, ohne Verkleinerung oder Vergrößerung. Jede
+Kachel bleibt innerhalb des Encoder-Pixelbudgets und des Kantenschutzes.
+Rasterränder werden ergänzt, die Originalpixel bleiben unverändert. Das konfigurierbare Mindestmaß der
+Überlappung beträgt standardmäßig 10 Prozent; je nach Bildformat überlappen
+vollgroße Randkacheln stärker. Gesamtansicht und alle Kacheln stehen zusammen
+in genau einer initialen OCR-Anfrage. Beschriftungen mit Originalkoordinaten
+und der gemeinsame Zusatzprompt ordnen die Ansichten zu und fordern eine
+Transkription in Leserichtung ohne Überlappungsduplikate. Das ist eine
+Modellanweisung, keine garantierte fehlerfreie OCR-Zusammenführung.
+
+Standardmäßig höchstens 20 Bilder einschließlich Gesamtansicht pro OCR-Anfrage.
+Das entspricht bei 4096 Bildtokens pro Eingang etwa 82k Bildtokens plus Text
+und Ausgabe und passt in den beobachteten geladenen Kontext von 114810.
+Die Bildtokens hängen vom Modell, Encoder und der Auflösung ab. Bei mehr
+Kacheln entsteht ein sichtbarer Fehler mit benötigter Anzahl; keine Region
+wird stillschweigend ausgelassen. Größere konfigurierte Pakete brauchen einen
+entsprechend größeren Modellkontext. Die OCR-Einstellungen sind nur durch
+Administratoren änderbar. Der neue OCR-Fingerprint invalidiert die betreffende
+Stufe; passende Foto-Vision-Ergebnisse bleiben im Cache.
+
+Videos: Inventar und Dateizugriff berücksichtigen `video/%`; portable Quellen
+zusätzlich übliche Video-Endungen. Der Download wird in 1-MiB-Blöcken in einen
+privaten temporären Ordner geschrieben und SHA256 gleichzeitig berechnet.
+Die Nextcloud-Route streamt auch große Videos, ohne die gesamte Datei in PHP
+zu laden. `max_video_download_bytes` ist separat konfigurierbar (Standard
+512 MiB). Temporärdateien werden nach Verarbeitung oder Fehler entfernt.
+FFprobe bestimmt Laufzeit und Videospur. FFmpeg berücksichtigt Drehung und
+extrahiert pro Zeitabschnitt einen Frame in der Mitte. Jeder Frame wird
+auf das Vision-Pixelbudget und Raster vorbereitet, ohne Hochskalierung. `video.frame_count` steht auf
+10 und ist von 1 bis 20 einstellbar; bei einer bekannten kleineren Anzahl
+Quellframes wird diese verwendet. Frame-Zeitpunkte sind angeforderte
+Stichprobenzeitpunkte; variable Bildraten können zum nächsten decodierbaren
+Frame führen. Audio und OCR werden nicht analysiert.
+
+Alle Frames stehen in einer initialen Vision-Anfrage, beschriftet mit Reihenfolge
+und Zeitpunkt. Der Zusatzprompt nennt Gesamtdauer und gleichmäßigen Abstand,
+fordert `type=video`, eine gemeinsame kurze Beschreibung und höchstens 20
+unterschiedliche Suchbegriffe aus allen Frames. Video-Suchergebnisse und
+Dateiseitenleiste verwenden die vorhandene Originaldatei und Zugriffs-/ETag-
+Prüfung. `ocr.source=skipped_video` hält das Auslassen ausdrücklich fest.
+Sampling/Framezahl fließen in den Video-Cache ein. Kurze Ereignisse zwischen
+Stichproben können fehlen. Bestehende Korrekturversuche bleiben aktiv und
+wiederholen bei Fehlern das komplette zugehörige Bildpaket.
+
+Auflösungsprobe am 03.10.2026: gleicher kurzer Prompt, 1536×2048 und 2048×2731
+unter aktiver 2048-Kantenregel jeweils 3141 Prompttokens. Ausschließlich für die
+Anfrage angehobene Grenze plus ignorierte Modellpräferenz: 4084 Prompttokens
+für 2048×2731. Das größere Bild wird unter der alten Regel erneut verkleinert;
+bei tatsächlich höherer nutzbarer Auflösung steigen die Tokens. Die Pipeline
+belässt die globale LM-Studio-Konfiguration unverändert.
+
+Primärquellen: [LM Studio Image Input](https://lmstudio.ai/docs/typescript/llm-prediction/image-input),
+[FFmpeg](https://ffmpeg.org/ffmpeg.html), [FFprobe](https://ffmpeg.org/ffprobe.html),
+[Nextcloud StreamResponse](https://github.com/nextcloud/server/blob/stable32/lib/public/AppFramework/Http/StreamResponse.php).

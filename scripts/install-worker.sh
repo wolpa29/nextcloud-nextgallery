@@ -10,6 +10,9 @@ ca_file=${3:-}
 app_path=$(runuser -u www-data -- php "$nc_root/occ" app:getpath media_ai)
 state_path=$(runuser -u www-data -- php "$nc_root/occ" config:system:get datadirectory)/.media_ai
 [[ -f "$app_path/worker/app_worker.py" && "$state_path" == /* && "$state_path" != /\.media_ai && ! -L "$state_path" ]]
+command -v ffmpeg >/dev/null && command -v ffprobe >/dev/null || { echo 'Install ffmpeg (including ffprobe) before installing the worker' >&2; exit 2; }
+command -v node >/dev/null && command -v npm >/dev/null || { echo 'Install Node.js (18+) and npm for the LM Studio SDK transport' >&2; exit 2; }
+(cd "$app_path/worker/lmstudio" && npm ci --ignore-scripts --no-audit --no-fund)
 # Nextcloud CLI creates private bootstrap and an encrypted worker token.
 setup_options=(--url "$nc_url")
 if [[ -n "$ca_file" ]]; then setup_options+=(--ca-file "$ca_file"); fi

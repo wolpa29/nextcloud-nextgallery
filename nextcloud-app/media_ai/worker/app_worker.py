@@ -64,6 +64,11 @@ class NativeSource:
         returned=p.etag(next((v for k,v in headers.items() if k.lower()=='etag'),''))
         if returned != item.etag: raise p.PipelineError('Image changed while downloading')
         return wire
+    def download_to(self,item,destination,maximum):
+        url=self.api.url+'image?'+urllib.parse.urlencode({'file_id':item.locator,'etag':item.etag})
+        with p.open_stream(url,'GET',None,self.api.headers,timeout=120,ca_file=self.api.ca_file) as stream:
+            if p.etag(stream.headers.get('ETag','')) != item.etag: raise p.PipelineError('Media changed while downloading')
+            return p.copy_media(stream,destination,maximum)
     def unchanged(self,item): return self.api.call('resolve?file_id='+item.locator)['etag']==item.etag
 
 

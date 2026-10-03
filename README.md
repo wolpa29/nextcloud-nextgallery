@@ -1,6 +1,6 @@
 # Nextcloud: private OCR- und Bildsuche
 
-**Stand 0.3.5: integrierte App und Python-Worker auf Nextcloud 32 installiert.**
+**Stand 0.4.1: integrierte App und Python-Worker auf Nextcloud 32 installiert.**
 
 Die App enthält den Worker und eine Oberfläche für Ordnerauswahl, Zeitplan,
 Start/Pause, DE/EN, Ergebnisse und Wartung. Installation und Bedienung:
@@ -46,7 +46,7 @@ Der Controller braucht **keinen direkten Zugang zur MariaDB**. Er meldet sich mi
 
 ## Bestehende Dateien und andere Apps
 
-- Der erste erfolgreiche Lauf inventarisiert rekursiv **alle Bildordner** unter der konfigurierten Quelle. Standard: Pauls vollständiger WebDAV-Dateibereich, also auch `InstantUpload`, `GoPro_Aufnahmen` und andere Ordner, soweit dort Bilder liegen.
+- Der erste erfolgreiche Lauf inventarisiert rekursiv **alle Medienordner** unter der konfigurierten Quelle. Standard: Pauls vollständiger WebDAV-Dateibereich, also auch `InstantUpload`, `GoPro_Aufnahmen` und andere Ordner, soweit dort Bilder oder Videos liegen.
 - Die integrierte App verarbeitet alle offenen Bilder der gewählten Ordner, ohne Datei-/Gesamtzeitlimit. Pro Bild gilt standardmäßig ein gemeinsames Zeitbudget von 600 Sekunden (0 = unbegrenzt). Pause/Fortsetzen erhält den Fortschritt. Die portable CLI unterstützt weiterhin ausdrücklich gesetzte Pilotgrenzen.
 - Unveränderte Dateien brauchen weder erneuten Download noch Modellanfragen. Änderungen an ETag, Modellversion oder Prompt lösen eine neue Verarbeitung aus.
 - Bytegleiche Duplikate erhalten dieselben zwischengespeicherten Analyseergebnisse. Sie werden **nicht** gelöscht oder zusammengeführt. Ein SHA-256 erkennt keine nur ähnlich aussehenden/rekomprimierten Duplikate.
@@ -59,18 +59,19 @@ Der Controller braucht **keinen direkten Zugang zur MariaDB**. Er meldet sich mi
 
 ## Umfang und Grenzen dieses Grundgerüsts
 
-**Bilder**: JPEG/PNG/WebP/TIFF/BMP/GIF/HEIF/HEIC/AVIF, soweit die installierten Bilddecoder sie öffnen können. HEIF/HEIC wird über `pillow-heif` ergänzt. Animationen: erstes Bild. Für das aktuelle LM-Studio-Setup werden Vision und OCR vor dem Versand auf höchstens 2048 Pixel an der längsten Kante verkleinert (quadratisch höchstens 4,194 MP; 4:3 höchstens 3,146 MP). EXIF-Drehung vor der Verkleinerung, vollständiger Bildrahmen, keine Vergrößerung. Gesendete Auflösung/Pixelzahl, Format, Bytezahl und SHA256 stehen in der Analyseprovenienz; die Auflösung steht auch im Aktivitätslog. Separater Speicherschutz für Originale: 64 MiB und 80 Megapixel, größere/defekte Dateien werden als Fehler erfasst. Keine Videos, PDF-Dateien, Office-Dokumente, Gesichtsnamen, Ähnlichkeitssuche oder Vektor-/Embedding-Suche in Version 0.3.
+**Bilder**: JPEG/PNG/WebP/TIFF/BMP/GIF/HEIF/HEIC/AVIF, soweit die installierten Bilddecoder sie öffnen können. HEIF/HEIC wird über `pillow-heif` ergänzt. Animationen: erstes Bild. OCR erhält zusätzlich bei größeren Originalen überlappende, unverkleinerte PNG-Ausschnitte gemeinsam in derselben Anfrage. Videos werden über FFmpeg als standardmäßig zehn gleichmäßig verteilte Frames gemeinsam in einer Vision-Anfrage analysiert; OCR entfällt. Beschreibung und Suchbegriffe gehören zur Original-Videodatei. Videogrößengrenze separat 512 MiB, Framezahl 1–20 einstellbar. Für das aktuell gemessene LM-Studio/Qwen-Setup nutzt jede übertragene Ansicht bis zu 4.194.304 Encoderpixel (4096 Bildtokens, 32-Pixel-Raster) unabhängig vom Seitenverhältnis. Ein 4000×3000-Original erhält eine 2368×1760-Gesamtansicht: 2347×1760 Bildinhalt plus 21 Pixel weißer Rasterrand; gegenüber 2048×1536 rund 31 Prozent mehr tatsächliche Bildpixel. Vollständiger Rahmen, EXIF-Drehung, keine Inhaltsvergrößerung oder zusätzliche JPEG-Verluste (PNG). Der offizielle LM-Studio-SDK-Zugang deaktiviert die separate 2048-Kantenverkleinerung je Anfrage; die OpenAI-HTTP-API ignoriert diese Overrides. Pixelbudget und zusätzlicher Kantenschutz sind konfigurierbar und müssen bei einem Modell-/Encoderwechsel neu gemessen werden. Gesendete Auflösung, Bildinhalt/Rasterränder, Pixelbudget, Format, Bytezahl und SHA256 stehen in der Analyseprovenienz; die Auflösung steht auch im Aktivitätslog. Separater Speicherschutz für Originale: 64 MiB und 80 Megapixel, größere/defekte Dateien werden als Fehler erfasst. Keine PDF-Dateien, Office-Dokumente, Gesichtsnamen, Ähnlichkeitssuche oder Vektor-/Embedding-Suche in Version 0.4.
 
 Die Nextcloud-App ist für **Nextcloud 32 mit MariaDB/MySQL** vorbereitet. Ihre globale Suche kombiniert Wörter in OCR, Beschreibungen und Suchbegriffen. MariaDB-Stopwörter, Tokenisierung und Mindestwortlänge gelten; der Provider nimmt Wörter ab drei Zeichen auf. Es handelt sich noch nicht um semantische Freitextsuche. Die Android-App muss den eigenen Suchanbieter unterstützen; die Einbindung wird zunächst in der Browser-Suche geprüft. Die normale Dateinamen-Suche wird nicht automatisch erweitert.
 
 ## Eigenständigen Controller vorbereiten
 
-Python **3.10 oder neuer**, SQLite mit FTS5, Internet für die einmalige Installation der Bibliotheken. Die privaten Bilder gehen danach nur an deine konfigurierten Server.
+Python **3.10 oder neuer**, SQLite mit FTS5, FFmpeg/FFprobe und für den LM-Studio-Zugang Node.js **18+** mit npm. Internet für die einmalige Installation der Bibliotheken. Die privaten Bilder gehen danach nur an deine konfigurierten Server.
 
 ```bash
 cd nextcloud-media-ai-pipeline
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
+npm ci --ignore-scripts --no-audit --no-fund --prefix nextcloud-app/media_ai/worker/lmstudio
 cp config.example.json config.json
 mkdir -p state
 ```

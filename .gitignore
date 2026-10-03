@@ -12,3 +12,5 @@ live-pilot*/
 *.key
 .env
 .env.*
+
+node_modules/

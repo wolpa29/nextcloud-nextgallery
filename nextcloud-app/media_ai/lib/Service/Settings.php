@@ -11,14 +11,14 @@ class Settings {
     public function defaults(): array {
         return ['enabled' => false, 'user_id' => 'paul', 'folders' => ['/'], 'exclude_folders' => [],
             'schedule_time' => '03:00', 'timezone' => 'Europe/Vienna', 'image_timeout_seconds' => 600, 'log_days' => 30, 'max_download_bytes' => 67108864,
-            'max_image_pixels' => 80000000,
+            'max_image_pixels' => 80000000, 'max_video_download_bytes' => 536870912, 'video' => ['frame_count' => 10],
             'vision' => ['url' => 'http://10.1.10.78:1234/v1', 'model' => 'qwen/qwen3.8-27b',
-                'model_revision' => 'qwen3.8-27b-Q4_K_M-20261002', 'max_edge' => 2048,
+                'model_revision' => 'qwen3.8-27b-Q4_K_M-20261002', 'max_edge' => 8192, 'model_max_pixels' => 4194304, 'transport' => 'lmstudio',
                 'max_tokens' => 0, 'timeout_seconds' => 7200, 'temperature' => 0.2,
                 'allow_reasoning_json' => true, 'prompt' => '', 'stream' => true,
                 'loop_repetitions' => 5, 'numeric_loop_repetitions' => 40, 'loop_retries' => 3, 'retry_temperature' => 1.0, 'retry_prompt' => ''],
-            'ocr' => ['url' => 'http://10.1.10.78:1234/v1', 'model' => 'qwen/qwen3.8-27b',
-                'model_revision' => 'qwen3.8-27b-Q4_K_M-20261002', 'max_edge' => 2048,
+            'ocr' => ['tile_overlap_percent' => 10, 'max_batch_images' => 20, 'url' => 'http://10.1.10.78:1234/v1', 'model' => 'qwen/qwen3.8-27b',
+                'model_revision' => 'qwen3.8-27b-Q4_K_M-20261002', 'max_edge' => 8192, 'model_max_pixels' => 4194304, 'transport' => 'lmstudio',
                 'max_tokens' => 0, 'timeout_seconds' => 7200, 'temperature' => 1.0, 'prompt' => '',
                 'allow_reasoning_json' => true, 'stream' => true, 'loop_repetitions' => 5,
                 'numeric_loop_repetitions' => 40, 'loop_retries' => 3, 'retry_temperature' => 1.0, 'retry_prompt' => '']];
@@ -100,6 +100,11 @@ class Settings {
                   'max_download_bytes' => [1048576,536870912], 'max_image_pixels' => [1000000,200000000]] as $key => [$min,$max]) {
             $result[$key] = $this->integer($value[$key] ?? ($key === 'image_timeout_seconds' ? 600 : null), $min, $max, $key);
         }
+        $result['max_video_download_bytes'] = $this->integer($value['max_video_download_bytes'] ?? 536870912, 1048576, 2147483648, 'max_video_download_bytes');
+        if (!is_array($value['video'] ?? []) || !is_array($value['ocr'] ?? [])) { throw new OCSBadRequestException('Medien-Einstellungen ungültig'); }
+        $result['video']['frame_count'] = $this->integer($value['video']['frame_count'] ?? 10, 1, 20, 'video/frame_count');
+        $result['ocr']['tile_overlap_percent'] = $this->integer($value['ocr']['tile_overlap_percent'] ?? 10, 1, 25, 'ocr/tile_overlap_percent');
+        $result['ocr']['max_batch_images'] = $this->integer($value['ocr']['max_batch_images'] ?? 20, 2, 64, 'ocr/max_batch_images');
         $secrets = [];
         foreach (['vision','ocr'] as $stage) {
             $data = $value[$stage] ?? [];
@@ -111,6 +116,10 @@ class Settings {
                     || (!str_ends_with($key, 'prompt') && trim($text) === '')) { throw new OCSBadRequestException("Ungültige Einstellung: $stage/$key"); }
                 $result[$stage][$key] = $text;
             }
+            if (!in_array($data['transport'] ?? 'lmstudio', ['lmstudio','openai'], true)) { throw new OCSBadRequestException('Ungültiger Modellzugang'); }
+            $result[$stage]['transport'] = $data['transport'] ?? 'lmstudio';
+            $result[$stage]['model_max_pixels'] = $this->integer($data['model_max_pixels'] ?? 4194304, 0, 67108864, "$stage/model_max_pixels");
+            if ($result[$stage]['model_max_pixels'] > 0 && $result[$stage]['model_max_pixels'] < 1024) { throw new OCSBadRequestException('Bildbudget zu klein'); }
             foreach (['max_edge' => [256,8192], 'max_tokens' => [0,32768], 'timeout_seconds' => [15,7200]] as $key => [$min,$max]) {
                 $result[$stage][$key] = $this->integer($data[$key] ?? null, $min, $max, "$stage/$key");
             }

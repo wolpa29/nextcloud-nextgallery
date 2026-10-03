@@ -31,7 +31,7 @@ class Provider implements IProvider {
             $url = $this->urls->linkToRoute('files.View.showFile', ['fileid' => $file->getId()]);
             $original=isset($row['metadata_json'])?json_decode($row['metadata_json'],true):null;
             $snippet = mb_substr(($original['analysis']['vision']['description']??$row['description']) . ' · ' . ($original['analysis']['ocr']['text']??$row['ocr_text']), 0, 600);
-            $entries[] = new SearchResultEntry('', $file->getName(), $snippet, $url, 'icon-image');
+            $entries[] = new SearchResultEntry('', $file->getName(), $snippet, $url, ($original['analysis']['vision']['type'] ?? '') === 'video' ? 'icon-video' : 'icon-image');
         }
         if (count($rows) < $limit) { return SearchResult::complete($this->getName(), $entries); }
         return SearchResult::paginated($this->getName(), $entries, $cursor);
