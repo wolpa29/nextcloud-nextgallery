@@ -2,15 +2,15 @@
 
 A private photo/video gallery with selected folders, a virtualized chronological grid, year/month/day headers or a date rail, an embedded media viewer, a local GPS world map and explicit offline thumbnail collections.
 
-**This is the project's own Nextcloud server companion**, displayed as **NextGallery**. `Chronicle`/`Chronik` are previous development names retained in the technical app ID `chronicle`, namespace and repository. An administrator installs it once on each user's Nextcloud instance. It supplies the authenticated folder/settings/media-index API required by the separate native [NextGallery Android app](https://github.com/wolpa29/chronik-android), as well as the browser gallery. It is not an additional hosted service run by the Android app provider. A WebDAV-only native mode is not implemented in Android 0.3.2; that version cannot use an ordinary Nextcloud without this companion. Current companion version is **0.1.3**, supporting **Nextcloud 32 / PHP 8.1+**.
+**NextGallery Server** is the optional server companion for the separate native [NextGallery Android app](https://github.com/wolpa29/chronik-android). Android **0.4.0 and later default to ordinary Nextcloud WebDAV**, without installing this extension. Enable the server mode explicitly for a shared index, account-wide folder/date settings and this browser gallery. An administrator installs the companion; it is not a hosted intermediary service operated by the Android app provider. Current version: **0.1.4**, Nextcloud 32 / PHP 8.1+.
 
-**Deutsch:** Chronicle ist unsere eigene Server-Erweiterung; in Nextcloud heißt sie **NextGallery**. Sie speichert je Nutzer einen Index mit Datei-, Datums- und vorhandenen GPS-Daten aus ausgewählten Ordnern auf dessen Nextcloud, prüft Leserechte und liefert der Android-App die Galerie-API. Originale werden nicht bearbeitet. Der Administrator muss diese Erweiterung installieren können; ein normaler Nutzerzugang allein genügt für die aktuelle native Android-App nicht. Die [README der Android-App](https://github.com/wolpa29/chronik-android#überblick-für-den-anbieter) erklärt Datenflüsse, lokalen Speicher, Löschung, Lizenzen und tatsächlich hinterlegte Play-Console-Angaben samt offenen Punkten.
+**Deutsch:** Die optionale Erweiterung heißt **NextGallery Server**. Sie verwaltet einen Index und Ordner-/Datumseinstellungen je Nextcloud-Konto und ergänzt die Browser-Galerie. Ab Android 0.4.0 funktioniert der voreingestellte Standardzugang ohne diese Erweiterung. `chronicle`, Namespace und Repository bleiben als technische Kennungen erhalten, damit bestehende Installationen kompatibel bleiben. Originale bleiben erhalten. Die Android-README beschreibt Datenflüsse, lokalen Speicher, Löschung, Lizenzen und tatsächlich hinterlegte Play-Console-Angaben.
 
 The companion remains **AGPL-3.0-or-later**, separately from the proprietary Android app. Private repository visibility does not remove that licence's applicable source obligations. The browser's offline storage is separate from the native Android app's cache. The official Nextcloud client's optional External sites link below is not required by the separate native app.
 
 ## Use
 
-Open **NextGallery → Einstellungen → Ordner hinzufügen**, choose the folders and save. Folder dates are authoritative by default. Select **Metadaten** or **Dateiname** to change priority. Switch date headers and sorting directly in the gallery toolbar. **Karte** shows media with GPS; **Offline** saves up to 5,000 small previews within a 300 MB budget.
+Open **NextGallery Server → Einstellungen → Ordner hinzufügen**, choose the folders and save. Folder dates are authoritative by default. Select **Metadaten** or **Dateiname** to change priority. Switch date headers and sorting directly in the gallery toolbar. **Karte** shows media with GPS; **Offline** saves up to 5,000 small previews within a 300 MB budget.
 
 Use **Offline → Gespeicherte Galerie ansehen** to display the saved collection directly, including inside the Android app. **Live öffnen** returns to the server. Reopening an offline URL requires a working Service Worker on the device. A downloadable single-file offline collection is also available; its reopening test is documented under validation.
 
@@ -40,3 +40,9 @@ Do not configure private folders for automated visual tests. `scripts/create-fix
 See [research and tradeoffs](docs/RESEARCH.md), [validation](docs/VALIDATION.md), and [Android integration](docs/ANDROID.md).
 
 AGPL-3.0-or-later; third-party library and basemap licenses are recorded in [NOTICE](NOTICE).
+
+## Version history
+
+| Version | Android companion | Legal revision | Technical changes | Legal changes |
+| --- | --- | --- | --- | --- |
+| 0.1.4 | 0.4.0 / code 6 | 2026-10-05.1 (Android) | Rename to NextGallery Server; retain chronicle ID; expose original capture evidence and mtime/size for offline date changes. Android extension is optional. | Clarify separate AGPL server licensing and optional processing on the user's Nextcloud. |

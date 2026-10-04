@@ -124,7 +124,7 @@ class Library {
        $retryVideo=$kind==='video' && ($old['metadata']['duration']??null)===null && $node->getStorage()->isLocal() && is_executable('/usr/bin/ffprobe');
        $meta=$old && !$retryVideo && $existing['etag']===$node->getEtag() && ($old['metadata']['revision']??0)===2?$old['metadata']:$this->extract($node);
        $date=Dates::resolve($path,$meta['raw'],$node->getMTime(),$p['mode'],$p['timezone']);
-       $item=['id'=>$node->getId(),'name'=>$node->getName(),'path'=>$path,'kind'=>$kind,'mime'=>$node->getMimeType(),'etag'=>$node->getEtag(),'date'=>$date,'metadata'=>$meta];
+       $item=['id'=>$node->getId(),'name'=>$node->getName(),'path'=>$path,'kind'=>$kind,'mime'=>$node->getMimeType(),'etag'=>$node->getEtag(),'date'=>$date,'mtime'=>$node->getMTime(),'size'=>$node->getSize(),'metadata'=>$meta];
        $values=['sort_key'=>$date['sort'],'period'=>$date['period'],'kind'=>$kind,'etag'=>$node->getEtag(),'generation'=>$s['generation'],'latitude'=>$meta['gps'][0]??null,'longitude'=>$meta['gps'][1]??null,'payload'=>json_encode($item,JSON_THROW_ON_ERROR|JSON_INVALID_UTF8_SUBSTITUTE)];
        $q=$this->db->getQueryBuilder();
        if ($existing) {$q->update('chronicle_media')->where($q->expr()->eq('user_id',$q->createNamedParameter($uid)))->andWhere($q->expr()->eq('file_id',$q->createNamedParameter($node->getId())));foreach($values as $k=>$v) $q->set($k,$q->createNamedParameter($v));}
@@ -176,6 +176,8 @@ class Library {
     // Revalidate current user permissions, roots and path before returning identifying data.
     $home=$this->root->getUserFolder($uid);$path='/'.ltrim($home->getRelativePath($f->getPath()),'/');
     if ($path!==$item['path'] || $f->getEtag()!==$item['etag']) continue;
+    $item['metadata']['capture']=$item['metadata']['raw']??null;
+    $item['mtime']=$f->getMTime();$item['size']=$f->getSize();
     unset($item['metadata']['raw']);$items[]=$item;
    } catch (\Throwable) {}
   }

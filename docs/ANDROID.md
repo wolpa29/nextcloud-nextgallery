@@ -1,3 +1,7 @@
+# Native NextGallery and optional browser integration
+
+The separate [NextGallery Android app](https://github.com/wolpa29/chronik-android) uses ordinary Nextcloud WebDAV by default from 0.4.0. This extension is optional: explicitly enable NextGallery Server in Android settings for the shared index. The browser gallery runs in Nextcloud. These are separate storage surfaces.
+
 # Android integration
 
 The official Nextcloud Android app obtains custom menu links through the External sites OCS API. Chronik uses an Android-only link that opens its responsive view inside the app's WebView.
