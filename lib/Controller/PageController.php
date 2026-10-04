@@ -3,7 +3,7 @@ declare(strict_types=1);
 namespace OCA\Chronicle\Controller;
 use OCP\{IRequest,IUserSession,IURLGenerator};
 use OCP\AppFramework\Controller;
-use OCP\AppFramework\Http\{TemplateResponse,Response};
+use OCP\AppFramework\Http\{TemplateResponse,StandaloneTemplateResponse,Response};
 use OCP\AppFramework\Http\Attribute\{NoAdminRequired,NoCSRFRequired};
 use OCA\Chronicle\Service\Library;
 use OCA\Chronicle\Http\Bytes;
@@ -17,8 +17,8 @@ class PageController extends Controller {
  public function index():TemplateResponse {return new TemplateResponse('chronicle','index',$this->data(false));}
  #[NoAdminRequired] #[NoCSRFRequired]
  public function offline():Response {
-  $_=$this->data(true);ob_start();include __DIR__.'/../../templates/offline.php';$body=ob_get_clean();
-  return new Bytes($body,'text/html; charset=utf-8',200,['Cache-Control'=>'private, no-store']);
+  // The blank template supplies the matching CSP nonce without loading core UI.
+  return new StandaloneTemplateResponse('chronicle','offline',$this->data(true),TemplateResponse::RENDER_AS_BLANK,200,['Cache-Control'=>'private, no-store']);
  }
  #[NoAdminRequired] #[NoCSRFRequired]
  public function worker():Response {return new Bytes(file_get_contents(__DIR__.'/../../js/sw.js'),'application/javascript',200,['Cache-Control'=>'no-cache','Service-Worker-Allowed'=>$this->url->linkToRoute('chronicle.page.index')]);}

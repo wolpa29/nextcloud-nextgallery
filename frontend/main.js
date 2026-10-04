@@ -26,13 +26,15 @@ async function start(){
  function preview(item,size=384){return base+`/preview/${item.id}?size=${size}&v=${encodeURIComponent(item.etag)}&collection=${cacheKey}`;}
  function original(item){return base+`/original/${item.id}`;}
  async function storage(){
+  if(ctx.portable){offlineItems=ctx.items;offlineMeta=ctx.meta;collectionIds=new Set(offlineItems.map(i=>i.id));offlineStatus();return;}
   try{db=await openStore(cacheKey);offlineMeta=await readMeta(db);offlineItems=await readCollection(db);collectionIds=new Set(offlineItems.map(i=>i.id));}
   catch(e){db=null;offlineItems=[];offlineMeta=null;if(offlineMode)message('Der lokale Speicher ist in diesem Browser nicht verfügbar.');}
   offlineStatus();
  }
- function offlineStatus(){$('ch-offline-count').textContent=offlineItems.length?`${count(offlineItems.length)} Vorschauen gespeichert`:'Noch keine Sammlung';$('ch-offline-size').textContent=offlineMeta?`${((offlineMeta.bytes||0)/1048576).toFixed(1)} MB · ${new Date(offlineMeta.saved).toLocaleString('de-AT')}`:'Vorschauen benötigen nur einen Teil des Speicherplatzes.';}
+ function offlineStatus(){$('ch-offline-count').textContent=offlineItems.length?`${count(offlineItems.length)} Vorschauen gespeichert`:'Noch keine Sammlung';$('ch-offline-size').textContent=offlineMeta?`${((offlineMeta.bytes||0)/1048576).toFixed(1)} MB · ${new Date(offlineMeta.saved).toLocaleString('de-AT')}`:'Vorschauen benötigen nur einen Teil des Speicherplatzes.';$('ch-export').disabled=!offlineItems.length||ctx.portable;$('ch-clear-offline').disabled=!!ctx.portable;$('ch-open-offline').hidden=!!ctx.portable;}
  function releaseUrls(){for(const u of urls.values())URL.revokeObjectURL(u);urls.clear();}
  async function imageURL(item){
+  if(ctx.portable)return ctx.blobs[item.id]||null;
   if(!offlineMode)return preview(item);
   if(urls.has(item.id))return urls.get(item.id);const b=db?await readBlob(db,item.id):null;if(!b)return null;const u=URL.createObjectURL(b);urls.set(item.id,u);return u;
  }
@@ -147,7 +149,7 @@ async function start(){
  on('ch-map-reset','click',()=>mapHandle?.reset());
  async function pin(){
   if(pinning||offlineMode)return;if(!db)throw new Error('Der lokale Speicher ist nicht verfügbar.');
-  const reg=await worker();if(!reg)throw new Error('Offline benötigt einen Browser mit Service Workers und eine vertrauenswürdige HTTPS-Verbindung.');
+  const reg=await worker();
   const limit=Math.max(1,Math.min(5000,Number($('ch-offline-limit').value)||1000));await persist({offlineLimit:limit});
   pinning=true;pinCancel=false;$('ch-pin').disabled=true;$('ch-pin-cancel').hidden=false;$('ch-offline-progress').hidden=false;$('ch-offline-progress').max=limit;
   try{
@@ -164,11 +166,27 @@ async function start(){
     }
     if(!r.next)break;
    }
-   await storage();message(`${count(saved)} Vorschauen ${pinCancel?'bis zum Stopp ':''}gespeichert${failed?' · '+failed+' Vorschauen nicht verfügbar':''}.`);
+   await storage();message(`${count(saved)} Vorschauen ${pinCancel?'bis zum Stopp ':''}gespeichert${failed?' · '+failed+' Vorschauen nicht verfügbar':''}.${reg?'':' Für erneutes Öffnen ohne Verbindung lade die Offline-Datei herunter oder vertraue dem Serverzertifikat auf diesem Gerät.'}`);
    navigator.storage?.persist?.().catch(()=>{});
   }catch(e){await storage();throw e;}finally{pinning=false;$('ch-pin').disabled=offlineMode;$('ch-pin-cancel').hidden=true;}
  }
  on('ch-pin','click',pin);on('ch-pin-cancel','click',()=>{pinCancel=true;});on('ch-clear-offline','click',async()=>{if(pinning){pinCancel=true;return;}if(db)await clear(db);releaseUrls();for(const key of await caches.keys())if(key.startsWith('chronicle-shell-'))await caches.delete(key);await storage();message('Die lokale Sammlung wurde entfernt.');if(offlineMode)await load();});
+ on('ch-export','click',async()=>{
+  if(!db||!offlineItems.length)return;
+  $('ch-export').disabled=true;
+  try{
+   const blobs={};for(const item of offlineItems){const blob=await readBlob(db,item.id);if(!blob)continue;blobs[item.id]=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(new Error('Vorschau konnte nicht exportiert werden.'));r.readAsDataURL(blob);});}
+   const shell=await caches.open('chronicle-shell-'+cacheKey);
+   const texts=await Promise.all(['css/main.css','js/main.js','js/map.js'].map(async p=>{const cached=await shell.match(ctx.assets+p);if(!cached)throw new Error('Speichere die Sammlung erneut, um die Offline-Datei zu erstellen.');return cached.text();}));
+   const copy=root.cloneNode(true);const download=copy.querySelector('#ch-download-file');if(download){download.removeAttribute('href');download.hidden=true;}copy.dataset.context=JSON.stringify({...ctx,offline:true,portable:true,settings:offlineMeta.settings,items:offlineItems,blobs,meta:offlineMeta});
+   for(const name of ['timeline','map','offline','settings'])copy.querySelector('#ch-'+name+'-view').hidden=name!=='timeline';
+   copy.querySelector('#ch-canvas').replaceChildren();copy.querySelector('#ch-rail').replaceChildren();copy.querySelector('#ch-map').replaceChildren();copy.querySelector('#ch-title').textContent='Zeitleiste';copy.querySelector('#ch-message').hidden=true;
+   copy.querySelectorAll('dialog').forEach(d=>d.removeAttribute('open'));
+   const code=s=>s.replace(/<\/script/gi,'<\\/script');
+   const html='<!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Chronik · Offline-Sammlung</title><style>'+texts[0]+'</style><body class="chronicle-standalone">'+copy.outerHTML+'<script>'+code(texts[2])+'</script><script>'+code(texts[1])+'</script></body></html>';
+   const url=URL.createObjectURL(new Blob([html],{type:'text/html'}));const link=$('ch-download-file');if(link.href.startsWith('blob:'))URL.revokeObjectURL(link.href);link.href=url;link.hidden=false;link.className='ch-button';link.textContent='Download wiederholen';$('ch-offline-view').append(link);link.click();message('Offline-Datei erstellt. Sie enthält die gespeicherten Vorschauen und die Karte.');
+  }finally{$('ch-export').disabled=false;}
+ });
  document.addEventListener('click',async e=>{const link=e.target.closest('a[href]');if(link&&/\/logout(?:\?|$)/.test(link.href)){e.preventDefault();pinCancel=true;if(db)await clear(db);for(const key of await caches.keys())if(key.startsWith('chronicle-shell-'))await caches.delete(key);location.href=link.href;}},true);
  window.addEventListener('offline',()=>{offlineMode=true;updateSettings();message('Keine Verbindung. Gespeicherte Vorschauen werden angezeigt.');load().catch(handleError);});
  window.addEventListener('online',()=>{if(ctx.offline){message('Verbindung wieder verfügbar. Öffne Chronik in Nextcloud für aktuelle Medien.');return;}offlineMode=false;message('');load().catch(handleError);});

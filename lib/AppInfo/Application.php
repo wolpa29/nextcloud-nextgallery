@@ -2,7 +2,12 @@
 declare(strict_types=1);
 namespace OCA\Chronicle\AppInfo;
 use OCP\AppFramework\App;
-class Application extends App {
+use OCP\AppFramework\Bootstrap\{IBootstrap,IRegistrationContext,IBootContext};
+use OCP\User\Events\UserDeletedEvent;
+use OCA\Chronicle\Listener\UserDeleted;
+class Application extends App implements IBootstrap {
  public const APP_ID = 'chronicle';
  public function __construct(array $urlParams=[]) { parent::__construct(self::APP_ID,$urlParams); }
+ public function register(IRegistrationContext $context):void {$context->registerEventListener(UserDeletedEvent::class,UserDeleted::class);}
+ public function boot(IBootContext $context):void {}
 }

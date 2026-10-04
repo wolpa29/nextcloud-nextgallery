@@ -51,6 +51,11 @@ class Library {
   } finally {$this->unlock($uid);}
  }
  public function users():array {$q=$this->db->getQueryBuilder();return $q->select('user_id')->from('chronicle_users')->executeQuery()->fetchAll(\PDO::FETCH_COLUMN);}
+ public function forget(string $uid):void {
+  $this->lock($uid);
+  try {foreach(['chronicle_media','chronicle_users'] as $table){$q=$this->db->getQueryBuilder();$q->delete($table)->where($q->expr()->eq('user_id',$q->createNamedParameter($uid)))->executeStatement();}}
+  finally {$this->unlock($uid);}
+ }
  private function start(string $uid,array $p):array {
   $s=['running'=>count($p['roots'])>0,'root'=>0,'after'=>0,'generation'=>bin2hex(random_bytes(16)),'seen'=>0,'errors'=>0,'started'=>time(),'completed'=>0];
   $this->stateSave($uid,$s);return $s;
@@ -83,7 +88,10 @@ class Library {
   }
   if ($this->kind($f->getMimeType())==='video' && $f->getStorage()->isLocal() && is_executable('/usr/bin/ffprobe')) {
    try {
-    $path=$f->getStorage()->getLocalFile($f->getInternalPath());
+    // Folder search returns jailed relative paths. Resolve the storage's real
+    // cache entry before handing a local file to FFprobe.
+    $entry=$f->getStorage()->getCache()->get($f->getId());
+    $path=$f->getStorage()->getLocalFile($entry->getPath());
     $proc=new Process(['/usr/bin/ffprobe','-v','error','-show_entries','format=duration:format_tags=creation_time,location,com.apple.quicktime.creationdate,com.apple.quicktime.location.ISO6709:stream=width,height','-of','json',$path]);$proc->setTimeout(3);$proc->mustRun();
     $v=json_decode($proc->getOutput(),true);$tags=$v['format']['tags']??[];
     $raw=$tags['com.apple.quicktime.creationdate']??$tags['creation_time']??$raw;$duration=isset($v['format']['duration'])?(float)$v['format']['duration']:null;

@@ -6,6 +6,8 @@ A private photo/video gallery with selected folders, a virtualized chronological
 
 Open **Chronik → Einstellungen → Ordner hinzufügen**, choose the folders and save. Folder dates are authoritative by default. Select **Metadaten** or **Dateiname** to change priority. Switch date headers and sorting directly in the gallery toolbar. **Karte** shows media with GPS; **Offline** saves up to 5,000 small previews within a 300 MB budget.
 
+A downloadable single-file offline collection is available when browser certificate trust prevents Service Worker registration.
+
 Originals remain unchanged. Offline video entries show their thumbnail; original playback needs a connection. The Android Nextcloud client can expose Chronik through an Android-only External sites menu entry. Responsive browser tests are not hardware/WebView tests.
 
 ## Build and install
