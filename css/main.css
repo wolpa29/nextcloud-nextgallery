@@ -12,6 +12,17 @@
 @media(prefers-color-scheme:dark){.chronicle-standalone #chronicle{--ch-bg:#171b20;--ch-soft:#232931;--ch-text:#ecedf0;--ch-muted:#a3acb8;--ch-line:#30363f;--ch-accent:#319ad0}}
 @media(prefers-reduced-motion:no-preference){#chronicle .ch-top-actions .ch-spinning{animation:ch-spin 1.4s linear infinite}@keyframes ch-spin{to{transform:rotate(360deg)}}}
 #chronicle dialog:not([open]){display:none!important}
+
+/* NextGallery photo-first layout, shared palette with the native client. */
+#chronicle{--ch-accent:#2b6c5b;--ch-soft:color-mix(in srgb,var(--ch-bg) 94%,#2b6c5b);--ch-line:color-mix(in srgb,var(--ch-bg) 88%,var(--ch-text))}
+#chronicle .ch-sidebar{flex-basis:190px;padding-top:20px}#chronicle .ch-brand{font-size:18px;gap:10px;padding:0 10px 22px}#chronicle .ch-brand>svg{width:34px;height:34px;stroke:none}
+#chronicle .ch-top{min-height:56px;padding:6px 18px;border-bottom:0;gap:8px}#chronicle .ch-top>div:first-child{display:flex;align-items:center;gap:14px;min-width:0}#chronicle h1{font-size:18px;white-space:nowrap}#chronicle .ch-top p{margin:0;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#chronicle .ch-top-actions{gap:4px}
+#chronicle .ch-toolbar{padding:3px 16px 9px;gap:8px}#chronicle #ch-display{border:0;background:transparent;width:44px;min-height:40px;padding:10px}#chronicle .ch-gallery-wrap{padding-left:12px}#chronicle .ch-tile{border-radius:8px}
+#chronicle .ch-sidebar button.active{color:var(--ch-accent);background:color-mix(in srgb,var(--ch-bg) 90%,#78c6b5)}#chronicle .ch-primary{color:#fff}
+#chronicle #ch-display-dialog{max-width:calc(100vw - 24px);width:420px;border-radius:24px}#chronicle #ch-display-dialog .ch-options{display:grid;gap:12px;padding:20px}#chronicle #ch-display-dialog select{width:100%;min-height:44px}#chronicle #ch-display-dialog #ch-density{width:100%;display:block;min-height:44px}
+#chronicle .ch-map-pin{background:var(--ch-accent)}#chronicle .marker-cluster-small,#chronicle .marker-cluster-medium,#chronicle .marker-cluster-large{background:#78c6b540}#chronicle .marker-cluster div{background:#2b6c5bea}
+@media(max-width:700px){#chronicle .ch-sidebar{flex-basis:auto;padding:5px 8px max(5px,env(safe-area-inset-bottom))}#chronicle .ch-top{min-height:52px;padding:4px 12px}#chronicle .ch-top>div:first-child{gap:10px}#chronicle .ch-top p{max-width:155px}#chronicle .ch-toolbar{padding:0 8px 6px;flex-wrap:nowrap}#chronicle .ch-gallery-wrap{padding-left:4px}#chronicle .ch-brand{display:none}#chronicle .ch-filters button{min-height:36px;padding:5px 14px}}
+@media(prefers-color-scheme:dark){.chronicle-standalone #chronicle{--ch-bg:#101b17;--ch-soft:#192a23;--ch-text:#edf6ef;--ch-muted:#aebdb4;--ch-line:#2b3e34;--ch-accent:#78c6b5}}
 /* LEAFLET STYLES */
 /* required styles */
 

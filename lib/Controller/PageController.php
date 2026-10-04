@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 namespace OCA\Chronicle\Controller;
-use OCP\{IRequest,IUserSession,IURLGenerator};
+use OCP\{IRequest,IUserSession,IURLGenerator,IL10N};
 use OCP\App\IAppManager;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\{TemplateResponse,StandaloneTemplateResponse,Response};
@@ -9,10 +9,10 @@ use OCP\AppFramework\Http\Attribute\{NoAdminRequired,NoCSRFRequired};
 use OCA\Chronicle\Service\Library;
 use OCA\Chronicle\Http\Bytes;
 class PageController extends Controller {
- public function __construct(IRequest $request,private IUserSession $session,private Library $library,private IURLGenerator $url,private IAppManager $apps) {parent::__construct('chronicle',$request);}
+ public function __construct(IRequest $request,private IUserSession $session,private Library $library,private IURLGenerator $url,private IAppManager $apps,private IL10N $l10n) {parent::__construct('chronicle',$request);}
  private function data(bool $offline):array {
   $uid=$this->session->getUser()->getUID();
-  return ['context'=>['base'=>$this->url->linkToRoute('chronicle.page.index'),'assets'=>$this->url->linkTo('chronicle',''),'version'=>$this->apps->getAppVersion('chronicle'),'embedded'=>$this->request->isUserAgent([IRequest::USER_AGENT_CLIENT_ANDROID]),'cacheKey'=>$this->library->cacheKey($uid),'offline'=>$offline,'settings'=>$this->library->settings($uid)]];
+  return ['context'=>['base'=>$this->url->linkToRoute('chronicle.page.index'),'assets'=>$this->url->linkTo('chronicle',''),'version'=>$this->apps->getAppVersion('chronicle'),'language'=>$this->l10n->getLanguageCode(),'embedded'=>$this->request->isUserAgent([IRequest::USER_AGENT_CLIENT_ANDROID]),'cacheKey'=>$this->library->cacheKey($uid),'offline'=>$offline,'settings'=>$this->library->settings($uid)]];
  }
  #[NoAdminRequired] #[NoCSRFRequired]
  public function index():TemplateResponse {return new TemplateResponse('chronicle','index',$this->data(false));}
