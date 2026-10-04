@@ -27,7 +27,7 @@ import urllib.request
 import uuid
 import xml.etree.ElementTree as ET
 from dataclasses import asdict, dataclass
-from media_ai_inputs import ImageBatch, prepare_ocr, prepare_video
+from media_ai_inputs import ImageBatch, prepare_ocr, prepare_video, VIDEO_SAMPLING_REVISION
 from media_ai_budget import ImageBudget, ImageTimeout, check_budget, network_timeout, track_response
 from media_ai_stream import chat_stream, StreamFailure, StreamLoop, RepetitionGuard
 
@@ -768,7 +768,7 @@ def run(config, store, source, models, limit=100, max_seconds=3600, preprocess=p
                     if video: metadata['ocr'] = {'text': '', 'source': 'skipped_video'}
                     for stage, model in models.items():
                         if video and stage == 'ocr': continue
-                        stage_revision = digest([model.revision, 'video-batch-v1', config.get('video', {})]) if video else model.revision
+                        stage_revision = digest([model.revision, VIDEO_SAMPLING_REVISION, config.get('video', {})]) if video else model.revision
                         observe("stage_start", path=item.path, file_id=item.locator, stage=stage)
                         stage_start = time.monotonic()
                         image_info = {}

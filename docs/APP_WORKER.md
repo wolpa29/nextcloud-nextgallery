@@ -374,21 +374,41 @@ privaten temporären Ordner geschrieben und SHA256 gleichzeitig berechnet.
 Die Nextcloud-Route streamt auch große Videos, ohne die gesamte Datei in PHP
 zu laden. `max_video_download_bytes` ist separat konfigurierbar (Standard
 512 MiB). Temporärdateien werden nach Verarbeitung oder Fehler entfernt.
-FFprobe bestimmt Laufzeit und Videospur. FFmpeg berücksichtigt Drehung und
-extrahiert pro Zeitabschnitt einen Frame in der Mitte. Jeder Frame wird
-auf das Vision-Pixelbudget und Raster vorbereitet, ohne Hochskalierung. `video.frame_count` steht auf
-10 und ist von 1 bis 20 einstellbar; bei einer bekannten kleineren Anzahl
-Quellframes wird diese verwendet. Frame-Zeitpunkte sind angeforderte
-Stichprobenzeitpunkte; variable Bildraten können zum nächsten decodierbaren
-Frame führen. Audio und OCR werden nicht analysiert.
+FFprobe bestimmt Videospur und tatsächliche Zeitstempel aller decodierten
+Quellframes. `video.frame_count` steht auf 10 und ist von 1 bis 20 einstellbar.
+Bei mehreren Stichproben werden der erste und letzte Quellframe verwendet;
+die übrigen Zielzeitpunkte liegen gleichmäßig zwischen deren Zeitstempeln.
+Ausgewählt wird jeweils der nächstgelegene unterschiedliche Frame in
+zeitlicher Reihenfolge, mit ausreichend verbleibenden Frames für die späteren
+Stichproben. Bei weniger Quellframes als eingestellt werden alle verwendet.
+Eine einzelne Stichprobe verwendet den nächstgelegenen Frame zur Mitte des
+vorhandenen Frame-Zeitbereichs. FFmpeg berücksichtigt Drehung und extrahiert
+die ausgewählten Frame-Indizes in einem Durchlauf, ohne zeitbasiertes Seeking.
+Jeder Frame wird auf das Vision-Pixelbudget und Raster vorbereitet, ohne
+Hochskalierung. Audio und OCR werden nicht analysiert.
+
+Die Provenienz enthält die tatsächlich decodierte Quellframezahl, den ersten
+Quellzeitstempel und pro Stichprobe den Quellframe-Index (ab 0), Zielzeitpunkt,
+tatsächlichen Zeitpunkt relativ zum ersten Frame und ursprünglichen
+Quellzeitstempel. `frame_duration_seconds` ist der Abstand zum nächsten
+Quellframe; beim letzten Frame wird die vom Decoder gemeldete Dauer verwendet
+oder `null`, wenn sie unbekannt ist. Framezahl und Abstände werden nicht aus
+Dauer × nomineller Bildrate geschätzt; variable Bildraten und Startzeitversatz
+bleiben erhalten. Die Timeline liegt während der Probe in einer temporären
+Datei und anschließend in einem kompakten Zahlenarray, ohne alle Bilder oder
+ein großes Frame-JSON im Speicher zu halten.
 
 Alle Frames stehen in einer initialen Vision-Anfrage, beschriftet mit Reihenfolge
-und Zeitpunkt. Der Zusatzprompt nennt Gesamtdauer und gleichmäßigen Abstand,
+und tatsächlichem Zeitpunkt. Der Zusatzprompt erklärt die gleichmäßig
+verteilten Zielzeitpunkte und mögliche Abweichungen bei variabler Bildrate,
 fordert `type=video`, eine gemeinsame kurze Beschreibung und höchstens 20
 unterschiedliche Suchbegriffe aus allen Frames. Video-Suchergebnisse und
 Dateiseitenleiste verwenden die vorhandene Originaldatei und Zugriffs-/ETag-
 Prüfung. `ocr.source=skipped_video` hält das Auslassen ausdrücklich fest.
-Sampling/Framezahl fließen in den Video-Cache ein. Kurze Ereignisse zwischen
+Sampling/Framezahl fließen in den Video-Cache ein. Die neue Auswahlrevision
+verhindert die Wiederverwendung alter Video-Stufenergebnisse bei einer
+erneuten Verarbeitung. Bereits fertige Dateien und gespeicherte Ergebnisse
+werden durch den Codewechsel allein nicht erneut verarbeitet. Kurze Ereignisse zwischen
 Stichproben können fehlen. Bestehende Korrekturversuche bleiben aktiv und
 wiederholen bei Fehlern das komplette zugehörige Bildpaket.
 

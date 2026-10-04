@@ -13,7 +13,8 @@ from unittest.mock import patch
 
 from PIL import Image
 import media_pipeline as p
-from media_ai_inputs import ImageBatch, prepare_ocr, prepare_video
+from media_ai_inputs import ImageBatch, prepare_ocr, prepare_video, video_samples, VIDEO_SAMPLING_REVISION
+import media_ai_inputs as inputs
 from media_ai_budget import ImageBudget, ImageTimeout
 from test_pipeline import Source, Model, VISION, Publisher
 
@@ -155,10 +156,121 @@ class VideoTests(unittest.TestCase):
         batch,_,_=prepare_video(self.video,{'frame_count':10,'max_edge':128},1000000,report)
         self.assertEqual(len(batch.images),10)
         self.assertEqual(report['duration_seconds'],2)
-        self.assertEqual([x['sample_seconds'] for x in report['frames']],[round(.1+.2*i,6) for i in range(10)])
+        indices=[0,2,4,6,8,11,13,15,17,19]
+        self.assertEqual(report['source_frame_count'],20)
+        self.assertEqual(report['sampling'],VIDEO_SAMPLING_REVISION)
+        self.assertEqual([x['source_frame_index'] for x in report['frames']],indices)
+        self.assertEqual([x['sample_seconds'] for x in report['frames']],[i/10 for i in indices])
+        self.assertEqual([x['requested_seconds'] for x in report['frames']],[round(1.9*i/9,6) for i in range(10)])
         self.assertTrue(all((x['width'],x['height'])==(128,96) for x in report['frames']))
+        # Independently decode every source frame: selected pixels, including
+        # the final frame, must match their reported source index exactly.
+        raw=subprocess.run(['ffmpeg','-v','error','-i',str(self.video),'-vf','scale=128:96,setsar=1',
+            '-fps_mode','passthrough','-threads','1','-f','rawvideo','-pix_fmt','rgb24','pipe:1'],
+            check=True,stdout=subprocess.PIPE).stdout
+        frame_bytes=128*96*3
+        for (wire,_,_),index in zip(batch.images,indices):
+            with Image.open(io.BytesIO(wire)) as frame:
+                self.assertEqual(frame.convert('RGB').tobytes(),raw[index*frame_bytes:(index+1)*frame_bytes])
         self.assertIn('EINEM Video',batch.instructions);self.assertIn('Keine OCR',batch.instructions)
         self.assertEqual(self.video.read_bytes(),before)
+
+    def test_short_valid_videos_use_every_available_frame_once(self):
+        for count in [1,2,5]:
+            with self.subTest(source_frames=count):
+                video=self.root/f'short-{count}.mp4'
+                subprocess.run(['ffmpeg','-nostdin','-v','error','-f','lavfi','-i','testsrc2=size=64x64:rate=30',
+                    '-frames:v',str(count),'-c:v','libx264','-threads','1','-pix_fmt','yuv420p',str(video)],check=True)
+                before=video.read_bytes();report={}
+                batch,_,_=prepare_video(video,{'frame_count':10,'max_edge':64},1000000,report)
+                self.assertEqual(len(batch.images),count)
+                self.assertEqual(report['source_frame_count'],count)
+                self.assertEqual([f['source_frame_index'] for f in report['frames']],list(range(count)))
+                self.assertEqual(report['frames'][0]['sample_seconds'],0)
+                self.assertAlmostEqual(report['frames'][-1]['sample_seconds'],(count-1)/30,places=6)
+                self.assertEqual(video.read_bytes(),before)
+
+    def test_variable_frame_rate_uses_actual_timestamps_and_frame_deltas(self):
+        video=self.root/'variable.mkv'
+        subprocess.run(['ffmpeg','-nostdin','-v','error','-f','lavfi','-i','testsrc2=size=64x64:rate=10:duration=1.2',
+            '-vf','setpts=if(lt(N\\,4)\\,N\\,4+(N-4)*3)',
+            '-fps_mode','vfr','-c:v','libx264','-bf','0','-threads','1','-pix_fmt','yuv420p',str(video)],check=True)
+        report={};batch,_,_=prepare_video(video,{'frame_count':5,'max_edge':64},1000000,report)
+        self.assertEqual(len(batch.images),5)
+        self.assertEqual(report['source_frame_count'],12)
+        self.assertEqual([f['source_frame_index'] for f in report['frames']],[0,5,7,9,11])
+        self.assertEqual([f['sample_seconds'] for f in report['frames']],[0,.7,1.3,1.9,2.5])
+        self.assertEqual([f['requested_seconds'] for f in report['frames']],[0,.625,1.25,1.875,2.5])
+        self.assertEqual(report['frames'][0]['frame_duration_seconds'],.1)
+        self.assertEqual(report['frames'][1]['frame_duration_seconds'],.3)
+        self.assertIn('tatsaechlicher Zeitpunkt 0.700000',batch.images[1][2])
+
+    def test_nonzero_start_timestamp_does_not_skip_first_or_last_frame(self):
+        video=self.root/'offset.mp4'
+        subprocess.run(['ffmpeg','-v','error','-i',str(self.video),'-c','copy',
+            '-output_ts_offset','5',str(video)],check=True)
+        report={};batch,_,_=prepare_video(video,{'frame_count':2,'max_edge':64},1000000,report)
+        self.assertEqual(len(batch.images),2)
+        self.assertEqual(report['source_start_seconds'],5)
+        self.assertEqual([f['source_frame_index'] for f in report['frames']],[0,19])
+        self.assertEqual([f['sample_seconds'] for f in report['frames']],[0,1.9])
+        self.assertEqual([f['source_pts_seconds'] for f in report['frames']],[5,6.9])
+
+    def test_missing_duration_and_wrong_header_count_do_not_control_sampling(self):
+        real_command=inputs.command
+        def unreliable_header(args,**kwargs):
+            result=real_command(args,**kwargs)
+            if args[0]=='ffprobe' and '-show_frames' not in args:
+                probe=json.loads(result)
+                probe['streams'][0].update(duration='N/A',nb_frames='999')
+                probe['format']['duration']='N/A'
+                return json.dumps(probe).encode()
+            return result
+        report={}
+        with patch.object(inputs,'command',side_effect=unreliable_header):
+            batch,_,_=prepare_video(self.video,{'frame_count':10,'max_edge':64},1000000,report)
+        self.assertEqual(len(batch.images),10)
+        self.assertEqual(report['source_frame_count'],20)
+        self.assertEqual(report['last_frame_seconds'],1.9)
+        self.assertEqual(report['duration_seconds'],2)
+
+    def test_failed_selected_frame_extraction_does_not_return_partial_batch(self):
+        real_command=inputs.command
+        def missing_frames(args,**kwargs):
+            return b'' if args[0]=='ffmpeg' else real_command(args,**kwargs)
+        with patch.object(inputs,'command',side_effect=missing_frames):
+            with self.assertRaisesRegex(p.PipelineError,'no incomplete video result published'):
+                prepare_video(self.video,{'frame_count':10},1000000,{})
+
+    def test_sample_collisions_still_return_distinct_frames_and_both_endpoints(self):
+        times=[0,.01,.02,.03,.04,10,10.01,10.02,10.03,10.04]
+        samples=video_samples(times,10)
+        self.assertEqual([index for index,_ in samples],list(range(10)))
+        self.assertEqual(samples[0],(0,0));self.assertEqual(samples[-1],(9,10.04))
+
+    def test_single_sample_uses_nearest_frame_to_temporal_midpoint(self):
+        self.assertEqual(video_samples([5,5.1,5.4,6],1),[(2,5.5)])
+
+    def test_new_sampling_revision_does_not_reuse_old_video_stage_cache(self):
+        source=p.DirectorySource({'directory':str(self.root)});store=p.Store(self.root/'state/db.sqlite3')
+        vision=Model('vision');vision.result=dict(VISION,type='video')
+        config={'video':{'frame_count':10}}
+        hash_=hashlib.sha256(self.video.read_bytes()).hexdigest()
+        old_revision=p.digest([vision.revision,'video-batch-v1',config['video']])
+        store.cache(hash_,'vision',old_revision,dict(VISION,type='video'))
+        class Recording(Model):
+            def analyze(self,data,mime):
+                self.calls+=1
+                return dict(VISION,type='video')
+        vision=Recording('vision')
+        try:
+            result=p.run(config,store,source,{'vision':vision,'ocr':Model('ocr')})
+            self.assertEqual(result['processed'],1)
+            self.assertEqual(result['cached_stage_results'],0)
+            self.assertEqual(vision.calls,1)
+            metadata=json.loads(store.db.execute('SELECT metadata FROM files').fetchone()[0])
+            self.assertEqual(metadata['provenance']['images']['vision']['sampling'],VIDEO_SAMPLING_REVISION)
+        finally:store.db.close()
 
     def test_pipeline_publishes_searchable_video_once_without_ocr(self):
         source=p.DirectorySource({'directory':str(self.root)});store=p.Store(self.root/'state/db.sqlite3')

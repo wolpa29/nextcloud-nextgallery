@@ -1,10 +1,13 @@
 """Ordered multi-image requests: original-resolution OCR tiles and video samples."""
 from dataclasses import dataclass
+from array import array
+from bisect import bisect_left
 import io
 import json
 import math
 from pathlib import Path
 import subprocess
+import tempfile
 
 from media_ai_budget import check_budget, network_timeout
 
@@ -66,11 +69,11 @@ def prepare_ocr(data, config, max_pixels, prepare_image, report):
         'Text in Ueberlappungen und Gesamtansicht nicht mehrfach ausgeben; tatsaechlich an verschiedenen Stellen wiederholten Text erhalten. Keine Bereichslabels im Ergebnis.'), 'image/png', exif
 
 
-def command(args, timeout=120):
+def command(args, timeout=120, output=None):
     from media_pipeline import PipelineError
     check_budget()
     try:
-        result = subprocess.run(args, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+        result = subprocess.run(args, stdin=subprocess.DEVNULL, stdout=output if output is not None else subprocess.PIPE,
                                 stderr=subprocess.PIPE, timeout=network_timeout(timeout), check=True)
     except subprocess.TimeoutExpired:
         check_budget()
@@ -86,6 +89,68 @@ def command(args, timeout=120):
 
 # Exclude playlist demuxers and network protocols; only the private local input.
 INPUT_OPTIONS = ['-protocol_whitelist', 'file,pipe', '-format_whitelist', 'mov,matroska,webm,avi,mpegts,mpeg,flv,ogg']
+VIDEO_SAMPLING_REVISION = 'video-endpoints-nearest-v2'
+
+
+def video_timeline(path, max_pixels):
+    """Decode frame timestamps, without retaining frames or a large JSON tree."""
+    from media_pipeline import PipelineError
+    timestamps = array('d')
+    last_duration = None
+    with tempfile.TemporaryFile() as output:
+        command(['ffprobe', '-v', 'error', '-threads', '1', *INPUT_OPTIONS,
+            '-select_streams', 'v:0', '-show_frames', '-show_entries',
+            'frame=best_effort_timestamp_time,width,height,duration_time,pkt_duration_time:frame_side_data=',
+            '-of', 'compact=p=1:nk=0', str(path)], output=output)
+        output.seek(0)
+        for line in output:
+            check_budget()
+            fields = line.decode('utf-8').strip().split('|')
+            if fields[0] != 'frame':
+                continue
+            values = dict(field.split('=', 1) for field in fields[1:] if '=' in field)
+            try:
+                timestamp = float(values['best_effort_timestamp_time'])
+                width, height = int(values['width']), int(values['height'])
+            except (ValueError, KeyError):
+                raise PipelineError('Video frame has no usable timestamp or dimensions') from None
+            if not math.isfinite(timestamp) or (timestamps and timestamp < timestamps[-1]):
+                raise PipelineError('Video frame timestamps are not finite and ordered')
+            if width < 1 or height < 1 or width * height > max_pixels:
+                raise PipelineError('Video frame exceeds decode memory guard')
+            timestamps.append(timestamp)
+            try:
+                last_duration = float(values.get('duration_time') or values.get('pkt_duration_time') or '')
+            except ValueError:
+                last_duration = None
+            if last_duration is not None and (not math.isfinite(last_duration) or last_duration <= 0):
+                last_duration = None
+    if not timestamps:
+        raise PipelineError('Video has no decodable timestamped frames')
+    return timestamps, last_duration
+
+
+def video_samples(timestamps, count):
+    """Nearest distinct frames to endpoint-inclusive, evenly spaced targets."""
+    count = min(count, len(timestamps))
+    first, last = timestamps[0], timestamps[-1]
+    selected = []
+    for slot in range(count):
+        target = (first + last) / 2 if count == 1 else first + (last - first) * slot / (count - 1)
+        if count > 1 and slot == 0:
+            index = 0
+        elif count > 1 and slot == count - 1:
+            index = len(timestamps) - 1
+        else:
+            # Reserve enough later frames so no sample is repeated, including
+            # videos with a long gap followed by a burst of dense frames.
+            lower = selected[-1][0] + 1 if selected else 0
+            upper = len(timestamps) - (count - slot)
+            right = bisect_left(timestamps, target, lower, upper + 1)
+            candidates = [i for i in (right - 1, right) if lower <= i <= upper]
+            index = min(candidates, key=lambda i: (abs(timestamps[i] - target), i))
+        selected.append((index, target))
+    return selected
 
 
 def prepare_video(path, config, max_pixels, report):
@@ -100,37 +165,61 @@ def prepare_video(path, config, max_pixels, report):
     width, height = int(stream['width']), int(stream['height'])
     if width < 1 or height < 1 or width * height > max_pixels:
         raise PipelineError('Video frame exceeds decode memory guard')
-    duration = float(stream.get('duration') or probe.get('format', {}).get('duration') or 0)
-    if not math.isfinite(duration) or duration <= 0:
-        raise PipelineError('Video has no valid finite duration')
     count = config.get('frame_count', 10)
     if type(count) is not int or not 1 <= count <= 20:
         raise PipelineError('Invalid video frame count (1-20)')
-    if str(stream.get('nb_frames', '')).isdigit() and int(stream['nb_frames']) > 0:
-        count = min(count, int(stream['nb_frames']))
+    timestamps, last_duration = video_timeline(path, max_pixels)
+    samples = video_samples(timestamps, count)
+    # Container duration/count can be absent, rounded or include trailing audio.
+    # Sampling is based exclusively on actual decoded frame timestamps.
+    try:
+        duration = float(stream.get('duration') or probe.get('format', {}).get('duration') or 0)
+    except (TypeError, ValueError):
+        duration = 0
+    if not math.isfinite(duration) or duration <= 0:
+        duration = timestamps[-1] - timestamps[0] + (last_duration or 0)
+    count = len(samples)
     edge = config.get('max_edge', 2048)
     images, frames = [], []
-    for index in range(count):
-        timestamp = duration * (index + .5) / count
-        wire = command(['ffmpeg', '-nostdin', '-v', 'error', '-threads', '1', *INPUT_OPTIONS,
-            '-ss', f'{timestamp:.9f}', '-i', str(path), '-map', '0:v:0', '-frames:v', '1',
-            '-vf', ('setsar=1' if config.get('model_max_pixels', 0) else f'scale=w=min(iw\\,{edge}):h=min(ih\\,{edge}):force_original_aspect_ratio=decrease,setsar=1'),
-            '-threads', '1', '-f', 'image2pipe', '-c:v', 'png', 'pipe:1'])
-        if not wire:
-            raise PipelineError(f'No frame at sampling point {timestamp:.3f}s; no incomplete video result published')
-        with Image.open(io.BytesIO(wire)) as frame:
-            detail = {}
-            if config.get('model_max_pixels', 0):
-                from media_ai_resolution import fit_image
-                frame = fit_image(frame.convert('RGB'), edge, config['model_max_pixels'], detail)
-                buffer = io.BytesIO(); frame.save(buffer, 'PNG'); wire = buffer.getvalue()
-            frame_width, frame_height = frame.size
-        images.append((wire, 'image/png', f'Frame {index+1}/{count}, angeforderter Zeitpunkt {timestamp:.3f} s.'))
-        frames.append({'sample_seconds': round(timestamp, 6), 'width': frame_width, 'height': frame_height, **detail})
+    selection = '+'.join(f'eq(n\\,{index})' for index, _ in samples)
+    scaling = ('setsar=1' if config.get('model_max_pixels', 0) else
+        f'scale=w=min(iw\\,{edge}):h=min(ih\\,{edge}):force_original_aspect_ratio=decrease,setsar=1')
+    with tempfile.TemporaryDirectory(prefix='media-ai-frames-') as temporary:
+        # Select by decoded index in a single pass. Seeking to a rounded time
+        # could return the next frame or skip the very last one again.
+        command(['ffmpeg', '-nostdin', '-v', 'error', '-threads', '1', *INPUT_OPTIONS,
+            '-i', str(path), '-map', '0:v:0', '-frames:v', str(count),
+            '-vf', f'select={selection},{scaling}', '-fps_mode', 'passthrough',
+            '-threads', '1', '-c:v', 'png', '-f', 'image2', str(Path(temporary) / '%02d.png')])
+        for slot, (index, target) in enumerate(samples):
+            check_budget()
+            frame_path = Path(temporary) / f'{slot+1:02d}.png'
+            if not frame_path.is_file():
+                raise PipelineError(f'Could not decode selected video frame {index}; no incomplete video result published')
+            wire = frame_path.read_bytes()
+            with Image.open(io.BytesIO(wire)) as frame:
+                detail = {}
+                if frame.width * frame.height > max_pixels:
+                    raise PipelineError('Video frame exceeds decode memory guard')
+                if config.get('model_max_pixels', 0):
+                    from media_ai_resolution import fit_image
+                    frame = fit_image(frame.convert('RGB'), edge, config['model_max_pixels'], detail)
+                    buffer = io.BytesIO(); frame.save(buffer, 'PNG'); wire = buffer.getvalue()
+                frame_width, frame_height = frame.size
+            timestamp = timestamps[index] - timestamps[0]
+            frame_duration = timestamps[index+1] - timestamps[index] if index+1 < len(timestamps) else last_duration
+            images.append((wire, 'image/png', f'Frame {slot+1}/{count}, Quellframe {index+1}/{len(timestamps)}, tatsaechlicher Zeitpunkt {timestamp:.6f} s ab erstem Frame.'))
+            frames.append({'source_frame_index': index, 'sample_seconds': round(timestamp, 6),
+                'requested_seconds': round(target - timestamps[0], 6), 'source_pts_seconds': timestamps[index],
+                'frame_duration_seconds': round(frame_duration, 6) if frame_duration is not None else None,
+                'width': frame_width, 'height': frame_height, **detail})
     report.update(image_count=len(images), source_width=width, source_height=height, duration_seconds=duration,
-                  frames=frames, sampling='equal_interval_midpoints', total_sent_bytes=sum(len(x[0]) for x in images))
+                  source_frame_count=len(timestamps), source_start_seconds=timestamps[0],
+                  last_frame_seconds=round(timestamps[-1] - timestamps[0], 6), timestamp_source='best_effort_timestamp_time',
+                  frames=frames, sampling=VIDEO_SAMPLING_REVISION, total_sent_bytes=sum(len(x[0]) for x in images))
     instructions = (f'Diese {count} Bilder sind zeitlich geordnete Frames aus EINEM Video von {duration:.3f} Sekunden. '
-        f'Die Stichproben liegen gleichmaessig im Abstand {duration/count:.3f} Sekunden, jeweils in der Mitte eines Zeitabschnitts. '
+        'Bei mehreren Stichproben sind der erste und letzte Quellframe enthalten. Dazwischen wurden die naechsten unterschiedlichen Frames zu gleichmaessig verteilten Zeitpunkten ausgewaehlt. '
+        'Die Beschriftungen nennen die tatsaechlichen Frame-Zeitpunkte ab dem ersten Quellframe; bei variabler Bildrate sind die Abstaende nicht exakt gleich. '
         'Analysiere ALLE Frames gemeinsam. Fasse die sicher sichtbaren Inhalte und belegbaren Veraenderungen in einer kurzen Videobeschreibung zusammen. '
         'Setze type auf video. Sammle Suchbegriffe und Objekte aus allen Frames, insgesamt maximal 20 unterschiedliche Begriffe. '
         'Keine OCR, keine Transkription von Bildtext oder Audio. Ereignisse zwischen Frames, Ton, Ursachen und Bewegungsrichtung nicht erfinden. '
