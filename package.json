@@ -1,1 +1,1 @@
-{"name":"nextcloud-chronicle","version":"0.1.0","private":true,"type":"module","scripts":{"build":"node scripts/build.mjs","test":"node --test tests/*.test.mjs"},"dependencies":{"leaflet":"1.9.4","leaflet.markercluster":"1.5.3"},"devDependencies":{"esbuild":"0.25.12"}}
+{"name":"nextcloud-chronicle","version":"0.1.2","private":true,"type":"module","scripts":{"build":"node scripts/build.mjs","test":"node --test tests/*.test.mjs"},"dependencies":{"leaflet":"1.9.4","leaflet.markercluster":"1.5.3"},"devDependencies":{"esbuild":"0.25.12"}}

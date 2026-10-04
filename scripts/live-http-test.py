@@ -22,6 +22,9 @@ def get(path,**kw):return s.get(base+path,timeout=30,**kw)
 def put(settings,valid=True):
  r=s.put(base+'/api/settings',json={'settings':settings},headers=headers,timeout=30)
  assert r.status_code==(200 if valid else 400),(r.status_code,r.text[:180]);return r
+android_page=get('/',headers={'User-Agent':'Mozilla/5.0 (Android) Nextcloud-android/35.0.0'})
+context=json.loads(html.unescape(re.search(r'data-context="([^"]+)"',android_page.text).group(1)))
+record('Android embedded context and local gallery control',context['embedded'] is True and 'ch-show-saved' in android_page.text and 'ch-live' in android_page.text)
 # Account scope, current read access, root allowlist and CSRF.
 summary=get('/api/summary').json();record('four selected media only',summary['total']==4,summary['total'])
 items=get('/api/items').json()['items'];record('index contains only selected IDs',set(i['id'] for i in items)==set(credentials['ids'].values()))
