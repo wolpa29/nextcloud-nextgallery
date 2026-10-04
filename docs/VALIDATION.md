@@ -30,3 +30,13 @@ Tested on 2026-10-03/04 against Nextcloud **32.0.5**, app **Chronik 0.1.2**. The
 - JPEG EXIF and local MP4 metadata were tested. HEIC/non-JPEG metadata relies on Nextcloud metadata providers; format and codec support depends on configured previews and the client.
 - The basemap provides country boundaries, zoom and photo clusters, without external tiles or street-level detail.
 - Hardware scrolling performance on the user's S26 remains unmeasured. The official Android client was also exercised in an isolated emulator; its WebView results are recorded separately in [Android integration](ANDROID.md).
+
+## NextGallery 0.1.3 follow-up — 2026-10-04
+
+The compact NextGallery design, connected cloud/photo icon and German/English translations were exercised on a separate loopback-only Docker Nextcloud 32.0.5 instance. It contains only the generated 296-item fixture set: 2 videos and 203 GPS records, verified through the paginated real app API. No private media or personal account is present in this local instance.
+
+The live UI checks found and fixed the lazy map global-name mismatch introduced by rebranding. Worker registration is now permitted only from the same origin in the page CSP, and the worker CSP allows same-origin network requests. The static-asset matcher supports both apps/ and custom_apps/. Activation waits for the registration itself, with a bounded timeout; a legacy index.php URL outside the canonical scope no longer hangs saving.
+
+Verified: English desktop with a 56px header; 390x844 phone with a 52px header, four usable bottom navigation targets and no horizontal overflow; year/date settings; online local world map with all 203 GPS records; 24 saved previews (~0.5 MB); reopening the standalone offline page with the local Docker server stopped; first opening of its locally cached map (16 GPS records in that saved subset); MP4 playback through the full 3 seconds. World geography and previews are bundled/cached, without an external tile service.
+
+Evidence is in ignored artifacts/v013-local-*.png and local-nc-v013-api.json. Node layout tests and all 19 PHP date/GPS assertions pass; PHP 8.2 lint passes. These results verify the 0.1.3 app against a real isolated Nextcloud, not its deployment to the user's existing server. That server still has 0.1.2 while SSH port 22 is unavailable.
