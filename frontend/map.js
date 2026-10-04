@@ -2,7 +2,7 @@ import {tr} from './i18n.mjs';
 import L from 'leaflet';
 import 'leaflet.markercluster';
 import world from './world.json';
-window.ChronikMap={create(host,onOpen,imageURL){
+window.NextGalleryMap={create(host,onOpen,imageURL){
  const map=L.map(host,{minZoom:0,maxZoom:16,zoomControl:true,attributionControl:true,worldCopyJump:false,maxBounds:[[-85,-220],[85,220]]});
  const reset=()=>map.fitBounds([[-60,-180],[84,180]],{padding:[12,12]});reset();
  L.geoJSON(world,{style:{fillColor:'#fcfcf8',fillOpacity:1,color:'#c4cfd5',weight:.65},interactive:false}).addTo(map);
