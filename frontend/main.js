@@ -42,7 +42,22 @@ async function start(){
  }
  async function worker(){
   if(!('serviceWorker'in navigator)||!window.isSecureContext)return null;
-  try{const registration=await navigator.serviceWorker.register(base+'/sw.js',{scope:base+'/'});await navigator.serviceWorker.ready;return registration;}catch{return null;}
+  try{
+   const registration=await navigator.serviceWorker.register(base+'/sw.js',{scope:base+'/'});
+   // A legacy /index.php URL may lie outside the canonical worker scope.
+   // Wait for this registration to activate, not for the current page to be controlled.
+   if(!registration.active){
+    const pending=registration.installing||registration.waiting;
+    if(!pending)return null;
+    await new Promise((resolve,reject)=>{
+     const done=()=>{clearTimeout(timer);pending.removeEventListener('statechange',changed);};
+     const changed=()=>{if(pending.state==='activated'){done();resolve();}else if(pending.state==='redundant'){done();reject(new Error('worker redundant'));}};
+     const timer=setTimeout(()=>{done();reject(new Error('worker activation timeout'));},5000);
+     pending.addEventListener('statechange',changed);changed();
+    });
+   }
+   return registration;
+  }catch{return null;}
  }
  async function clearOld(){
   const prior=localStorage.getItem('chronicle-current');if(prior&&prior!==cacheKey){indexedDB.deleteDatabase('chronicle-'+prior);for(const key of await caches.keys())if(key.startsWith('chronicle-shell-'))await caches.delete(key);}
