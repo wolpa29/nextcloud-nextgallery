@@ -56,17 +56,17 @@ async function start(){
  }
  function updateSettings(){
   $('ch-grouping').value=settings.grouping;$('ch-order').value=settings.order;$('ch-density').value=settings.tile;$('ch-date-mode').value=settings.mode;$('ch-timezone').value=settings.timezone;$('ch-offline-limit').value=settings.offlineLimit;
-  $('ch-source-count').textContent=settings.roots.length?tr`${settings.roots.length} ${settings.roots.length===1?tr('Ordner'):tr('Ordner')} ausgewählt`:tr('Keine Ordner ausgewählt');
+  $('ch-source-count').textContent=settings.roots.length===1?tr('Ein Ordner ausgewählt'):settings.roots.length?tr`${settings.roots.length} Ordner ausgewählt`:tr('Keine Ordner ausgewählt');
   draftRoots=[...settings.roots];renderRoots();$('ch-refresh').disabled=offlineMode;for(const id of ['ch-add-root','ch-save-settings','ch-reindex','ch-pin'])$(id).disabled=offlineMode;
   $('ch-connection').hidden=!offlineMode;$('ch-live').hidden=!offlineMode||ctx.offline;$('ch-open-offline').href=base+'/offline';
  }
- function renderRoots(){const list=$('ch-roots');list.replaceChildren();for(const path of draftRoots){const n=document.createElement('div');n.className='ch-root';const text=document.createElement('span');text.textContent=path;const b=document.createElement('button');b.textContent='×';b.setAttribute('aria-label',path+' aus Galerie entfernen');b.disabled=offlineMode;b.onclick=()=>{draftRoots=draftRoots.filter(p=>p!==path);renderRoots();};n.append(text,b);list.append(n);}}
+ function renderRoots(){const list=$('ch-roots');list.replaceChildren();for(const path of draftRoots){const n=document.createElement('div');n.className='ch-root';const text=document.createElement('span');text.textContent=path;const b=document.createElement('button');b.textContent='×';b.setAttribute('aria-label',tr`${path} aus Galerie entfernen`);b.disabled=offlineMode;b.onclick=()=>{draftRoots=draftRoots.filter(p=>p!==path);renderRoots();};n.append(text,b);list.append(n);}}
  function indexState(state){$('ch-index-state').textContent=state?.running?tr`${count(state.seen||0)} Medien erfasst · wird eingelesen …`:state?.completed?tr`${count(state.seen||0)} Medien · zuletzt ${new Date(state.completed*1000).toLocaleString(locale)}${state.errors?' · '+state.errors+tr(' Dateien/Ordner nicht lesbar'):''}`:tr('Noch nicht gestartet.');}
  async function load(){
   const v=++version;blocks.clear();pending=[];rendered.clear();canvas.replaceChildren();releaseUrls();
   if(offlineMode){const prefs={...offlineMeta?.settings,...settings};summary=localSummary(offlineItems,prefs,kind);settings=prefs;localGroups=new Map();for(const item of summary.items){const key=groupKey(item,settings.grouping);if(!localGroups.has(key))localGroups.set(key,[]);localGroups.get(key).push(item);}}
   else{const next=await api('summary?kind='+kind);if(v!==version)return;summary=next;settings=summary.settings;}
-  updateSettings();indexState(summary.state);$('ch-count').textContent=tr`${mediaCount(summary.total)}${summary.videos?' · '+count(summary.videos)+(summary.videos===1?' Video':' Videos'):''}${offlineMode?tr(' · gespeicherte Vorschauen'):''}`;
+  updateSettings();indexState(summary.state);$('ch-count').textContent=tr`${mediaCount(summary.total)}${summary.videos?' · '+(summary.videos===1?tr('1 Video'):tr`${count(summary.videos)} Videos`):''}${offlineMode?tr(' · gespeicherte Vorschauen'):''}`;
   $('ch-empty').hidden=summary.total>0;
   if(!summary.total){$('ch-empty').querySelector('h2').textContent=offlineMode?tr('Noch keine Offline-Sammlung'):settings.roots.length?tr('Hier sind noch keine Medien'):tr('Deine Galerie beginnt mit einem Ordner');$('ch-empty').querySelector('p').textContent=offlineMode?tr('Speichere deine Vorschauen bei bestehender Verbindung.'):settings.roots.length?tr('Lies deine ausgewählten Ordner ein oder wähle einen anderen Medientyp.'):tr('Wähle die Ordner aus, die in deiner Zeitleiste erscheinen sollen.');$('ch-choose').hidden=offlineMode;}
   scroll.scrollTop=0;compute();renderRail();schedule();

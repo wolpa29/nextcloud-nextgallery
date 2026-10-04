@@ -131,5 +131,10 @@
   "{0} Vorschauen gespeichert · {1} MB{2}": "{0} previews saved · {1} MB{2}",
   "{0} Vorschauen {1}gespeichert{2}.{3}": "{0} previews {1}saved{2}.{3}",
   "Darstellung schließen": "Close display settings",
-  "Zu {0} springen": "Jump to {0}"
+  "Zu {0} springen": "Jump to {0}",
+  "Ein Ordner ausgewählt": "1 folder selected",
+  "{0} Ordner ausgewählt": "{0} folders selected",
+  "{0} aus Galerie entfernen": "Remove {0} from gallery",
+  "1 Video": "1 video",
+  "{0} Videos": "{0} videos"
 }
