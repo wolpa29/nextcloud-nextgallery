@@ -37,6 +37,8 @@ class Search {
    public function getOrder(){return [$this->order];}
    public function getUser(){return null;}
    public function limitToHome():bool{return false;}
+   // Added in Nextcloud 35; empty selects the normal complete FileInfo.
+   public function getSelectFields():array{return [];}
   };
  }
 }

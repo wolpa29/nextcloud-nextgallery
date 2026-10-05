@@ -1,5 +1,6 @@
 import {build} from 'esbuild';
 import {readFile,writeFile} from 'node:fs/promises';
+await writeFile('templates/en.json',await readFile('frontend/en.json','utf8'));
 await build({entryPoints:['frontend/main.js'],bundle:true,minify:true,format:'iife',target:['es2022'],outfile:'js/main.js'});
 await build({entryPoints:['frontend/map.js'],bundle:true,minify:true,format:'iife',target:['es2022'],outfile:'js/map.js'});
 await build({entryPoints:['frontend/sw.js'],bundle:false,minify:true,target:['es2022'],outfile:'js/sw.js'});

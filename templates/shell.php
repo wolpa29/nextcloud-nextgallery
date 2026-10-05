@@ -1,5 +1,5 @@
 <?php
-$english = json_decode(file_get_contents(__DIR__.'/../frontend/en.json'), true);
+$english = json_decode(file_get_contents(__DIR__.'/en.json'), true);
 $isGerman = str_starts_with($_['context']['language'] ?? 'de', 'de');
 $tr = static fn(string $text): string => $isGerman ? $text : ($english[$text] ?? $text);
 ?>
@@ -9,7 +9,7 @@ $tr = static fn(string $text): string => $isGerman ? $text : ($english[$text] ??
 
 <strong>NextGallery Server</strong></a>
   <nav><button data-view="timeline" class="active"><span data-icon="gallery"></span><?php p($tr('Zeitleiste')); ?></button><button data-view="map"><span data-icon="map"></span><?php p($tr('Karte')); ?></button><button data-view="offline"><span data-icon="download"></span><?php p($tr('Offline')); ?></button></nav>
-  <div class="ch-side-bottom"><p id="ch-source-count"><?php p($tr('Keine Ordner ausgewählt')); ?></p><button data-view="settings"><span data-icon="settings"></span><?php p($tr('Einstellungen')); ?></button><span class="ch-version">NextGallery Server · <?php echo htmlspecialchars($_['context']['version'],ENT_QUOTES,'UTF-8'); ?></span></div>
+  <div class="ch-side-bottom"><p id="ch-source-count"><?php p($tr('Keine Ordner ausgewählt')); ?></p><button data-view="settings"><span data-icon="settings"></span><?php p($tr('Einstellungen')); ?></button><span class="ch-version">NextGallery Server · <?php echo htmlspecialchars($_['context']['version'],ENT_QUOTES,'UTF-8'); ?></span><?php if (!empty($_['context']['sourceUrl'])): ?><a class="ch-version" href="<?php p($_['context']['sourceUrl']); ?>"><?php p($isGerman ? 'Server-Quellcode (AGPL)' : 'Server source (AGPL)'); ?></a><?php endif; ?></div>
  </aside>
  <main class="ch-main" id="app-content">
   <header class="ch-top"><div><h1 id="ch-title"><?php p($tr('Zeitleiste')); ?></h1><p id="ch-count" aria-live="polite"><?php p($tr('Wird geladen …')); ?></p></div><div class="ch-top-actions"><span id="ch-connection" hidden><?php p($tr('Offline')); ?></span><button id="ch-live" hidden><?php p($tr('Live öffnen')); ?></button><button id="ch-refresh" aria-label="<?php p($tr('Galerie aktualisieren')); ?>" title="<?php p($tr('Galerie aktualisieren')); ?>"><span data-icon="refresh"></span></button></div></header>

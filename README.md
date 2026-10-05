@@ -2,7 +2,7 @@
 
 A private photo/video gallery with selected folders, a virtualized chronological grid, year/month/day headers or a date rail, an embedded media viewer, a local GPS world map and explicit offline thumbnail collections.
 
-**NextGallery Server** is the optional server companion for the separate native [NextGallery Android app](https://github.com/wolpa29/chronik-android). Android **0.4.0 and later default to ordinary Nextcloud WebDAV**, without installing this extension. Enable the server mode explicitly for a shared index, account-wide folder/date settings and this browser gallery. An administrator installs the companion; it is not a hosted intermediary service operated by the Android app provider. Current version: **0.1.4**, Nextcloud 32 / PHP 8.1+.
+**NextGallery Server** is the optional server companion for the separate native [NextGallery Android app](https://github.com/wolpa29/chronik-android). Android **0.4.0 and later default to ordinary Nextcloud WebDAV**, without installing this extension. Enable the server mode explicitly for a shared index, account-wide folder/date settings and this browser gallery. An administrator installs the companion; ordinary users connect their own instance. The Android app provider separately operates an isolated synthetic review instance. Current version: **0.1.5**, Nextcloud 32–35; PHP requirements follow the installed Nextcloud.
 
 **Deutsch:** Die optionale Erweiterung heißt **NextGallery Server**. Sie verwaltet einen Index und Ordner-/Datumseinstellungen je Nextcloud-Konto und ergänzt die Browser-Galerie. Ab Android 0.4.0 funktioniert der voreingestellte Standardzugang ohne diese Erweiterung. `chronicle`, Namespace und Repository bleiben als technische Kennungen erhalten, damit bestehende Installationen kompatibel bleiben. Originale bleiben erhalten. Die Android-README beschreibt Datenflüsse, lokalen Speicher, Löschung, Lizenzen und tatsächlich hinterlegte Play-Console-Angaben.
 
@@ -18,7 +18,7 @@ Originals remain unchanged. Offline video entries show their thumbnail; original
 
 ## Build and install
 
-Requires Nextcloud 32, PHP 8.1+, its configured image/video preview providers, and a working Nextcloud cron. Optional local FFprobe enriches video metadata.
+Requires Nextcloud 32–35, its supported PHP version, its configured image/video preview providers, and a working Nextcloud cron. Optional local FFprobe enriches video metadata.
 
 ```sh
 npm ci --ignore-scripts
@@ -46,3 +46,9 @@ AGPL-3.0-or-later; third-party library and basemap licenses are recorded in [NOT
 | Version | Android companion | Legal revision | Technical changes | Legal changes |
 | --- | --- | --- | --- | --- |
 | 0.1.4 | 0.4.0 / code 6 | 2026-10-05.1 (Android) | Rename to NextGallery Server; retain chronicle ID; expose original capture evidence and mtime/size for offline date changes. Android extension is optional. | Clarify separate AGPL server licensing and optional processing on the user's Nextcloud. |
+
+| 0.1.5 | 0.4.1 / code 7 | 2026-10-05.2 (Android) | Nextcloud 35 search-query compatibility; package English template translations with runtime files; optional corresponding-source link. Verified on Nextcloud 32.0.5 and 35.0.1; 33/34 not individually exercised. | Exact AGPL server source offer for public synthetic review service; proprietary Android code is separate. |
+
+## Network source offer
+
+For a public installation, offer the exact corresponding server source to network users under the AGPL. After building, run `python3 scripts/source-archive.py /private/output/nextgallery-server-0.1.5-source.tar.gz`, publish this server-only archive and configure `occ config:app:set chronicle source_url --value=https://YOUR-HOST/nextgallery-server-0.1.5-source.tar.gz`. The sidebar then includes a DE/EN download link. The archive contains original frontend/PHP sources, generated assets, build manifests/scripts and the bundled third-party library sources/licences; it contains no Android repository, credentials, generated sample photos or Git history. A private GitHub link alone is not a public source offer.
