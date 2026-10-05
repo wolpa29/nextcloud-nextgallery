@@ -175,6 +175,64 @@ class PipelineTests(unittest.TestCase):
         self.source.fail_inventory = True
         self.assertEqual(self.run_pipeline()['state'], 'deferred')
         self.assertEqual(self.source.reads, 0)
+
+    def test_mid_run_model_outage_keeps_current_and_later_files_pending(self):
+        self.source.items.append(p.Item('2', 'Camera/b.jpg', 'b', 'v1', 100))
+        publisher = Publisher(); events = []
+        with patch.object(self.models['ocr'], 'analyze', side_effect=p.ServiceUnavailable('LM Studio offline')):
+            report = self.run_pipeline(publisher=publisher, observe=lambda event, **fields: events.append((event, fields)))
+        self.assertEqual(report['state'], 'deferred')
+        self.assertEqual(report['errors'], 0)
+        self.assertEqual(report['stats'], {'pending': 2})
+        self.assertEqual(self.source.reads, 1)
+        self.assertEqual(publisher.sent, [])
+        self.assertEqual(self.store.search('Fahrrad'), [])
+        self.assertEqual(tuple(self.store.db.execute("SELECT attempts,retry_at,error FROM files WHERE id='1'").fetchone()), (0, 0, None))
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM results WHERE stage='vision'").fetchone()[0], 1)
+        self.assertFalse(any(event == 'file_error' for event, _ in events))
+        self.assertEqual(sum(event == 'service_unavailable' for event, _ in events), 1)
+        resumed = self.run_pipeline(publisher=publisher)
+        self.assertEqual(resumed['stats'], {'done': 2})
+        self.assertEqual(self.models['vision'].calls, 1)  # Cached successful stage reused.
+        self.assertEqual(len(publisher.sent), 2)
+
+    def test_outage_after_success_preserves_finished_results(self):
+        self.source.items.append(p.Item('2', 'Camera/b.jpg', 'b', 'v1', 100))
+        publisher = Publisher()
+        def observe(event, **fields):
+            if event == 'file_finished':
+                self.source.data = image_bytes('blue')
+                self.models['vision'].analyze = lambda *args: (_ for _ in ()).throw(p.ServiceUnavailable('offline'))
+        report = self.run_pipeline(publisher=publisher, observe=observe)
+        self.assertEqual(report['processed'], 1)
+        self.assertEqual(report['errors'], 0)
+        self.assertEqual(report['stats'], {'done': 1, 'pending': 1})
+        self.assertEqual(len(publisher.sent), 1)
+        self.assertEqual(len(self.store.search('Fahrrad')), 1)
+
+    def test_invalid_media_result_continues_to_next_file(self):
+        self.source.items.append(p.Item('2', 'Camera/b.jpg', 'b', 'v1', 100))
+        with patch.object(self.models['vision'], 'analyze', side_effect=[p.PipelineError('invalid result'), dict(VISION)]):
+            report = self.run_pipeline()
+        self.assertEqual(report['state'], 'finished')
+        self.assertEqual(report['stats'], {'error': 1, 'done': 1})
+        self.assertEqual(self.source.reads, 2)
+
+    def test_video_model_outage_does_not_download_following_image(self):
+        self.source.items[0].path = 'Camera/a.mp4'; self.source.items[0].mime = 'video/mp4'
+        self.source.items.append(p.Item('2', 'Camera/b.jpg', 'b', 'v1', 100))
+        def download(item, path, maximum):
+            path.write_bytes(b'synthetic video')
+            return 'video-hash'
+        batch = p.ImageBatch([(image_bytes(), 'image/jpeg', 'frame')], '')
+        with patch.object(self.source, 'download_to', side_effect=download, create=True) as downloads, \
+                patch.object(p, 'prepare_video', return_value=(batch, 'image/jpeg', {})), \
+                patch.object(self.models['vision'], 'analyze', side_effect=p.ServiceUnavailable('offline')):
+            report = self.run_pipeline()
+        self.assertEqual(downloads.call_count, 1)
+        self.assertEqual(self.source.reads, 0)
+        self.assertEqual(report['stats'], {'pending': 2})
+        self.assertEqual(report['errors'], 0)
     def test_partial_listing_never_retires_existing_files(self):
         self.run_pipeline()
         self.source.fail_inventory = True

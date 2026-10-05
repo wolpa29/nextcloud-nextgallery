@@ -11,6 +11,7 @@ Object.assign(english,{"Bestand, Fortschritt und nächste Ausführung.": "Invent
 Object.assign(english,{"{folders} Ordner · {total} Medien":"{folders} folders · {total} media"});
 Object.assign(english,{"Fehler können gezielt erneut versucht werden. Ein neuer Lauf prüft die Auswahl.":"Failed files can be retried explicitly. A new run checks the selection."});
 Object.assign(english,{"Letzter Lauf: {files} Dateien · {duration} · {published} gespeichert · {cache} Cache-Treffer":"Last run: {files} files · {duration} · {published} published · {cache} cache hits"});
+Object.assign(english,{"Verarbeitung wegen Dienstausfall pausiert":"Processing paused due to service outage"});
 function keywords(vision){const seen=new Set();return [...vision.tags,...vision.objects].filter(word=>{const key=word.normalize('NFC').toLowerCase().replaceAll('ß','ss');if(seen.has(key))return false;seen.add(key);return true;});}
 let language='de';
 window.MediaAIi18n={

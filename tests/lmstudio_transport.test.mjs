@@ -1,6 +1,36 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {buildHistory, predictionConfig, finishReason} from '../nextcloud-app/media_ai/worker/lmstudio/protocol.mjs';
+import {buildHistory, predictionConfig, finishReason, requestFailure} from '../nextcloud-app/media_ai/worker/lmstudio/protocol.mjs';
+import {spawnSync} from 'node:child_process';
+import net from 'node:net';
+
+test('SDK service outages are classified without exposing endpoint or credentials', () => {
+  for (const error of [{code:'ECONNREFUSED',message:'secret-token at private-host'},
+    {cause:{code:'ENETUNREACH'}},{message:'WebSocket connection closed'}, {message:'Websocket timed out'}]) {
+    const failure=requestFailure(error);
+    assert.equal(failure.code,'service_unavailable');
+    assert.doesNotMatch(JSON.stringify(failure),/secret-token|private-host/);
+  }
+  assert.equal(requestFailure(Error('context exceeded')).code,'inference_error');
+});
+
+test('real SDK connection refusal produces an unavailable event', async () => {
+  const reservation=net.createServer();
+  await new Promise(resolve=>reservation.listen(0,'127.0.0.1',resolve));
+  try {
+    // Bound but no longer listening: reserve the address by using a refused port
+    // after closing this local listener, without contacting production LM Studio.
+    const port=reservation.address().port;
+    await new Promise(resolve=>reservation.close(resolve));
+    const result=spawnSync(process.execPath,['nextcloud-app/media_ai/worker/lmstudio/stream.mjs'],{
+      input:JSON.stringify({base_url:`ws://127.0.0.1:${port}`,payload:{model:'synthetic-test',messages:[]}}),
+      encoding:'utf8',timeout:15000});
+    assert.equal(result.status,1);
+    const event=JSON.parse(result.stdout.split('\n').find(line=>line.startsWith('data:')).slice(6));
+    assert.equal(event.error.code,'service_unavailable');
+    assert.doesNotMatch(result.stdout,/127\.0\.0\.1|synthetic-test/);
+  } finally {if(reservation.listening)reservation.close();}
+});
 
 test('ordered labels and all uploaded images form one history, including retry', async () => {
   const uploaded = [];

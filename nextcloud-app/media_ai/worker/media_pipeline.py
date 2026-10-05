@@ -29,7 +29,8 @@ import xml.etree.ElementTree as ET
 from dataclasses import asdict, dataclass
 from media_ai_inputs import ImageBatch, prepare_ocr, prepare_video, VIDEO_SAMPLING_REVISION
 from media_ai_budget import ImageBudget, ImageTimeout, check_budget, network_timeout, track_response
-from media_ai_stream import chat_stream, StreamFailure, StreamLoop, RepetitionGuard
+from media_ai_stream import chat_stream, StreamFailure, StreamLoop, StreamServerFailure, RepetitionGuard
+from media_ai_errors import PipelineError, ServiceUnavailable
 
 VERSION = "structured-stream-2"
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif", ".tif", ".tiff", ".bmp", ".gif", ".avif"}
@@ -38,10 +39,6 @@ KINDS = {"video", "foto", "screenshot", "dokument", "meme", "grafik", "unklar"}
 DEFAULT_PROMPTS = json.loads(Path(__file__).with_name("default_prompts.json").read_text(encoding="utf-8"))
 VISION_PROMPT = DEFAULT_PROMPTS["vision"]["prompt"]
 OCR_PROMPT = DEFAULT_PROMPTS["ocr"]["prompt"]
-
-
-class PipelineError(RuntimeError):
-    pass
 
 
 def digest(value) -> str:
@@ -97,10 +94,12 @@ def request(url, method="GET", body=None, headers=None, timeout=60, maximum=64 *
             return payload, dict(response.headers.items())
     except urllib.error.HTTPError as error:
         check_budget()
+        if error.code in {401, 403, 429} or error.code >= 500:
+            raise ServiceUnavailable(f"HTTP {error.code} from {parts.hostname}") from None
         raise PipelineError(f"HTTP {error.code} from {parts.hostname}") from None
     except (urllib.error.URLError, TimeoutError, OSError) as error:
         check_budget()
-        raise PipelineError(f"Connection unavailable: {parts.hostname} ({type(error).__name__})") from None
+        raise ServiceUnavailable(f"Connection unavailable: {parts.hostname} ({type(error).__name__})") from None
 
 
 @contextlib.contextmanager
@@ -116,10 +115,12 @@ def open_stream(url, method, body, headers, timeout=60, ca_file=None):
             yield response
     except urllib.error.HTTPError as error:
         check_budget()
+        if error.code in {401, 403, 429} or error.code >= 500:
+            raise ServiceUnavailable(f'HTTP {error.code} from {parts.hostname}') from None
         raise PipelineError(f'HTTP {error.code} from {parts.hostname}') from None
     except (urllib.error.URLError, TimeoutError, OSError) as error:
         check_budget()
-        raise PipelineError(f'Connection unavailable: {parts.hostname} ({type(error).__name__})') from None
+        raise ServiceUnavailable(f'Connection unavailable: {parts.hostname} ({type(error).__name__})') from None
 
 
 def env_header(name):
@@ -413,7 +414,7 @@ class Model:
         data, _ = request(self.url + '/models', headers=env_header(self.config.get('api_key_env')), timeout=5, maximum=1024*1024, ca_file=self.config.get('ca_file'))
         ids = {model['id'] for model in json.loads(data)['data']}
         if self.config['model'] not in ids:
-            raise PipelineError(f'Configured {self.stage} model is not available at its endpoint')
+            raise ServiceUnavailable(f'Configured {self.stage} model is not available at its endpoint')
 
     def schema(self):
         if self.stage == 'ocr':
@@ -525,8 +526,17 @@ class Model:
                 return result
             except (StreamFailure, PipelineError, ValueError, KeyError, TypeError) as error:
                 check_budget()
+                if isinstance(error, ServiceUnavailable):
+                    raise
                 if isinstance(error, PipelineError) and str(error).startswith(('HTTP ', 'Connection unavailable:', 'Redirect refused')):
                     raise
+                if isinstance(error, StreamServerFailure):
+                    # SDK diagnostics can be generic. Recheck availability before
+                    # correction retries, rather than failing every queued file.
+                    try:
+                        self.health()
+                    except (PipelineError, ValueError, KeyError, TypeError, OSError) as unavailable:
+                        raise ServiceUnavailable(str(unavailable)) from None
                 if isinstance(error, StreamFailure): response = error.response
                 choices = response.get('choices') if isinstance(response, dict) else None
                 failed_choice = choices[0] if isinstance(choices,list) and choices and isinstance(choices[0],dict) else {}
@@ -730,7 +740,10 @@ def run(config, store, source, models, limit=100, max_seconds=3600, preprocess=p
             for model in models.values():
                 model.health()
         except PipelineError as error:
-            return {"state": "deferred", "reason": str(error), "processed": 0, "stats": store.stats(), **publication}
+            reason = 'Modellserver nicht verfügbar. Verarbeitung pausiert: ' + str(error)
+            observe('service_unavailable', level='error', reason=reason, stats=store.stats())
+            return {"state": "deferred", "reason": reason, "processed": 0, "errors": 0,
+                    "cached_stage_results": 0, "seconds": round(time.monotonic()-start, 3), "stats": store.stats(), **publication}
         observe("inventory_start")
         items = source.inventory()  # Only complete successful snapshots may mark absent files.
         heartbeat()
@@ -827,12 +840,21 @@ def run(config, store, source, models, limit=100, max_seconds=3600, preprocess=p
                     corrective_retries=sum(max(0,len(history)-1) for history in attempts.values()),
                     detected_loops=sum(a['state']=='loop' for history in attempts.values() for a in history),
                     images=metadata['provenance'].get('images', {}))
+            except ServiceUnavailable as error:
+                # No invalid media/result: keep successful stage caches and the
+                # queue entry available immediately for an explicit resume.
+                with store.db:
+                    store.db.execute("UPDATE files SET status='pending',error=NULL,retry_at=0 WHERE id=?", (item.key,))
+                reason = 'Dienst nicht verfügbar. Verarbeitung pausiert: ' + str(error)
+                observe('service_unavailable', level='error', path=item.path, file_id=item.locator,
+                        stage=current_stage, reason=reason, stats=store.stats())
+                return {"state": "deferred", "reason": reason, "processed": completed, "errors": errors,
+                        "cached_stage_results": cache_hits, "seconds": round(time.monotonic()-start, 3),
+                        "stats": store.stats(), **publication}
             except (ImageTimeout, PipelineError, OSError, ValueError, KeyError, TypeError) as error:
                 store.fail(item, error)
                 errors += 1
                 observe("file_error", level="error", path=item.path, file_id=item.locator, stage=current_stage, state='timeout' if isinstance(error,ImageTimeout) else 'error', seconds=round(time.monotonic()-image_start,3), error=str(error)[:300], stats=store.stats())
-                if 'Connection unavailable' in str(error):
-                    break
         new_publication = publish_pending(store, publisher, limit, heartbeat)
         publication = {key: publication[key]+new_publication[key] for key in publication}
         return {"state": "finished", "processed": completed, "errors": errors,

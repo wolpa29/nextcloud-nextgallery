@@ -1,7 +1,7 @@
 // Official SDK image overrides; OpenAI-compatible HTTP ignores these settings.
 import {LMStudioClient, Chat} from '@lmstudio/sdk';
 import {once} from 'node:events';
-import {buildHistory, predictionConfig, finishReason} from './protocol.mjs';
+import {buildHistory, predictionConfig, finishReason, requestFailure} from './protocol.mjs';
 
 const quiet = {info(){}, error(){}, warn(){}, debug(){}};
 let prediction;
@@ -39,6 +39,6 @@ try {
   process.exit(0);
 } catch (error) {
   // No endpoint, prompt, image path or authentication data in worker diagnostics.
-  await event({error:{message:'LM Studio SDK request failed; check model availability, context and encoder settings.'}});
+  await event({error:requestFailure(error)});
   process.exit(1);
 }

@@ -21,6 +21,47 @@ def frames(text, channel='content', finish='stop', done=True):
 
 
 class StreamingTests(unittest.TestCase):
+    def test_disconnect_stops_without_corrective_retries_even_if_health_is_up(self):
+        type(self).responses=[frames('{"text":"partial"}', done=False)]
+        model=self.model(loop_retries=3)
+        with patch.object(model,'health') as health:
+            with self.assertRaises(p.ServiceUnavailable):model.analyze(b'x','image/jpeg')
+        self.assertEqual(len(self.calls),1)
+        self.assertEqual(model.attempt_history,[])
+        health.assert_not_called()
+
+    def test_sdk_unavailable_event_stops_without_health_or_retries(self):
+        type(self).responses=[([{'error':{'code':'service_unavailable','message':'sanitized'}}],True)]
+        model=self.model()
+        with patch.object(model,'health') as health:
+            with self.assertRaises(p.ServiceUnavailable):model.analyze(b'x','image/jpeg')
+        health.assert_not_called()
+        self.assertEqual(len(self.calls),1)
+
+    def test_generic_sdk_error_checks_server_before_corrective_retry(self):
+        type(self).responses=[([{'error':{'message':'generic SDK failure'}}],True)]
+        model=self.model()
+        with patch.object(model,'health',side_effect=p.ServiceUnavailable('Connection unavailable: test')) as health:
+            with self.assertRaises(p.ServiceUnavailable):model.analyze(b'x','image/jpeg')
+        health.assert_called_once()
+        self.assertEqual(len(self.calls),1)
+
+    def test_server_error_with_healthy_endpoint_retains_correction_behavior(self):
+        type(self).responses=[([{'error':{'message':'context error'}}],True),frames('{"text":"OK"}')]
+        model=self.model()
+        with patch.object(model,'health') as health:
+            self.assertEqual(model.analyze(b'x','image/jpeg')['text'],'OK')
+        health.assert_called_once()
+        self.assertEqual(len(self.calls),2)
+
+    def test_unreachable_http_server_is_service_outage_without_retries(self):
+        import socket
+        with socket.socket() as listener:
+            listener.bind(('127.0.0.1',0)); port=listener.getsockname()[1]
+            model=p.Model({'url':f'http://127.0.0.1:{port}/v1','model':'test'},'ocr')
+            with self.assertRaises(p.ServiceUnavailable):model.analyze(b'x','image/jpeg')
+        self.assertEqual(model.attempt_history,[])
+
     def test_image_deadline_interrupts_trickling_stream_and_continues_next_image(self):
         from test_pipeline import Source, Model, Publisher
         text=' '.join(f'Eintrag{n} sichtbar{n*n}' for n in range(100))

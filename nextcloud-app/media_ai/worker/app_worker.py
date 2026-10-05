@@ -127,6 +127,20 @@ def consume(directory, request_id):
             control['requested']=False; control['retry_errors']=False; atomic(directory/'control.json',control)
 
 
+def pause_unavailable(directory, reason):
+    with (directory/'control.lock').open('a') as stream:
+        fcntl.flock(stream,fcntl.LOCK_EX)
+        control=read(directory/'control.json',{})
+        control.update(paused=True,requested=False,retry_errors=False,pause_reason=reason,updated_at=time.time())
+        atomic(directory/'control.json',control)
+
+
+def waiting_status(control):
+    paused=control.get('paused',True)
+    return {'state':'paused' if paused else 'idle', 'current':None,
+            'message':control.get('pause_reason','') if paused else ''}
+
+
 def reset_ai(api,directory,reporter,control):
     api.call('reset',{})
     store=p.Store(directory/'native.sqlite3')
@@ -171,7 +185,12 @@ def cycle(api,config,directory,reporter,control):
         result=p.run(config,store,source,models,limit=0,max_seconds=0,publisher=NativePublisher(api,config),observe=reporter.event,
             should_stop=lambda:read(directory/'control.json',{'paused':True}).get('paused',True))
         reporter.event('run_finished',**result)
+        if result['state']=='deferred':
+            pause_unavailable(directory,result['reason'])
+            result=dict(result,state='paused')
+            reporter.update(paused=True)
         reporter.update(state=result['state'],last_run=result,stats=store.stats(),current=None,message=result.get('reason','Lauf abgeschlossen'))
+        return result
     finally: store.db.close()
 
 
@@ -196,7 +215,7 @@ def main():
                         result_date=datetime.now(ZoneInfo(config['timezone'])).strftime('%Y-%m-%d')
                         cycle(api,config,directory,reporter,control)
                         atomic(directory/'schedule.json',{'date':result_date})
-                    else: reporter.update(state='paused' if control.get('paused',True) else 'idle')
+                    else: reporter.update(**waiting_status(control))
                     cutoff=datetime.now()-timedelta(days=config['log_days'])
                     for log in (directory/'logs').glob('????-??-??.jsonl'):
                         if log.stat().st_mtime<cutoff.timestamp(): log.unlink()

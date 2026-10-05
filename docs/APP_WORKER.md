@@ -80,8 +80,18 @@ die Standard-/Korrekturprompts aus derselben `worker/default_prompts.json`.
 Die Refaktorierung hat keinen Prompttext verändert und invalidiert deshalb
 keine bestehenden Analysen. Der konfigurierte Owner kann Modellprompts lesen
 und kopieren; Änderungen bleiben Administratoren vorbehalten.
-Ist der GPU-Endpunkt nicht verfügbar, startet keine Bildanalyse; ein neuer
-manueller Lauf oder der nächste tägliche Lauf versucht es erneut.
+Ist der Modellserver vor oder während eines Laufs nicht verfügbar, pausiert
+der Worker die Verarbeitung. Verbindungsabbrüche, fehlende Streamabschlüsse
+und erkannte LM-Studio-SDK-Verbindungsfehler beenden den Lauf sofort, ohne
+weitere Dateien herunterzuladen oder die aktuelle Datei als fehlerhaft zu zählen.
+Bei einer allgemeinen SDK-Fehlermeldung prüft der Worker die Modellverfügbarkeit
+vor einem Korrekturversuch erneut. Die betroffene Datei bleibt offen, bereits
+erfolgreiche Stufen bleiben im Cache und fertige Ergebnisse bleiben erhalten.
+Die Pause und ihr Grund bleiben auch nach einem Worker-Neustart sichtbar.
+Nach Wiederherstellung des Servers wird mit **Fortsetzen** oder **Lauf starten**
+weitergearbeitet; der Zeitplan hebt diese Pause nicht automatisch auf.
+Echte Datei-/Ergebnisfehler und das Dateizeitbudget behalten ihre bisherige
+Behandlung: die einzelne Datei erhält einen Fehler, der Lauf arbeitet weiter.
 
 Die konfigurierte Person kann eigene Ordner, Ausschlüsse, Laufgrenzen und
 Zeitplan verwalten. Modellserver, Prompts, API-Keys und Zielbenutzer ändern nur

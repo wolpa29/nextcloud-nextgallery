@@ -42,6 +42,7 @@ class State {
             elseif ($action === 'pause') { $value['paused'] = true; }
             else { $value['paused'] = false; $value['requested'] = true; $value['request_id'] = bin2hex(random_bytes(12)); }
             if ($action === 'retry') { $value['retry_errors'] = true; }
+            unset($value['pause_reason']);
             $value['updated_at'] = time();
             $this->atomic('control.json', $value);
             return $value;

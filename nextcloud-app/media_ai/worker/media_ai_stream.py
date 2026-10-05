@@ -1,5 +1,6 @@
 """OpenAI-compatible SSE reader and incremental repetition guard."""
 from media_ai_budget import check_budget
+from media_ai_errors import ServiceUnavailable
 from collections import deque, Counter
 import json
 import re
@@ -15,6 +16,10 @@ class StreamFailure(RuntimeError):
 
 
 class StreamLoop(StreamFailure):
+    pass
+
+
+class StreamServerFailure(StreamFailure):
     pass
 
 
@@ -170,7 +175,8 @@ def chat_stream(open_response, url, payload, headers, timeout, repetitions=5, nu
             try:
                 line = response.readline(1024 * 1024 + 1)
             except (OSError, HTTPException) as error:
-                raise StreamFailure('Modellstream unterbrochen: '+str(error), assembled()) from None
+                check_budget()
+                raise ServiceUnavailable('Verbindung zum Modellserver unterbrochen ('+type(error).__name__+').') from None
             check_budget()
             if not line:
                 break
@@ -190,7 +196,9 @@ def chat_stream(open_response, url, payload, headers, timeout, repetitions=5, nu
             event = json.loads(data)
             if not isinstance(event, dict): raise StreamFailure('Ungueltiges Modellstream-Objekt.', assembled())
             if 'error' in event:
-                raise StreamFailure('Modellserver meldet einen Stream-Fehler.', assembled())
+                if isinstance(event['error'], dict) and event['error'].get('code') == 'service_unavailable':
+                    raise ServiceUnavailable('LM Studio ist nicht erreichbar oder die Verbindung wurde unterbrochen.')
+                raise StreamServerFailure('Modellserver meldet einen Stream-Fehler.', assembled())
             if isinstance(event.get('usage'), dict):
                 usage = event['usage']
             choices = event.get('choices') or []
@@ -223,7 +231,7 @@ def chat_stream(open_response, url, payload, headers, timeout, repetitions=5, nu
                 last_progress=time.monotonic()
                 on_progress(assembled())
         if not done:
-            raise StreamFailure('Modellstream endete ohne Abschlussmarkierung.', assembled())
+            raise ServiceUnavailable('Modellstream endete ohne Abschlussmarkierung; Verbindung unterbrochen.')
         for channel, guard in guards.items():
             try:
                 guard.feed('', final=True)

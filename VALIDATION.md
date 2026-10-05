@@ -276,3 +276,15 @@ normaler Kassenzettel erlaubt, manuelle Wiederholung verarbeitet erneut und
 verwendet die erfolgreiche Vision-Stufe weiter. Nutzer hat in LM Studio
 Reasoning auf Medium gesetzt und einen zweiten vollständigen eigenen
 KI-/Log-Reset mit frischem Juni-Lauf angefordert.
+
+
+## 2026-10-06: Bei LM-Studio-Ausfall dauerhaft pausieren
+
+- Ursache: SDK-Fehler wurden als allgemeine Streamfehler behandelt. Nach bis zu vier Korrekturversuchen markierte der Worker die Datei als fehlerhaft und ging zur nächsten über; der bestehende Textvergleich auf `Connection unavailable` erkannte diese SDK-Meldung nicht. Die Erreichbarkeitsprüfung fand nur am Anfang des Laufs statt.
+- Getrennte Fehlerklasse für Dienstausfälle: HTTP-Verbindungsfehler, infrastrukturelle HTTP-Statuscodes, Streamabbrüche/fehlende Abschlussmarkierung und erkannte SDK-Verbindungsfehler stoppen den Lauf. Allgemeine SDK-Streamfehler prüfen vor einer Korrektur erneut die Modellverfügbarkeit.
+- Die betroffene Datei bleibt offen, ohne zusätzlichen Fehlerversuch oder Wartefrist. Erfolgreiche Stufencaches, fertige Ergebnisse und die verbleibende Warteschlange bleiben erhalten. Der Daemon speichert die Pause mit Grund unter der gemeinsamen Steuerungssperre; der Zeitplan hebt sie nicht auf. Ein expliziter Start/Fortsetzen entfernt den alten Pausengrund. Die Oberfläche zeigt Grund und Aktivitätsereignis. Datei-/Schemafehler und das gemeinsame Dateizeitbudget behalten ihre bisherige Behandlung.
+- Lokal: 110 Python-Tests, 5 Node-Transporttests, 50 PHP-Admin-/Owner-Prüfungen, PHP-/JavaScript-Syntax und `git diff --check` bestanden. Tests umfassen Ausfall während OCR/Video, erfolgreichen Vorgänger, erhaltene Caches, Fortsetzung, Neustart mit gespeichertem Pausengrund, Streamabbruch, allgemeine SDK-Fehler und echte SDK-Verbindungsverweigerung an einem lokalen Testport.
+- Auf dem Nextcloud-Server: dieselben 110 Python-Tests, 5 Node-Transporttests und 50 PHP-Prüfungen mit isolierten synthetischen Medien/Mock-Endpunkten bestanden. Keine privaten Originale für Tests gelesen.
+- Neun installierte Dateien gegen getestete SHA256 verifiziert. Installation während pausiertem Worker mit atomarem Dateiaustausch, Code-/SQLite-/Steuerungsbackup und Rückrollpfad. Backup: `/root/media-ai-backups/20261005-221759-service-outage`. Die UTC-Zeit im Backupnamen entspricht 06.10.2026 in Europe/Vienna.
+- Vor Wiederaufnahme identischer logischer SQLite-Inhalt (inklusive Warteschlange und Stufencaches) und identischer Hash der wirksamen Einstellungen. Bestand bei Installation: 2954 fertig, 25153 offen, 803 Fehler; 795 Fehler verwenden die alte allgemeine Vision-Streammeldung. Diese Meldung allein unterscheidet Ausfall und Modell-/Kontextfehler nicht sicher; Altfehler wurden nicht pauschal zurückgesetzt.
+- Nach Installation beide Modellendpunkte erreichbar. Der zuvor laufende Scan erhält eine Fortsetzungsanforderung ohne pauschales Wiederholen von Altfehlern. Ein echter Ausfall des produktiven LM-Studio-Servers wurde nicht absichtlich ausgelöst.

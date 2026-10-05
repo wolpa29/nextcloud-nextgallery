@@ -14,6 +14,39 @@ w=importlib.util.module_from_spec(spec);spec.loader.exec_module(w)
 from test_pipeline import Source,Model,Publisher
 
 class WorkerTests(unittest.TestCase):
+    def test_service_outage_pauses_daemon_and_survives_restart_until_explicit_resume(self):
+        class API:
+            url='https://example.test/native/'
+        class Reporter:
+            def __init__(self): self.value={}; self.events=[]
+            def update(self, **fields): self.value.update(fields)
+            def event(self, event, **fields): self.events.append((event,fields))
+        config={'user_id':'paul','folders':['/'],'exclude_folders':[],
+                'vision':{'url':'http://localhost/v1','model':'vision'},
+                'ocr':{'url':'http://localhost/v1','model':'ocr'},
+                'enabled':True,'schedule_time':'00:00','timezone':'Europe/Vienna'}
+        with tempfile.TemporaryDirectory() as d:
+            directory=Path(d); reporter=Reporter()
+            control={'paused':False,'requested':False,'request_id':'old','reset_requested':False}
+            w.atomic(directory/'control.json',control)
+            unavailable={'state':'deferred','reason':'LM Studio offline','processed':0,'errors':0}
+            with patch.object(p, 'run', return_value=unavailable):
+                result=w.cycle(API(),config,directory,reporter,control)
+            saved=w.read(directory/'control.json',{})
+            self.assertTrue(saved['paused']); self.assertFalse(saved['requested'])
+            self.assertEqual(result['state'],'paused'); self.assertEqual(reporter.value['message'],'LM Studio offline')
+            self.assertEqual(w.waiting_status(saved)['message'],'LM Studio offline')
+            self.assertFalse(w.is_due(config,saved,{}))  # No daily automatic restart while paused.
+            restarted=w.Reporter(directory)
+            try:
+                restarted.update(**w.waiting_status(w.read(directory/'control.json',{})))
+                self.assertEqual(restarted.value['state'],'paused')
+                self.assertEqual(restarted.value['message'],'LM Studio offline')
+            finally: restarted.close()
+            resumed={**saved,'paused':False,'requested':True}; resumed.pop('pause_reason')
+            self.assertEqual(w.waiting_status(resumed)['message'],'')
+            self.assertTrue(w.is_due(config,resumed,{}))
+
     def test_unlimited_scan_processes_more_than_former_default_batch(self):
         with tempfile.TemporaryDirectory() as d:
             store=p.Store(Path(d)/'state.sqlite3');source=Source()

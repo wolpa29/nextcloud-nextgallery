@@ -28,3 +28,15 @@ export function predictionConfig(payload) {
 export function finishReason(stop) {
   return ['eosFound','stopStringFound'].includes(stop) ? 'stop' : stop === 'maxPredictedTokensReached' ? 'length' : stop;
 }
+
+export function requestFailure(error) {
+  const codes = new Set(['ECONNREFUSED','ECONNRESET','ENOTFOUND','EAI_AGAIN','EHOSTUNREACH','ENETUNREACH','ETIMEDOUT','EPIPE']);
+  const seen = new Set();
+  let unavailable = false;
+  for (let cause = error; cause && !seen.has(cause); cause = cause.cause) {
+    seen.add(cause);
+    if (codes.has(cause.code) || /websocket (?:connection closed|timed out)|failed to connect to lm studio/i.test(cause.message || '')) unavailable = true;
+  }
+  return {code:unavailable ? 'service_unavailable' : 'inference_error',
+    message:unavailable ? 'LM Studio connection unavailable.' : 'LM Studio SDK request failed; check model availability, context and encoder settings.'};
+}
