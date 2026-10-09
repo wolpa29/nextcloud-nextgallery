@@ -47,6 +47,33 @@ class WorkerTests(unittest.TestCase):
             self.assertEqual(w.waiting_status(resumed)['message'],'')
             self.assertTrue(w.is_due(config,resumed,{}))
 
+    def test_app_move_keeps_completed_queue_and_revision_without_new_inference(self):
+        from test_pipeline import image_bytes
+        class API(w.API):
+            def call(self, endpoint, body=None):
+                if endpoint.startswith('inventory?'):
+                    return {'items':[{'file_id':7,'path':'Synthetic/test.png','etag':'v1','size':100,'mime':'image/png'}], 'cursor':None}
+                if endpoint.startswith('resolve?'): return {'file_id':7,'etag':'v1'}
+                if endpoint=='publish': return {'stored':True}
+                raise AssertionError(endpoint)
+        class Source(w.NativeSource):
+            def read(self, item, maximum): return image_bytes()
+            def download_to(self, item, destination, maximum): return destination.write_bytes(image_bytes())
+        old=API({'url':'https://example.test','token':'synthetic'})
+        new=API({'url':'https://example.test','token':'synthetic','app_id':'chronicle'})
+        config={'user_id':'synthetic','folders':['/Synthetic'],'exclude_folders':[]}
+        models={stage:Model(stage) for stage in ['vision','ocr']}
+        with tempfile.TemporaryDirectory() as d:
+            store=p.Store(Path(d)/'queue.sqlite3')
+            first=p.run({},store,Source(old,config),models,publisher=w.NativePublisher(old,config))
+            self.assertEqual(first['processed'],1)
+            events=[]
+            second=p.run({},store,Source(new,config),models,publisher=w.NativePublisher(new,config),observe=lambda event,**fields:events.append(event))
+            self.assertEqual(second['processed'],0)
+            self.assertEqual(second['stats'],{'done':1})
+            self.assertNotIn('stage_start',events)
+            store.db.close()
+
     def test_unlimited_scan_processes_more_than_former_default_batch(self):
         with tempfile.TemporaryDirectory() as d:
             store=p.Store(Path(d)/'state.sqlite3');source=Source()

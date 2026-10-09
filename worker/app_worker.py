@@ -79,7 +79,8 @@ class NativeSource:
 
 class NativePublisher:
     def __init__(self,api,config):
-        self.api=api; self.config={'url':api.url,'user_id':config['user_id']}
+        # Publication identity participates in the analysis revision; keep it stable across the app move.
+        self.api=api; self.config={'url':getattr(api,'scope_url',api.url),'user_id':config['user_id']}
     def capture(self,item,source):
         target=self.api.call('resolve?file_id='+item.locator)
         if target['etag']!=item.etag: raise p.PipelineError('Image changed before analysis')
