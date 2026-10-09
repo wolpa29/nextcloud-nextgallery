@@ -1,6 +1,9 @@
 <?php
 return ['routes' => [
  ['name'=>'page#index', 'url'=>'/', 'verb'=>'GET'],
+ ['name'=>'page#ai', 'url'=>'/ai', 'verb'=>'GET'],
+ ['name'=>'api#analysis', 'url'=>'/api/analysis/{id}', 'verb'=>'GET', 'requirements'=>['id'=>'\\d+']],
+ ['name'=>'api#search', 'url'=>'/api/search', 'verb'=>'GET'],
  ['name'=>'page#offline', 'url'=>'/offline', 'verb'=>'GET'],
  ['name'=>'page#worker', 'url'=>'/sw.js', 'verb'=>'GET'],
  ['name'=>'api#settings', 'url'=>'/api/settings', 'verb'=>'GET'],
@@ -12,4 +15,28 @@ return ['routes' => [
  ['name'=>'api#scan', 'url'=>'/api/scan', 'verb'=>'POST'],
  ['name'=>'media#preview', 'url'=>'/preview/{id}', 'verb'=>'GET', 'requirements'=>['id'=>'\\d+']],
  ['name'=>'media#original', 'url'=>'/original/{id}', 'verb'=>'GET', 'requirements'=>['id'=>'\\d+']],
+
+ ['name'=>'ai_preferences#get', 'url'=>'/ai/preferences', 'verb'=>'GET'],
+ ['name'=>'ai_preferences#save', 'url'=>'/ai/preferences', 'verb'=>'POST'],
+ ['name'=>'ai_admin#config', 'url'=>'/ai/admin/config', 'verb'=>'GET'],
+ ['name'=>'ai_admin#save', 'url'=>'/ai/admin/config', 'verb'=>'POST'],
+ ['name'=>'ai_admin#folders', 'url'=>'/ai/admin/folders', 'verb'=>'GET'],
+ ['name'=>'ai_admin#library', 'url'=>'/ai/admin/library', 'verb'=>'GET'],
+ ['name'=>'ai_admin#status', 'url'=>'/ai/admin/status', 'verb'=>'GET'],
+ ['name'=>'ai_admin#control', 'url'=>'/ai/admin/control', 'verb'=>'POST'],
+ ['name'=>'ai_admin#logs', 'url'=>'/ai/admin/logs', 'verb'=>'GET'],
+ ['name'=>'ai_admin#result', 'url'=>'/ai/admin/result', 'verb'=>'GET'],
+ ['name'=>'ai_admin#maintenance', 'url'=>'/ai/admin/maintenance', 'verb'=>'POST'],
+ ['name'=>'ai_admin#test', 'url'=>'/ai/admin/test', 'verb'=>'POST'],
+ ['name'=>'ai_worker#config', 'url'=>'/ai/worker/config', 'verb'=>'GET'],
+ ['name'=>'ai_worker#inventory', 'url'=>'/ai/worker/inventory', 'verb'=>'GET'],
+ ['name'=>'ai_worker#resolve', 'url'=>'/ai/worker/resolve', 'verb'=>'GET'],
+ ['name'=>'ai_worker#image', 'url'=>'/ai/worker/image', 'verb'=>'GET'],
+ ['name'=>'ai_worker#reset', 'url'=>'/ai/worker/reset', 'verb'=>'POST'],
+ ['name'=>'ai_worker#publish', 'url'=>'/ai/worker/publish', 'verb'=>'POST'],
+], 'ocs'=>[
+ ['name'=>'ai_metadata#resolve', 'url'=>'/ai/api/v1/resolve', 'verb'=>'GET'],
+ ['name'=>'ai_metadata#upsert', 'url'=>'/ai/api/v1/metadata', 'verb'=>'POST'],
+ ['name'=>'ai_metadata#statuses', 'url'=>'/ai/api/v1/statuses', 'verb'=>'POST'],
+ ['name'=>'ai_metadata#show', 'url'=>'/ai/api/v1/metadata', 'verb'=>'GET'],
 ]];

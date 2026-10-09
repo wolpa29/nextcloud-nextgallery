@@ -5,7 +5,7 @@ const root=document.getElementById('chronicle');
 if(root) start().catch(e=>{const m=root.querySelector('#ch-message');m.hidden=false;m.textContent=e.message||tr('NextGallery konnte nicht gestartet werden.');});
 async function start(){
  const ctx=JSON.parse(root.dataset.context),$=id=>root.querySelector('#'+id),base=ctx.base.replace(/\/$/,'');
- const icons={gallery:'<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="16" cy="8" r="1.5"/><path d="m4 18 5-7 6 7 3-4 3 4"/>',map:'<path d="m3 5 6-2 6 2 6-2v16l-6 2-6-2-6 2ZM9 3v16m6-14v16"/>',download:'<path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/>',settings:'<path d="M4 7h16M4 17h16M8 4v6m8 4v6"/>',refresh:'<path d="M20 10a8 8 0 1 0-2 8M20 3v7h-7"/>',folder:'<path d="M3 7V4h7l2 3h9v13H3Z"/>',play:'<path d="m8 4 12 8-12 8Z"/>'};
+ const icons={search:'<circle cx="10" cy="10" r="6"/><path d="m15 15 6 6"/>',gallery:'<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="16" cy="8" r="1.5"/><path d="m4 18 5-7 6 7 3-4 3 4"/>',map:'<path d="m3 5 6-2 6 2 6-2v16l-6 2-6-2-6 2ZM9 3v16m6-14v16"/>',download:'<path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/>',settings:'<path d="M4 7h16M4 17h16M8 4v6m8 4v6"/>',refresh:'<path d="M20 10a8 8 0 1 0-2 8M20 3v7h-7"/>',folder:'<path d="M3 7V4h7l2 3h9v13H3Z"/>',play:'<path d="m8 4 12 8-12 8Z"/>'};
  const icon=name=>`<svg class="ch-icon" viewBox="0 0 24 24" aria-hidden="true">${icons[name]||icons.gallery}</svg>`;
  root.querySelectorAll('[data-icon]').forEach(n=>n.innerHTML=icon(n.dataset.icon));
  let settings=ctx.settings,cacheKey=ctx.cacheKey,db=null,offlineItems=[],offlineMeta=null,offlineMode=ctx.offline||!navigator.onLine;
@@ -73,6 +73,7 @@ async function start(){
   $('ch-grouping').value=settings.grouping;$('ch-order').value=settings.order;$('ch-density').value=settings.tile;$('ch-date-mode').value=settings.mode;$('ch-timezone').value=settings.timezone;$('ch-offline-limit').value=settings.offlineLimit;
   $('ch-source-count').textContent=settings.roots.length===1?tr('Ein Ordner ausgewählt'):settings.roots.length?tr`${settings.roots.length} Ordner ausgewählt`:tr('Keine Ordner ausgewählt');
   draftRoots=[...settings.roots];renderRoots();$('ch-refresh').disabled=offlineMode;for(const id of ['ch-add-root','ch-save-settings','ch-reindex','ch-pin'])$(id).disabled=offlineMode;
+  if($('ch-ai-link'))$('ch-ai-link').hidden=offlineMode;
   $('ch-connection').hidden=!offlineMode;$('ch-live').hidden=!offlineMode||ctx.offline;$('ch-open-offline').href=base+'/offline';
  }
  function renderRoots(){const list=$('ch-roots');list.replaceChildren();for(const path of draftRoots){const n=document.createElement('div');n.className='ch-root';const text=document.createElement('span');text.textContent=path;const b=document.createElement('button');b.textContent='×';b.setAttribute('aria-label',tr`${path} aus Galerie entfernen`);b.disabled=offlineMode;b.onclick=()=>{draftRoots=draftRoots.filter(p=>p!==path);renderRoots();};n.append(text,b);list.append(n);}}
@@ -122,7 +123,7 @@ async function start(){
   const current=geometry.sections.find(s=>s.end>scroll.scrollTop+40);$('ch-floating-date').textContent=current?label(current.key):'';rail.querySelectorAll('button').forEach(b=>b.classList.toggle('active',b.dataset.period===current?.key));
  }
  scroll.addEventListener('scroll',schedule,{passive:true});new ResizeObserver(()=>{compute();rendered.clear();canvas.replaceChildren();schedule();}).observe(scroll);
- async function changeView(next){view=next;for(const name of ['timeline','map','offline','settings'])$('ch-'+name+'-view').hidden=name!==view;root.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view));$('ch-title').textContent={timeline:tr('Zeitleiste'),map:tr('Karte'),offline:tr('Offline'),settings:tr('Einstellungen')}[view];
+ async function changeView(next){view=next;for(const name of ['timeline','map','offline','settings','search'])$('ch-'+name+'-view').hidden=name!==view;root.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view));$('ch-title').textContent={search:tr('Suche'),timeline:tr('Zeitleiste'),map:tr('Karte'),offline:tr('Offline'),settings:tr('Einstellungen')}[view];
   if(view==='timeline'){compute();schedule();}if(view==='offline')offlineStatus();if(view==='map')await showMap();if(!ctx.embedded)location.hash=next;
  }
  root.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>changeView(b.dataset.view).catch(handleError));
@@ -142,8 +143,40 @@ async function start(){
  on('ch-refresh','click',()=>scan(true));on('ch-reindex','click',()=>scan(true));
  on('ch-show-saved','click',async()=>{offlineMode=true;settings={...offlineMeta.settings};await load();await changeView('timeline');message(tr('Gespeicherte Vorschauen · auf diesem Gerät verfügbar.'));});
  on('ch-live','click',async()=>{offlineMode=false;try{await load();message('');}catch(e){offlineMode=true;await load();throw e;}});
+ let searchOffset=0,searchMore=false,searchGeneration=0,searchHistory=[];
+ async function runSearch(offset=0){
+  const generation=++searchGeneration,query=$('ch-search-query').value.trim();
+  $('ch-search-status').textContent=tr('Wird geladen …');$('ch-search-prev').disabled=true;$('ch-search-next').disabled=true;
+  let result;
+  if(offlineMode){const words=query.toLocaleLowerCase().match(/[\p{L}\p{N}_]+/gu)||[];const found=words.length?offlineItems.filter(i=>words.some(w=>(i.name+' '+i.path).toLocaleLowerCase().includes(w))):[];result={items:found.slice(offset,offset+60),more:found.length>offset+60,next:offset+60};}
+  else result=await api('search?'+new URLSearchParams({query,offset,limit:60}));
+  if(generation!==searchGeneration)return;
+  searchOffset=offset;searchMore=result.more;
+  const host=$('ch-search-results');host.replaceChildren();
+  for(const item of result.items){const tile=document.createElement('button');tile.className='ch-search-tile';tile.setAttribute('aria-label',item.name);tile.onclick=()=>openViewer(item,result.items);const image=document.createElement('img');image.alt='';image.loading='lazy';const url=await imageURL(item);if(generation!==searchGeneration)return;if(url)image.src=url;const name=document.createElement('span');name.textContent=item.name;tile.append(image,name);host.append(tile);}
+  $('ch-search-status').textContent=result.items.length?tr`${count(result.items.length)} Treffer auf dieser Seite`:tr('Keine Treffer. Versuche einen anderen Suchbegriff.');
+  if(offlineMode)$('ch-search-status').textContent+=' · '+tr('Offline-Suche in gespeicherten Dateinamen und Ordnern.');
+  $('ch-search-prev').disabled=!searchHistory.length;$('ch-search-next').disabled=!searchMore;
+  $('ch-search-next').dataset.offset=String(result.next??offset+60);
+ }
+ on('ch-search-form','submit',async e=>{e.preventDefault();searchHistory=[];await runSearch();});
+ on('ch-search-next','click',async()=>{searchHistory.push(searchOffset);await runSearch(Number($('ch-search-next').dataset.offset));});
+ on('ch-search-prev','click',()=>runSearch(searchHistory.pop()??0));
+ let analysisGeneration=0;
+ async function showAnalysis(item){
+  const generation=++analysisGeneration,details=$('ch-analysis'),body=$('ch-analysis-body');details.open=false;details.hidden=offlineMode;body.replaceChildren();
+  if(offlineMode)return;
+  details.ontoggle=async()=>{
+   if(!details.open||body.childNodes.length)return;
+   const status=document.createElement('p');status.textContent=tr('Wird geladen …');body.append(status);
+   try{const r=await api('analysis/'+item.id);if(generation!==analysisGeneration)return;body.replaceChildren();
+    if(!r.available){status.textContent=r.stale?tr('Die Datei wurde geändert. Eine neue Analyse steht aus.'):tr('Für dieses Medium liegt noch keine Analyse vor.');body.append(status);return;}
+    const a=r.metadata.analysis;for(const text of [a.vision.description,[...(a.vision.tags||[]),...(a.vision.objects||[])].join(' · '),a.ocr.text]){if(!text)continue;const p=document.createElement('p');p.textContent=text;body.append(p);}
+   }catch(e){if(generation===analysisGeneration)status.textContent=e.message;}
+  };
+ }
  async function openViewer(item,list){
-  currentItem=item;if(list)viewerList=list;else if(offlineMode)viewerList=summary.items;else {const cached=[...blocks.values()].flatMap(b=>b.items||[]);viewerList=[...new Map(cached.map(i=>[i.id,i])).values()].sort((a,b)=>settings.order==='asc'?a.date.sort.localeCompare(b.date.sort)||a.id-b.id:b.date.sort.localeCompare(a.date.sort)||b.id-a.id);}
+  showAnalysis(item);currentItem=item;if(list)viewerList=list;else if(offlineMode)viewerList=summary.items;else {const cached=[...blocks.values()].flatMap(b=>b.items||[]);viewerList=[...new Map(cached.map(i=>[i.id,i])).values()].sort((a,b)=>settings.order==='asc'?a.date.sort.localeCompare(b.date.sort)||a.id-b.id:b.date.sort.localeCompare(a.date.sort)||b.id-a.id);}
   $('ch-viewer-name').textContent=item.name;$('ch-viewer-date').textContent=label(item.date.date)+(item.date.precision!=='day'?' · '+(item.date.precision==='month'?tr('Monat bekannt'):tr('Jahr bekannt')):'');
   const source={folder:tr('Ordner'),metadata:tr('Aufnahmedaten'),filename:tr('Dateiname'),mtime:tr('Dateiänderung'),'folder+metadata':tr('Ordner & Aufnahmedaten'),'folder+filename':tr('Ordner & Dateiname')}[item.date.source]||item.date.source;
   $('ch-viewer-detail').textContent=tr`${item.path} · Datum: ${source}${item.date.conflict?tr(' · abweichendes Datum in Ordner/Metadaten'):''}${offlineMode?tr(' · gespeicherte Vorschau'):''}`;
@@ -154,7 +187,7 @@ async function start(){
   const at=viewerList.findIndex(i=>i.id===item.id);$('ch-viewer-prev').disabled=at<=0;$('ch-viewer-next').disabled=at<0||at>=viewerList.length-1;
   if(!$('ch-viewer').open)$('ch-viewer').showModal();
  }
- function closeViewer(){$('ch-viewer').close();$('ch-viewer-media').replaceChildren();}
+ function closeViewer(){analysisGeneration++;$('ch-viewer').close();$('ch-viewer-media').replaceChildren();}
  async function nextViewer(delta){const at=viewerList.findIndex(i=>i.id===currentItem?.id),next=viewerList[at+delta];if(next)await openViewer(next,viewerList);}
  on('ch-viewer-close','click',closeViewer);on('ch-viewer-prev','click',()=>nextViewer(-1));on('ch-viewer-next','click',()=>nextViewer(1));on('ch-viewer','close',()=>{$('ch-viewer-media').replaceChildren();});
  document.addEventListener('keydown',e=>{if(!$('ch-viewer').open||window.OCP?.Accessibility?.disableKeyboardShortcuts?.())return;if(e.key==='ArrowLeft')nextViewer(-1).catch(handleError);if(e.key==='ArrowRight')nextViewer(1).catch(handleError);});
@@ -206,10 +239,10 @@ async function start(){
    const blobs={};for(const item of offlineItems){const blob=await readBlob(db,item.id);if(!blob)continue;blobs[item.id]=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(new Error(tr('Vorschau konnte nicht exportiert werden.')));r.readAsDataURL(blob);});}
    const shell=await caches.open('chronicle-shell-'+cacheKey);
    const texts=await Promise.all(['css/main.css','js/main.js','js/map.js'].map(async p=>{const cached=await shell.match(ctx.assets+p);if(!cached)throw new Error(tr('Speichere die Sammlung erneut, um die Offline-Datei zu erstellen.'));return cached.text();}));
-   const copy=root.cloneNode(true);const download=copy.querySelector('#ch-download-file');if(download){download.removeAttribute('href');download.hidden=true;}copy.dataset.context=JSON.stringify({...ctx,offline:true,portable:true,settings:offlineMeta.settings,items:offlineItems,blobs,meta:offlineMeta});
-   for(const name of ['timeline','map','offline','settings'])copy.querySelector('#ch-'+name+'-view').hidden=name!=='timeline';
+   const copy=root.cloneNode(true);const download=copy.querySelector('#ch-download-file');if(download){download.removeAttribute('href');download.hidden=true;}copy.dataset.context=JSON.stringify({...ctx,offline:true,portable:true,aiUrl:null,settings:offlineMeta.settings,items:offlineItems,blobs,meta:offlineMeta});
+   for(const name of ['timeline','map','offline','settings','search'])copy.querySelector('#ch-'+name+'-view').hidden=name!=='timeline';
    copy.querySelectorAll('[data-view]').forEach(button=>button.classList.toggle('active',button.dataset.view==='timeline'));
-   copy.querySelector('#ch-canvas').replaceChildren();copy.querySelector('#ch-rail').replaceChildren();copy.querySelector('#ch-map').replaceChildren();copy.querySelector('#ch-title').textContent=tr('Zeitleiste');copy.querySelector('#ch-message').hidden=true;
+   copy.querySelector('#ch-search-results').replaceChildren();copy.querySelector('#ch-ai-link')?.remove();copy.querySelector('#ch-canvas').replaceChildren();copy.querySelector('#ch-rail').replaceChildren();copy.querySelector('#ch-map').replaceChildren();copy.querySelector('#ch-title').textContent=tr('Zeitleiste');copy.querySelector('#ch-message').hidden=true;
    copy.querySelectorAll('dialog').forEach(d=>d.removeAttribute('open'));
    const code=s=>s.replace(/<\/script/gi,'<\\/script');
    const html='<!doctype html><html lang="'+(locale.startsWith('de')?'de':'en')+'"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NextGallery · Offline-Sammlung</title><style>'+texts[0]+'</style><body class="chronicle-standalone">'+copy.outerHTML+'<script>'+code(texts[2])+'</script><script>'+code(texts[1])+'</script></body></html>';
@@ -221,6 +254,6 @@ async function start(){
  window.addEventListener('online',()=>{if(ctx.offline){message(tr('Verbindung wieder verfügbar. Öffne NextGallery in Nextcloud für aktuelle Medien.'));return;}offlineMode=false;message('');load().catch(handleError);});
  if(!ctx.offline){try{const r=await api('settings');settings=r.settings;cacheKey=r.cacheKey;await clearOld();}catch(e){offlineMode=true;message(e.message+tr(' Gespeicherte Vorschauen werden geladen.'));}}
  await storage();if(ctx.offline&&offlineMeta)settings=offlineMeta.settings;updateSettings();await load();
- const initial=location.hash.slice(1);if(['timeline','map','offline','settings'].includes(initial))await changeView(initial);
+ const initial=location.hash.slice(1);if(['timeline','map','offline','settings','search'].includes(initial))await changeView(initial);
  if(ctx.offline)message(tr('Offline-Sammlung · Zum Aktualisieren NextGallery in Nextcloud öffnen.'));
 }

@@ -6,8 +6,8 @@ use OCP\User\Events\UserDeletedEvent;
 use OCA\Chronicle\Service\Library;
 /** @implements IEventListener<UserDeletedEvent> */
 class UserDeleted implements IEventListener {
- public function __construct(private Library $library) {}
+ public function __construct(private Library $library,private \OCA\Chronicle\AI\Service\Metadata $aiMetadata) {}
  public function handle(Event $event):void {
-  if($event instanceof UserDeletedEvent)$this->library->forget($event->getUid());
+  if($event instanceof UserDeletedEvent){$this->library->forget($event->getUid());$this->aiMetadata->reset($event->getUid());}
  }
 }
