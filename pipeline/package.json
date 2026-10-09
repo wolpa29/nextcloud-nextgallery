@@ -1,0 +1,13 @@
+{
+  "name": "media-ai-nextcloud-ui",
+  "private": true,
+  "scripts": {
+    "build:files": "esbuild frontend/files-status.js --bundle --minify --format=iife --loader:.svg=text --outfile=nextcloud-app/media_ai/js/files-status.js"
+  },
+  "devDependencies": {
+    "@nextcloud/files": "3.12.2",
+    "buffer": "6.0.3",
+    "esbuild": "0.25.12",
+    "string_decoder": "1.3.0"
+  }
+}

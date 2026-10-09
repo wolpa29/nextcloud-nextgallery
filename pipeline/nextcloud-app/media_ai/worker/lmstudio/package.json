@@ -1,0 +1,6 @@
+{
+  "name": "media-ai-lmstudio-transport",
+  "private": true,
+  "type": "module",
+  "dependencies": {"@lmstudio/sdk": "2.0.0"}
+}

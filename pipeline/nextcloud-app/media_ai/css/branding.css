@@ -1,0 +1,19 @@
+/* The Files detail tab uses the same symbol as the app menu and settings. */
+.icon-media-ai {
+ background-image: none !important;
+ background-color: var(--color-main-text, #172127);
+ -webkit-mask: url('../img/app.svg') center / contain no-repeat;
+ mask: url('../img/app.svg') center / contain no-repeat;
+}
+
+/* Keep the compact mark aligned with Nextcloud's normal icon dimensions. */
+#app-navigation.mai-navigation .mai-brand-mark {
+ width: 30px !important;
+ height: 30px !important;
+}
+@media (max-width: 850px) {
+ #app-navigation.mai-navigation .mai-brand-mark {
+  width: 25px !important;
+  height: 25px !important;
+ }
+}
