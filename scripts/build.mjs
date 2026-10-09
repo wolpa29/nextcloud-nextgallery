@@ -4,10 +4,12 @@ await writeFile('templates/en.json',await readFile('frontend/en.json','utf8'));
 await build({entryPoints:['frontend/main.js'],bundle:true,minify:true,format:'iife',target:['es2022'],outfile:'js/main.js'});
 await build({entryPoints:['frontend/map.js'],bundle:true,minify:true,format:'iife',target:['es2022'],outfile:'js/map.js'});
 await build({entryPoints:['frontend/sw.js'],bundle:false,minify:true,target:['es2022'],outfile:'js/sw.js'});
-const own=await readFile('css/main.css','utf8');
+const theme=await readFile('css/app-theme.css','utf8');
+const themeMarker='/* NEXTGALLERY APP THEME */';
+const own=(await readFile('css/main.css','utf8')).split(themeMarker)[0];
 const marker='/* LEAFLET STYLES */';
 const styles=await Promise.all(['leaflet/dist/leaflet.css','leaflet.markercluster/dist/MarkerCluster.css','leaflet.markercluster/dist/MarkerCluster.Default.css'].map(p=>readFile('node_modules/'+p,'utf8')));
-await writeFile('css/main.css',own.split(marker)[0]+marker+'\n'+styles.join('\n').replace(/url\([^)]*\)/g,'none'));
+await writeFile('css/main.css',own.split(marker)[0]+themeMarker+'\n'+theme+'\n'+marker+'\n'+styles.join('\n').replace(/url\([^)]*\)/g,'none'));
 
 await build({entryPoints:['frontend/ai-files-status.js'],bundle:true,minify:true,format:'iife',loader:{'.svg':'text'},outfile:'js/ai-files-status.js'});
 

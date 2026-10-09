@@ -1,3 +1,4 @@
+@import url('app-theme.css?v=0.3.1');
 /* The Files detail tab uses the same symbol as the app menu and settings. */
 .icon-media-ai {
  background-image: none !important;
