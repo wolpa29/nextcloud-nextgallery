@@ -1,13 +1,13 @@
 <?php
 declare(strict_types=1);
-namespace OCA\Chronicle\Controller;
+namespace OCA\Nextgallery\Controller;
 use OCP\{IRequest,IUserSession};
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\JSONResponse;
 use OCP\AppFramework\Http\Attribute\{NoAdminRequired,NoCSRFRequired};
-use OCA\Chronicle\Service\Library;
+use OCA\Nextgallery\Service\Library;
 class ApiController extends Controller {
- public function __construct(IRequest $request,private IUserSession $session,private Library $library,private \OCA\Chronicle\Service\GallerySearch $searchService,private \OCA\Chronicle\AI\Service\Metadata $aiMetadata) {parent::__construct('chronicle',$request);}
+ public function __construct(IRequest $request,private IUserSession $session,private Library $library,private \OCA\Nextgallery\Service\GallerySearch $searchService,private \OCA\Nextgallery\AI\Service\Metadata $aiMetadata) {parent::__construct('nextgallery',$request);}
  private function uid():string {return $this->session->getUser()->getUID();}
  private function response(array $v):JSONResponse {return new JSONResponse($v,200,['Cache-Control'=>'private, no-store']);}
  #[NoAdminRequired] #[NoCSRFRequired]

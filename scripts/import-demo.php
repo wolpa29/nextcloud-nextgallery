@@ -4,10 +4,10 @@ if (PHP_SAPI!=='cli') exit(1);
 define('OC_CONSOLE',1);
 require '/var/www/nextcloud/lib/base.php';
 set_exception_handler(static function($e){fwrite(STDERR,$e->getMessage()."\n");exit(1);});
-\OC_App::loadApp('chronicle');
-$uid=$argv[1]??'paul';$source=$argv[2]??'/tmp/chronicle-fixtures';
+\OC_App::loadApp('nextgallery');
+$uid=$argv[1]??'paul';$source=$argv[2]??'/tmp/nextgallery-fixtures';
 $home=\OC::$server->get(\OCP\Files\IRootFolder::class)->getUserFolder($uid);
-$name='Chronik-Demo';
+$name='NextGallery-Demo';
 if ($home->nodeExists($name) && !in_array('--resume',$argv,true)) throw new RuntimeException('Demo folder already exists; refusing to overwrite.');
 $demo=$home->nodeExists($name)?$home->get($name):$home->newFolder($name);$count=0;
 $it=new RecursiveIteratorIterator(new RecursiveDirectoryIterator($source,FilesystemIterator::SKIP_DOTS));
@@ -19,6 +19,6 @@ foreach($it as $file) {
  } else {$stream=fopen($file->getPathname(),'rb');$parent->newFile($name,$stream);if(is_resource($stream))fclose($stream);}
  $count++;
 }
-$library=\OC::$server->get(\OCA\Chronicle\Service\Library::class);
-$library->save($uid,['roots'=>['/Chronik-Demo'],'mode'=>'folder']);
-echo json_encode(['user'=>$uid,'created'=>$count,'roots'=>['/Chronik-Demo']])."\n";
+$library=\OC::$server->get(\OCA\Nextgallery\Service\Library::class);
+$library->save($uid,['roots'=>['/NextGallery-Demo'],'mode'=>'folder']);
+echo json_encode(['user'=>$uid,'created'=>$count,'roots'=>['/NextGallery-Demo']])."\n";

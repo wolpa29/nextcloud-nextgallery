@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-namespace OCA\Chronicle\Http;
+namespace OCA\Nextgallery\Http;
 use OCP\AppFramework\Http\{Response,ICallbackResponse,IOutput};
 use OCP\Files\File;
 class MediaStream extends Response implements ICallbackResponse {

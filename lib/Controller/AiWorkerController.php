@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-namespace OCA\Chronicle\Controller;
+namespace OCA\Nextgallery\Controller;
 use OCP\IRequest;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\DataResponse;
@@ -8,9 +8,9 @@ use OCP\AppFramework\Http\StreamResponse;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\OCS\OCSException;
-use OCA\Chronicle\AI\Service\{Settings,Inventory,Metadata};
+use OCA\Nextgallery\AI\Service\{Settings,Inventory,Metadata};
 class AiWorkerController extends Controller {
-    public function __construct(IRequest $request, private Settings $settings, private Inventory $inventory, private Metadata $metadata) { parent::__construct('chronicle', $request); }
+    public function __construct(IRequest $request, private Settings $settings, private Inventory $inventory, private Metadata $metadata) { parent::__construct('nextgallery', $request); }
     private function denied(): ?DataResponse {
         if (!$this->settings->verifyWorker($this->request->getHeader('Authorization'))) { return new DataResponse(['error'=>'Worker authentication required'],401); }
         return null;

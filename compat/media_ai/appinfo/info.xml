@@ -1,7 +1,0 @@
-<?xml version="1.0"?>
-<info xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
- <id>media_ai</id><name>NextGallery compatibility</name><summary>Legacy Media AI addresses for existing clients</summary>
- <description>Forwards existing Media AI clients and workers to NextGallery Server. No separate worker, navigation, settings or database.</description>
- <version>0.6.0</version><licence>agpl</licence><author>Paul Wolfmajer</author><namespace>MediaAI</namespace><category>multimedia</category>
- <dependencies><php min-version="8.2"/><nextcloud min-version="32" max-version="35"/></dependencies>
-</info>

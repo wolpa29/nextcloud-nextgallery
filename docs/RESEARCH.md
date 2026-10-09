@@ -22,7 +22,7 @@ The official Android library calls `/ocs/v2.php/apps/external/api/v1` after chec
 The Android app can show a link in its drawer and open an embedded web view:
 [ExternalSiteWebView.kt](https://github.com/nextcloud/android/blob/master/app/src/main/java/com/owncloud/android/ui/activity/ExternalSiteWebView.kt).
 
-The supported **External sites** app is used to register one Android-only `Chronik` link (`redirect=false`). Existing entries are preserved. Sign-in and CA trust remain subject to the installed Android client's WebView. No physical Android device was connected during this run; WebView/device verification is separate from responsive browser checks.
+The supported **External sites** app is used to register one Android-only `NextGallery` link (`redirect=false`). Existing entries are preserved. Sign-in and CA trust remain subject to the installed Android client's WebView. No physical Android device was connected during this run; WebView/device verification is separate from responsive browser checks.
 
 ## Performance, date policy and offline
 
@@ -30,7 +30,7 @@ The database is indexed by user, date order, file ID and period. The client requ
 
 Dates keep their year/month/day precision. Matching capture/name dates can add precision inside folder dates; conflicting dates are explained in the viewer. Unknown timezone-free EXIF uses the selected timezone; offset-bearing dates are converted. Modification time is the explicitly labeled last fallback.
 
-Offline is opt-in: an authenticated, independent offline page and bundled assets are saved in Cache Storage; file metadata and 384 px thumbnails are saved in IndexedDB per user/configuration epoch. APIs, originals and session pages are never stored by the service worker. Original video playback requires a connection. Collection limit: 5,000 thumbnails and 300 MB. Browsers can evict local storage. Clearing the collection deletes both metadata and thumbnails. Root/date-policy changes invalidate local collections; the logout link observed within Chronik clears them. Logout from elsewhere cannot guarantee clearing a device's intentionally saved collection.
+Offline is opt-in: an authenticated, independent offline page and bundled assets are saved in Cache Storage; file metadata and 384 px thumbnails are saved in IndexedDB per user/configuration epoch. APIs, originals and session pages are never stored by the service worker. Original video playback requires a connection. Collection limit: 5,000 thumbnails and 300 MB. Browsers can evict local storage. Clearing the collection deletes both metadata and thumbnails. Root/date-policy changes invalidate local collections; the logout link observed within NextGallery clears them. Logout from elsewhere cannot guarantee clearing a device's intentionally saved collection.
 
 The world map is local and does not send GPS data to a tile provider. [Natural Earth](https://www.naturalearthdata.com/about/terms-of-use/) boundaries are public domain; bundled from its [official vector repository](https://github.com/nvkelso/natural-earth-vector). [Leaflet](https://leafletjs.com/reference.html) and [MarkerCluster](https://github.com/Leaflet/Leaflet.markercluster) provide zoom/pan and grouped markers. No remote street tiles are loaded. World-map location can be shown offline for saved media; a street-level map is outside this version's local basemap.
 

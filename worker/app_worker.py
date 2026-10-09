@@ -31,12 +31,13 @@ class API:
         parts=urllib.parse.urlsplit(bootstrap['url'])
         if parts.scheme != 'https' or parts.username or parts.password or parts.query or parts.fragment:
             raise p.PipelineError('Native worker requires canonical HTTPS Nextcloud URL')
-        app_id=bootstrap.get('app_id','media_ai')
-        if app_id not in ('chronicle','media_ai'):
+        app_id=bootstrap.get('app_id','nextgallery')
+        if app_id != 'nextgallery':
             raise p.PipelineError('Unsupported Nextcloud worker application')
         base=bootstrap['url'].rstrip('/')
-        self.scope_url=base+'/index.php/apps/media_ai/worker/'
-        self.url=base+('/index.php/apps/chronicle/ai/worker/' if app_id=='chronicle' else '/index.php/apps/media_ai/worker/')
+        self.url=base+'/index.php/apps/nextgallery/ai/worker/'
+        # Opaque publication identity survives transport changes, avoiding re-inference.
+        self.scope_url=bootstrap.get('scope_identity',self.url)
         self.headers={'Authorization':'Bearer '+bootstrap['token'],'Content-Type':'application/json','Accept':'application/json'}
         self.ca_file=bootstrap.get('ca_file')
     def wire(self,endpoint,body=None,maximum=2*1024*1024):

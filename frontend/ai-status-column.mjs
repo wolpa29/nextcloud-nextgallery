@@ -24,7 +24,7 @@ async function flush() {
   const batch = [...pending.entries()].slice(0, 100)
   for (const [id] of batch) pending.delete(id)
   try {
-    const response = await fetch(OC.linkToOCS('apps/chronicle/ai/api/v1', 2) + 'statuses?format=json', {
+    const response = await fetch(OC.linkToOCS('apps/nextgallery/ai/api/v1', 2) + 'statuses?format=json', {
       method: 'POST', credentials: 'same-origin',
       headers: { 'OCS-APIRequest': 'true', requesttoken: OC.requestToken, 'Content-Type': 'application/json' },
       body: JSON.stringify({ file_ids: batch.map(([id]) => id) }),
@@ -89,7 +89,7 @@ setInterval(() => {
   }
   flush()
 }, 10000)
-document.addEventListener('DOMContentLoaded', () => fetch(OC.generateUrl('/apps/chronicle/ai/preferences'), { credentials: 'same-origin' })
+document.addEventListener('DOMContentLoaded', () => fetch(OC.generateUrl('/apps/nextgallery/ai/preferences'), { credentials: 'same-origin' })
   .then(response => response.ok ? response.json() : null)
   .then(preference => { if (preference && window.MediaAIi18n) window.MediaAIi18n.language = preference.language })
   .catch(() => {}), { once: true })

@@ -1,6 +1,6 @@
 <?php
 require __DIR__.'/../lib/Service/Dates.php';
-use OCA\Chronicle\Service\Dates;
+use OCA\Nextgallery\Service\Dates;
 $n=0;
 function check($actual,$expected):void {global $n;$n++;if($actual!==$expected)throw new RuntimeException('Assertion '.$n.': '.json_encode([$actual,$expected]));}
 $r=Dates::resolve('/Camera/2024/08/random.jpg','2026:01:12 16:00:00',1700000000,'folder','Europe/Vienna');check($r['date'],'2024-08');check($r['precision'],'month');check($r['conflict'],true);

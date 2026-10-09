@@ -17,9 +17,9 @@ class AnalysisTab extends HTMLElement {
     const text=(tag,value)=>{const el=document.createElement(tag);el.textContent=value;return el}
     this.replaceChildren(text('p',tr('KI-Metadaten laden …')))
     try{
-      const pref=await fetch(OC.generateUrl('/apps/chronicle/ai/preferences'),{credentials:'same-origin'})
+      const pref=await fetch(OC.generateUrl('/apps/nextgallery/ai/preferences'),{credentials:'same-origin'})
       if(pref.ok&&window.MediaAIi18n)window.MediaAIi18n.language=(await pref.json()).language
-      const response=await fetch(OC.linkToOCS('apps/chronicle/ai/api/v1',2)+'metadata?format=json&file_id='+encodeURIComponent(node.fileid),{credentials:'same-origin',headers:{'OCS-APIRequest':'true',requesttoken:OC.requestToken,'Accept':'application/json'}})
+      const response=await fetch(OC.linkToOCS('apps/nextgallery/ai/api/v1',2)+'metadata?format=json&file_id='+encodeURIComponent(node.fileid),{credentials:'same-origin',headers:{'OCS-APIRequest':'true',requesttoken:OC.requestToken,'Accept':'application/json'}})
       if(!response.ok)throw Error('HTTP '+response.status)
       const r=(await response.json()).ocs.data
       if(generation!==this.generation)return
@@ -33,4 +33,4 @@ class AnalysisTab extends HTMLElement {
     }catch(e){if(generation===this.generation)this.replaceChildren(text('p',tr('Metadaten konnten nicht geladen werden ({error}).',{error:e.message})))}
   }
 }
-registerSidebarTab({id:'media-ai',displayName:'Media AI',iconSvgInline:icon,order:50,tagName:'chronicle-ai-sidebar',enabled:({node})=>/^(image|video)\//.test(node.mime||''),onInit:async()=>{if(!customElements.get('chronicle-ai-sidebar'))customElements.define('chronicle-ai-sidebar',AnalysisTab)}})
+registerSidebarTab({id:'media-ai',displayName:'Media AI',iconSvgInline:icon,order:50,tagName:'nextgallery-ai-sidebar',enabled:({node})=>/^(image|video)\//.test(node.mime||''),onInit:async()=>{if(!customElements.get('nextgallery-ai-sidebar'))customElements.define('nextgallery-ai-sidebar',AnalysisTab)}})

@@ -10,13 +10,13 @@ class Config implements \OCP\IConfig {public array $values=[];public function ge
 class Crypto implements \OCP\Security\ICrypto {public function encrypt($v){return 'encrypted:'.$v;}public function decrypt($v){return substr($v,10);}}
 $count=0;function check($value){global $count;$count++;if(!$value)throw new \Exception('check '.$count.' failed');}
 function reject(callable $f){try{$f();}catch(\OCP\AppFramework\OCS\OCSBadRequestException $e){check(true);return;}throw new \Exception('Unexpected acceptance');}
-$c=new Config();$s=new \OCA\Chronicle\AI\Service\Settings($c,new Crypto());
+$c=new Config();$s=new \OCA\Nextgallery\AI\Service\Settings($c,new Crypto());
 check(!$s->verifyWorker('Bearer '));$token=$s->workerToken();check($s->verifyWorker('Bearer '.$token));check(!$s->verifyWorker('Bearer wrong'));
 foreach(['vision','ocr'] as $stage)check($s->defaults()[$stage]['max_edge']===8192);
 $v=$s->defaults();$v['vision']['api_key']='secret-test';$s->save($v);check(!str_contains(json_encode($s->publicConfig()),'secret-test'));check($s->workerConfig()['vision']['api_key']==='secret-test');
 $v['vision']['api_key']='';$s->save($v);check($s->workerConfig()['vision']['api_key']==='secret-test');
 $bad=$v;$bad['folders']=['/Camera/../secret'];reject(fn()=>$s->save($bad));$bad=$v;$bad['vision']['url']='https://user:secret@example.test';reject(fn()=>$s->save($bad));$bad=$v;$bad['image_timeout_seconds']=-1;reject(fn()=>$s->save($bad));$bad=$v;$bad['vision']['api_key']="x\nheader";reject(fn()=>$s->save($bad));
-check(\OCA\Chronicle\AI\Service\Settings::endpoint('http://10.1.10.78:1234')==='http://10.1.10.78:1234/v1');
+check(\OCA\Nextgallery\AI\Service\Settings::endpoint('http://10.1.10.78:1234')==='http://10.1.10.78:1234/v1');
 $v['vision']['clear_api_key']=true;$s->save($v);check($s->workerConfig()['vision']['api_key']==='');
 $v['vision']['max_tokens']=0;$v['ocr']['max_tokens']=0;$v['ocr']['timeout_seconds']=7200;$s->save($v);check($s->get()['vision']['max_tokens']===0);check($s->get()['ocr']['timeout_seconds']===7200);$bad=$v;$bad['ocr']['max_tokens']=-1;reject(fn()=>$s->save($bad));
 foreach(['vision','ocr'] as $stage){
@@ -40,7 +40,7 @@ check($s->publicConfig()['vision']['prompt']==='Mein eigener Prompt');
 check($s->publicConfig()['vision']['default_prompt']===$prompts['vision']['prompt']);
 check(!str_contains($c->values['ai_settings'],'default_prompt'));
 check(!str_contains(json_encode($s->publicConfig()),'secret-test'));
-$dir=sys_get_temp_dir().'/media-ai-test-'.bin2hex(random_bytes(8));mkdir($dir,0700);$c->values['datadirectory']=$dir;$state=new \OCA\Chronicle\AI\Service\State($c);check($state->control()['paused']);$state->setControl('start');check(!$state->control()['paused']);$state->setControl('pause');check($state->control()['paused']);reject(fn()=>$state->logs('../secret'));reject(fn()=>$state->setControl('delete'));
-foreach(glob($dir.'/.media_ai/*') as $file)unlink($file);rmdir($dir.'/.media_ai');rmdir($dir);
+$dir=sys_get_temp_dir().'/media-ai-test-'.bin2hex(random_bytes(8));mkdir($dir,0700);$c->values['datadirectory']=$dir;$state=new \OCA\Nextgallery\AI\Service\State($c);check($state->control()['paused']);$state->setControl('start');check(!$state->control()['paused']);$state->setControl('pause');check($state->control()['paused']);reject(fn()=>$state->logs('../secret'));reject(fn()=>$state->setControl('delete'));
+foreach(glob($dir.'/.nextgallery_ai/*') as $file)unlink($file);rmdir($dir.'/.nextgallery_ai');rmdir($dir);
 echo "$count PHP settings/control assertions passed\n";
 }

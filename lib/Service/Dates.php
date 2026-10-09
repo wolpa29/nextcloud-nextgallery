@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-namespace OCA\Chronicle\Service;
+namespace OCA\Nextgallery\Service;
 use DateTimeImmutable;
 use DateTimeZone;
 /** Dates retain precision; a month folder never claims an invented capture day. */

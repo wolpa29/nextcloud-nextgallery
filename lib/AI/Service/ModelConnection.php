@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-namespace OCA\Chronicle\AI\Service;
+namespace OCA\Nextgallery\AI\Service;
 
 /** Read-only model discovery. Only administrator-configured endpoints are used. */
 class ModelConnection {

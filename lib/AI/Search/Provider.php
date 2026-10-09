@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-namespace OCA\Chronicle\AI\Search;
+namespace OCA\Nextgallery\AI\Search;
 use OCP\IUser;
 use OCP\IURLGenerator;
 use OCP\Search\IProvider;
@@ -8,12 +8,12 @@ use OCP\Search\ISearchQuery;
 use OCP\Search\SearchResult;
 use OCP\Search\SearchResultEntry;
 use OCP\AppFramework\OCS\OCSNotFoundException;
-use OCA\Chronicle\AI\Service\Files;
-use OCA\Chronicle\AI\Service\Metadata;
-use OCA\Chronicle\AI\Service\Preferences;
+use OCA\Nextgallery\AI\Service\Files;
+use OCA\Nextgallery\AI\Service\Metadata;
+use OCA\Nextgallery\AI\Service\Preferences;
 class Provider implements IProvider {
     public function __construct(private Metadata $metadata, private Files $files, private IURLGenerator $urls, private ?Preferences $preferences = null) {}
-    public function getId(): string { return 'media_ai'; }
+    public function getId(): string { return 'nextgallery_ai'; }
     public function getName(): string { return $this->preferences?->language()==='en'?'Image content and OCR':'Bildinhalt und OCR'; }
     public function getOrder(string $route, array $routeParameters): int { return 20; }
     public function search(IUser $user, ISearchQuery $query): SearchResult {

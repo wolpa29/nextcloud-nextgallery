@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-namespace OCA\Chronicle\Controller;
+namespace OCA\Nextgallery\Controller;
 use OCP\IRequest;
 use OCP\IUserSession;
 use OCP\IGroupManager;
@@ -8,9 +8,9 @@ use OCP\Files\{IRootFolder,Folder};
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\DataResponse;
-use OCA\Chronicle\AI\Service\{Settings,State};
+use OCA\Nextgallery\AI\Service\{Settings,State};
 class AiAdminController extends Controller {
-    public function __construct(IRequest $request, private Settings $settings, private State $state, private IUserSession $session, private IGroupManager $groups, private IRootFolder $root, private ?\OCA\Chronicle\AI\Service\Metadata $metadata = null, private ?\OCA\Chronicle\AI\Service\Files $files = null, private ?\OCA\Chronicle\AI\Service\ModelConnection $modelConnection = null, private ?\OCA\Chronicle\AI\Service\Library $library = null) { parent::__construct('chronicle',$request); }
+    public function __construct(IRequest $request, private Settings $settings, private State $state, private IUserSession $session, private IGroupManager $groups, private IRootFolder $root, private ?\OCA\Nextgallery\AI\Service\Metadata $metadata = null, private ?\OCA\Nextgallery\AI\Service\Files $files = null, private ?\OCA\Nextgallery\AI\Service\ModelConnection $modelConnection = null, private ?\OCA\Nextgallery\AI\Service\Library $library = null) { parent::__construct('nextgallery',$request); }
     private function admin(): bool { $uid=$this->session->getUser()?->getUID(); return $uid!==null && $this->groups->isAdmin($uid); }
     private function denied(): ?DataResponse {
         $uid=$this->session->getUser()?->getUID();
@@ -90,7 +90,7 @@ class AiAdminController extends Controller {
     public function test(): DataResponse {
         if ($this->session->getUser() === null) { return new DataResponse(['error'=>'Anmeldung erforderlich'],401); }
         // Every signed-in user may inspect model readiness, without configuration access.
-        $connection = $this->modelConnection ?? new \OCA\Chronicle\AI\Service\ModelConnection();
+        $connection = $this->modelConnection ?? new \OCA\Nextgallery\AI\Service\ModelConnection();
         return new DataResponse($connection->inspect($this->settings->workerConfig()));
     }
 }

@@ -1,5 +1,5 @@
 <?php
-script('chronicle','ai-i18n'); script('chronicle','ai-workspace'); script('chronicle','ai-admin'); style('chronicle','ai-admin'); style('chronicle','ai-branding');
+script('nextgallery','ai-i18n'); script('nextgallery','ai-workspace'); script('nextgallery','ai-admin'); style('nextgallery','ai-admin'); style('nextgallery','ai-branding');
 ?>
 <div id="media-ai-admin" class="mai">
  <div class="mai-header"><div><h2 id="mai-page-title">Media AI</h2><p id="mai-page-description" class="mai-muted">Bestand, Fortschritt und nächste Ausführung.</p></div><label class="mai-language">Sprache<select id="mai-language" aria-label="Sprache"><option value="de">Deutsch</option><option value="en">English</option></select></label></div>

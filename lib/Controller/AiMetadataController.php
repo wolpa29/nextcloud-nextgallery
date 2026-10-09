@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-namespace OCA\Chronicle\Controller;
+namespace OCA\Nextgallery\Controller;
 use OCP\IRequest;
 use OCP\IUserSession;
 use OCP\AppFramework\OCSController;
@@ -8,11 +8,11 @@ use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\OCS\OCSException;
-use OCA\Chronicle\AI\Service\Files;
-use OCA\Chronicle\AI\Service\Metadata;
+use OCA\Nextgallery\AI\Service\Files;
+use OCA\Nextgallery\AI\Service\Metadata;
 class AiMetadataController extends OCSController {
-    public function __construct(IRequest $request, private IUserSession $session, private Files $files, private Metadata $metadata, private ?\OCP\Files\IRootFolder $root = null, private ?\OCA\Chronicle\AI\Service\Library $library = null, private ?\OCA\Chronicle\AI\Service\Settings $settings = null) {
-        parent::__construct('chronicle', $request);
+    public function __construct(IRequest $request, private IUserSession $session, private Files $files, private Metadata $metadata, private ?\OCP\Files\IRootFolder $root = null, private ?\OCA\Nextgallery\AI\Service\Library $library = null, private ?\OCA\Nextgallery\AI\Service\Settings $settings = null) {
+        parent::__construct('nextgallery', $request);
     }
     private function uid(): string {
         $user = $this->session->getUser();

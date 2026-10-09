@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-namespace OCA\Chronicle\AI\Service;
+namespace OCA\Nextgallery\AI\Service;
 
 use OCP\IConfig;
 use OCP\Security\ICrypto;
@@ -9,8 +9,7 @@ use OCP\AppFramework\OCS\OCSBadRequestException;
 class Settings {
     public function __construct(private IConfig $config, private ICrypto $crypto) {}
     private function stored(string $key, string $default): string {
-        $value = $this->config->getAppValue('chronicle', 'ai_' . $key, "\x01");
-        return $value === "\x01" ? $this->config->getAppValue('media_ai', $key, $default) : $value;
+        return $this->config->getAppValue('nextgallery', 'ai_' . $key, $default);
     }
     public function defaults(): array {
         return ['enabled' => false, 'user_id' => 'paul', 'folders' => ['/'], 'exclude_folders' => [],
@@ -38,7 +37,7 @@ class Settings {
         return $raw === '' ? '' : $this->crypto->decrypt($raw);
     }
     private function setSecret(string $key, string $value): void {
-        $this->config->setAppValue('chronicle', 'ai_' . $key, $value === '' ? '' : $this->crypto->encrypt($value));
+        $this->config->setAppValue('nextgallery', 'ai_' . $key, $value === '' ? '' : $this->crypto->encrypt($value));
     }
     public function workerToken(): string {
         $token = $this->secret('worker_token');
@@ -147,7 +146,7 @@ class Settings {
         }
         // Validate the entire form before writing any value or encrypted secret.
         if ($validateFolders !== null) { $validateFolders($result); }
-        $this->config->setAppValue('chronicle', 'ai_settings', json_encode($result, JSON_THROW_ON_ERROR));
+        $this->config->setAppValue('nextgallery', 'ai_settings', json_encode($result, JSON_THROW_ON_ERROR));
         foreach ($secrets as $key => $secret) { $this->setSecret($key, $secret); }
         return $this->publicConfig();
     }

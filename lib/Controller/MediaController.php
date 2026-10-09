@@ -1,14 +1,14 @@
 <?php
 declare(strict_types=1);
-namespace OCA\Chronicle\Controller;
+namespace OCA\Nextgallery\Controller;
 use OCP\{IRequest,IUserSession,IPreview};
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\Attribute\{NoAdminRequired,NoCSRFRequired};
-use OCA\Chronicle\Service\Library;
-use OCA\Chronicle\Http\{Bytes,MediaStream};
+use OCA\Nextgallery\Service\Library;
+use OCA\Nextgallery\Http\{Bytes,MediaStream};
 class MediaController extends Controller {
- public function __construct(IRequest $request,private IUserSession $session,private Library $library,private IPreview $previews) {parent::__construct('chronicle',$request);}
+ public function __construct(IRequest $request,private IUserSession $session,private Library $library,private IPreview $previews) {parent::__construct('nextgallery',$request);}
  #[NoAdminRequired] #[NoCSRFRequired]
  public function preview(int $id,int $size=384):Response {
   try {

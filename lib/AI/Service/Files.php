@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-namespace OCA\Chronicle\AI\Service;
+namespace OCA\Nextgallery\AI\Service;
 use OCP\Files\IRootFolder;
 use OCP\Files\File;
 use OCP\AppFramework\OCS\OCSNotFoundException;

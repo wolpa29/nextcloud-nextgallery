@@ -17,7 +17,7 @@ jobs:
         with: {php-version: '${{ matrix.php }}', extensions: mbstring,pdo_sqlite}
       - run: npm ci --ignore-scripts && npm run build && npm test
       - run: git diff --exit-code -- js templates/en.json css/main.css
-      - run: find lib templates appinfo compat tests pipeline/tests -name '*.php' -print0 | xargs -0 -n1 php -l
+      - run: find lib templates appinfo tests pipeline/tests -name '*.php' -print0 | xargs -0 -n1 php -l
       - run: php tests/dates.php && php -d zend.assertions=1 -d assert.exception=1 tests/ai-migration.php
       - run: for file in pipeline/tests/php_*.php; do php "$file"; done
   python:
@@ -40,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        case: [upgrade32, fresh35]
+        case: [upgrade32, rename32, fresh35]
     steps:
       - uses: actions/checkout@v4
         with: {fetch-depth: 0}
