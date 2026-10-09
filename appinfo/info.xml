@@ -1,11 +1,12 @@
 <?xml version="1.0"?>
 <info xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
- <id>chronicle</id><name>NextGallery Server</name><summary>Your folders, on a timeline</summary>
- <description>A fast private photo and video timeline with selected folders, flexible dates, an offline collection and a local world map.</description>
- <version>0.1.5</version><licence>agpl</licence><author>Paul Wolfmajer</author><namespace>Chronicle</namespace><category>multimedia</category>
+ <id>chronicle</id><name>NextGallery Server</name><summary>Private gallery, media analysis and search</summary>
+ <description>A fast private photo and video timeline with selected folders, flexible dates, an offline collection and a local world map. Optional local AI analysis, OCR and shared metadata search.</description>
+ <version>0.2.0</version><licence>agpl</licence><author>Paul Wolfmajer</author><namespace>Chronicle</namespace><category>multimedia</category>
  <website>https://github.com/wolpa29/nextcloud-chronicle</website><bugs>https://github.com/wolpa29/nextcloud-chronicle/issues</bugs><repository>https://github.com/wolpa29/nextcloud-chronicle.git</repository>
- <dependencies><php min-version="8.1"/><nextcloud min-version="32" max-version="35"/></dependencies>
+ <dependencies><php min-version="8.2"/><nextcloud min-version="32" max-version="35"/></dependencies>
  <background-jobs><job>OCA\Chronicle\BackgroundJob\IndexJob</job></background-jobs>
- <commands><command>OCA\Chronicle\Command\Index</command></commands>
+ <settings><admin>OCA\Chronicle\Settings\AiAdmin</admin><admin-section>OCA\Chronicle\Settings\AiSection</admin-section></settings>
+ <commands><command>OCA\Chronicle\Command\AiSetup</command><command>OCA\Chronicle\Command\Index</command></commands>
  <navigations><navigation><name>NextGallery Server</name><route>chronicle.page.index</route><order>8</order></navigation></navigations>
 </info>

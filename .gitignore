@@ -6,3 +6,11 @@ fixtures/
 *.sqlite
 *.pem
 *.key
+
+__pycache__/
+.venv/
+state/
+config.json
+pipeline.env
+*.jsonl
+*.sqlite*

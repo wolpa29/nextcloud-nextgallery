@@ -1,1 +1,1 @@
--r nextcloud-app/media_ai/worker/requirements.txt
+-r ../worker/requirements.txt

@@ -8,7 +8,7 @@ import sys
 from zoneinfo import ZoneInfo
 import media_pipeline as p
 
-root=Path(__file__).resolve().parents[1]/'nextcloud-app/media_ai/worker'
+root=Path(__file__).resolve().parents[2]/'worker'
 spec=importlib.util.spec_from_file_location('app_worker',root/'app_worker.py')
 w=importlib.util.module_from_spec(spec);spec.loader.exec_module(w)
 from test_pipeline import Source,Model,Publisher
@@ -151,3 +151,16 @@ class WorkerTests(unittest.TestCase):
             with self.assertRaises(p.PipelineError):w.API({'url':url,'token':'x'})
 
 if __name__=='__main__':unittest.main()
+
+class UnifiedApplicationTests(unittest.TestCase):
+    def test_new_transport_preserves_native_queue_identity(self):
+        config={'user_id':'synthetic','folders':['/Synthetic'],'exclude_folders':[]}
+        old=w.API({'url':'https://example.test/cloud','token':'synthetic'})
+        new=w.API({'url':'https://example.test/cloud','token':'synthetic','app_id':'chronicle'})
+        self.assertEqual(old.url,'https://example.test/cloud/index.php/apps/media_ai/worker/')
+        self.assertEqual(new.url,'https://example.test/cloud/index.php/apps/chronicle/ai/worker/')
+        self.assertEqual(w.NativeSource(old,config).scope,w.NativeSource(new,config).scope)
+        self.assertEqual(old.headers,new.headers)
+
+    def test_unrecognized_application_is_refused(self):
+        with self.assertRaises(p.PipelineError):w.API({'url':'https://example.test','token':'synthetic','app_id':'../other'})

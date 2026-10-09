@@ -474,17 +474,21 @@ class HTTPTests(unittest.TestCase):
         for href in ('http://other.invalid/dav/a.jpg', '/else/a.jpg', '/dav/%2e%2e/a.jpg'):
             with self.assertRaises(p.PipelineError): source._url(href)
     def test_publisher_ocs_wire_and_stale_conflict(self):
-        with patch.dict(os.environ, {'MOCK_PASSWORD': 'test-only'}):
-            pub = p.Publisher({'url': self.url, 'username': 'paul', 'password_env': 'MOCK_PASSWORD', 'path_prefix': '/InstantUpload'})
-        target = pub.capture(p.Item('1', 'Camera/a.jpg', 'a', 'v1', 10), Source())
-        self.assertIn('InstantUpload', self.calls[-1][1])
-        self.assertEqual(target, {'file_id': 7, 'etag': 'v1'})
-        row = {'metadata': json.dumps({'vision': VISION, 'ocr': {'text': ''}, 'nextcloud_target': target}), 'exif': '{}', 'sha256': 'a'*64, 'revision': 'b'*64}
-        pub.send(row)
-        self.assertEqual(self.calls[-1][2]['Ocs-Apirequest'], 'true')
-        self.assertEqual(self.calls[-1][3]['file_id'], 7)
-        type(self).ocs_status = 409
-        with self.assertRaisesRegex(p.PipelineError, '409'): pub.send(row)
+        for app_config, prefix in [({}, '/ocs/v2.php/apps/media_ai/api/v1/'), ({'app_id': 'chronicle'}, '/ocs/v2.php/apps/chronicle/ai/api/v1/')]:
+            with self.subTest(app_config=app_config):
+                type(self).ocs_status = 200
+                with patch.dict(os.environ, {'MOCK_PASSWORD': 'test-only'}):
+                    pub = p.Publisher({'url': self.url, 'username': 'paul', 'password_env': 'MOCK_PASSWORD', 'path_prefix': '/InstantUpload', **app_config})
+                target = pub.capture(p.Item('1', 'Camera/a.jpg', 'a', 'v1', 10), Source())
+                self.assertTrue(self.calls[-1][1].startswith(prefix))
+                self.assertIn('InstantUpload', self.calls[-1][1])
+                self.assertEqual(target, {'file_id': 7, 'etag': 'v1'})
+                row = {'metadata': json.dumps({'vision': VISION, 'ocr': {'text': ''}, 'nextcloud_target': target}), 'exif': '{}', 'sha256': 'a'*64, 'revision': 'b'*64}
+                pub.send(row)
+                self.assertEqual(self.calls[-1][2]['Ocs-Apirequest'], 'true')
+                self.assertEqual(self.calls[-1][3]['file_id'], 7)
+                type(self).ocs_status = 409
+                with self.assertRaisesRegex(p.PipelineError, '409'): pub.send(row)
 
 
 if __name__ == '__main__': unittest.main()

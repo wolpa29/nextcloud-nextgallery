@@ -15,8 +15,8 @@ class Library {
  public function cacheKey(string $uid):string {return substr(hash('sha256',$uid.'|'.$this->config->getUserValue($uid,'chronicle','epoch','initial')),0,32);}
  public function state(string $uid):array {return json_decode($this->config->getUserValue($uid,'chronicle','scan','{}'),true)??[];}
  private function stateSave(string $uid,array $s):void {$this->config->setUserValue($uid,'chronicle','scan',json_encode($s,JSON_THROW_ON_ERROR));}
- private function lock(string $uid):void {$this->locks->acquireLock('chronicle:'.hash('sha256',$uid),ILockingProvider::LOCK_EXCLUSIVE);}
- private function unlock(string $uid):void {$this->locks->releaseLock('chronicle:'.hash('sha256',$uid),ILockingProvider::LOCK_EXCLUSIVE);}
+ private function lock(string $uid):void {$this->locks->acquireLock(hash('sha256','chronicle:'.$uid),ILockingProvider::LOCK_EXCLUSIVE);}
+ private function unlock(string $uid):void {$this->locks->releaseLock(hash('sha256','chronicle:'.$uid),ILockingProvider::LOCK_EXCLUSIVE);}
  public function save(string $uid,array $settings):array {
   $this->lock($uid);
   try {
@@ -125,7 +125,7 @@ class Library {
        $meta=$old && !$retryVideo && $existing['etag']===$node->getEtag() && ($old['metadata']['revision']??0)===2?$old['metadata']:$this->extract($node);
        $date=Dates::resolve($path,$meta['raw'],$node->getMTime(),$p['mode'],$p['timezone']);
        $item=['id'=>$node->getId(),'name'=>$node->getName(),'path'=>$path,'kind'=>$kind,'mime'=>$node->getMimeType(),'etag'=>$node->getEtag(),'date'=>$date,'mtime'=>$node->getMTime(),'size'=>$node->getSize(),'metadata'=>$meta];
-       $values=['sort_key'=>$date['sort'],'period'=>$date['period'],'kind'=>$kind,'etag'=>$node->getEtag(),'generation'=>$s['generation'],'latitude'=>$meta['gps'][0]??null,'longitude'=>$meta['gps'][1]??null,'payload'=>json_encode($item,JSON_THROW_ON_ERROR|JSON_INVALID_UTF8_SUBSTITUTE)];
+       $values=['name_text'=>mb_strtolower($node->getName()),'path_text'=>mb_strtolower($path),'sort_key'=>$date['sort'],'period'=>$date['period'],'kind'=>$kind,'etag'=>$node->getEtag(),'generation'=>$s['generation'],'latitude'=>$meta['gps'][0]??null,'longitude'=>$meta['gps'][1]??null,'payload'=>json_encode($item,JSON_THROW_ON_ERROR|JSON_INVALID_UTF8_SUBSTITUTE)];
        $q=$this->db->getQueryBuilder();
        if ($existing) {$q->update('chronicle_media')->where($q->expr()->eq('user_id',$q->createNamedParameter($uid)))->andWhere($q->expr()->eq('file_id',$q->createNamedParameter($node->getId())));foreach($values as $k=>$v) $q->set($k,$q->createNamedParameter($v));}
        else {$q->insert('chronicle_media')->setValue('user_id',$q->createNamedParameter($uid))->setValue('file_id',$q->createNamedParameter($node->getId()));foreach($values as $k=>$v) $q->setValue($k,$q->createNamedParameter($v));}
@@ -170,6 +170,9 @@ class Library {
   $p=$this->settings($uid);$q=$this->query($uid,$kind,$period);$q->select('file_id','payload');
   if ($geo) $q->andWhere($q->expr()->isNotNull('latitude'));
   $direction=$p['order']==='asc'?'ASC':'DESC';$rows=$q->orderBy('sort_key',$direction)->addOrderBy('file_id',$direction)->setFirstResult(max(0,$offset))->setMaxResults(max(1,min(200,$limit)))->executeQuery()->fetchAll();
+  return ['items'=>$this->hydrate($uid,$rows),'next'=>count($rows)?max(0,$offset)+count($rows):null,'more'=>count($rows)===max(1,min(200,$limit))];
+ }
+ public function hydrate(string $uid,array $rows):array {
   $items=[];
   foreach($rows as $row) {
    try {$f=$this->file($uid,(int)$row['file_id']);$item=json_decode($row['payload'],true);
@@ -181,6 +184,6 @@ class Library {
     unset($item['metadata']['raw']);$items[]=$item;
    } catch (\Throwable) {}
   }
-  return ['items'=>$items,'next'=>count($rows)?max(0,$offset)+count($rows):null,'more'=>count($rows)===max(1,min(200,$limit))];
+  return $items;
  }
 }

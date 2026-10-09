@@ -57,7 +57,8 @@
     "username": "paul",
     "password_env": "NEXTCLOUD_APP_PASSWORD",
     "ca_file": "./nextcloud-local-ca.crt",
-    "path_prefix": ""
+    "path_prefix": "",
+    "app_id": "chronicle"
   },
   "image_timeout_seconds": 600,
   "video": {

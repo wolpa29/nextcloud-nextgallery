@@ -3,3 +3,8 @@ Leaflet 1.9.4: Copyright Vladimir Agafonkin and contributors. BSD-2-Clause.
 Leaflet.markercluster 1.5.3: Copyright Dave Leaver, Smartrak and contributors. MIT.
 Natural Earth 1:110m country boundaries: Public domain. Source: nvkelso/natural-earth-vector/geojson/ne_110m_admin_0_countries.geojson. Bundled properties stripped and coordinates rounded to 3 decimal places.
 Third party license texts: docs/licenses/.
+
+Media AI worker and integration: Paul Wolfmajer, AGPL-3.0-or-later (imported history).
+@nextcloud/files 3.12.2 and 4.1.0: Nextcloud GmbH and contributors, AGPL-3.0-or-later.
+LM Studio SDK @lmstudio/sdk: MIT; locked dependencies are recorded in worker/lmstudio/package-lock.json.
+The corresponding-source archive includes installed npm package sources, source maps, manifests and license files under third-party/.

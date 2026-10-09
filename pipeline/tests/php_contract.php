@@ -43,14 +43,14 @@ namespace OCP\Search {
     class SearchResultEntry { public function __construct(public string $thumbnail, public string $title, public string $subline, public string $url, public string $icon = '') {} }
 }
 namespace {
-    use OCA\MediaAI\Service\Metadata;
-    use OCA\MediaAI\Service\Files;
-    use OCA\MediaAI\Controller\MetadataController;
-    use OCA\MediaAI\Search\Provider;
-    require __DIR__ . '/../nextcloud-app/media_ai/lib/Service/Metadata.php';
-    require __DIR__ . '/../nextcloud-app/media_ai/lib/Service/Files.php';
-    require __DIR__ . '/../nextcloud-app/media_ai/lib/Controller/MetadataController.php';
-    require __DIR__ . '/../nextcloud-app/media_ai/lib/Search/Provider.php';
+    use OCA\Chronicle\AI\Service\Metadata;
+    use OCA\Chronicle\AI\Service\Files;
+    use OCA\Chronicle\Controller\AiMetadataController;
+    use OCA\Chronicle\AI\Search\Provider;
+    require __DIR__ . '/../../lib/AI/Service/Metadata.php';
+    require __DIR__ . '/../../lib/AI/Service/Files.php';
+    require __DIR__ . '/../../lib/Controller/AiMetadataController.php';
+    require __DIR__ . '/../../lib/AI/Search/Provider.php';
     $checks = 0;
     function check(bool $ok, string $message): void { global $checks; $checks++; if (!$ok) { throw new \RuntimeException($message); } }
     function refuses(callable $f, ?int $code = null): void {
@@ -58,6 +58,7 @@ namespace {
         throw new \RuntimeException('request unexpectedly accepted');
     }
     class DB implements \OCP\IDBConnection {
+ public function setValues($table,array $keys,array $data):int {$this->writes[]=[$table,array_values($keys+$data)];return 1;}
         public array $writes = [];
         public function executeStatement($sql, array $params): int { $this->writes[] = [$sql, $params]; return 1; }
     }
@@ -103,10 +104,10 @@ namespace {
     $db = new DB(); $service = new Metadata($db);
     $image = new Image(); $files = new Files(new Root(new Folder($image)));
     $request = new Request(); $session = new Session();
-    $controller = new MetadataController($request, $session, $files, $service);
+    $controller = new AiMetadataController($request, $session, $files, $service);
     $controller->upsert(...$args);
     check(count($db->writes) === 1, 'successful request missing');
-    check(str_contains($db->writes[0][0], '*PREFIX*media_ai_meta'), 'writes outside custom table');
+    check(str_contains($db->writes[0][0], 'media_ai_meta'), 'writes outside custom table');
     check(!str_contains($db->writes[0][0], 'Rechnung'), 'SQL interpolation');
     $image->etag = 'v2'; refuses(fn() => $controller->upsert(...$args), 409);
     $image->etag = 'v1'; $image->readable = false; refuses(fn() => $controller->upsert(...$args));

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {buildHistory, predictionConfig, finishReason, requestFailure} from '../nextcloud-app/media_ai/worker/lmstudio/protocol.mjs';
+import {buildHistory, predictionConfig, finishReason, requestFailure} from '../../worker/lmstudio/protocol.mjs';
 import {spawnSync} from 'node:child_process';
 import net from 'node:net';
 
@@ -22,7 +22,7 @@ test('real SDK connection refusal produces an unavailable event', async () => {
     // after closing this local listener, without contacting production LM Studio.
     const port=reservation.address().port;
     await new Promise(resolve=>reservation.close(resolve));
-    const result=spawnSync(process.execPath,['nextcloud-app/media_ai/worker/lmstudio/stream.mjs'],{
+    const result=spawnSync(process.execPath,['worker/lmstudio/stream.mjs'],{
       input:JSON.stringify({base_url:`ws://127.0.0.1:${port}`,payload:{model:'synthetic-test',messages:[]}}),
       encoding:'utf8',timeout:15000});
     assert.equal(result.status,1);

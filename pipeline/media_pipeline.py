@@ -3,7 +3,7 @@ import importlib.util
 from pathlib import Path
 import sys
 
-source = Path(__file__).parent / 'nextcloud-app' / 'media_ai' / 'worker' / 'media_pipeline.py'
+source = Path(__file__).resolve().parents[1] / 'worker' / 'media_pipeline.py'
 sys.path.insert(0, str(source.parent))
 spec = importlib.util.spec_from_file_location('_media_ai_pipeline', source)
 module = importlib.util.module_from_spec(spec)

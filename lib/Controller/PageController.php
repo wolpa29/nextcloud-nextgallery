@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 namespace OCA\Chronicle\Controller;
-use OCP\{IRequest,IUserSession,IURLGenerator,IConfig};
+use OCP\{IRequest,IUserSession,IURLGenerator,IConfig,IGroupManager};
 use OCP\L10N\IFactory;
 use OCP\App\IAppManager;
 use OCP\AppFramework\Controller;
@@ -10,13 +10,19 @@ use OCP\AppFramework\Http\Attribute\{NoAdminRequired,NoCSRFRequired};
 use OCA\Chronicle\Service\Library;
 use OCA\Chronicle\Http\Bytes;
 class PageController extends Controller {
- public function __construct(IRequest $request,private IUserSession $session,private Library $library,private IURLGenerator $url,private IAppManager $apps,private IFactory $languages,private IConfig $config) {parent::__construct('chronicle',$request);}
+ public function __construct(IRequest $request,private IUserSession $session,private Library $library,private IURLGenerator $url,private IAppManager $apps,private IFactory $languages,private IConfig $config,private IGroupManager $groups,private \OCA\Chronicle\AI\Service\Settings $aiSettings) {parent::__construct('chronicle',$request);}
+ private function canManageAi():bool { $uid=$this->session->getUser()?->getUID();return $uid!==null && ($this->groups->isAdmin($uid) || $uid===$this->aiSettings->get()['user_id']); }
  private function data(bool $offline):array {
   $uid=$this->session->getUser()->getUID();
   // Resolve the user's Nextcloud language independently of app l10n files.
   // This frontend supplies its own translations; app-specific IL10N would
   // otherwise fall back to English when no Nextcloud l10n/de.json exists.
-  return ['context'=>['base'=>$this->url->linkToRoute('chronicle.page.index'),'assets'=>$this->url->linkTo('chronicle',''),'sourceUrl'=>$this->config->getAppValue('chronicle','source_url',''),'version'=>$this->apps->getAppVersion('chronicle'),'language'=>$this->languages->findLanguage(),'embedded'=>$this->request->isUserAgent([IRequest::USER_AGENT_CLIENT_ANDROID]),'cacheKey'=>$this->library->cacheKey($uid),'offline'=>$offline,'settings'=>$this->library->settings($uid)]];
+  return ['context'=>['base'=>$this->url->linkToRoute('chronicle.page.index'),'aiUrl'=>!$offline && $this->canManageAi()?$this->url->linkToRoute('chronicle.page.ai'):null,'assets'=>$this->url->linkTo('chronicle',''),'sourceUrl'=>$this->config->getAppValue('chronicle','source_url',''),'version'=>$this->apps->getAppVersion('chronicle'),'language'=>$this->languages->findLanguage(),'embedded'=>$this->request->isUserAgent([IRequest::USER_AGENT_CLIENT_ANDROID]),'cacheKey'=>$this->library->cacheKey($uid),'offline'=>$offline,'settings'=>$this->library->settings($uid)]];
+ }
+ #[NoAdminRequired] #[NoCSRFRequired]
+ public function ai():Response {
+  if (!$this->canManageAi()) return new \OCP\AppFramework\Http\JSONResponse(['error'=>'KI-Verarbeitung ist für dieses Konto nicht freigegeben.'],403);
+  return new TemplateResponse('chronicle','ai-index',['galleryUrl'=>$this->url->linkToRoute('chronicle.page.index')]);
  }
  #[NoAdminRequired] #[NoCSRFRequired]
  public function index():TemplateResponse {

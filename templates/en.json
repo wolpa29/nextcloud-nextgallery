@@ -136,5 +136,19 @@
   "{0} Ordner ausgewählt": "{0} folders selected",
   "{0} aus Galerie entfernen": "Remove {0} from gallery",
   "1 Video": "1 video",
-  "{0} Videos": "{0} videos"
+  "{0} Videos": "{0} videos",
+  "Suche": "Search",
+  "KI-Verarbeitung": "AI processing",
+  "Galerie durchsuchen": "Search gallery",
+  "Dateiname, Bildinhalt oder erkannter Text": "Filename, image content or recognized text",
+  "Suchen": "Search",
+  "Sucht in Dateinamen, Beschreibung, Tags, Objekten und OCR deiner Galerie.": "Searches filenames, descriptions, tags, objects and OCR in your gallery.",
+  "Weitere Treffer": "More results",
+  "Zurück": "Back",
+  "Beschreibung und erkannter Text": "Description and recognized text",
+  "Keine Treffer. Versuche einen anderen Suchbegriff.": "No results. Try another search term.",
+  "Offline-Suche in gespeicherten Dateinamen und Ordnern.": "Offline search in saved filenames and folders.",
+  "Für dieses Medium liegt noch keine Analyse vor.": "No analysis is available for this media item yet.",
+  "Die Datei wurde geändert. Eine neue Analyse steht aus.": "The file has changed. A new analysis is pending.",
+  "{0} Treffer auf dieser Seite": "{0} results on this page"
 }

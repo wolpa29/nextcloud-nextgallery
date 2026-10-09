@@ -1,8 +1,8 @@
 <?php
 declare(strict_types=1);
-require __DIR__.'/../nextcloud-app/media_ai/lib/Service/ModelConnection.php';
+require __DIR__.'/../../lib/AI/Service/ModelConnection.php';
 
-class FixtureConnection extends \OCA\MediaAI\Service\ModelConnection {
+class FixtureConnection extends \OCA\Chronicle\AI\Service\ModelConnection {
     public array $calls = [];
     public function __construct(private array $responses) {}
     protected function fetch(string $url, string $secret): array {
@@ -62,6 +62,6 @@ $report=$connection->inspect(config());check(count($connection->calls)===3);chec
 check($report['vision']['loaded']===null);check($report['vision']['context_length']===null);check($report['vision']['source']==='openai');
 check($connection->calls[2][0]==='http://model.test:1234/v1/models');
 
-$rows=\OCA\MediaAI\Service\ModelConnection::nativeModels([null,['type'=>'embedding','key'=>'embedding'],['type'=>'llm','key'=>null],$model]);
+$rows=\OCA\Chronicle\AI\Service\ModelConnection::nativeModels([null,['type'=>'embedding','key'=>'embedding'],['type'=>'llm','key'=>null],$model]);
 check(count($rows)===1);
 echo "$checks PHP model connection assertions passed\n";

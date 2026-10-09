@@ -7,14 +7,14 @@ namespace OCP\AppFramework {class Controller {public function __construct(string
 namespace OCP\AppFramework\Http {class DataResponse {public function __construct(public array $data,public int $status=200){}public function addHeader($k,$v){}}class DataDownloadResponse {}}
 namespace OCP\AppFramework\OCS {class OCSException extends \Exception {}class OCSBadRequestException extends OCSException {}class OCSNotFoundException extends OCSException {}}
 namespace {
-$path=__DIR__.'/../nextcloud-app/media_ai/lib/';
-foreach(['Service/Settings','Service/Metadata','Service/Files','Service/Inventory','Controller/WorkerController'] as $file)require $path.$file.'.php';
+$path=__DIR__.'/../../lib/';
+foreach(['AI/Service/Settings','AI/Service/Metadata','AI/Service/Files','AI/Service/Inventory','Controller/AiWorkerController'] as $file)require $path.$file.'.php';
 class Config implements \OCP\IConfig {public array $values=[];public function getAppValue($a,$k,$d=''){return $this->values[$k]??$d;}public function setAppValue($a,$k,$v){$this->values[$k]=$v;}}
 class Crypto implements \OCP\Security\ICrypto {public function encrypt($s){return $s;}public function decrypt($s){return $s;}}
 class Root implements \OCP\Files\IRootFolder {public function getUserFolder($uid){throw new \Exception('Unauthenticated request reached files');}}
 class DB implements \OCP\IDBConnection {public function executeStatement($sql,$params){throw new \Exception('Unauthenticated request reached database');}}
 class Request implements \OCP\IRequest {public string $token='';public function getHeader(string $key):string{return $this->token;}}
-$c=new Config();$settings=new \OCA\MediaAI\Service\Settings($c,new Crypto());$root=new Root();$db=new DB();$files=new \OCA\MediaAI\Service\Files($root);$inventory=new \OCA\MediaAI\Service\Inventory($root,$db,$settings,$files);$metadata=new \OCA\MediaAI\Service\Metadata($db);$request=new Request();$controller=new \OCA\MediaAI\Controller\WorkerController($request,$settings,$inventory,$metadata);$token=$settings->workerToken();$checks=0;
+$c=new Config();$settings=new \OCA\Chronicle\AI\Service\Settings($c,new Crypto());$root=new Root();$db=new DB();$files=new \OCA\Chronicle\AI\Service\Files($root);$inventory=new \OCA\Chronicle\AI\Service\Inventory($root,$db,$settings,$files);$metadata=new \OCA\Chronicle\AI\Service\Metadata($db);$request=new Request();$controller=new \OCA\Chronicle\Controller\AiWorkerController($request,$settings,$inventory,$metadata);$token=$settings->workerToken();$checks=0;
 foreach(['','Bearer wrong','Basic '.$token] as $bad){$request->token=$bad;foreach([fn()=>$controller->config(),fn()=>$controller->inventory(),fn()=>$controller->reset(),fn()=>$controller->resolve(1),fn()=>$controller->image(1,'v1'),fn()=>$controller->publish(1,'v1','x','x',[])] as $call){if($call()->status!==401)throw new \Exception('Worker access not refused');$checks++;}}
 $request->token='Bearer '.$token;if($controller->config()->status!==200)throw new \Exception('Valid worker refused');$checks++;
 echo "$checks PHP worker authentication assertions passed\n";
