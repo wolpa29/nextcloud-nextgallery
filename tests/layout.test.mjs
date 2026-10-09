@@ -12,3 +12,7 @@ test('month-only and year-only dates remain ordered without assigning a day',()=
  let s=localSummary(items,{order:'asc',grouping:'month'});assert.deepEqual(s.groups,[{key:'2024-00',count:1},{key:'2024-08',count:2}]);assert.deepEqual(s.items.map(i=>i.id),[2,1,3]);
  s=localSummary(items,{order:'desc',grouping:'day'},'image');assert.equal(s.total,2);assert.deepEqual(s.items.map(i=>i.id),[3,1]);
 });
+
+test('native two to six column selection stays exact on phone and desktop',()=>{
+ for(const width of [320,591,1280])for(const columns of [2,3,4,5,6]){const l=layout([{key:'2026-10',count:20000}],width,180,true,columns);assert.equal(l.columns,columns);assert(l.size>0);assert(visible(l,l.height/2,700).length<100);}
+});

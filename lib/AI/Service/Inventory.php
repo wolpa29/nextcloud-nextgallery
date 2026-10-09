@@ -24,13 +24,14 @@ class Inventory {
     public function page(int $cursor = 0): array {
         if ($cursor < 0) { throw new OCSBadRequestException('Inventar-Cursor ungültig'); }
         $scopes = $this->scopes();
-        $conditions = []; $parameters = [$cursor];
+        $config = $this->settings->get();
+        $conditions = []; $parameters = [$config['user_id'], $cursor];
         foreach ($scopes as $scope) {
             $conditions[] = "(f.storage=? AND f.path LIKE ? ESCAPE '!')";
             $parameters[] = $scope['storage']; $parameters[] = $this->escaped(($scope['path'] === '' ? '' : $scope['path'] . '/')) . '%';
         }
         // Read core file cache only; versions, paths and metadata are never modified.
-        $sql = 'SELECT DISTINCT f.fileid,f.storage,f.path,f.etag,f.size,m.mimetype FROM *PREFIX*filecache f JOIN *PREFIX*mimetypes m ON m.id=f.mimetype WHERE f.fileid>? AND (m.mimetype LIKE \'image/%\' OR m.mimetype LIKE \'video/%\') AND (' . implode(' OR ', $conditions) . ') ORDER BY f.fileid LIMIT 1000';
+        $sql = 'SELECT DISTINCT f.fileid,f.storage,f.path,f.etag,f.size,m.mimetype,a.etag AS analyzed_etag FROM *PREFIX*filecache f JOIN *PREFIX*mimetypes m ON m.id=f.mimetype LEFT JOIN *PREFIX*nextgallery_ai_meta a ON a.file_id=f.fileid AND a.user_id=? WHERE f.fileid>? AND (m.mimetype LIKE \'image/%\' OR m.mimetype LIKE \'video/%\') AND (' . implode(' OR ', $conditions) . ') ORDER BY f.fileid LIMIT 1000';
         $result = $this->db->executeQuery($sql, $parameters);
         try { $rows = $result->fetchAll(); } finally { $result->closeCursor(); }
         $config = $this->settings->get(); $items = [];
@@ -46,7 +47,7 @@ class Inventory {
                 if ($path === $exclude || str_starts_with($path, rtrim($exclude, '/') . '/')) { continue 2; }
             }
             $items[] = ['file_id' => (int)$row['fileid'], 'path' => ltrim($path, '/'), 'etag' => $row['etag'],
-                        'size' => (int)$row['size'], 'mime' => $row['mimetype']];
+                        'size' => (int)$row['size'], 'mime' => $row['mimetype'], 'analyzed_etag' => $row['analyzed_etag'] ?? null];
         }
         return ['items' => $items, 'cursor' => count($rows) === 1000 ? (int)end($rows)['fileid'] : null];
     }

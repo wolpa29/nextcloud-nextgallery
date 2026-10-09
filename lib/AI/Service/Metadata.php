@@ -30,7 +30,18 @@ class Metadata {
                 'metadata_json' => $json, 'updated_at' => time()];
     }
     public function upsert(string $uid, array $data): void {
-        $this->db->setValues('nextgallery_ai_meta', ['user_id'=>$uid, 'file_id'=>$data['file_id']], array_diff_key($data, ['user_id'=>true, 'file_id'=>true]));
+        // The unique (user_id,file_id) key also protects concurrent publishers.
+        // Existing analyses may only be removed by the explicit reset workflow.
+        $values=['user_id'=>$uid]+$data;
+        try {
+            $this->db->executeStatement('INSERT INTO *PREFIX*nextgallery_ai_meta ('.implode(',',array_keys($values)).') VALUES ('.implode(',',array_fill(0,count($values),'?')).')',array_values($values));
+        } catch (\Throwable $error) {
+            if (!$this->get($uid,(int)$data['file_id'])) { throw $error; }
+        }
+    }
+    public function count(string $uid): int {
+        $result=$this->db->executeQuery('SELECT COUNT(*) FROM *PREFIX*nextgallery_ai_meta WHERE user_id=?',[$uid]);
+        try { return (int)$result->fetchOne(); } finally { $result->closeCursor(); }
     }
     public function normalizeIndex(): void {
         // Nextcloud tables use binary collation. Normalize indexed copies;

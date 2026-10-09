@@ -8,9 +8,9 @@ use OCP\AppFramework\Http\StreamResponse;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\OCS\OCSException;
-use OCA\Nextgallery\AI\Service\{Settings,Inventory,Metadata};
+use OCA\Nextgallery\AI\Service\{Settings,Inventory,Metadata,State};
 class AiWorkerController extends Controller {
-    public function __construct(IRequest $request, private Settings $settings, private Inventory $inventory, private Metadata $metadata) { parent::__construct('nextgallery', $request); }
+    public function __construct(IRequest $request, private Settings $settings, private Inventory $inventory, private Metadata $metadata, private ?State $state = null) { parent::__construct('nextgallery', $request); }
     private function denied(): ?DataResponse {
         if (!$this->settings->verifyWorker($this->request->getHeader('Authorization'))) { return new DataResponse(['error'=>'Worker authentication required'],401); }
         return null;
@@ -43,6 +43,8 @@ class AiWorkerController extends Controller {
     #[PublicPage] #[NoCSRFRequired]
     public function reset(): DataResponse {
         if($denied=$this->denied())return $denied;
+        $control=$this->state?->control()??[];
+        if(empty($control['reset_requested']) || empty($control['paused']))return new DataResponse(['error'=>'Explicit paused reset request required'],409);
         $this->metadata->reset($this->settings->get()['user_id']);
         return new DataResponse(['reset'=>true]);
     }

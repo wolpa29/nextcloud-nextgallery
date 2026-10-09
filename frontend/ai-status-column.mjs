@@ -4,7 +4,7 @@ const cache = new Map()
 const pending = new Map()
 const visible = new Map()
 let timer, inFlight = false
-const labels = { done: 'Bearbeitet', pending: 'Offen', error: 'Fehler', changed: 'Geändert', publishing: 'Speichern ausstehend', unselected: 'Nicht ausgewählt' }
+const labels = { done: 'Bearbeitet', pending: 'Offen', error: 'Fehler', changed: 'Älterer Dateistand', publishing: 'Speichern ausstehend', unselected: 'Nicht ausgewählt' }
 const tr = (key, values) => window.MediaAIi18n?.t(key, values) || key
 const renderStatus = (element, item) => {
   element.replaceChildren()
@@ -13,8 +13,8 @@ const renderStatus = (element, item) => {
   badge.dataset.state = item?.status || 'unselected'
   badge.textContent = tr(labels[item?.status] || 'Nicht ausgewählt')
   if (item?.counts) {
-    badge.title = tr('Auswahl: {done} von {total} bearbeitet', { done: item.counts.done, total: item.counts.total })
-    badge.textContent = `${item.counts.done} / ${item.counts.total}`
+    badge.title = tr('Auswahl: {done} von {total} bearbeitet', { done: item.counts.done + item.counts.changed, total: item.counts.total })
+    badge.textContent = `${item.counts.done + item.counts.changed} / ${item.counts.total}`
   }
   element.append(badge)
 }

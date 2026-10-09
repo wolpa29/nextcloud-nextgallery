@@ -25,6 +25,8 @@ class Library {
         return $result;
     }
     public static function classify(array $item, ?array $queued): string {
+        // Published metadata is authoritative, including after queue/app/model changes.
+        if ($item['analyzed_etag']) { return $item['analyzed_etag']===$item['etag'] ? 'done' : 'changed'; }
         if ($queued && $queued['etag']===$item['etag']) {
             if ($queued['status']==='error') { return 'error'; }
             if ($queued['status']==='pending') { return $item['analyzed_etag'] ? 'changed' : 'pending'; }
@@ -44,7 +46,8 @@ class Library {
         foreach ($rows as &$row) {
             $queued=$queue[$row['file_id']]??null;
             $row['status']=self::classify($row,$queued);
-            $row['next_pending']=!$queued || $queued['etag']!==$row['etag'] || $row['status']!=='done';
+            $row['has_metadata']=!empty($row['analyzed_etag']);
+            $row['next_pending']=!$row['has_metadata'] && $row['status']!=='done';
             $row['error']=$row['status']==='error' ? ($queued['error']??'') : ($row['status']==='publishing' ? ($queued['publish_error']??'') : '');
             $row['retry_at']=$row['status']==='error' ? (float)($queued['retry_at']??0) : 0;
             $row['name']=basename($row['path']); $row['parent']=dirname($row['path']);
@@ -63,7 +66,7 @@ class Library {
             unset($row['etag'],$row['analyzed_etag']);
         }
         unset($row); usort($recent,fn($a,$b)=>$b['updated_at']<=>$a['updated_at']);
-        foreach ($folders as &$folder) { $folder['status']=$folder['counts']['total']>0 && $folder['counts']['done']===$folder['counts']['total'] ? 'done' : ($folder['counts']['error'] ? 'error' : 'pending'); }
+        foreach ($folders as &$folder) { $folder['status']=$folder['counts']['total']>0 && ($folder['counts']['done']+$folder['counts']['changed'])===$folder['counts']['total'] ? ($folder['counts']['changed']?'changed':'done') : ($folder['counts']['error'] ? 'error' : 'pending'); }
         unset($folder);
         $snapshot=['rows'=>$rows,'folders'=>$folders,'recent'=>array_slice($recent,0,5),'generated_at'=>time()];
         $cache?->set($key,$snapshot,10); return $snapshot;
@@ -80,7 +83,7 @@ class Library {
         return $selected;
     }
     public function browse(string $path='', string $filter='all', string $query='', int $offset=0): array {
-        if (strlen($path)>2000 || str_contains($path,"\0") || str_contains($path,'\\') || preg_match('~(^|/)(\.|\.\.)(/|$)~',$path) || $offset<0 || $offset>10000000 || strlen($query)>200 || !in_array($filter,['all','done','pending','error','changed'],true)) { throw new OCSBadRequestException('Ungültige Dateiauswahl'); }
+        if (strlen($path)>2000 || str_contains($path,"\0") || str_contains($path,'\\') || preg_match('~(^|/)(\.|\.\.)(/|$)~',$path) || $offset<0 || $offset>10000000 || strlen($query)>200 || !in_array($filter,['all','analyzed','done','pending','error','changed'],true)) { throw new OCSBadRequestException('Ungültige Dateiauswahl'); }
         $path=trim($path,'/'); $snapshot=$this->snapshot(); $config=$this->settings->get();
         if (!isset($snapshot['folders'][$path])) { throw new OCSBadRequestException('Ordner außerhalb der Auswahl oder ohne Medien'); }
         $folder=$snapshot['folders'][$path]; $children=[]; $files=[];
@@ -92,7 +95,7 @@ class Library {
         foreach ($snapshot['rows'] as $row) {
             $inside=$path==='' || str_starts_with($row['path'],$path.'/');
             if (!$inside || ($filter==='all' && $query==='' && $row['parent']!==$path)) { continue; }
-            if ($filter==='pending' ? $row['status']==='done' : ($filter!=='all' && $row['status']!==$filter)) { continue; }
+            if ($filter==='analyzed' ? !$row['has_metadata'] : ($filter==='pending' ? !$row['next_pending'] : ($filter!=='all' && $row['status']!==$filter))) { continue; }
             if ($query!=='' && mb_stripos($row['path'],$query)===false) { continue; }
             $files[]=$row;
         }

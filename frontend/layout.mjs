@@ -1,5 +1,5 @@
-export function layout(groups,width,target=180,headers=true) {
- const gap=4,columns=Math.max(2,Math.floor((width+gap)/(target+gap))),size=(width-(columns-1)*gap)/columns;
+export function layout(groups,width,target=180,headers=true,fixedColumns=0) {
+ const gap=4,columns=fixedColumns?Math.max(2,Math.min(6,fixedColumns)):Math.max(2,Math.floor((width+gap)/(target+gap))),size=(width-(columns-1)*gap)/columns;
  let y=0;const sections=groups.map(g=>{const start=y,header=headers?64:20;const rows=Math.ceil(g.count/columns);y+=header+rows*(size+gap);return {...g,start,end:y,header,rows};});
  return {sections,height:y,columns,size,gap};
 }

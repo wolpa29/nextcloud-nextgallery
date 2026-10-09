@@ -2,7 +2,7 @@
 script('nextgallery','ai-i18n'); script('nextgallery','ai-workspace'); script('nextgallery','ai-admin'); style('nextgallery','ai-admin'); style('nextgallery','ai-branding');
 ?>
 <div id="media-ai-admin" class="mai">
- <div class="mai-header"><div><h2 id="mai-page-title">Media AI</h2><p id="mai-page-description" class="mai-muted">Bestand, Fortschritt und nächste Ausführung.</p></div><label class="mai-language">Sprache<select id="mai-language" aria-label="Sprache"><option value="de">Deutsch</option><option value="en">English</option></select></label></div>
+ <div class="mai-header"><div><h2 id="mai-page-title">KI-Verarbeitung</h2><p id="mai-page-description" class="mai-muted">Bestand, Fortschritt und nächste Ausführung.</p></div></div>
  <div id="mai-message" role="status" aria-live="polite"></div>
  <div class="mai-savebar" id="mai-savebar" hidden><span data-save-status role="status" aria-live="polite">Einstellungen werden geladen …</span><button type="submit" form="mai-form" class="primary" disabled>Speichern</button></div>
  <section id="mai-pipeline-status" data-view="overview" class="mai-view">
@@ -16,7 +16,7 @@ script('nextgallery','ai-i18n'); script('nextgallery','ai-workspace'); script('n
   <p id="mai-inventory-freshness" class="mai-muted"></p>
  </section>
  <section id="mai-library" data-view="library" class="mai-view" hidden>
-  <div class="mai-library-toolbar"><label class="mai-search"><span>Dateien suchen</span><input id="mai-library-search" type="search" placeholder="Dateiname oder Pfad" maxlength="200"></label><label><span>Status</span><select id="mai-library-filter"><option value="all">Alle Dateien</option><option value="done">Bearbeitet</option><option value="pending">Noch offen</option><option value="error">Fehler</option><option value="changed">Geändert</option></select></label><button id="mai-library-refresh" type="button">Aktualisieren</button></div>
+  <div class="mai-library-toolbar"><label class="mai-search"><span>Dateien suchen</span><input id="mai-library-search" type="search" placeholder="Dateiname oder Pfad" maxlength="200"></label><label><span>Status</span><select id="mai-library-filter"><option value="all">Alle Dateien</option><option value="analyzed">Mit KI-Metadaten</option><option value="done">Aktueller Dateistand</option><option value="pending">Noch offen</option><option value="error">Fehler</option><option value="changed">Älterer Dateistand</option></select></label><button id="mai-library-refresh" type="button">Aktualisieren</button></div>
   <div class="mai-library-layout"><aside class="mai-folder-tree" aria-label="Ordnerbaum"><button type="button" id="mai-library-root">Alle ausgewählten Dateien</button><div id="mai-tree"></div></aside><div class="mai-file-content"><nav id="mai-breadcrumbs" aria-label="Ordnerpfad"></nav><div id="mai-folder-heading"></div><div id="mai-file-list" aria-live="polite"></div><div class="mai-library-pagination"><span id="mai-file-count" class="mai-muted"></span><button type="button" id="mai-files-more" hidden>Weitere Dateien</button></div></div></div>
  </section>
  <form id="mai-form">
@@ -36,7 +36,7 @@ script('nextgallery','ai-i18n'); script('nextgallery','ai-workspace'); script('n
    <div class="mai-grid mai-options-grid"><label>Täglicher Start<input type="time" name="schedule_time" required></label><label>Zeitzone<input name="timezone" required></label><label>Logs aufbewahren (Tage)<input type="number" name="log_days" min="1" max="365" required></label></div>
   </div>
   <details class="mai-help"><summary>Hinweise zur Verarbeitung</summary>
-   <p class="mai-muted">Kein Datei- oder Gesamtzeitlimit: Unveränderte fertige Dateien werden übersprungen. Fortsetzen bearbeitet die restlichen Dateien.</p>
+   <p class="mai-muted">Nur Dateien ohne KI-Metadaten werden analysiert. Vorhandene Analysen bleiben bei Modellwechseln und Dateiänderungen erhalten.</p>
    <p class="mai-muted">Die Zeit pro Datei umfasst Download, Vorbereitung, Modellanfragen und Korrekturversuche. Bei Überschreitung wird ein Fehler protokolliert und die nächste Datei bearbeitet.</p>
    <p class="mai-muted">Video-Frames werden gleichmäßig über die Dauer verteilt und gemeinsam analysiert. OCR wird bei Videos ausgelassen.</p>
   </details>
@@ -46,7 +46,7 @@ script('nextgallery','ai-i18n'); script('nextgallery','ai-workspace'); script('n
   <div class="mai-table"><table><thead><tr><th>Zeit</th><th>Ereignis</th><th>Datei / Details</th><th>Dauer</th></tr></thead><tbody id="mai-logs"></tbody></table></div><button id="mai-log-older" type="button" hidden>Ältere laden</button>
  </section>
  <section class="mai-view mai-settings-view" id="mai-settings" data-view="settings" hidden>
-  <section class="mai-model-probe"><div class="mai-title"><h3>Verbindung und geladenes Modell</h3><button id="mai-test" type="button">LM Studio prüfen</button></div>
+  <section class="mai-policy"><h3>Vorhandene Analysen behalten</h3><p>Modell, Modellstand und Prompt gelten nur für Dateien ohne KI-Metadaten. Auch ältere Dateistände werden nicht automatisch überschrieben.</p><p>Für eine vollständige Neuanalyse unter Wartung alle KI-Daten löschen und anschließend einen neuen Lauf starten.</p></section><section class="mai-model-probe"><div class="mai-title"><h3>Verbindung und geladenes Modell</h3><button id="mai-test" type="button">LM Studio prüfen</button></div>
    <p class="mai-muted">Zeigt den aktuellen Modellstatus und die tatsächlich geladene Kontextgröße. Für alle angemeldeten Nutzer; startet keine Analyse.</p>
    <div id="mai-model-result" role="status" aria-live="polite"></div>
   </section>
@@ -56,7 +56,7 @@ script('nextgallery','ai-i18n'); script('nextgallery','ai-workspace'); script('n
   </div>
  </section>
  </form>
- <section class="mai-view mai-settings-view" id="mai-pipeline-maintenance" data-view="maintenance" hidden><h3>Wartung</h3><p class="mai-muted">Diese Aktionen betreffen nur Media AI. Originaldateien und andere Nextcloud-Daten bleiben erhalten.</p><div class="mai-actions mai-maintenance-actions"><button id="mai-clear-logs" type="button">Aktivitätslog leeren</button><button id="mai-reset-ai" type="button">KI-Daten zurücksetzen</button></div></section>
- <dialog id="mai-maintenance"><h3 id="mai-maintenance-title"></h3><p id="mai-maintenance-info"></p><label class="mai-check"><input id="mai-maintenance-check" type="checkbox">Ich bestätige diese Aktion.</label><div class="mai-actions"><button id="mai-maintenance-confirm" type="button" disabled>Bestätigen</button><button id="mai-maintenance-cancel" type="button">Abbrechen</button></div></dialog>
+ <section class="mai-view mai-settings-view" id="mai-pipeline-maintenance" data-view="maintenance" hidden><h3>Wartung</h3><p class="mai-muted">Diese Aktionen betreffen nur Media AI. Originaldateien und andere Nextcloud-Daten bleiben erhalten.</p><p id="mai-existing-count" class="mai-muted"></p><p class="mai-muted">Vorhandene Analysen werden nie automatisch überschrieben. Für eine vollständige Neuanalyse zuerst die KI-Daten löschen und danach einen Lauf starten.</p><div class="mai-actions mai-maintenance-actions"><button id="mai-clear-logs" type="button">Aktivitätslog leeren</button><button id="mai-reset-ai" type="button">Alle KI-Daten löschen</button></div></section>
+ <dialog id="mai-maintenance"><h3 id="mai-maintenance-title"></h3><p id="mai-maintenance-info"></p><p id="mai-maintenance-count"></p><label class="mai-check"><input id="mai-maintenance-check" type="checkbox">Ich bestätige diese Aktion.</label><div class="mai-actions"><button id="mai-maintenance-confirm" type="button" disabled>Bestätigen</button><button id="mai-maintenance-cancel" type="button">Abbrechen</button></div></dialog>
  <dialog id="mai-picker"><h3>Ordner auswählen</h3><p id="mai-picker-path"></p><div class="mai-actions"><button id="mai-picker-parent" type="button">Übergeordneter Ordner</button><label class="mai-check"><input id="mai-picker-current" type="checkbox">Diesen Ordner einbeziehen</label></div><div id="mai-picker-list"></div><p id="mai-picker-selected" class="mai-muted"></p><div class="mai-actions"><button id="mai-picker-apply" class="primary" type="button">Übernehmen</button><button id="mai-picker-close" type="button">Abbrechen</button></div></dialog>
 </div>

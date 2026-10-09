@@ -6,7 +6,7 @@ use OCP\IDBConnection;
 /** One gallery scope for filenames and fresh AI text. Dense retrieval can extend this service. */
 class GallerySearch {
  public function __construct(private IDBConnection $db,private Library $library) {}
- public function search(string $uid,string $term,string $kind='',int $offset=0,int $limit=60):array {
+ public function search(string $uid,string $term,string $kind='',int $offset=0,int $limit=60,string $gallery=''):array {
   if (mb_strlen($term)>200 || $offset<0) throw new \InvalidArgumentException('Suchanfrage oder Seitenauswahl ungültig.');
   preg_match_all('/[\p{L}\p{N}_]+/u',mb_strtolower($term),$matches);
   $words=array_slice(array_values(array_unique($matches[0])),0,16);
@@ -15,6 +15,7 @@ class GallerySearch {
   $q->select('c.file_id','c.payload')->from('nextgallery_media','c')
    ->leftJoin('c','nextgallery_ai_meta','a','a.user_id=c.user_id AND a.file_id=c.file_id AND a.etag=c.etag')
    ->where($q->expr()->eq('c.user_id',$q->createNamedParameter($uid)));
+  $this->library->scopeQuery($q,$uid,'c.path_text',$gallery);
   if (in_array($kind,['image','video'],true)) $q->andWhere($q->expr()->eq('c.kind',$q->createNamedParameter($kind)));
   $scores=[];$conditions=[];
   foreach ($words as $word) {

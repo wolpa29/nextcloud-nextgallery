@@ -11,23 +11,24 @@ class ApiController extends Controller {
  private function uid():string {return $this->session->getUser()->getUID();}
  private function response(array $v):JSONResponse {return new JSONResponse($v,200,['Cache-Control'=>'private, no-store']);}
  #[NoAdminRequired] #[NoCSRFRequired]
- public function settings():JSONResponse {return $this->response(['settings'=>$this->library->settings($this->uid()),'cacheKey'=>$this->library->cacheKey($this->uid())]);}
+ public function settings(string $gallery=''):JSONResponse {return $this->response(['settings'=>$this->library->settings($this->uid(),$gallery),'cacheKey'=>$this->library->cacheKey($this->uid(),$gallery)]);}
  #[NoAdminRequired]
- public function save(array $settings=[]):JSONResponse {
+ public function save(array $settings=[],string $gallery=''):JSONResponse {
+  if($gallery!==''&&!isset($settings['activeGallery']))$settings['activeGallery']=$gallery;
   try {$p=$this->library->save($this->uid(),$settings);return $this->response(['settings'=>$p,'cacheKey'=>$this->library->cacheKey($this->uid())]);}
   catch (\InvalidArgumentException $e) {return new JSONResponse(['error'=>$e->getMessage()],400);}
  }
  #[NoAdminRequired] #[NoCSRFRequired]
  public function folders(string $path='/'):JSONResponse {try{return $this->response(['folders'=>$this->library->folders($this->uid(),$path)]);}catch(\Throwable){return new JSONResponse(['error'=>'Ordner nicht verfügbar.'],404);}}
  #[NoAdminRequired] #[NoCSRFRequired]
- public function summary(string $kind=''):JSONResponse {return $this->response($this->library->summary($this->uid(),$kind));}
+ public function summary(string $kind='',string $gallery=''):JSONResponse {return $this->response($this->library->summary($this->uid(),$kind,$gallery));}
  #[NoAdminRequired] #[NoCSRFRequired]
- public function items(string $kind='',string $period='',int $offset=0,int $limit=150):JSONResponse {return $this->response($this->library->items($this->uid(),$kind,$period,$offset,$limit));}
+ public function items(string $kind='',string $period='',int $offset=0,int $limit=150,string $gallery=''):JSONResponse {return $this->response($this->library->items($this->uid(),$kind,$period,$offset,$limit,false,$gallery));}
  #[NoAdminRequired] #[NoCSRFRequired]
- public function map(int $offset=0):JSONResponse {return $this->response($this->library->items($this->uid(),'','',$offset,200,true));}
+ public function map(int $offset=0,string $gallery=''):JSONResponse {return $this->response($this->library->items($this->uid(),'','',$offset,200,true,$gallery));}
  #[NoAdminRequired] #[NoCSRFRequired]
- public function search(string $query='',string $kind='',int $offset=0,int $limit=60):JSONResponse {
-  try {return $this->response($this->searchService->search($this->uid(),$query,$kind,$offset,$limit));}
+ public function search(string $query='',string $kind='',int $offset=0,int $limit=60,string $gallery=''):JSONResponse {
+  try {return $this->response($this->searchService->search($this->uid(),$query,$kind,$offset,$limit,$gallery));}
   catch (\InvalidArgumentException $e) {return new JSONResponse(['error'=>$e->getMessage()],400);}
  }
  #[NoAdminRequired] #[NoCSRFRequired]
@@ -35,8 +36,7 @@ class ApiController extends Controller {
   try {
    $file=$this->library->file($this->uid(),$id);$row=$this->aiMetadata->get($this->uid(),$id);
    if (!$row) return $this->response(['available'=>false]);
-   if (!hash_equals($file->getEtag(),$row['etag'])) return $this->response(['available'=>false,'stale'=>true]);
-   return $this->response(['available'=>true,'updated_at'=>$row['updated_at'],'metadata'=>json_decode($row['metadata_json'],true,64,JSON_THROW_ON_ERROR)]);
+   return $this->response(['available'=>true,'stale'=>!hash_equals($file->getEtag(),$row['etag']),'updated_at'=>$row['updated_at'],'metadata'=>json_decode($row['metadata_json'],true,64,JSON_THROW_ON_ERROR)]);
   } catch (\OCP\Files\NotFoundException|\OCP\Files\NotPermittedException) {return new JSONResponse(['error'=>'Medium nicht verfügbar.'],404);}
  }
  #[NoAdminRequired]

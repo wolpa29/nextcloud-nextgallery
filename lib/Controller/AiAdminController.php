@@ -16,7 +16,7 @@ class AiAdminController extends Controller {
         $uid=$this->session->getUser()?->getUID();
         return $uid!==null && ($this->admin() || $uid===$this->settings->get()['user_id']) ? null : new DataResponse(['error'=>'Diese Pipeline gehört einem anderen Benutzer'],403);
     }
-    private function publicConfig(): array { return $this->settings->publicConfig()+['can_configure_models'=>$this->admin()]; }
+    private function publicConfig(): array { return $this->settings->publicConfig()+['can_configure_models'=>$this->admin(),'metadata_count'=>$this->metadata?->count($this->settings->get()['user_id'])??0]; }
     #[NoAdminRequired]
     public function config(): DataResponse { if($denied=$this->denied())return $denied; return new DataResponse($this->publicConfig()); }
     #[NoAdminRequired]
@@ -73,17 +73,18 @@ class AiAdminController extends Controller {
         try { $file=$this->files->byId($this->settings->get()['user_id'],$file_id); }
         catch(\OCP\AppFramework\OCS\OCSNotFoundException|\OCP\Files\NotFoundException|\OCP\Files\NotPermittedException $e){return new DataResponse(['available'=>false],404);}
         $row=$this->metadata->get($this->settings->get()['user_id'],$file_id);
-        if(!$row || !hash_equals($row['etag'],$file->getEtag()))return new DataResponse(['available'=>false]);
-        return new DataResponse(['available'=>true,'updated_at'=>$row['updated_at'],'metadata'=>json_decode($row['metadata_json'],true,64,JSON_THROW_ON_ERROR)]);
+        if(!$row)return new DataResponse(['available'=>false]);
+        return new DataResponse(['available'=>true,'stale'=>!hash_equals($row['etag'],$file->getEtag()),'updated_at'=>$row['updated_at'],'metadata'=>json_decode($row['metadata_json'],true,64,JSON_THROW_ON_ERROR)]);
     }
     #[NoAdminRequired]
-    public function maintenance(string $action, string $confirmation): DataResponse {
+    public function maintenance(string $action, string $confirmation, int $expected_count = -1): DataResponse {
         if($denied=$this->denied())return $denied;
         if($confirmation!==$action || !in_array($action,['clear_logs','reset_ai'],true))return new DataResponse(['error'=>'Bestätigung fehlt'],400);
         $status=$this->state->status();
         if(!($status['control']['paused']??true) || $status['state']==='running')return new DataResponse(['error'=>'Bitte zuerst pausieren und das Ende der aktuellen Datei abwarten.'],409);
         if($action==='clear_logs')return new DataResponse(['cleared'=>$this->state->clearLogs()]);
         if(!$status['online'])return new DataResponse(['error'=>'Worker ist offline. Reset erst nach dem Start möglich.'],409);
+        if($expected_count!==$this->metadata->count($this->settings->get()['user_id']))return new DataResponse(['error'=>'Die Anzahl der Analysen hat sich geändert. Bitte die Löschbestätigung erneut öffnen.'],409);
         $this->state->setControl('reset');return new DataResponse(['requested'=>true]);
     }
     #[NoAdminRequired]

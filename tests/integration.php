@@ -45,7 +45,7 @@ if($legacy || $phase==='fresh') {
 $before=json_decode(file_get_contents('/test-output/pre.json'),true,64,JSON_THROW_ON_ERROR);
 $settings=Server::get(\OCA\Nextgallery\AI\Service\Settings::class);$state=Server::get(\OCA\Nextgallery\AI\Service\State::class);
 ok($settings->get()===$before['settings'],'AI settings changed during migration');
-ok($library->settings($uid)===$before['gallery'],'Gallery settings changed');ok($library->cacheKey($uid)===$before['epoch'],'Offline cache identity changed');
+ok(array_intersect_key($library->settings($uid),$before['gallery'])===$before['gallery'],'Gallery settings changed');ok($library->cacheKey($uid)===$before['epoch'],'Offline cache identity changed');
 ok($config->getAppValue('nextgallery','ai_worker_token')===$before['token_cipher'],'Worker encrypted token not adopted');ok($config->getAppValue('nextgallery','ai_vision_api_key')===$before['key_cipher'],'Encrypted API key changed');ok($settings->workerConfig()['vision']['api_key']==='synthetic-test-key','Encrypted key cannot be decrypted');
 ok(hash_file('sha256',$state->directory().'/native.sqlite3')===$before['queue_hash'],'Queue touched by migration');ok($state->control()['paused'] && $state->control()['pause_reason']==='Synthetic preserved pause','Pause state changed');
 foreach($files as $i=>$file)ok($metadata->get($uid,$file->getId())===$before['metadata'][$i],'Existing analysis bytes/timestamp changed');
@@ -56,7 +56,7 @@ $other=$users->get('merge-other')??$users->createUser('merge-other','SyntheticOt
 $api=Server::get(\OCA\Nextgallery\Controller\ApiController::class);ok($api->analysis($files[0]->getId())->getData()['available'],'Analysis details unavailable');ok($api->analysis($hidden->getId())->getStatus()===404,'Analysis details leak outside roots');
 // An old worker bootstrap's native URL changes no queue scope or credentials.
 $files[0]->putContent(file_get_contents('/samples/bike.png'));
-ok(!$search->search($uid,'STALEROCR')['items'],'Changed file still matches old OCR');ok(!($api->analysis($files[0]->getId())->getData()['available']??true),'Changed file exposes old metadata');
+ok(!$search->search($uid,'STALEROCR')['items'],'Changed file still matches old OCR');ok(($api->analysis($files[0]->getId())->getData()['stale']??false),'Changed file has no stale-analysis warning');
 $files[1]->delete();ok(!$search->search($uid,'ZX987')['items'],'Deleted file still returned');
 $query=$db->getQueryBuilder();$query->select('file_id')->from('nextgallery_ai_meta')->where($query->expr()->eq('user_id',$query->createNamedParameter('merge-other')));
 $metadata->upsert('merge-other',data($files[2],'Only synthetic other user','OTHERUSEROCR'));$other->delete();ok(!$query->executeQuery()->fetchOne(),'Deleted account retained AI records');

@@ -17,12 +17,12 @@ class PageController extends Controller {
   // Resolve the user's Nextcloud language independently of app l10n files.
   // This frontend supplies its own translations; app-specific IL10N would
   // otherwise fall back to English when no Nextcloud l10n/de.json exists.
-  return ['context'=>['base'=>$this->url->linkToRoute('nextgallery.page.index'),'aiUrl'=>!$offline && $this->canManageAi()?$this->url->linkToRoute('nextgallery.page.ai'):null,'assets'=>$this->url->linkTo('nextgallery',''),'sourceUrl'=>$this->config->getAppValue('nextgallery','source_url',''),'version'=>$this->apps->getAppVersion('nextgallery'),'language'=>$this->languages->findLanguage(),'embedded'=>$this->request->isUserAgent([IRequest::USER_AGENT_CLIENT_ANDROID]),'cacheKey'=>$this->library->cacheKey($uid),'offline'=>$offline,'settings'=>$this->library->settings($uid)]];
+  return ['context'=>['base'=>$this->url->linkToRoute('nextgallery.page.index'),'aiUrl'=>!$offline && $this->canManageAi()?$this->url->linkToRoute('nextgallery.page.ai'):null,'assets'=>$this->url->linkTo('nextgallery',''),'sourceUrl'=>$this->config->getAppValue('nextgallery','source_url',''),'version'=>$this->apps->getAppVersion('nextgallery'),'language'=>$this->library->settings($uid)['language']==='system'?$this->languages->findLanguage():$this->library->settings($uid)['language'],'embedded'=>$this->request->isUserAgent([IRequest::USER_AGENT_CLIENT_ANDROID]),'accountKey'=>$this->library->cacheKey($uid,'default'),'cacheKey'=>$this->library->cacheKey($uid),'offline'=>$offline,'settings'=>$this->library->settings($uid)]];
  }
  #[NoAdminRequired] #[NoCSRFRequired]
  public function ai():Response {
   if (!$this->canManageAi()) return new \OCP\AppFramework\Http\JSONResponse(['error'=>'KI-Verarbeitung ist für dieses Konto nicht freigegeben.'],403);
-  return new TemplateResponse('nextgallery','ai-index',['galleryUrl'=>$this->url->linkToRoute('nextgallery.page.index')]);
+  return new TemplateResponse('nextgallery','ai-index',['galleryUrl'=>$this->url->linkToRoute('nextgallery.page.index'),'appearance'=>$this->library->settings($this->session->getUser()->getUID())['appearance'],'language'=>$this->library->settings($this->session->getUser()->getUID())['language']==='system'?$this->languages->findLanguage():$this->library->settings($this->session->getUser()->getUID())['language']]);
  }
  #[NoAdminRequired] #[NoCSRFRequired]
  public function index():TemplateResponse {

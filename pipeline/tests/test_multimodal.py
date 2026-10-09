@@ -292,7 +292,12 @@ class VideoTests(unittest.TestCase):
             self.assertEqual(again['processed'],0);self.assertEqual(vision.calls,1)
             config['video']['frame_count']=5
             changed=p.run(config,store,source,{'vision':vision,'ocr':ocr},publisher=publisher)
-            self.assertEqual(changed['processed'],1);self.assertEqual(vision.calls,2)
+            self.assertEqual(changed['processed'],0);self.assertEqual(vision.calls,1)
+            self.assertEqual(store.db.execute('SELECT metadata FROM files').fetchone()[0],row[0])
+            # Explicitly clearing metadata and cache permits the new settings.
+            store.db.execute('DELETE FROM files');store.db.execute('DELETE FROM results');store.db.commit()
+            reset=p.run(config,store,source,{'vision':vision,'ocr':ocr},publisher=publisher)
+            self.assertEqual(reset['processed'],1);self.assertEqual(vision.calls,2)
             self.assertEqual(len(vision.batch.images),5)
         finally:store.db.close()
 

@@ -138,12 +138,12 @@ class PipelineTests(unittest.TestCase):
         self.run_pipeline()
         self.assertEqual(self.source.reads, 1)
         self.assertEqual([m.calls for m in self.models.values()], [1, 1])
-    def test_changed_content_reanalyzed(self):
+    def test_changed_content_is_preserved_until_explicit_deletion(self):
         self.run_pipeline()
         self.source.items[0].etag = 'v2'
         self.source.data = image_bytes('blue')
         self.run_pipeline()
-        self.assertEqual([m.calls for m in self.models.values()], [2, 2])
+        self.assertEqual([m.calls for m in self.models.values()], [1, 1])
     def test_rename_with_stable_id_updates_path_only(self):
         self.run_pipeline()
         self.source.items[0].path = 'Camera/new.jpg'
@@ -242,11 +242,48 @@ class PipelineTests(unittest.TestCase):
         self.source.stable = False
         self.assertEqual(self.run_pipeline()['errors'], 1)
         self.assertEqual(self.store.search('Fahrrad'), [])
-    def test_model_revision_reanalyzes_only_changed_stage(self):
+    def test_model_change_keeps_finished_results_and_uses_new_model_for_new_files(self):
         self.run_pipeline()
+        before = dict(self.store.db.execute('SELECT * FROM files WHERE id="1"').fetchone())
         self.models['vision'].revision = 'vision-2'
+        self.models['vision'].config['model'] = 'new-model'
+        self.config['video'] = {'frame_count': 5}
+        self.source.items.append(p.Item('2', 'Camera/new.jpg', 'b', 'v1', 100))
         self.run_pipeline()
+        after = dict(self.store.db.execute('SELECT * FROM files WHERE id="1"').fetchone())
+        for key in ('metadata', 'revision', 'analyzed_at', 'sha256'):
+            self.assertEqual(before[key], after[key])
         self.assertEqual([m.calls for m in self.models.values()], [2, 1])
+        self.assertEqual(self.store.stats(), {'done': 2})
+
+    def test_published_metadata_protects_files_after_queue_loss_or_revision_reset(self):
+        self.source.items[0].analyzed_etag = 'v1'
+        self.run_pipeline()
+        self.assertEqual(self.source.reads, 0)
+        self.assertEqual(self.store.stats(), {'done': 1})
+        self.source.items[0].etag = 'v2'
+        self.run_pipeline()
+        self.run_pipeline()
+        self.assertEqual(self.source.reads, 0)
+        self.assertEqual(self.store.stats(), {'changed': 1})
+        self.assertEqual([m.calls for m in self.models.values()], [0, 0])
+
+    def test_changed_finished_file_requires_explicit_reset(self):
+        self.run_pipeline()
+        before = self.store.db.execute('SELECT metadata FROM files').fetchone()[0]
+        self.source.items[0].etag = 'v2'
+        self.run_pipeline()
+        self.run_pipeline()
+        self.assertEqual(self.store.stats(), {'changed': 1})
+        self.assertEqual(self.source.reads, 1)
+        self.assertEqual(self.store.db.execute('SELECT metadata FROM files').fetchone()[0], before)
+        with self.store.db:
+            for table in ('files', 'results', 'search'): self.store.db.execute('DELETE FROM ' + table)
+        self.models['vision'].revision = 'new-model'
+        self.run_pipeline()
+        self.assertEqual(self.store.stats(), {'done': 1})
+        self.assertEqual([m.calls for m in self.models.values()], [2, 2])
+
     def test_lease_blocks_other_controller_and_releases_after_error(self):
         other = p.Store(Path(self.tmp.name) / 'state.sqlite')
         try:

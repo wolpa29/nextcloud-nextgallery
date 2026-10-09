@@ -8,11 +8,38 @@ use OCP\FilesMetadata\IFilesMetadataManager;
 use Symfony\Component\Process\Process;
 class Library {
  public function __construct(private IConfig $config,private IDBConnection $db,private IRootFolder $root,private ILockingProvider $locks,private IFilesMetadataManager $metadata) {}
- public function settings(string $uid):array {
-  $p=json_decode($this->config->getUserValue($uid,'nextgallery','settings','{}'),true)??[];
-  return array_replace(['roots'=>[],'mode'=>'folder','grouping'=>'month','order'=>'desc','tile'=>180,'timezone'=>'Europe/Vienna','offlineLimit'=>1000],$p);
+ private function stored(string $uid):array {
+  return json_decode($this->config->getUserValue($uid,'nextgallery','settings','{}'),true)??[];
  }
- public function cacheKey(string $uid):string {return substr(hash('sha256',$uid.'|'.$this->config->getUserValue($uid,'nextgallery','epoch','initial')),0,32);}
+ public function settings(string $uid,string $gallery=''):array {
+  $p=array_replace(['roots'=>[],'mode'=>'folder','grouping'=>'month','order'=>'desc','tile'=>180,'timezone'=>'Europe/Vienna','offlineLimit'=>1000,'appearance'=>'system','language'=>'system'],$this->stored($uid));
+  $p['galleries']=$p['galleries']??[['id'=>'default','name'=>'Galerie','roots'=>$p['roots']]];
+  $active=$gallery?:($p['activeGallery']??'default');
+  $selected=array_values(array_filter($p['galleries'],fn($g)=>$g['id']===$active));
+  if(!$selected) { if($gallery!=='')throw new \InvalidArgumentException('Galerie nicht verfügbar.');$selected=[$p['galleries'][0]]; }
+  foreach($p['galleries'] as &$g)$g['cacheKey']=substr(hash('sha256',$uid.'|'.$this->config->getUserValue($uid,'nextgallery','epoch','initial').($g['id']==='default'?'':'|'.$g['id'])),0,32);unset($g);
+  $p['activeGallery']=$selected[0]['id'];$p['roots']=$selected[0]['roots'];
+  return $p;
+ }
+ private function indexSettings(string $uid):array {
+  $p=$this->settings($uid);$roots=[];
+  foreach($p['galleries'] as $g) $roots=array_merge($roots,$g['roots']);
+  sort($roots);$selected=[];
+  foreach(array_unique($roots) as $path)if(!array_filter($selected,fn($parent)=>str_starts_with($path,$parent.'/')))$selected[]=$path;
+  $p['roots']=$selected;return $p;
+ }
+ public function cacheKey(string $uid,string $gallery=''):string {
+  $id=$this->settings($uid,$gallery)['activeGallery'];
+  return substr(hash('sha256',$uid.'|'.$this->config->getUserValue($uid,'nextgallery','epoch','initial').($id==='default'?'':'|'.$id)),0,32);
+ }
+ public function scopeQuery($q,string $uid,string $column='path_text',string $gallery=''):void {
+  $paths=[];
+  foreach($this->settings($uid,$gallery)['roots'] as $path){
+   $escaped=str_replace(['!','%','_'],['!!','!%','!_'],mb_strtolower(rtrim($path,'/').'/'));
+   $paths[]=$column.' LIKE '.$q->createNamedParameter($escaped.'%')." ESCAPE '!'";
+  }
+  $q->andWhere($paths?'('.implode(' OR ',$paths).')':'1=0');
+ }
  public function state(string $uid):array {return json_decode($this->config->getUserValue($uid,'nextgallery','scan','{}'),true)??[];}
  private function stateSave(string $uid,array $s):void {$this->config->setUserValue($uid,'nextgallery','scan',json_encode($s,JSON_THROW_ON_ERROR));}
  private function lock(string $uid):void {$this->locks->acquireLock(hash('sha256','nextgallery:'.$uid),ILockingProvider::LOCK_EXCLUSIVE);}
@@ -20,7 +47,23 @@ class Library {
  public function save(string $uid,array $settings):array {
   $this->lock($uid);
   try {
-   $p=$this->settings($uid);$old=$p;$home=$this->root->getUserFolder($uid);
+   $p=$this->settings($uid);$old=$this->indexSettings($uid);$home=$this->root->getUserFolder($uid);
+   if(isset($settings['activeGallery'])) {
+    if(!in_array($settings['activeGallery'],array_column($p['galleries'],'id'),true))throw new \InvalidArgumentException('Galerie nicht verfügbar.');
+    $p['activeGallery']=$settings['activeGallery'];
+    $p['roots']=array_values(array_filter($p['galleries'],fn($g)=>$g['id']===$p['activeGallery']))[0]['roots'];
+   }
+   if(isset($settings['galleryName'])) {
+    $name=trim((string)$settings['galleryName']);
+    if($name==='' || mb_strlen($name)>80)throw new \InvalidArgumentException('Galeriename muss 1 bis 80 Zeichen enthalten.');
+    foreach($p['galleries'] as &$g)if($g['id']===$p['activeGallery'])$g['name']=$name;unset($g);
+   }
+   if(isset($settings['createGallery'])) {
+    $name=trim((string)$settings['createGallery']);
+    if($name==='' || mb_strlen($name)>80 || count($p['galleries'])>=20)throw new \InvalidArgumentException('Galeriename oder Anzahl ungültig.');
+    $p['activeGallery']=bin2hex(random_bytes(8));$p['roots']=[];
+    $p['galleries'][]=['id'=>$p['activeGallery'],'name'=>$name,'roots'=>[]];
+   }
    if (isset($settings['roots'])) {
     if (!is_array($settings['roots']) || count($settings['roots'])>32) throw new \InvalidArgumentException('Maximal 32 Ordner auswählen.');
     $roots=[];
@@ -34,18 +77,18 @@ class Library {
     foreach (array_unique($roots) as $r) {if (!array_filter($selected,fn($s)=>str_starts_with($r,$s.'/'))) $selected[]=$r;}
     $p['roots']=$selected;
    }
-   foreach (['mode'=>['folder','metadata','filename'],'grouping'=>['year','month','day','rail'],'order'=>['asc','desc']] as $key=>$allowed) {
+   foreach($p['galleries'] as &$g)if($g['id']===$p['activeGallery'])$g['roots']=$p['roots'];unset($g);
+   foreach (['appearance'=>['system','light','dark'],'language'=>['system','de','en'],'mode'=>['folder','metadata','filename'],'grouping'=>['year','month','day','rail'],'order'=>['asc','desc']] as $key=>$allowed) {
     if (isset($settings[$key])) {if (!in_array($settings[$key],$allowed,true)) throw new \InvalidArgumentException('Ungültige Einstellung: '.$key);$p[$key]=$settings[$key];}
    }
    if (isset($settings['timezone'])) {if (!in_array($settings['timezone'],\DateTimeZone::listIdentifiers(),true)) throw new \InvalidArgumentException('Ungültige Zeitzone.');$p['timezone']=$settings['timezone'];}
-   foreach (['tile'=>[100,320],'offlineLimit'=>[1,5000]] as $key=>[$min,$max]) if (isset($settings[$key])) $p[$key]=max($min,min($max,(int)$settings[$key]));
+   foreach (['tile'=>[70,320],'offlineLimit'=>[1,5000]] as $key=>[$min,$max]) if (isset($settings[$key])) $p[$key]=max($min,min($max,(int)$settings[$key]));
    $this->config->setUserValue($uid,'nextgallery','settings',json_encode($p,JSON_THROW_ON_ERROR));
    $q=$this->db->getQueryBuilder();$q->select('user_id')->from('nextgallery_users')->where($q->expr()->eq('user_id',$q->createNamedParameter($uid)));
    if (!$q->executeQuery()->fetchOne()) {$q=$this->db->getQueryBuilder();$q->insert('nextgallery_users')->setValue('user_id',$q->createNamedParameter($uid))->executeStatement();}
-   if ($p['roots']!==$old['roots'] || $p['mode']!==$old['mode'] || $p['timezone']!==$old['timezone']) {
-    $q=$this->db->getQueryBuilder();$q->delete('nextgallery_media')->where($q->expr()->eq('user_id',$q->createNamedParameter($uid)))->executeStatement();
-    $this->config->setUserValue($uid,'nextgallery','epoch',bin2hex(random_bytes(16)));
-    $this->start($uid,$p);
+   $index=$this->indexSettings($uid);
+   if ($index['roots']!==$old['roots'] || $p['mode']!==$old['mode'] || $p['timezone']!==$old['timezone']) {
+    $this->start($uid,$index);
    }
    return $p;
   } finally {$this->unlock($uid);}
@@ -62,7 +105,7 @@ class Library {
  }
  private function inRoots(string $path,array $roots):bool {foreach ($roots as $r) if (str_starts_with($path,rtrim($r,'/').'/')) return true;return false;}
  public function file(string $uid,int $id):File {
-  $home=$this->root->getUserFolder($uid);$p=$this->settings($uid);
+  $home=$this->root->getUserFolder($uid);$p=$this->indexSettings($uid);
   foreach ($home->getById($id) as $node) {
    if ($node instanceof File && $node->isReadable() && $this->inRoots('/'.ltrim($home->getRelativePath($node->getPath()),'/'),$p['roots']) && $this->kind($node->getMimeType())) return $node;
   }
@@ -105,7 +148,7 @@ class Library {
  public function step(string $uid,bool $restart=false,int $limit=100,float $seconds=4):array {
   $this->lock($uid);
   try {
-   $p=$this->settings($uid);$s=$this->state($uid);
+   $p=$this->indexSettings($uid);$s=$this->state($uid);
    if ($restart || !$s) $s=$this->start($uid,$p);
    if (!$s['running']) return $s;
    $home=$this->root->getUserFolder($uid);$deadline=microtime(true)+$seconds;$handled=0;
@@ -150,14 +193,15 @@ class Library {
   $items=[];foreach($folder->getDirectoryListing() as $n) if ($n instanceof Folder && $n->isReadable()) $items[]=['name'=>$n->getName(),'path'=>'/'.ltrim($home->getRelativePath($n->getPath()),'/')];
   usort($items,fn($a,$b)=>strnatcasecmp($a['name'],$b['name']));return $items;
  }
- private function query(string $uid,string $kind='',string $period='') {
+ private function query(string $uid,string $kind='',string $period='',string $gallery='') {
   $q=$this->db->getQueryBuilder();$q->from('nextgallery_media')->where($q->expr()->eq('user_id',$q->createNamedParameter($uid)));
+  $this->scopeQuery($q,$uid,'path_text',$gallery);
   if (in_array($kind,['image','video'],true)) $q->andWhere($q->expr()->eq('kind',$q->createNamedParameter($kind)));
   if ($period && preg_match('/^\d{4}(?:-\d{2})?(?:-\d{2})?$/',$period)) $q->andWhere($q->expr()->like('period',$q->createNamedParameter($period.'%')));
   return $q;
  }
- public function summary(string $uid,string $kind=''):array {
-  $p=$this->settings($uid);$q=$this->query($uid,$kind);$rows=$q->select('period','kind')->addSelect($q->func()->count('*','n'))->groupBy('period','kind')->executeQuery()->fetchAll();
+ public function summary(string $uid,string $kind='',string $gallery=''):array {
+  $p=$this->settings($uid,$gallery);$q=$this->query($uid,$kind,'',$gallery);$rows=$q->select('period','kind')->addSelect($q->func()->count('*','n'))->groupBy('period','kind')->executeQuery()->fetchAll();
   $groups=[];$total=0;$videos=0;
   foreach($rows as $r) {
    $period=$r['period'];$key=match($p['grouping']){'year'=>substr($period,0,4),'day'=>$period,default=>substr($period,0,7)};
@@ -166,8 +210,8 @@ class Library {
   if ($p['order']==='asc') ksort($groups);else krsort($groups);
   return ['groups'=>array_values($groups),'total'=>$total,'videos'=>$videos,'state'=>$this->state($uid),'settings'=>$p];
  }
- public function items(string $uid,string $kind='',string $period='',int $offset=0,int $limit=150,bool $geo=false):array {
-  $p=$this->settings($uid);$q=$this->query($uid,$kind,$period);$q->select('file_id','payload');
+ public function items(string $uid,string $kind='',string $period='',int $offset=0,int $limit=150,bool $geo=false,string $gallery=''):array {
+  $p=$this->settings($uid,$gallery);$q=$this->query($uid,$kind,$period,$gallery);$q->select('file_id','payload');
   if ($geo) $q->andWhere($q->expr()->isNotNull('latitude'));
   $direction=$p['order']==='asc'?'ASC':'DESC';$rows=$q->orderBy('sort_key',$direction)->addOrderBy('file_id',$direction)->setFirstResult(max(0,$offset))->setMaxResults(max(1,min(200,$limit)))->executeQuery()->fetchAll();
   return ['items'=>$this->hydrate($uid,$rows),'next'=>count($rows)?max(0,$offset)+count($rows):null,'more'=>count($rows)===max(1,min(200,$limit))];

@@ -8,7 +8,7 @@ $areas = [
  ['mai-pipeline-maintenance', 'Wartung', '<path d="M14 6a5 5 0 0 0-6 6L3 17a2.8 2.8 0 0 0 4 4l5-5a5 5 0 0 0 6-6l-3 3-4-4Z"/>'],
 ];
 ?>
-<div class="mai-shell">
+<div class="mai-shell" data-appearance="<?php p($_['appearance'] ?? 'system'); ?>" data-language="<?php p($_['language'] ?? 'de'); ?>">
  <nav id="app-navigation" class="mai-navigation" aria-label="NextGallery KI-Verarbeitung" data-collapsed="true">
   <div class="mai-nav-header"><a href="#mai-pipeline-status" class="mai-nav-brand"><span class="mai-brand-mark" style="width:30px;height:30px" aria-hidden="true"></span><span class="mai-brand-copy">NextGallery<small>KI-Verarbeitung</small></span></a><button type="button" id="mai-nav-toggle" aria-expanded="false" aria-controls="mai-navigation-list">Bereiche</button></div>
   <a class="mai-gallery-link" href="<?php p($_['galleryUrl']); ?>">← NextGallery</a>

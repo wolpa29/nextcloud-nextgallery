@@ -87,9 +87,14 @@ try:
   # Decrypt only within the test server. The token is never printed or written to host output.
   code="require '/var/www/html/lib/base.php';echo \\OCP\\Server::get(\\OCP\\Security\\ICrypto::class)->decrypt(\\OCP\\Server::get(\\OCP\\IConfig::class)->getAppValue('nextgallery','ai_worker_token'));"
   token=docker('exec','-u','www-data',name,'php','-r',code).strip();status,body=request(route,headers={'Authorization':'Bearer '+token});assert status==200,(route,status,body[-1000:]);assert json.loads(body)['user_id']=='merge-synthetic';http.append('worker:'+app)
+  status,body=request('/index.php/apps/nextgallery/ai/worker/reset',{},headers={'Authorization':'Bearer '+token});assert status==409,(status,body);http.append('reset-requires-explicit-request')
+ print(docker('exec','-u','www-data',name,'php','/test-scripts/gallery-contract.php'),flush=True)
  # Old apps are absent from registration and never redirect to the new app.
  for route in ['/index.php/apps/chronicle/','/index.php/apps/media_ai/','/ocs/v2.php/apps/media_ai/api/v1/metadata?format=json&file_id='+str(pre['ids'][2]),'/index.php/apps/chronicle/ai/worker/config']:
   status,body=request(route);assert status in [404,412],(route,status,body[-1000:]);http.append('retired:'+route)
+ print(docker('exec','-u','www-data',name,'php','/test-scripts/reset-contract.php','prepare'),flush=True)
+ status,body=request('/index.php/apps/nextgallery/ai/worker/reset',{},headers={'Authorization':'Bearer '+token});assert status==200,(status,body);http.append('explicit-synthetic-reset')
+ print(docker('exec','-u','www-data',name,'php','/test-scripts/reset-contract.php','verify'),flush=True)
  result={'case':case,'http_checks':len(http),'routes':http,'nextcloud':data['versionstring'],'url':base,'cli':json.loads((out/'verified.json').read_text())};(out/'result.json').write_text(json.dumps(result,indent=2));print(json.dumps(result),flush=True)
  if a.keep:print('Disposable containers retained for UI verification:',name,flush=True)
 finally:
