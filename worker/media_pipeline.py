@@ -140,6 +140,7 @@ class Item:
     etag: str
     size: int
     mime: str = ""
+    analyzed_etag: str = ""
 
 
 class DirectorySource:
@@ -582,7 +583,7 @@ class Store:
           tokenize='unicode61 remove_diacritics 2');
         """)
         columns = {r[1] for r in self.db.execute('PRAGMA table_info(files)')}
-        for column in ('published_revision', 'publish_error'):
+        for column in ('published_revision', 'publish_error', 'analyzed_etag'):
             if column not in columns:
                 self.db.execute(f'ALTER TABLE files ADD COLUMN {column} TEXT')
         self.db.commit()
@@ -615,8 +616,12 @@ class Store:
             self.db.execute('DELETE FROM inventory_seen')
             for item in items:
                 self.db.execute('INSERT OR IGNORE INTO inventory_seen VALUES(?)', (item.key,))
-                row = self.db.execute("SELECT etag,revision,path FROM files WHERE id=?", (item.key,)).fetchone()
-                changed = row is None or row["etag"] != item.etag or row["revision"] != revision
+                row = self.db.execute("SELECT etag,revision,path,metadata,status,analyzed_etag FROM files WHERE id=?", (item.key,)).fetchone()
+                # Model/prompt changes affect future analyses only. Finished results
+                # retain their original revision and provenance until explicit reset.
+                protected = bool(item.analyzed_etag or (row and row['metadata']))
+                changed = not protected and (row is None or row["etag"] != item.etag or row["revision"] != revision)
+                effective_revision = row['revision'] if protected and row else revision
                 self.db.execute("""INSERT INTO files(id,scope,path,locator,etag,size,mime,active,scan,status,revision)
                 VALUES(?,?,?,?,?,?,?,1,?,'pending',?) ON CONFLICT(id) DO UPDATE SET
                 path=excluded.path,locator=excluded.locator,etag=excluded.etag,size=excluded.size,
@@ -624,7 +629,16 @@ class Store:
                 WHERE files.path<>excluded.path OR files.locator<>excluded.locator
                 OR files.etag<>excluded.etag OR files.revision<>excluded.revision
                 OR files.size<>excluded.size OR files.mime<>excluded.mime OR files.active<>1""",
-                (item.key, scope, item.path, item.locator, item.etag, item.size, item.mime, scan, revision))
+                (item.key, scope, item.path, item.locator, item.etag, item.size, item.mime, scan, effective_revision))
+                if protected:
+                    analyzed_etag = item.analyzed_etag
+                    if not analyzed_etag and row:
+                        prior = json.loads(row['metadata'])
+                        analyzed_etag = prior.get('nextcloud_target', {}).get('etag') or row['analyzed_etag'] or row['etag']
+                    state = 'done' if analyzed_etag == item.etag else 'changed'
+                    self.db.execute("UPDATE files SET status=?,analyzed_etag=?,error=NULL,retry_at=0 WHERE id=?", (state,analyzed_etag,item.key))
+                    if item.analyzed_etag:
+                        self.db.execute("UPDATE files SET published_revision=revision,publish_error=NULL WHERE id=?", (item.key,))
                 if changed:
                     self.db.execute("UPDATE files SET status='pending',error=NULL,attempts=0,retry_at=0,published_revision=NULL WHERE id=?", (item.key,))
                 # Rename/move without changed content or model: update the search path too.
@@ -643,8 +657,8 @@ class Store:
     def finish(self, item, hash_, metadata, exif):
         vision, ocr = metadata["vision"], metadata["ocr"]
         with self.db:
-            self.db.execute("UPDATE files SET status='done',sha256=?,metadata=?,exif=?,error=NULL,attempts=0,retry_at=0,analyzed_at=? WHERE id=?",
-                            (hash_, json.dumps(metadata, ensure_ascii=False), json.dumps(exif, ensure_ascii=False), time.time(), item.key))
+            self.db.execute("UPDATE files SET status='done',sha256=?,metadata=?,exif=?,error=NULL,attempts=0,retry_at=0,analyzed_at=?,analyzed_etag=? WHERE id=?",
+                            (hash_, json.dumps(metadata, ensure_ascii=False), json.dumps(exif, ensure_ascii=False), time.time(), item.etag, item.key))
             self.db.execute("DELETE FROM search WHERE id=?", (item.key,))
             self.db.execute("INSERT INTO search VALUES(?,?,?,?,?)", (item.key, item.path, vision["description"],
                              " ".join(vision["tags"] + vision["objects"]), ocr["text"]))
@@ -751,7 +765,7 @@ def run(config, store, source, models, limit=100, max_seconds=3600, preprocess=p
         items = source.inventory()  # Only complete successful snapshots may mark absent files.
         heartbeat()
         store.discover(items, source.scope, revision)
-        todo = store.db.execute("SELECT id,path,locator,etag,size,mime FROM files WHERE scope=? AND active=1 AND status<>'done' AND retry_at<=? ORDER BY path", (source.scope, time.time())).fetchall()
+        todo = store.db.execute("SELECT id,path,locator,etag,size,mime FROM files WHERE scope=? AND active=1 AND status IN ('pending','error') AND retry_at<=? ORDER BY path", (source.scope, time.time())).fetchall()
         observe("inventory_finished", stats=store.stats(), total=len(items))
         completed, errors, cache_hits = 0, 0, 0
         for row in todo:

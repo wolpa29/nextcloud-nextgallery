@@ -60,7 +60,7 @@ class NativeSource:
                 if identifier in seen: raise p.PipelineError('Duplicate inventory identity')
                 if not row['etag']: raise p.PipelineError('Image has no ETag')
                 seen.add(identifier)
-                items.append(p.Item(self.scope+':'+identifier,row['path'],identifier,row['etag'],int(row['size']),row['mime']))
+                items.append(p.Item(self.scope+':'+identifier,row['path'],identifier,row['etag'],int(row['size']),row['mime'],row.get('analyzed_etag') or ''))
             next_cursor=page['cursor']
             if next_cursor is None: return items
             if not isinstance(next_cursor,int) or next_cursor<=cursor: raise p.PipelineError('Invalid inventory pagination')
