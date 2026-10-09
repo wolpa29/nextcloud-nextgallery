@@ -1,6 +1,6 @@
 const request=r=>new Promise((resolve,reject)=>{r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
 export async function openStore(key) {
- const r=indexedDB.open(`chronicle-${key}`,1);r.onupgradeneeded=()=>{r.result.createObjectStore('items',{keyPath:'id'});r.result.createObjectStore('blobs');r.result.createObjectStore('meta');};return request(r);
+ const r=indexedDB.open(`nextgallery-${key}`,1);r.onupgradeneeded=()=>{r.result.createObjectStore('items',{keyPath:'id'});r.result.createObjectStore('blobs');r.result.createObjectStore('meta');};return request(r);
 }
 export function transaction(db,stores,mode,fn) {return new Promise((resolve,reject)=>{const t=db.transaction(stores,mode);let result;try{result=fn(t);}catch(e){t.abort();reject(e);return;}t.oncomplete=()=>resolve(result);t.onabort=t.onerror=()=>reject(t.error||new Error('Lokaler Speicher nicht verfügbar.'));});}
 export async function readCollection(db) {return request(db.transaction('items').objectStore('items').getAll());}

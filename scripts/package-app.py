@@ -16,6 +16,5 @@ def package(name,source,parts,version):
     for file in sorted(path.rglob('*')):
      if file.is_file() and not excluded(file.relative_to(source)):archive.add(file,arcname=name+'/'+str(file.relative_to(source)),recursive=False)
  manifest={'file':target.name,'bytes':target.stat().st_size,'sha256':hashlib.sha256(target.read_bytes()).hexdigest()};print(json.dumps(manifest));return manifest
-main=package('chronicle',root,['appinfo','lib','templates','css','js','img','worker','LICENSE','NOTICE','docs/licenses'],version)
-compat=package('media_ai',root/'compat/media_ai',['appinfo','lib','LICENSE'],'0.6.0')
-(args.output/'manifest.json').write_text(json.dumps([main,compat],indent=2)+'\n')
+main=package('nextgallery',root,['appinfo','lib','templates','css','js','img','worker','LICENSE','NOTICE','docs/licenses'],version)
+(args.output/'manifest.json').write_text(json.dumps([main],indent=2)+'\n')

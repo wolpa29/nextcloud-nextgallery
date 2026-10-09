@@ -1,9 +1,9 @@
 <?php
 declare(strict_types=1);
-namespace OCA\Chronicle\BackgroundJob;
+namespace OCA\Nextgallery\BackgroundJob;
 use OCP\BackgroundJob\TimedJob;
 use OCP\AppFramework\Utility\ITimeFactory;
-use OCA\Chronicle\Service\Library;
+use OCA\Nextgallery\Service\Library;
 class IndexJob extends TimedJob {
  public function __construct(ITimeFactory $time,private Library $library) {parent::__construct($time);$this->setInterval(60);$this->setTimeSensitivity(self::TIME_INSENSITIVE);}
  protected function run($argument):void {

@@ -1,12 +1,12 @@
 <?php
 declare(strict_types=1);
-namespace OCA\Chronicle\Listener;
+namespace OCA\Nextgallery\Listener;
 use OCP\EventDispatcher\{Event,IEventListener};
 use OCP\User\Events\UserDeletedEvent;
-use OCA\Chronicle\Service\Library;
+use OCA\Nextgallery\Service\Library;
 /** @implements IEventListener<UserDeletedEvent> */
 class UserDeleted implements IEventListener {
- public function __construct(private Library $library,private \OCA\Chronicle\AI\Service\Metadata $aiMetadata) {}
+ public function __construct(private Library $library,private \OCA\Nextgallery\AI\Service\Metadata $aiMetadata) {}
  public function handle(Event $event):void {
   if($event instanceof UserDeletedEvent){$this->library->forget($event->getUid());$this->aiMetadata->reset($event->getUid());}
  }

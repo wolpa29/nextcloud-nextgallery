@@ -474,7 +474,7 @@ class HTTPTests(unittest.TestCase):
         for href in ('http://other.invalid/dav/a.jpg', '/else/a.jpg', '/dav/%2e%2e/a.jpg'):
             with self.assertRaises(p.PipelineError): source._url(href)
     def test_publisher_ocs_wire_and_stale_conflict(self):
-        for app_config, prefix in [({}, '/ocs/v2.php/apps/media_ai/api/v1/'), ({'app_id': 'chronicle'}, '/ocs/v2.php/apps/chronicle/ai/api/v1/')]:
+        for app_config, prefix in [({}, '/ocs/v2.php/apps/nextgallery/ai/api/v1/'), ({'app_id': 'nextgallery'}, '/ocs/v2.php/apps/nextgallery/ai/api/v1/')]:
             with self.subTest(app_config=app_config):
                 type(self).ocs_status = 200
                 with patch.dict(os.environ, {'MOCK_PASSWORD': 'test-only'}):

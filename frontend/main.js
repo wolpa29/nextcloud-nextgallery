@@ -1,7 +1,7 @@
 import {tr,locale} from './i18n.mjs';
 import {layout,visible,localSummary,groupKey} from './layout.mjs';
 import {openStore,readCollection,readMeta,readBlob,saveItem,saveMeta,clear} from './offline.mjs';
-const root=document.getElementById('chronicle');
+const root=document.getElementById('nextgallery');
 if(root) start().catch(e=>{const m=root.querySelector('#ch-message');m.hidden=false;m.textContent=e.message||tr('NextGallery konnte nicht gestartet werden.');});
 async function start(){
  const ctx=JSON.parse(root.dataset.context),$=id=>root.querySelector('#'+id),base=ctx.base.replace(/\/$/,'');
@@ -60,8 +60,8 @@ async function start(){
   }catch{return null;}
  }
  async function clearOld(){
-  const prior=localStorage.getItem('chronicle-current');if(prior&&prior!==cacheKey){indexedDB.deleteDatabase('chronicle-'+prior);for(const key of await caches.keys())if(key.startsWith('chronicle-shell-'))await caches.delete(key);}
-  localStorage.setItem('chronicle-current',cacheKey);
+  const prior=localStorage.getItem('nextgallery-current');if(prior&&prior!==cacheKey){indexedDB.deleteDatabase('nextgallery-'+prior);for(const key of await caches.keys())if(key.startsWith('nextgallery-shell-'))await caches.delete(key);}
+  localStorage.setItem('nextgallery-current',cacheKey);
  }
  async function persist(patch){
   if(offlineMode){settings={...settings,...patch};await load();return;}
@@ -194,7 +194,7 @@ async function start(){
  async function mapScript(){
   if(window.NextGalleryMap)return;
   if(offlineMode){
-   const shell=await caches.open('chronicle-shell-'+cacheKey),cached=await shell.match(ctx.assets+'js/map.js');
+   const shell=await caches.open('nextgallery-shell-'+cacheKey),cached=await shell.match(ctx.assets+'js/map.js');
    if(cached){const s=document.createElement('script');s.nonce=document.querySelector('meta[name="csp-nonce"]')?.nonce||document.querySelector('script[nonce]')?.nonce||'';s.textContent=await cached.text();document.head.append(s);if(!window.NextGalleryMap)throw new Error(tr('Die gespeicherte Karte konnte nicht gestartet werden.'));return;}
   }
   await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=ctx.assets+'js/map.js?v='+encodeURIComponent(ctx.version||'0');s.onload=resolve;s.onerror=()=>reject(new Error(tr('Karte konnte nicht geladen werden.')));document.head.append(s);});
@@ -214,7 +214,7 @@ async function start(){
   const limit=Math.max(1,Math.min(5000,Number($('ch-offline-limit').value)||1000));await persist({offlineLimit:limit});
   pinning=true;pinCancel=false;$('ch-pin').disabled=true;$('ch-pin-cancel').hidden=false;$('ch-offline-progress').hidden=false;$('ch-offline-progress').max=limit;
   try{
-   const shell=await caches.open('chronicle-shell-'+cacheKey);const offlineURL=base+'/offline';
+   const shell=await caches.open('nextgallery-shell-'+cacheKey);const offlineURL=base+'/offline';
    const resources=[offlineURL,ctx.assets+'js/main.js',ctx.assets+'js/map.js',ctx.assets+'css/main.css'];
    for(const url of resources){const r=await fetch(url,{credentials:'same-origin',cache:'reload'});if(!r.ok||r.redirected)throw new Error(tr('Offline-Ansicht konnte nicht gespeichert werden.'));await shell.put(url,r);}
    await clear(db);collectionIds.clear();let offset=0,saved=0,failed=0,bytes=0,more=true;
@@ -231,13 +231,13 @@ async function start(){
    navigator.storage?.persist?.().catch(()=>{});
   }catch(e){await storage();throw e;}finally{pinning=false;$('ch-pin').disabled=offlineMode;$('ch-pin-cancel').hidden=true;$('ch-offline-progress').hidden=true;}
  }
- on('ch-pin','click',pin);on('ch-pin-cancel','click',()=>{pinCancel=true;});on('ch-clear-offline','click',async()=>{if(pinning){pinCancel=true;return;}if(db)await clear(db);releaseUrls();for(const key of await caches.keys())if(key.startsWith('chronicle-shell-'))await caches.delete(key);await storage();message(tr('Die lokale Sammlung wurde entfernt.'));if(offlineMode)await load();});
+ on('ch-pin','click',pin);on('ch-pin-cancel','click',()=>{pinCancel=true;});on('ch-clear-offline','click',async()=>{if(pinning){pinCancel=true;return;}if(db)await clear(db);releaseUrls();for(const key of await caches.keys())if(key.startsWith('nextgallery-shell-'))await caches.delete(key);await storage();message(tr('Die lokale Sammlung wurde entfernt.'));if(offlineMode)await load();});
  on('ch-export','click',async()=>{
   if(!db||!offlineItems.length)return;
   $('ch-export').disabled=true;
   try{
    const blobs={};for(const item of offlineItems){const blob=await readBlob(db,item.id);if(!blob)continue;blobs[item.id]=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(new Error(tr('Vorschau konnte nicht exportiert werden.')));r.readAsDataURL(blob);});}
-   const shell=await caches.open('chronicle-shell-'+cacheKey);
+   const shell=await caches.open('nextgallery-shell-'+cacheKey);
    const texts=await Promise.all(['css/main.css','js/main.js','js/map.js'].map(async p=>{const cached=await shell.match(ctx.assets+p);if(!cached)throw new Error(tr('Speichere die Sammlung erneut, um die Offline-Datei zu erstellen.'));return cached.text();}));
    const copy=root.cloneNode(true);const download=copy.querySelector('#ch-download-file');if(download){download.removeAttribute('href');download.hidden=true;}copy.dataset.context=JSON.stringify({...ctx,offline:true,portable:true,aiUrl:null,settings:offlineMeta.settings,items:offlineItems,blobs,meta:offlineMeta});
    for(const name of ['timeline','map','offline','settings','search'])copy.querySelector('#ch-'+name+'-view').hidden=name!=='timeline';
@@ -245,11 +245,11 @@ async function start(){
    copy.querySelector('#ch-search-results').replaceChildren();copy.querySelector('#ch-ai-link')?.remove();copy.querySelector('#ch-canvas').replaceChildren();copy.querySelector('#ch-rail').replaceChildren();copy.querySelector('#ch-map').replaceChildren();copy.querySelector('#ch-title').textContent=tr('Zeitleiste');copy.querySelector('#ch-message').hidden=true;
    copy.querySelectorAll('dialog').forEach(d=>d.removeAttribute('open'));
    const code=s=>s.replace(/<\/script/gi,'<\\/script');
-   const html='<!doctype html><html lang="'+(locale.startsWith('de')?'de':'en')+'"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NextGallery · Offline-Sammlung</title><style>'+texts[0]+'</style><body class="chronicle-standalone">'+copy.outerHTML+'<script>'+code(texts[2])+'</script><script>'+code(texts[1])+'</script></body></html>';
+   const html='<!doctype html><html lang="'+(locale.startsWith('de')?'de':'en')+'"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NextGallery · Offline-Sammlung</title><style>'+texts[0]+'</style><body class="nextgallery-standalone">'+copy.outerHTML+'<script>'+code(texts[2])+'</script><script>'+code(texts[1])+'</script></body></html>';
    const url=URL.createObjectURL(new Blob([html],{type:'text/html'}));const link=$('ch-download-file');if(link.href.startsWith('blob:'))URL.revokeObjectURL(link.href);link.href=url;link.hidden=false;link.className='ch-button';link.textContent=tr('Download wiederholen');$('ch-offline-view').append(link);link.click();message(tr('Offline-Datei erstellt. Sie enthält die gespeicherten Vorschauen und die Karte.'));
   }finally{$('ch-export').disabled=false;}
  });
- document.addEventListener('click',async e=>{const link=e.target.closest('a[href]');if(link&&/\/logout(?:\?|$)/.test(link.href)){e.preventDefault();pinCancel=true;if(db)await clear(db);for(const key of await caches.keys())if(key.startsWith('chronicle-shell-'))await caches.delete(key);location.href=link.href;}},true);
+ document.addEventListener('click',async e=>{const link=e.target.closest('a[href]');if(link&&/\/logout(?:\?|$)/.test(link.href)){e.preventDefault();pinCancel=true;if(db)await clear(db);for(const key of await caches.keys())if(key.startsWith('nextgallery-shell-'))await caches.delete(key);location.href=link.href;}},true);
  window.addEventListener('offline',()=>{offlineMode=true;updateSettings();message(tr('Keine Verbindung. Gespeicherte Vorschauen werden angezeigt.'));load().catch(handleError);});
  window.addEventListener('online',()=>{if(ctx.offline){message(tr('Verbindung wieder verfügbar. Öffne NextGallery in Nextcloud für aktuelle Medien.'));return;}offlineMode=false;message('');load().catch(handleError);});
  if(!ctx.offline){try{const r=await api('settings');settings=r.settings;cacheKey=r.cacheKey;await clearOld();}catch(e){offlineMode=true;message(e.message+tr(' Gespeicherte Vorschauen werden geladen.'));}}

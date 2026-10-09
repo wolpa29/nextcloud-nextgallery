@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-namespace OCA\Chronicle\AI\Service;
+namespace OCA\Nextgallery\AI\Service;
 use OCP\Files\IRootFolder;
 use OCP\Files\Folder;
 use OCP\IDBConnection;
@@ -59,7 +59,7 @@ class Inventory {
             $parameters[] = $scope['storage'];
             $parameters[] = $this->escaped(($scope['path'] === '' ? '' : $scope['path'].'/')).'%';
         }
-        $sql = "SELECT DISTINCT f.fileid,f.storage,f.path,f.etag,f.size,m.mimetype,a.etag AS analyzed_etag,a.updated_at FROM *PREFIX*filecache f JOIN *PREFIX*mimetypes m ON m.id=f.mimetype LEFT JOIN *PREFIX*media_ai_meta a ON a.file_id=f.fileid AND a.user_id=? WHERE (m.mimetype LIKE 'image/%' OR m.mimetype LIKE 'video/%') AND (".implode(' OR ', $conditions).') ORDER BY f.fileid';
+        $sql = "SELECT DISTINCT f.fileid,f.storage,f.path,f.etag,f.size,m.mimetype,a.etag AS analyzed_etag,a.updated_at FROM *PREFIX*filecache f JOIN *PREFIX*mimetypes m ON m.id=f.mimetype LEFT JOIN *PREFIX*nextgallery_ai_meta a ON a.file_id=f.fileid AND a.user_id=? WHERE (m.mimetype LIKE 'image/%' OR m.mimetype LIKE 'video/%') AND (".implode(' OR ', $conditions).') ORDER BY f.fileid';
         $result = $this->db->executeQuery($sql, $parameters); $items = [];
         try {
             while ($row = $result->fetch()) {

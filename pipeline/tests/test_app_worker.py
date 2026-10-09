@@ -59,8 +59,8 @@ class WorkerTests(unittest.TestCase):
         class Source(w.NativeSource):
             def read(self, item, maximum): return image_bytes()
             def download_to(self, item, destination, maximum): return destination.write_bytes(image_bytes())
-        old=API({'url':'https://example.test','token':'synthetic'})
-        new=API({'url':'https://example.test','token':'synthetic','app_id':'chronicle'})
+        old=API({'url':'https://example.test','token':'synthetic','scope_identity':'https://example.test/index.php/apps/media_ai/worker/'})
+        new=API({'url':'https://example.test','token':'synthetic','app_id':'nextgallery','scope_identity':old.scope_url})
         config={'user_id':'synthetic','folders':['/Synthetic'],'exclude_folders':[]}
         models={stage:Model(stage) for stage in ['vision','ocr']}
         with tempfile.TemporaryDirectory() as d:
@@ -182,10 +182,10 @@ if __name__=='__main__':unittest.main()
 class UnifiedApplicationTests(unittest.TestCase):
     def test_new_transport_preserves_native_queue_identity(self):
         config={'user_id':'synthetic','folders':['/Synthetic'],'exclude_folders':[]}
-        old=w.API({'url':'https://example.test/cloud','token':'synthetic'})
-        new=w.API({'url':'https://example.test/cloud','token':'synthetic','app_id':'chronicle'})
-        self.assertEqual(old.url,'https://example.test/cloud/index.php/apps/media_ai/worker/')
-        self.assertEqual(new.url,'https://example.test/cloud/index.php/apps/chronicle/ai/worker/')
+        old=w.API({'url':'https://example.test/cloud','token':'synthetic','scope_identity':'https://example.test/cloud/index.php/apps/media_ai/worker/'})
+        new=w.API({'url':'https://example.test/cloud','token':'synthetic','app_id':'nextgallery','scope_identity':old.scope_url})
+        self.assertEqual(old.scope_url,'https://example.test/cloud/index.php/apps/media_ai/worker/')
+        self.assertEqual(new.url,'https://example.test/cloud/index.php/apps/nextgallery/ai/worker/')
         self.assertEqual(w.NativeSource(old,config).scope,w.NativeSource(new,config).scope)
         self.assertEqual(old.headers,new.headers)
 

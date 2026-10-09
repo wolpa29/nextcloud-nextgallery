@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-namespace OCA\Chronicle\Service;
+namespace OCA\Nextgallery\Service;
 use OCP\{IConfig,IDBConnection};
 use OCP\Files\{IRootFolder,Folder,File};
 use OCP\Lock\ILockingProvider;
@@ -9,14 +9,14 @@ use Symfony\Component\Process\Process;
 class Library {
  public function __construct(private IConfig $config,private IDBConnection $db,private IRootFolder $root,private ILockingProvider $locks,private IFilesMetadataManager $metadata) {}
  public function settings(string $uid):array {
-  $p=json_decode($this->config->getUserValue($uid,'chronicle','settings','{}'),true)??[];
+  $p=json_decode($this->config->getUserValue($uid,'nextgallery','settings','{}'),true)??[];
   return array_replace(['roots'=>[],'mode'=>'folder','grouping'=>'month','order'=>'desc','tile'=>180,'timezone'=>'Europe/Vienna','offlineLimit'=>1000],$p);
  }
- public function cacheKey(string $uid):string {return substr(hash('sha256',$uid.'|'.$this->config->getUserValue($uid,'chronicle','epoch','initial')),0,32);}
- public function state(string $uid):array {return json_decode($this->config->getUserValue($uid,'chronicle','scan','{}'),true)??[];}
- private function stateSave(string $uid,array $s):void {$this->config->setUserValue($uid,'chronicle','scan',json_encode($s,JSON_THROW_ON_ERROR));}
- private function lock(string $uid):void {$this->locks->acquireLock(hash('sha256','chronicle:'.$uid),ILockingProvider::LOCK_EXCLUSIVE);}
- private function unlock(string $uid):void {$this->locks->releaseLock(hash('sha256','chronicle:'.$uid),ILockingProvider::LOCK_EXCLUSIVE);}
+ public function cacheKey(string $uid):string {return substr(hash('sha256',$uid.'|'.$this->config->getUserValue($uid,'nextgallery','epoch','initial')),0,32);}
+ public function state(string $uid):array {return json_decode($this->config->getUserValue($uid,'nextgallery','scan','{}'),true)??[];}
+ private function stateSave(string $uid,array $s):void {$this->config->setUserValue($uid,'nextgallery','scan',json_encode($s,JSON_THROW_ON_ERROR));}
+ private function lock(string $uid):void {$this->locks->acquireLock(hash('sha256','nextgallery:'.$uid),ILockingProvider::LOCK_EXCLUSIVE);}
+ private function unlock(string $uid):void {$this->locks->releaseLock(hash('sha256','nextgallery:'.$uid),ILockingProvider::LOCK_EXCLUSIVE);}
  public function save(string $uid,array $settings):array {
   $this->lock($uid);
   try {
@@ -39,21 +39,21 @@ class Library {
    }
    if (isset($settings['timezone'])) {if (!in_array($settings['timezone'],\DateTimeZone::listIdentifiers(),true)) throw new \InvalidArgumentException('Ungültige Zeitzone.');$p['timezone']=$settings['timezone'];}
    foreach (['tile'=>[100,320],'offlineLimit'=>[1,5000]] as $key=>[$min,$max]) if (isset($settings[$key])) $p[$key]=max($min,min($max,(int)$settings[$key]));
-   $this->config->setUserValue($uid,'chronicle','settings',json_encode($p,JSON_THROW_ON_ERROR));
-   $q=$this->db->getQueryBuilder();$q->select('user_id')->from('chronicle_users')->where($q->expr()->eq('user_id',$q->createNamedParameter($uid)));
-   if (!$q->executeQuery()->fetchOne()) {$q=$this->db->getQueryBuilder();$q->insert('chronicle_users')->setValue('user_id',$q->createNamedParameter($uid))->executeStatement();}
+   $this->config->setUserValue($uid,'nextgallery','settings',json_encode($p,JSON_THROW_ON_ERROR));
+   $q=$this->db->getQueryBuilder();$q->select('user_id')->from('nextgallery_users')->where($q->expr()->eq('user_id',$q->createNamedParameter($uid)));
+   if (!$q->executeQuery()->fetchOne()) {$q=$this->db->getQueryBuilder();$q->insert('nextgallery_users')->setValue('user_id',$q->createNamedParameter($uid))->executeStatement();}
    if ($p['roots']!==$old['roots'] || $p['mode']!==$old['mode'] || $p['timezone']!==$old['timezone']) {
-    $q=$this->db->getQueryBuilder();$q->delete('chronicle_media')->where($q->expr()->eq('user_id',$q->createNamedParameter($uid)))->executeStatement();
-    $this->config->setUserValue($uid,'chronicle','epoch',bin2hex(random_bytes(16)));
+    $q=$this->db->getQueryBuilder();$q->delete('nextgallery_media')->where($q->expr()->eq('user_id',$q->createNamedParameter($uid)))->executeStatement();
+    $this->config->setUserValue($uid,'nextgallery','epoch',bin2hex(random_bytes(16)));
     $this->start($uid,$p);
    }
    return $p;
   } finally {$this->unlock($uid);}
  }
- public function users():array {$q=$this->db->getQueryBuilder();return $q->select('user_id')->from('chronicle_users')->executeQuery()->fetchAll(\PDO::FETCH_COLUMN);}
+ public function users():array {$q=$this->db->getQueryBuilder();return $q->select('user_id')->from('nextgallery_users')->executeQuery()->fetchAll(\PDO::FETCH_COLUMN);}
  public function forget(string $uid):void {
   $this->lock($uid);
-  try {foreach(['chronicle_media','chronicle_users'] as $table){$q=$this->db->getQueryBuilder();$q->delete($table)->where($q->expr()->eq('user_id',$q->createNamedParameter($uid)))->executeStatement();}}
+  try {foreach(['nextgallery_media','nextgallery_users'] as $table){$q=$this->db->getQueryBuilder();$q->delete($table)->where($q->expr()->eq('user_id',$q->createNamedParameter($uid)))->executeStatement();}}
   finally {$this->unlock($uid);}
  }
  private function start(string $uid,array $p):array {
@@ -119,7 +119,7 @@ class Library {
       try {
        $path='/'.ltrim($home->getRelativePath($node->getPath()),'/');
        if (!$this->inRoots($path,$p['roots'])) continue;
-       $q=$this->db->getQueryBuilder();$q->select('etag','payload')->from('chronicle_media')->where($q->expr()->eq('user_id',$q->createNamedParameter($uid)))->andWhere($q->expr()->eq('file_id',$q->createNamedParameter($node->getId())));$existing=$q->executeQuery()->fetch();
+       $q=$this->db->getQueryBuilder();$q->select('etag','payload')->from('nextgallery_media')->where($q->expr()->eq('user_id',$q->createNamedParameter($uid)))->andWhere($q->expr()->eq('file_id',$q->createNamedParameter($node->getId())));$existing=$q->executeQuery()->fetch();
        $old=$existing?json_decode($existing['payload'],true):null;
        $retryVideo=$kind==='video' && ($old['metadata']['duration']??null)===null && $node->getStorage()->isLocal() && is_executable('/usr/bin/ffprobe');
        $meta=$old && !$retryVideo && $existing['etag']===$node->getEtag() && ($old['metadata']['revision']??0)===2?$old['metadata']:$this->extract($node);
@@ -127,8 +127,8 @@ class Library {
        $item=['id'=>$node->getId(),'name'=>$node->getName(),'path'=>$path,'kind'=>$kind,'mime'=>$node->getMimeType(),'etag'=>$node->getEtag(),'date'=>$date,'mtime'=>$node->getMTime(),'size'=>$node->getSize(),'metadata'=>$meta];
        $values=['name_text'=>mb_strtolower($node->getName()),'path_text'=>mb_strtolower($path),'sort_key'=>$date['sort'],'period'=>$date['period'],'kind'=>$kind,'etag'=>$node->getEtag(),'generation'=>$s['generation'],'latitude'=>$meta['gps'][0]??null,'longitude'=>$meta['gps'][1]??null,'payload'=>json_encode($item,JSON_THROW_ON_ERROR|JSON_INVALID_UTF8_SUBSTITUTE)];
        $q=$this->db->getQueryBuilder();
-       if ($existing) {$q->update('chronicle_media')->where($q->expr()->eq('user_id',$q->createNamedParameter($uid)))->andWhere($q->expr()->eq('file_id',$q->createNamedParameter($node->getId())));foreach($values as $k=>$v) $q->set($k,$q->createNamedParameter($v));}
-       else {$q->insert('chronicle_media')->setValue('user_id',$q->createNamedParameter($uid))->setValue('file_id',$q->createNamedParameter($node->getId()));foreach($values as $k=>$v) $q->setValue($k,$q->createNamedParameter($v));}
+       if ($existing) {$q->update('nextgallery_media')->where($q->expr()->eq('user_id',$q->createNamedParameter($uid)))->andWhere($q->expr()->eq('file_id',$q->createNamedParameter($node->getId())));foreach($values as $k=>$v) $q->set($k,$q->createNamedParameter($v));}
+       else {$q->insert('nextgallery_media')->setValue('user_id',$q->createNamedParameter($uid))->setValue('file_id',$q->createNamedParameter($node->getId()));foreach($values as $k=>$v) $q->setValue($k,$q->createNamedParameter($v));}
        $q->executeStatement();$s['seen']++;
       } catch (\Throwable $e) {$s['errors']++;$s['lastError']=get_class($e).': '.$e->getMessage();}
      }
@@ -137,7 +137,7 @@ class Library {
    }
    if ($s['root']>=count($p['roots'])) {
     // A complete sweep removes deleted/moved media; failed roots also stop being exposed.
-    $q=$this->db->getQueryBuilder();$q->delete('chronicle_media')->where($q->expr()->eq('user_id',$q->createNamedParameter($uid)))->andWhere($q->expr()->neq('generation',$q->createNamedParameter($s['generation'])))->executeStatement();
+    $q=$this->db->getQueryBuilder();$q->delete('nextgallery_media')->where($q->expr()->eq('user_id',$q->createNamedParameter($uid)))->andWhere($q->expr()->neq('generation',$q->createNamedParameter($s['generation'])))->executeStatement();
     $s['running']=false;$s['completed']=time();
    }
    $this->stateSave($uid,$s);return $s;
@@ -151,7 +151,7 @@ class Library {
   usort($items,fn($a,$b)=>strnatcasecmp($a['name'],$b['name']));return $items;
  }
  private function query(string $uid,string $kind='',string $period='') {
-  $q=$this->db->getQueryBuilder();$q->from('chronicle_media')->where($q->expr()->eq('user_id',$q->createNamedParameter($uid)));
+  $q=$this->db->getQueryBuilder();$q->from('nextgallery_media')->where($q->expr()->eq('user_id',$q->createNamedParameter($uid)));
   if (in_array($kind,['image','video'],true)) $q->andWhere($q->expr()->eq('kind',$q->createNamedParameter($kind)));
   if ($period && preg_match('/^\d{4}(?:-\d{2})?(?:-\d{2})?$/',$period)) $q->andWhere($q->expr()->like('period',$q->createNamedParameter($period.'%')));
   return $q;

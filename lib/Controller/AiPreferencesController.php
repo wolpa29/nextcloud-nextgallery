@@ -1,14 +1,14 @@
 <?php
 declare(strict_types=1);
-namespace OCA\Chronicle\Controller;
+namespace OCA\Nextgallery\Controller;
 use OCP\IRequest;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
-use OCA\Chronicle\AI\Service\Preferences;
+use OCA\Nextgallery\AI\Service\Preferences;
 class AiPreferencesController extends Controller {
-    public function __construct(IRequest $request,private Preferences $preferences){parent::__construct('chronicle',$request);}
+    public function __construct(IRequest $request,private Preferences $preferences){parent::__construct('nextgallery',$request);}
     #[NoAdminRequired] #[NoCSRFRequired]
     public function get(): DataResponse {return new DataResponse(['language'=>$this->preferences->language()]);}
     #[NoAdminRequired]

@@ -43,10 +43,10 @@ namespace OCP\Search {
     class SearchResultEntry { public function __construct(public string $thumbnail, public string $title, public string $subline, public string $url, public string $icon = '') {} }
 }
 namespace {
-    use OCA\Chronicle\AI\Service\Metadata;
-    use OCA\Chronicle\AI\Service\Files;
-    use OCA\Chronicle\Controller\AiMetadataController;
-    use OCA\Chronicle\AI\Search\Provider;
+    use OCA\Nextgallery\AI\Service\Metadata;
+    use OCA\Nextgallery\AI\Service\Files;
+    use OCA\Nextgallery\Controller\AiMetadataController;
+    use OCA\Nextgallery\AI\Search\Provider;
     require __DIR__ . '/../../lib/AI/Service/Metadata.php';
     require __DIR__ . '/../../lib/AI/Service/Files.php';
     require __DIR__ . '/../../lib/Controller/AiMetadataController.php';
@@ -107,7 +107,7 @@ namespace {
     $controller = new AiMetadataController($request, $session, $files, $service);
     $controller->upsert(...$args);
     check(count($db->writes) === 1, 'successful request missing');
-    check(str_contains($db->writes[0][0], 'media_ai_meta'), 'writes outside custom table');
+    check(str_contains($db->writes[0][0], 'nextgallery_ai_meta'), 'writes outside custom table');
     check(!str_contains($db->writes[0][0], 'Rechnung'), 'SQL interpolation');
     $image->etag = 'v2'; refuses(fn() => $controller->upsert(...$args), 409);
     $image->etag = 'v1'; $image->readable = false; refuses(fn() => $controller->upsert(...$args));

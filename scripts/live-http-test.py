@@ -3,13 +3,13 @@
 import requests,json,re,html,time,statistics
 from pathlib import Path
 credentials=json.loads(Path('artifacts/test-auth.json').read_text())
-origin='https://10.1.10.186';base=origin+'/index.php/apps/chronicle';ca='../nextcloud-media-ai-pipeline/nextcloud-local-ca.crt'
+origin='https://10.1.10.186';base=origin+'/index.php/apps/nextgallery';ca='../nextcloud-media-ai-pipeline/nextcloud-local-ca.crt'
 s=requests.Session();s.verify=ca;s.auth=(credentials['user'],credentials['password'])
 r=s.get(base+'/api/settings',timeout=20)
 if 'application/json' not in r.headers.get('Content-Type',''):
  s.auth=None;r=s.get(origin+'/index.php/login',timeout=20)
  token=html.unescape(re.search(r'data-requesttoken="([^"]+)"',r.text).group(1))
- r=s.post(origin+'/index.php/login',data={'user':credentials['user'],'password':credentials['password'],'requesttoken':token,'redirect_url':'/index.php/apps/chronicle/'},timeout=30)
+ r=s.post(origin+'/index.php/login',data={'user':credentials['user'],'password':credentials['password'],'requesttoken':token,'redirect_url':'/index.php/apps/nextgallery/'},timeout=30)
  r=s.get(base+'/api/settings',timeout=20)
 assert r.status_code==200 and 'settings'in r.json(),(r.status_code,r.headers.get('content-type'))
 page=s.get(base+'/',timeout=20)
@@ -53,10 +53,10 @@ geo=get('/api/map').json();record('GPS media returned',len(geo['items'])>0,len(g
 offline=get('/offline');record('independent authenticated offline page',offline.status_code==200 and 'core-common' not in offline.text and 'data-context' in offline.text)
 nonce=re.search(r'<script nonce="([^"]+)"',offline.text).group(1)
 record('offline script nonce matches CSP',"'nonce-"+nonce+"'" in offline.headers.get('Content-Security-Policy',''))
-sw=get('/sw.js');record('scoped service worker',sw.status_code==200 and 'javascript' in sw.headers['Content-Type'] and sw.headers.get('Service-Worker-Allowed','').endswith('/apps/chronicle/'))
+sw=get('/sw.js');record('scoped service worker',sw.status_code==200 and 'javascript' in sw.headers['Content-Type'] and sw.headers.get('Service-Worker-Allowed','').endswith('/apps/nextgallery/'))
 # Verify actual Android capability and link payload, without claiming a device test.
 r=s.get(origin+'/ocs/v2.php/cloud/capabilities?format=json',headers={'OCS-APIRequest':'true'},timeout=20);caps=r.json()['ocs']['data']['capabilities'];record('external links capability',bool(caps.get('external',{})))
-r=s.get(origin+'/ocs/v2.php/apps/external/api/v1?format=json',headers={'OCS-APIRequest':'true','User-Agent':'Mozilla/5.0 (Android) Nextcloud-android/3.35.0'},timeout=20);links=r.json()['ocs']['data'];record('Android Chronik menu link',any(x['name']=='Chronik' and x['url']==base+'/' and not x['redirect'] for x in links),[{'name':x['name'],'redirect':x['redirect']} for x in links])
+r=s.get(origin+'/ocs/v2.php/apps/external/api/v1?format=json',headers={'OCS-APIRequest':'true','User-Agent':'Mozilla/5.0 (Android) Nextcloud-android/3.35.0'},timeout=20);links=r.json()['ocs']['data'];record('Android NextGallery menu link',any(x['name']=='NextGallery' and x['url']==base+'/' and not x['redirect'] for x in links),[{'name':x['name'],'redirect':x['redirect']} for x in links])
 timings=[]
 for _ in range(8):
  begin=time.perf_counter();r=get('/api/items');assert r.status_code==200;timings.append((time.perf_counter()-begin)*1000)

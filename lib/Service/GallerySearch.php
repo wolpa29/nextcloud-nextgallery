@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-namespace OCA\Chronicle\Service;
+namespace OCA\Nextgallery\Service;
 use OCP\IDBConnection;
 
 /** One gallery scope for filenames and fresh AI text. Dense retrieval can extend this service. */
@@ -12,8 +12,8 @@ class GallerySearch {
   $words=array_slice(array_values(array_unique($matches[0])),0,16);
   if (!$words) return ['items'=>[],'next'=>null,'more'=>false,'mode'=>'lexical'];
   $limit=max(1,min(200,$limit));$q=$this->db->getQueryBuilder();
-  $q->select('c.file_id','c.payload')->from('chronicle_media','c')
-   ->leftJoin('c','media_ai_meta','a','a.user_id=c.user_id AND a.file_id=c.file_id AND a.etag=c.etag')
+  $q->select('c.file_id','c.payload')->from('nextgallery_media','c')
+   ->leftJoin('c','nextgallery_ai_meta','a','a.user_id=c.user_id AND a.file_id=c.file_id AND a.etag=c.etag')
    ->where($q->expr()->eq('c.user_id',$q->createNamedParameter($uid)));
   if (in_array($kind,['image','video'],true)) $q->andWhere($q->expr()->eq('c.kind',$q->createNamedParameter($kind)));
   $scores=[];$conditions=[];

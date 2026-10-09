@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-namespace OCA\Chronicle\Service;
+namespace OCA\Nextgallery\Service;
 use OCP\Files\Search\{ISearchQuery,ISearchComparison,ISearchOrder,ISearchBinaryOperator};
 /** Implement the public search interfaces rather than depending on OC private classes. */
 class Search {

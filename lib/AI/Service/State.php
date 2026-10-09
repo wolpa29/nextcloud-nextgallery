@@ -1,13 +1,13 @@
 <?php
 declare(strict_types=1);
-namespace OCA\Chronicle\AI\Service;
+namespace OCA\Nextgallery\AI\Service;
 use OCP\IConfig;
 use OCP\AppFramework\OCS\OCSBadRequestException;
 
 class State {
     public function __construct(private IConfig $config) {}
     public function directory(): string {
-        $path = rtrim($this->config->getSystemValueString('datadirectory'), '/') . '/.media_ai';
+        $path = rtrim($this->config->getSystemValueString('datadirectory'), '/') . '/.nextgallery_ai';
         if (is_link($path)) { throw new \RuntimeException('Worker-Verzeichnis darf kein Symlink sein'); }
         if (!is_dir($path) && !mkdir($path, 0700, true) && !is_dir($path)) { throw new \RuntimeException('Worker-Verzeichnis nicht beschreibbar'); }
         return $path;

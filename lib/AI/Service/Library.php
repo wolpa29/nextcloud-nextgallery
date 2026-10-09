@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-namespace OCA\Chronicle\AI\Service;
+namespace OCA\Nextgallery\AI\Service;
 use OCP\ICacheFactory;
 use OCP\AppFramework\OCS\OCSBadRequestException;
 
@@ -12,10 +12,11 @@ class Library {
         if (!is_file($path) || is_link($path)) { return []; }
         $bootstrap=$this->state->directory().'/bootstrap.json';
         if(!is_file($bootstrap) || is_link($bootstrap) || filesize($bootstrap)>1048576) { return []; }
-        $url=json_decode((string)file_get_contents($bootstrap),true)['url']??null;
+        $identity=json_decode((string)file_get_contents($bootstrap),true);
+        $url=$identity['url']??null;
         if(!is_string($url)) { return []; }
         $config=$this->settings->get();
-        $scope=hash('sha256',json_encode(['native',rtrim($url,'/').'/index.php/apps/media_ai/worker/',$config['user_id'],$config['folders'],$config['exclude_folders']],JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_LINE_TERMINATORS));
+        $scope=hash('sha256',json_encode(['native',$identity['scope_identity']??rtrim($url,'/').'/index.php/apps/nextgallery/ai/worker/',$config['user_id'],$config['folders'],$config['exclude_folders']],JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_LINE_TERMINATORS));
         $db=new \PDO('sqlite:file:'.$path.'?mode=ro', null, null, [\PDO::ATTR_ERRMODE=>\PDO::ERRMODE_EXCEPTION]);
         $db->exec('PRAGMA query_only=ON'); $db->exec('PRAGMA busy_timeout=250');
         $query=$db->prepare('SELECT locator,etag,status,error,retry_at,analyzed_at,publish_error FROM files WHERE active=1 AND scope=?');$query->execute([$scope]);$rows=$query->fetchAll(\PDO::FETCH_ASSOC);
@@ -35,7 +36,7 @@ class Library {
     public static function totals(): array { return ['total'=>0,'done'=>0,'pending'=>0,'error'=>0,'changed'=>0,'publishing'=>0,'images'=>0,'videos'=>0]; }
     private function snapshot(): array {
         $config=$this->settings->get();
-        $cache=$this->caches?->createLocal('media_ai_library');
+        $cache=$this->caches?->createLocal('nextgallery_ai_library');
         $key=hash('sha256',json_encode([$config['user_id'],$config['folders'],$config['exclude_folders']],JSON_THROW_ON_ERROR));
         $stored=$cache?->get($key); if (is_array($stored)) { return $stored; }
         $queue=$this->queue(); $rows=$this->inventory->snapshot();

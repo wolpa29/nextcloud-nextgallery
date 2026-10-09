@@ -672,10 +672,10 @@ class Publisher:
     """Authenticated custom-app API; never writes Nextcloud core tables/files."""
     def __init__(self, config):
         self.config = config
-        app_id = config.get('app_id', 'media_ai')
-        if app_id not in ('chronicle', 'media_ai'):
+        app_id = config.get('app_id', 'nextgallery')
+        if app_id != 'nextgallery':
             raise PipelineError('Unsupported Nextcloud publishing application')
-        self.url = config['url'].rstrip('/') + ('/ocs/v2.php/apps/chronicle/ai/api/v1/' if app_id == 'chronicle' else '/ocs/v2.php/apps/media_ai/api/v1/')
+        self.url = config['url'].rstrip('/') + '/ocs/v2.php/apps/nextgallery/ai/api/v1/'
         parts = urllib.parse.urlsplit(self.url)
         if parts.scheme != 'https' and parts.hostname not in {'127.0.0.1', 'localhost', '::1'}:
             raise PipelineError('Nextcloud publishing requires HTTPS')
