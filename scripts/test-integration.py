@@ -55,6 +55,8 @@ try:
   copy_app(root,chronicle);copy_app(root/'compat/media_ai',legacy)
   print(occ('upgrade'),flush=True)
  print(docker('exec','-u','www-data',name,'php','/test-scripts/integration.php','verify'),flush=True)
+ # CLI app enable/upgrade uses a separate APCu cache from Apache; let core AppConfig expire.
+ time.sleep(4)
  # Real HTTP routes, legacy OCS and worker-token authentication.
  pre=json.loads((out/'pre.json').read_text());base=f'http://127.0.0.1:{port}'
  credentials=base64.b64encode(b'merge-synthetic:SyntheticMergeOnly2026!').decode()
@@ -65,7 +67,7 @@ try:
   except urllib.error.HTTPError as e:return e.code,e.read()
  http=[]
  for app,path in [('chronicle','/ai'),('media_ai','')]:
-  url='/ocs/v2.php/apps/'+app+path+'/api/v1/metadata?format=json&file_id='+str(pre['ids'][2]);status,body=request(url);assert status==200,(status,body[-1000:]);metadata=json.loads(body)['ocs']['data'];assert metadata['available'];assert metadata['metadata']==json.loads(pre['metadata'][2]['metadata_json']);http.append(url)
+  url='/ocs/v2.php/apps/'+app+path+'/api/v1/metadata?format=json&file_id='+str(pre['ids'][2]);status,body=request(url);assert status==200,(url,status,body[-1000:]);metadata=json.loads(body)['ocs']['data'];assert metadata['available'];assert metadata['metadata']==json.loads(pre['metadata'][2]['metadata_json']);http.append(url)
   status,body=request('/ocs/v2.php/apps/'+app+path+'/api/v1/statuses?format=json',{'file_ids':pre['ids']});assert status==200,(status,body);statuses=json.loads(body)['ocs']['data']['statuses'];assert str(pre['ids'][1]) not in statuses;assert statuses[str(pre['ids'][0])]['status']=='changed';http.append('statuses:'+app)
  for route in ['/index.php/apps/media_ai/','/ocs/v2.php/search/providers/media_ai/search?term=RECHNUNG&format=json','/index.php/apps/chronicle/api/settings','/index.php/apps/chronicle/api/search?query=RECHNUNG','/index.php/apps/chronicle/ai','/index.php/apps/chronicle/ai/preferences','/index.php/apps/chronicle/ai/admin/config','/index.php/apps/chronicle/']:
   status,body=request(route);assert status==200,(route,status,body[-1000:]);http.append(route)
