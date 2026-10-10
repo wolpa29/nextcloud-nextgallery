@@ -152,7 +152,7 @@ class WorkerTests(unittest.TestCase):
             def call(self,endpoint,body):self.endpoint=endpoint
         class Reporter:
             def update(self,**fields):self.fields=fields
-            def event(self,event):self.event_name=event
+            def event(self,event,**fields):self.event_name=event
         with tempfile.TemporaryDirectory() as d:
             directory=Path(d); original=directory/'original.jpg';original.write_bytes(b'unchanged')
             store=p.Store(directory/'native.sqlite3');source=Source();p.run({},store,source,{s:Model(s) for s in ['vision','ocr']});store.db.close()

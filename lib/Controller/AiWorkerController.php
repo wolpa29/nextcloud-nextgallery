@@ -10,9 +10,14 @@ use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\OCS\OCSException;
 use OCA\Nextgallery\AI\Service\{Settings,Inventory,Metadata,State};
 class AiWorkerController extends Controller {
-    public function __construct(IRequest $request, private Settings $settings, private Inventory $inventory, private Metadata $metadata, private ?State $state = null) { parent::__construct('nextgallery', $request); }
+    public function __construct(IRequest $request, private Settings $settings, private Inventory $inventory, private Metadata $metadata, private ?State $state = null, private ?\OCA\Nextgallery\AI\Service\Embeddings $embeddings = null) { parent::__construct('nextgallery', $request); }
     private function denied(): ?DataResponse {
         if (!$this->settings->verifyWorker($this->request->getHeader('Authorization'))) { return new DataResponse(['error'=>'Worker authentication required'],401); }
+        $uid=$this->request->getHeader('X-Nextgallery-User');
+        if($uid!==''){
+            if(!\OCP\Server::get(\OCP\IUserManager::class)->userExists($uid))return new DataResponse(['error'=>'Account unavailable'],404);
+            $this->settings=$this->settings->forUser($uid);$this->inventory=$this->inventory->forUser($uid);$this->state=$this->state?->forUser($uid);
+        }
         return null;
     }
     #[PublicPage] #[NoCSRFRequired]
@@ -45,8 +50,18 @@ class AiWorkerController extends Controller {
         if($denied=$this->denied())return $denied;
         $control=$this->state?->control()??[];
         if(empty($control['reset_requested']) || empty($control['paused']))return new DataResponse(['error'=>'Explicit paused reset request required'],409);
-        $this->metadata->reset($this->settings->get()['user_id']);
+        $uid=$this->settings->get()['user_id'];$kind=$control['reset_kind']??'all';
+        if(in_array($kind,['all','descriptions'],true))$this->metadata->reset($uid);
+        if(in_array($kind,['all','embeddings'],true))$this->embeddings?->reset($uid);
         return new DataResponse(['reset'=>true]);
+    }
+    #[PublicPage] #[NoCSRFRequired]
+    public function publishEmbedding(int $file_id,string $etag,string $space,array $vectors):DataResponse {
+        if($denied=$this->denied())return $denied;
+        if(!$this->settings->get()['embedding']['enabled'])return new DataResponse(['error'=>'Embeddings disabled'],409);
+        $file=$this->inventory->allowedFile($file_id);if(!hash_equals($file->getEtag(),$etag))throw new OCSException('Media changed',409);
+        if(!$this->embeddings)throw new \RuntimeException('Embedding storage unavailable');
+        $this->embeddings->publish($this->settings->get()['user_id'],$file_id,$etag,$space,$vectors);return new DataResponse(['stored'=>true]);
     }
     #[PublicPage] #[NoCSRFRequired]
     public function publish(int $file_id, string $etag, string $sha256, string $revision, array $metadata, array $exif = []): DataResponse {

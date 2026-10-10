@@ -52,7 +52,7 @@ class AiMetadataController extends OCSController {
             } catch (\OCP\Files\NotFoundException|\OCP\Files\NotPermittedException $e) { continue; }
         }
         $stored=$this->metadata->statuses($uid,array_column($nodes,'file_id'));
-        $selected=$uid===($this->settings?->get()['user_id']??null) ? $this->library->nodeStatuses($nodes) : [];
+        $selected=$this->library?->forUser($uid)->nodeStatuses($nodes)??[];
         $statuses=[];
         foreach($nodes as $node) {
             $row=$stored[$node['file_id']]??null;

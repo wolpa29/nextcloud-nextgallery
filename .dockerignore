@@ -1,0 +1,12 @@
+**
+!worker
+!worker/embedding_server.py
+!worker/embedding_setup.py
+!worker/embedding-full-model.json
+!worker/requirements.txt
+!worker/requirements-embeddings.txt
+!worker/requirements-embeddings-full.txt
+!docker
+!docker/embedding-server
+!docker/embedding-server/Dockerfile
+!docker/embedding-server/start.py

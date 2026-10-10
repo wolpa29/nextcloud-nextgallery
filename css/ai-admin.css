@@ -208,3 +208,49 @@
 .mai-run-surface .mai-counts{display:none}
 
 .mai-gallery-link{display:block;padding:12px 16px;font-weight:600}
+
+.mai-processing-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:16px 0}.mai-processing-card{padding:20px;border:1px solid var(--color-border);border-radius:12px;background:var(--color-main-background)}.mai-processing-card p{line-height:1.55;color:var(--color-text-light)}.mai-processing-card>label:not(.mai-check){display:flex;flex-direction:column;gap:6px}.mai-processing-card select{max-width:100%;width:100%}#mai-embedding-settings{padding:20px}#mai-embedding-result.mai-error{padding:12px;border-left:3px solid var(--color-error)}@media(max-width:700px){.mai-processing-options{grid-template-columns:1fr}}
+
+.mai [hidden]{display:none!important}
+
+#mai-embedding-health[hidden]{display:none!important}
+
+.mai .mai-model-requirements{margin:16px 0;padding:14px 16px;border:1px solid var(--color-border);border-radius:12px;background:var(--color-background-hover)}
+.mai .mai-model-requirements p{margin:6px 0;font-size:var(--default-font-size)}
+.mai button.mai-model-remove{color:var(--color-error,#b91c1c);border-color:var(--color-error,#b91c1c)}
+.mai button.mai-model-remove:disabled{opacity:.5}
+.mai .mai-model-remove svg{vertical-align:middle;margin-right:4px}
+
+.mai button.mai-model-remove{color:#b42318!important;border:1px solid #b42318!important;background:#fff!important}
+.mai .mai-model-dialog{max-width:min(560px,calc(100vw - 32px));padding:24px;border:1px solid var(--color-border);border-radius:16px;color:var(--color-main-text);background:var(--color-main-background)}
+.mai .mai-model-dialog::backdrop{background:rgba(0,0,0,.35)}
+.mai .mai-model-dialog p{line-height:1.6;white-space:pre-line;margin:16px 0 24px}
+.mai .mai-model-dialog h3{font-size:20px;margin:0}
+.mai .mai-model-dialog .mai-actions{justify-content:flex-end;flex-wrap:wrap}
+
+/* Personal processing: two independent actions, scoped data and compact rows. */
+.mai-data-count{display:block;font-size:36px;line-height:1.2;font-weight:600;font-variant-numeric:tabular-nums;margin:18px 0 6px}
+.mai-user .mai-processing-options{margin:22px 0 28px}
+.mai-user .mai-processing-card{padding:24px;background:var(--mai-soft);border:0;border-radius:12px}
+.mai-user .mai-processing-card button{margin:10px 0}.mai-user .mai-processing-card>p:last-child{font-size:12px;color:var(--color-text-maxcontrast)}
+.mai-user .mai-run-surface{margin:28px 0 18px}.mai-user .mai-run-surface p{margin:12px 0}
+.mai-data-section{border-top:1px solid var(--mai-border);padding-top:24px;margin-top:32px}
+.mai-user-file{display:flex;align-items:center;flex-wrap:wrap;gap:10px 18px;padding:18px 0;border-bottom:1px solid var(--mai-border)}
+.mai-user-file>a{min-width:0;overflow-wrap:anywhere;flex:1}.mai-user-file>p{flex-basis:100%;margin:0;font-size:12px;color:var(--color-text-maxcontrast)}
+.mai-user-badges{display:flex;flex-wrap:wrap;gap:6px}.mai-user-badges span{border-radius:5px;background:var(--mai-soft);font-size:11px;padding:4px 8px;color:var(--color-text-maxcontrast)}
+.mai-user-folder{display:block!important;width:100%;text-align:left;margin:8px 0!important;padding:14px!important}
+#mai-user-breadcrumbs{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:20px 0}
+#mai-user-breadcrumbs>span{font-size:12px;overflow-wrap:anywhere}
+.mai-user .mai-library-toolbar{align-items:end}.mai-user [data-user-view][hidden]{display:none!important}
+.mai-model>summary{font-size:15px}.mai-model .mai-options-grid{margin:18px 0}.mai-model .mai-disclosure{margin-top:18px}
+#mai-embedding-settings [data-embedding-requirements]{margin:16px 0;font-size:12px}
+#mai-embedding-settings [data-embedding-requirements] p{margin:6px 0}
+#mai-account-form{display:block}.mai-subsection>summary{padding:18px 0;cursor:pointer}.mai-subsection[open]>summary{margin-bottom:18px}
+@media(max-width:640px){.mai-user .mai-processing-card{padding:18px}.mai-user-file{align-items:start;flex-direction:column}.mai-user-badges{gap:5px}.mai-user .mai-library-toolbar{display:grid;grid-template-columns:minmax(0,1fr)}.mai-user .mai-library-toolbar .mai-search{min-width:0}.mai-user .mai-data-count{font-size:30px}}
+
+#mai-user-result-content p{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6}#mai-user-result-content h4{margin:22px 0 6px}#mai-user-result-close{margin-top:24px}
+.mai-external-install a{display:inline-block;padding:8px 12px;border-radius:6px;background:var(--mai-soft);font-size:12px}
+.mai dialog:not([open]){display:none!important}
+.mai dialog[open]{position:fixed;inset:0;margin:auto;width:min(560px,calc(100vw - 32px));height:fit-content;max-height:calc(100dvh - 40px);overflow:auto;box-sizing:border-box}
+#mai-embedding-settings{padding:0}
+#mai-embedding-settings>summary{padding:18px 20px}

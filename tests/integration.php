@@ -44,7 +44,9 @@ if($legacy || $phase==='fresh') {
 }
 $before=json_decode(file_get_contents('/test-output/pre.json'),true,64,JSON_THROW_ON_ERROR);
 $settings=Server::get(\OCA\Nextgallery\AI\Service\Settings::class);$state=Server::get(\OCA\Nextgallery\AI\Service\State::class);
-ok($settings->get()===$before['settings'],'AI settings changed during migration');
+ok($settings->get()===array_replace_recursive($settings->defaults(),$before['settings']),'Existing AI settings changed during migration');
+ok($settings->get()['analysis_enabled']===($before['settings']['analysis_enabled']??true),'Description default changed');
+ok($settings->get()['embedding']['enabled']===($before['settings']['embedding']['enabled']??false),'Embeddings enabled implicitly');
 ok(array_intersect_key($library->settings($uid),$before['gallery'])===$before['gallery'],'Gallery settings changed');ok($library->cacheKey($uid)===$before['epoch'],'Offline cache identity changed');
 ok($config->getAppValue('nextgallery','ai_worker_token')===$before['token_cipher'],'Worker encrypted token not adopted');ok($config->getAppValue('nextgallery','ai_vision_api_key')===$before['key_cipher'],'Encrypted API key changed');ok($settings->workerConfig()['vision']['api_key']==='synthetic-test-key','Encrypted key cannot be decrypted');
 ok(hash_file('sha256',$state->directory().'/native.sqlite3')===$before['queue_hash'],'Queue touched by migration');ok($state->control()['paused'] && $state->control()['pause_reason']==='Synthetic preserved pause','Pause state changed');

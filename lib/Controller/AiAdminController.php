@@ -5,57 +5,57 @@ use OCP\IRequest;
 use OCP\IUserSession;
 use OCP\IGroupManager;
 use OCP\Files\{IRootFolder,Folder};
-use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\DataResponse;
 use OCA\Nextgallery\AI\Service\{Settings,State};
 class AiAdminController extends Controller {
-    public function __construct(IRequest $request, private Settings $settings, private State $state, private IUserSession $session, private IGroupManager $groups, private IRootFolder $root, private ?\OCA\Nextgallery\AI\Service\Metadata $metadata = null, private ?\OCA\Nextgallery\AI\Service\Files $files = null, private ?\OCA\Nextgallery\AI\Service\ModelConnection $modelConnection = null, private ?\OCA\Nextgallery\AI\Service\Library $library = null) { parent::__construct('nextgallery',$request); }
+    public function __construct(IRequest $request, private Settings $settings, private State $state, private IUserSession $session, private IGroupManager $groups, private IRootFolder $root, private ?\OCA\Nextgallery\AI\Service\Metadata $metadata = null, private ?\OCA\Nextgallery\AI\Service\Files $files = null, private ?\OCA\Nextgallery\AI\Service\ModelConnection $modelConnection = null, private ?\OCA\Nextgallery\AI\Service\Library $library = null, private ?\OCA\Nextgallery\AI\Service\Embeddings $embeddings = null, private ?\OCA\Nextgallery\AI\Service\EmbeddingClient $embeddingClient = null) { parent::__construct('nextgallery',$request); }
     private function admin(): bool { $uid=$this->session->getUser()?->getUID(); return $uid!==null && $this->groups->isAdmin($uid); }
     private function denied(): ?DataResponse {
         $uid=$this->session->getUser()?->getUID();
-        return $uid!==null && ($this->admin() || $uid===$this->settings->get()['user_id']) ? null : new DataResponse(['error'=>'Diese Pipeline gehört einem anderen Benutzer'],403);
+        return $uid!==null && $this->admin() ? null : new DataResponse(['error'=>'Nur Administratoren dürfen diese Einstellungen öffnen.'],403);
     }
-    private function publicConfig(): array { return $this->settings->publicConfig()+['can_configure_models'=>$this->admin(),'metadata_count'=>$this->metadata?->count($this->settings->get()['user_id'])??0]; }
-    #[NoAdminRequired]
+    private function publicConfig(): array { return $this->settings->publicConfig()+['can_configure_models'=>$this->admin(),'embedding_count'=>$this->embeddings?->count($this->settings->get()['user_id'])??0,'metadata_count'=>$this->metadata?->count($this->settings->get()['user_id'])??0]; }
     public function config(): DataResponse { if($denied=$this->denied())return $denied; return new DataResponse($this->publicConfig()); }
-    #[NoAdminRequired]
     public function save(array $config): DataResponse {
         if($denied=$this->denied())return $denied;
-        if (($this->state->status()['state'] ?? '') === 'running') {
+        if ($this->state->anyRunning()) {
             return new DataResponse(['error'=>'Bitte zuerst pausieren und das Ende der aktuellen Datei abwarten.'],409);
         }
-        if (!$this->admin()) {
-            $safe=$this->settings->get();
-            foreach(['enabled','folders','exclude_folders','schedule_time','timezone','image_timeout_seconds','log_days','max_download_bytes','max_image_pixels','max_video_download_bytes','video'] as $key) { if(array_key_exists($key,$config))$safe[$key]=$config[$key]; }
-            $config=$safe;
-        }
+        $previous=$this->settings->get();
+        if(($config['user_id']??null)!==$previous['user_id'])return new DataResponse(['error'=>'Kontoeinstellungen bitte im Bereich Benutzer ändern.'],400);
         try {
-            $this->settings->save($config,function(array $value): void {
-                $home=$this->root->getUserFolder($value['user_id']);
-                foreach(array_merge($value['folders'],$value['exclude_folders']) as $path){$node=$path==='/'?$home:$home->get(ltrim($path,'/'));if(!$node instanceof Folder || !$node->isReadable())throw new \OCP\Files\NotFoundException('Folder unavailable');}
-            });
+            $this->settings->save($config);
         } catch (\OCP\AppFramework\OCS\OCSBadRequestException $e) {return new DataResponse(['error'=>$e->getMessage()],400);}
         catch (\OCP\Files\NotFoundException|\OCP\Files\NotPermittedException $e) {return new DataResponse(['error'=>'Ein Ordner fehlt oder ist nicht lesbar.'],400);}
+        $current=$this->settings->get();
+        if(Settings::embeddingSignature($previous)!==Settings::embeddingSignature($current))foreach($this->embeddings?->accounts()??[] as $uid){$account=$this->settings->forUser($uid)->get();$this->state->forUser($uid)->requireEmbeddingRebuild(Settings::embeddingSignature($account),['model'=>$current['embedding']['model'],'file_count'=>$this->embeddings->count($uid)]);}
         return new DataResponse($this->publicConfig());
     }
-    #[NoAdminRequired]
     public function library(string $path = '', string $filter = 'all', string $query = '', int $offset = 0): DataResponse {
         if ($denied=$this->denied()) { return $denied; }
         try { return new DataResponse($this->library->browse($path, $filter, $query, $offset)); }
         catch (\OCP\AppFramework\OCS\OCSBadRequestException $e) { return new DataResponse(['error'=>$e->getMessage()],400); }
     }
-    #[NoAdminRequired]
     public function status(): DataResponse { if($denied=$this->denied())return $denied; return new DataResponse($this->state->status()); }
-    #[NoAdminRequired]
-    public function control(string $action): DataResponse {
+    public function embeddingInstall():DataResponse {
+        if(!$this->admin())return new DataResponse(['error'=>'Nur Nextcloud-Administratoren dürfen Gemma installieren.'],403);
+        $embedding=$this->settings->get()['embedding'];
+        if($embedding['location']!=='local'||$embedding['family']!=='gemma2'||!$embedding['local_auto_setup'])return new DataResponse(['error'=>'Bitte zuerst Gemma 2 auf dem Nextcloud-Host auswählen und speichern.'],409);
+        try {return new DataResponse($this->state->requestEmbeddingInstall($embedding['local_profile']??'lite'));}
+        catch(\OCP\AppFramework\OCS\OCSBadRequestException $e){return new DataResponse(['error'=>$e->getMessage()],409);}
+    }
+    public function embeddingRemove(string $profile):DataResponse {
+        if(!$this->admin())return new DataResponse(['error'=>'Nur Nextcloud-Administratoren dürfen Modelle entfernen.'],403);
+        try{return new DataResponse($this->state->requestEmbeddingRemove($profile));}
+        catch(\OCP\AppFramework\OCS\OCSBadRequestException $e){return new DataResponse(['error'=>$e->getMessage()],409);}
+    }
+    public function control(string $action,string $embedding_rebuild_id=''): DataResponse {
         if($denied=$this->denied())return $denied;
-        try { return new DataResponse($this->state->setControl($action, true)); }
+        try { return new DataResponse($this->state->setControl($action, true,$embedding_rebuild_id)); }
         catch (\OCP\AppFramework\OCS\OCSBadRequestException $e) { return new DataResponse(['error'=>$e->getMessage()],409); }
     }
-    #[NoAdminRequired]
     public function logs(string $date, int $cursor = 0): DataResponse { if($denied=$this->denied())return $denied; return new DataResponse($this->state->logs($date,$cursor)); }
-    #[NoAdminRequired]
     public function folders(string $path = '/'): DataResponse {
         if($denied=$this->denied())return $denied;
         if(str_contains($path,"\0") || str_contains($path,'\\') || preg_match('~(^|/)(\.|\.\.)(/|$)~',$path))return new DataResponse(['error'=>'Ungültiger Pfad'],400);
@@ -67,7 +67,6 @@ class AiAdminController extends Controller {
         usort($rows,fn($a,$b)=>strnatcasecmp($a['name'],$b['name']));
         return new DataResponse(['path'=>$path,'folders'=>$rows]);
     }
-    #[NoAdminRequired]
     public function result(int $file_id): DataResponse {
         if($denied=$this->denied())return $denied;
         try { $file=$this->files->byId($this->settings->get()['user_id'],$file_id); }
@@ -76,7 +75,6 @@ class AiAdminController extends Controller {
         if(!$row)return new DataResponse(['available'=>false]);
         return new DataResponse(['available'=>true,'stale'=>!hash_equals($row['etag'],$file->getEtag()),'updated_at'=>$row['updated_at'],'metadata'=>json_decode($row['metadata_json'],true,64,JSON_THROW_ON_ERROR)]);
     }
-    #[NoAdminRequired]
     public function maintenance(string $action, string $confirmation, int $expected_count = -1): DataResponse {
         if($denied=$this->denied())return $denied;
         if($confirmation!==$action || !in_array($action,['clear_logs','reset_ai'],true))return new DataResponse(['error'=>'Bestätigung fehlt'],400);
@@ -87,11 +85,34 @@ class AiAdminController extends Controller {
         if($expected_count!==$this->metadata->count($this->settings->get()['user_id']))return new DataResponse(['error'=>'Die Anzahl der Analysen hat sich geändert. Bitte die Löschbestätigung erneut öffnen.'],409);
         $this->state->setControl('reset');return new DataResponse(['requested'=>true]);
     }
-    #[NoAdminRequired]
+    public function embeddingTest():DataResponse {
+        if($denied=$this->denied())return $denied;
+        return new DataResponse(($this->embeddingClient??new \OCA\Nextgallery\AI\Service\EmbeddingClient())->inspect($this->settings->workerConfig()['embedding']));
+    }
     public function test(): DataResponse {
         if ($this->session->getUser() === null) { return new DataResponse(['error'=>'Anmeldung erforderlich'],401); }
-        // Every signed-in user may inspect model readiness, without configuration access.
+        if($denied=$this->denied())return $denied;
         $connection = $this->modelConnection ?? new \OCA\Nextgallery\AI\Service\ModelConnection();
         return new DataResponse($connection->inspect($this->settings->workerConfig()));
+    }
+    public function accounts(string $query=''):DataResponse {
+        if($denied=$this->denied())return $denied;
+        $rows=[];foreach(\OCP\Server::get(\OCP\IUserManager::class)->search(mb_substr($query,0,100),50) as $user)$rows[]=['id'=>$user->getUID(),'name'=>$user->getDisplayName()];
+        return new DataResponse(['accounts'=>$rows]);
+    }
+    private function availableAccount(string $uid):void {if(!\OCP\Server::get(\OCP\IUserManager::class)->userExists($uid))throw new \OCP\AppFramework\OCS\OCSBadRequestException('Benutzer nicht gefunden');}
+    public function accountConfig(string $user_id):DataResponse {
+        if($denied=$this->denied())return $denied;
+        try{$this->availableAccount($user_id);$value=$this->settings->forUser($user_id)->get();return new DataResponse(array_intersect_key($value,array_flip(['user_id','folders','exclude_folders','enabled','schedule_time','timezone'])));}
+        catch(\OCP\AppFramework\OCS\OCSBadRequestException $e){return new DataResponse(['error'=>$e->getMessage()],400);}
+    }
+    public function saveAccount(string $user_id,array $config):DataResponse {
+        if($denied=$this->denied())return $denied;
+        try{
+            $this->availableAccount($user_id);$state=$this->state->forUser($user_id);$status=$state->status();
+            if(($status['state']??'')==='running'||!empty($status['control']['requested']))return new DataResponse(['error'=>'Bitte zuerst die Verarbeitung dieses Benutzers pausieren.'],409);
+            $value=$this->settings->saveAccount($user_id,$config,function(array $value){$home=$this->root->getUserFolder($value['user_id']);foreach(array_merge($value['folders'],$value['exclude_folders']) as $path){$node=$path==='/'?$home:$home->get(ltrim($path,'/'));if(!$node instanceof Folder||!$node->isReadable())throw new \OCP\Files\NotFoundException('Folder unavailable');}});
+            $state->registerAccount();return new DataResponse($value);
+        }catch(\OCP\AppFramework\OCS\OCSBadRequestException|\OCP\Files\NotFoundException|\OCP\Files\NotPermittedException $e){return new DataResponse(['error'=>'Benutzer, Ordner oder Zeitplan ungültig.'],400);}
     }
 }

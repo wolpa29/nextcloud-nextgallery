@@ -7,10 +7,11 @@ use OCP\AppFramework\OCS\OCSBadRequestException;
 /** Read-only presentation of the selected inventory, published results and worker queue. */
 class Library {
     public function __construct(private Inventory $inventory, private Settings $settings, private State $state, private ?ICacheFactory $caches = null) {}
+    public function forUser(string $uid):self {$copy=clone $this;$copy->inventory=$this->inventory->forUser($uid);$copy->settings=$this->settings->forUser($uid);$copy->state=$this->state->forUser($uid);return $copy;}
     private function queue(): array {
         $path=$this->state->directory().'/native.sqlite3';
         if (!is_file($path) || is_link($path)) { return []; }
-        $bootstrap=$this->state->directory().'/bootstrap.json';
+        $bootstrap=$this->state->rootDirectory().'/bootstrap.json';
         if(!is_file($bootstrap) || is_link($bootstrap) || filesize($bootstrap)>1048576) { return []; }
         $identity=json_decode((string)file_get_contents($bootstrap),true);
         $url=$identity['url']??null;

@@ -39,7 +39,9 @@ PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
 ReadWritePaths=$state_path
-MemoryMax=1200M
+# Includes a managed embedding subprocess; the original CPU model needs more
+# than the former caption-only 1200 MiB limit.
+MemoryMax=6G
 Environment=PYTHONDONTWRITEBYTECODE=1
 [Install]
 WantedBy=multi-user.target

@@ -80,8 +80,9 @@ try:
  for app,path in [('nextgallery','/ai')]:
   url='/ocs/v2.php/apps/'+app+path+'/api/v1/metadata?format=json&file_id='+str(pre['ids'][2]);status,body=request(url);assert status==200,(url,status,body[-1000:]);metadata=json.loads(body)['ocs']['data'];assert metadata['available'];assert metadata['metadata']==json.loads(pre['metadata'][2]['metadata_json']);http.append(url)
   status,body=request('/ocs/v2.php/apps/'+app+path+'/api/v1/statuses?format=json',{'file_ids':pre['ids']});assert status==200,(status,body);statuses=json.loads(body)['ocs']['data']['statuses'];assert str(pre['ids'][1]) not in statuses;assert statuses[str(pre['ids'][0])]['status']=='changed';http.append('statuses:'+app)
- for route in ['/ocs/v2.php/search/providers/nextgallery_ai/search?term=RECHNUNG&format=json','/index.php/apps/nextgallery/api/settings','/index.php/apps/nextgallery/api/search?query=RECHNUNG','/index.php/apps/nextgallery/ai','/index.php/apps/nextgallery/ai/preferences','/index.php/apps/nextgallery/ai/admin/config','/index.php/apps/nextgallery/']:
+ for route in ['/ocs/v2.php/search/providers/nextgallery_ai/search?term=RECHNUNG&format=json','/index.php/apps/nextgallery/api/settings','/index.php/apps/nextgallery/api/search?query=RECHNUNG','/index.php/apps/nextgallery/ai','/index.php/apps/nextgallery/ai/preferences','/index.php/apps/nextgallery/ai/account/config','/index.php/apps/nextgallery/']:
   status,body=request(route);assert status==200,(route,status,body[-1000:]);http.append(route)
+ status,body=request('/index.php/apps/nextgallery/ai/admin/config');assert status==403,(status,body);http.append('ordinary-configured-owner-admin-denied')
  for app,path in [('nextgallery','/ai')]:
   route='/index.php/apps/'+app+path+'/worker/config';status,body=request(route,headers={'Authorization':'Bearer incorrect'});assert status==401,(route,status,body)
   # Decrypt only within the test server. The token is never printed or written to host output.
@@ -89,12 +90,22 @@ try:
   token=docker('exec','-u','www-data',name,'php','-r',code).strip();status,body=request(route,headers={'Authorization':'Bearer '+token});assert status==200,(route,status,body[-1000:]);assert json.loads(body)['user_id']=='merge-synthetic';http.append('worker:'+app)
   status,body=request('/index.php/apps/nextgallery/ai/worker/reset',{},headers={'Authorization':'Bearer '+token});assert status==409,(status,body);http.append('reset-requires-explicit-request')
  print(docker('exec','-u','www-data',name,'php','/test-scripts/gallery-contract.php'),flush=True)
+ print(docker('exec','-u','www-data',name,'php','/test-scripts/embedding-contract.php'),flush=True)
  # Old apps are absent from registration and never redirect to the new app.
  for route in ['/index.php/apps/chronicle/','/index.php/apps/media_ai/','/ocs/v2.php/apps/media_ai/api/v1/metadata?format=json&file_id='+str(pre['ids'][2]),'/index.php/apps/chronicle/ai/worker/config']:
   status,body=request(route);assert status in [404,412],(route,status,body[-1000:]);http.append('retired:'+route)
  print(docker('exec','-u','www-data',name,'php','/test-scripts/reset-contract.php','prepare'),flush=True)
  status,body=request('/index.php/apps/nextgallery/ai/worker/reset',{},headers={'Authorization':'Bearer '+token});assert status==200,(status,body);http.append('explicit-synthetic-reset')
  print(docker('exec','-u','www-data',name,'php','/test-scripts/reset-contract.php','verify'),flush=True)
+ print(docker('exec','-u','www-data',name,'php','/test-scripts/account-contract.php','prepare'),flush=True)
+ alice_auth=base64.b64encode(b'account-alice:SyntheticAccountOnly2026!').decode()
+ user_headers={'Authorization':'Basic '+alice_auth}
+ status,body=request('/index.php/apps/nextgallery/ai/account/config?user_id=account-bob',headers=user_headers);assert status==200 and json.loads(body)['user_id']=='account-alice',(status,body);http.append('forged-user-read-ignored')
+ status,body=request('/index.php/apps/nextgallery/ai/account/result?file_id='+str(json.loads((out/'accounts.json').read_text())['ids']['account-bob']),headers=user_headers);assert status==404,(status,body);http.append('other-account-result-denied')
+ for kind in ['embeddings','descriptions']:
+  status,body=request('/index.php/apps/nextgallery/ai/account/delete',{'kind':kind,'confirmation':kind,'expected_count':1,'user_id':'account-bob'},headers=user_headers);assert status==200,(kind,status,body)
+  status,body=request('/index.php/apps/nextgallery/ai/worker/reset',{},headers={'Authorization':'Bearer '+token,'X-Nextgallery-User':'account-alice'});assert status==200,(kind,status,body)
+  print(docker('exec','-u','www-data',name,'php','/test-scripts/account-contract.php',kind),flush=True);http.append('separate-'+kind+'-delete')
  result={'case':case,'http_checks':len(http),'routes':http,'nextcloud':data['versionstring'],'url':base,'cli':json.loads((out/'verified.json').read_text())};(out/'result.json').write_text(json.dumps(result,indent=2));print(json.dumps(result),flush=True)
  if a.keep:print('Disposable containers retained for UI verification:',name,flush=True)
 finally:

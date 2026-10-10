@@ -1,0 +1,62 @@
+<?php
+declare(strict_types=1);
+namespace OCA\Nextgallery\Controller;
+use OCP\{IRequest,IUserSession};
+use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http\DataResponse;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCA\Nextgallery\AI\Service\{Settings,State,Library,Metadata,Embeddings,Files};
+
+/** Account identity always comes from the authenticated session, never a form. */
+class AiAccountController extends Controller {
+    public function __construct(IRequest $request,private IUserSession $session,private Settings $settings,private State $state,private Library $library,private Metadata $metadata,private Embeddings $embeddings,private Files $files){parent::__construct('nextgallery',$request);}
+    private function uid():string { $user=$this->session->getUser();if(!$user)throw new \OCP\AppFramework\OCS\OCSException('Anmeldung erforderlich',401);return $user->getUID(); }
+    private function account():State {$state=$this->state->forUser($this->uid());$state->registerAccount();return $state;}
+    #[NoAdminRequired]
+    public function config():DataResponse {
+        $uid=$this->uid();$config=$this->settings->forUser($uid)->get();$this->account();
+        return new DataResponse(['user_id'=>$uid,'folders'=>$config['folders'],'exclude_folders'=>$config['exclude_folders'],
+            'analysis_enabled'=>$config['analysis_enabled'],'embedding_enabled'=>$config['embedding']['enabled'],
+            'metadata_count'=>$this->metadata->count($uid),'embedding_count'=>$this->embeddings->count($uid),
+            'schedule'=>['enabled'=>$config['enabled'],'time'=>$config['schedule_time'],'timezone'=>$config['timezone']]]);
+    }
+    #[NoAdminRequired]
+    public function status():DataResponse {
+        $status=$this->account()->status();
+        foreach(['active_user_id','embedding_models','embedding_install_requested','embedding_install_profile','embedding_remove','embedding_setup_supported','embedding_setup_profiles','embedding_remove_supported','embedding_service'] as $key)unset($status[$key]);
+        if(isset($status['embedding_rebuild']))$status['embedding_rebuild']=array_intersect_key($status['embedding_rebuild'],array_flip(['required','request_id','file_count','old_dimensions','new_dimensions']));
+        return new DataResponse($status);
+    }
+    #[NoAdminRequired]
+    public function library(string $path='',string $filter='all',string $query='',int $offset=0):DataResponse {
+        try{$data=$this->library->forUser($this->uid())->browse($path,$filter,$query,$offset);$stored=$this->embeddings->statuses($this->uid(),array_column($data['files'],'file_id'));
+            foreach($data['files'] as &$file)$file['has_embedding']=isset($stored[$file['file_id']]);unset($file);
+            return new DataResponse($data);
+        }catch(\OCP\AppFramework\OCS\OCSBadRequestException $e){return new DataResponse(['error'=>$e->getMessage()],400);}
+    }
+    #[NoAdminRequired]
+    public function logs(string $date,int $cursor=0):DataResponse {return new DataResponse($this->account()->logs($date,$cursor));}
+    #[NoAdminRequired]
+    public function control(string $action,string $kind='both',string $embedding_rebuild_id=''):DataResponse {
+        if(!in_array($action,['start','pause','resume','retry'],true))return new DataResponse(['error'=>'Unbekannte Aktion'],400);
+        $config=$this->settings->forUser($this->uid())->get();
+        if($action==='start'&&(($kind!=='embeddings'&&!$config['analysis_enabled'])||($kind!=='descriptions'&&!$config['embedding']['enabled'])))return new DataResponse(['error'=>'Diese Verarbeitung ist vom Administrator noch nicht eingerichtet.'],409);
+        try{return new DataResponse($this->account()->setControl($action,true,$embedding_rebuild_id,$kind));}
+        catch(\OCP\AppFramework\OCS\OCSBadRequestException $e){return new DataResponse(['error'=>$e->getMessage()],409);}
+    }
+    #[NoAdminRequired]
+    public function delete(string $kind,string $confirmation,int $expected_count=-1):DataResponse {
+        if($confirmation!==$kind||!in_array($kind,['descriptions','embeddings','all'],true))return new DataResponse(['error'=>'Bestätigung fehlt'],400);
+        $state=$this->account();$status=$state->status();
+        if(!$status['online']||empty($status['control']['paused'])||!empty($status['control']['requested'])||$status['state']==='running')return new DataResponse(['error'=>'Bitte zuerst pausieren und das Ende der aktuellen Datei abwarten.'],409);
+        $uid=$this->uid();$count=($kind==='embeddings'?0:$this->metadata->count($uid))+($kind==='descriptions'?0:$this->embeddings->count($uid));
+        if($expected_count!==$count)return new DataResponse(['error'=>'Die Anzahl hat sich geändert. Bitte die Bestätigung erneut öffnen.'],409);
+        try{$state->requestReset($kind);return new DataResponse(['requested'=>true]);}
+        catch(\OCP\AppFramework\OCS\OCSBadRequestException $e){return new DataResponse(['error'=>$e->getMessage()],409);}
+    }
+    #[NoAdminRequired]
+    public function result(int $file_id):DataResponse {
+        try{$file=$this->files->byId($this->uid(),$file_id);}catch(\OCP\AppFramework\OCS\OCSNotFoundException|\OCP\Files\NotFoundException|\OCP\Files\NotPermittedException){return new DataResponse(['available'=>false],404);}
+        $row=$this->metadata->get($this->uid(),$file_id);return new DataResponse($row?['available'=>true,'stale'=>!hash_equals($row['etag'],$file->getEtag()),'metadata'=>json_decode($row['metadata_json'],true)]:['available'=>false]);
+    }
+}

@@ -26,7 +26,7 @@ class Folder implements \OCP\Files\Folder {
 }
 class Root implements \OCP\Files\IRootFolder {public function __construct(public Folder $folder){}public function getUserFolder($uid){return $this->folder;}}
 class DB implements \OCP\IDBConnection {public string $sql='';public function executeQuery($sql,$params){$this->sql=$sql;return new class {function fetchAll(){return [['fileid'=>12,'storage'=>1,'path'=>'files/Camera/video.mp4','etag'=>'v1','size'=>100000000,'mimetype'=>'video/mp4']];}function closeCursor(){}};}}
-class Request implements \OCP\IRequest {public string $token='';public function getHeader(string $key):string{return $this->token;}}
+class Request implements \OCP\IRequest {public string $token='';public function getHeader(string $key):string{return $key==='Authorization'?$this->token:'';}}
 $checks=0;function check($ok){global $checks;$checks++;if(!$ok)throw new \Exception('Media check '.$checks.' failed');}
 $c=new Config();$settings=new \OCA\Nextgallery\AI\Service\Settings($c,new Crypto());$file=new File();$root=new Root(new Folder($file));$db=new DB();$files=new \OCA\Nextgallery\AI\Service\Files($root);$inventory=new \OCA\Nextgallery\AI\Service\Inventory($root,$db,$settings,$files);$metadata=new \OCA\Nextgallery\AI\Service\Metadata($db);$request=new Request();$controller=new \OCA\Nextgallery\Controller\AiWorkerController($request,$settings,$inventory,$metadata);$request->token='Bearer '.$settings->workerToken();
 check($files->byId('paul',12)===$file);

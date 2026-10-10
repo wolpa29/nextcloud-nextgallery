@@ -8,6 +8,7 @@ use OCP\AppFramework\OCS\OCSBadRequestException;
 
 class Inventory {
     public function __construct(private IRootFolder $root, private IDBConnection $db, private Settings $settings, private Files $files) {}
+    public function forUser(string $uid):self {$copy=clone $this;$copy->settings=$this->settings->forUser($uid);return $copy;}
     private function scopes(): array {
         $config = $this->settings->get();
         $root = $this->root->getUserFolder($config['user_id']);

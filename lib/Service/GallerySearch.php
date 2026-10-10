@@ -5,7 +5,7 @@ use OCP\IDBConnection;
 
 /** One gallery scope for filenames and fresh AI text. Dense retrieval can extend this service. */
 class GallerySearch {
- public function __construct(private IDBConnection $db,private Library $library) {}
+ public function __construct(private IDBConnection $db,private Library $library,private ?EmbeddingSearch $embeddingSearch=null) {}
  public function search(string $uid,string $term,string $kind='',int $offset=0,int $limit=60,string $gallery=''):array {
   if (mb_strlen($term)>200 || $offset<0) throw new \InvalidArgumentException('Suchanfrage oder Seitenauswahl ungültig.');
   preg_match_all('/[\p{L}\p{N}_]+/u',mb_strtolower($term),$matches);
@@ -28,8 +28,22 @@ class GallerySearch {
   // OR expands recall. Exact filename/text terms contribute to ordering, never a hard similarity cutoff.
   $q->andWhere('('.implode(' OR ',$conditions).')')->addSelect($q->createFunction('('.implode(' + ',$scores).') AS score'))
    ->orderBy('score','DESC')->addOrderBy('c.file_id','ASC')->setFirstResult($offset)->setMaxResults($limit);
+  $embedding=$this->embeddingSearch?->ranks($uid,$term,$gallery,$kind)??['ids'=>[],'state'=>'disabled'];
+  if($embedding['ids']){
+   // Union of all scoped text and image candidates: no similarity cutoff or AND gate.
+   $q->setFirstResult(0)->setMaxResults(null);
+   $r=$q->executeQuery();try{$lex=$r->fetchAll();}finally{$r->closeCursor();}
+   $ids=EmbeddingSearch::merge(array_column($lex,'file_id'),$embedding['ids']);$page=array_slice($ids,$offset,$limit);
+   $rows=[];
+   foreach(array_chunk($page,100) as $chunk){
+    $load=$this->db->getQueryBuilder();$load->select('file_id','payload')->from('nextgallery_media')->where($load->expr()->eq('user_id',$load->createNamedParameter($uid)))->andWhere($load->expr()->in('file_id',$load->createNamedParameter($chunk,\OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT_ARRAY)));
+    $r=$load->executeQuery();try{foreach($r->fetchAll() as $row)$rows[(int)$row['file_id']]=$row;}finally{$r->closeCursor();}
+   }
+   $ordered=[];foreach($page as $id)if(isset($rows[$id]))$ordered[]=$rows[$id];
+   return ['items'=>$this->library->hydrate($uid,$ordered),'next'=>$offset+count($page),'more'=>$offset+count($page)<count($ids),'mode'=>'hybrid','embedding_state'=>$embedding['state']];
+  }
   $result=$q->executeQuery();try {$rows=$result->fetchAll();}finally {$result->closeCursor();}
   $items=$this->library->hydrate($uid,$rows);
-  return ['items'=>$items,'next'=>$rows?$offset+count($rows):null,'more'=>count($rows)===$limit,'mode'=>'lexical'];
+  return ['items'=>$items,'next'=>$rows?$offset+count($rows):null,'more'=>count($rows)===$limit,'mode'=>'lexical','embedding_state'=>$embedding['state']];
  }
 }

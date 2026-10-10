@@ -227,6 +227,9 @@ async function start(){
   const host=$('ch-search-results');host.replaceChildren();
   for(const item of result.items){const tile=document.createElement('button');tile.className='ch-search-tile';tile.setAttribute('aria-label',item.name);tile.onclick=()=>openViewer(item,result.items);const image=document.createElement('img');image.alt='';image.loading='lazy';const url=await imageURL(item);if(generation!==searchGeneration)return;if(url)image.src=url;const name=document.createElement('span');name.textContent=item.name;tile.append(image,name);host.append(tile);}
   $('ch-search-status').textContent=result.items.length?tr`${count(result.items.length)} Treffer auf dieser Seite`:tr('Keine Treffer. Versuche einen anderen Suchbegriff.');
+  if(!offlineMode&&result.embedding_state==='unavailable')$('ch-search-status').textContent+=' · '+tr('Bildsuche nicht erreichbar. Ergebnisse aus der Textsuche.');
+  if(!offlineMode&&['not_indexed','model_changed'].includes(result.embedding_state))$('ch-search-status').textContent+=' · '+tr('Bildsuche noch nicht vorbereitet. Ergebnisse aus der Textsuche.');
+  if(!offlineMode&&result.mode==='hybrid')$('ch-search-status').textContent+=' · '+tr('Textsuche und ähnliche Bildinhalte.');
   if(offlineMode)$('ch-search-status').textContent+=' · '+tr('Offline-Suche in gespeicherten Dateinamen und Ordnern.');
   $('ch-search-prev').disabled=!searchHistory.length;$('ch-search-next').disabled=!searchMore;
   $('ch-search-next').dataset.offset=String(result.next??offset+60);

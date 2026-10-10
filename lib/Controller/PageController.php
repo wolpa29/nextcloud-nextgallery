@@ -6,12 +6,13 @@ use OCP\L10N\IFactory;
 use OCP\App\IAppManager;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\{TemplateResponse,StandaloneTemplateResponse,Response,ContentSecurityPolicy,EmptyContentSecurityPolicy};
+use OCP\AppFramework\Http\RedirectResponse;
 use OCP\AppFramework\Http\Attribute\{NoAdminRequired,NoCSRFRequired};
 use OCA\Nextgallery\Service\Library;
 use OCA\Nextgallery\Http\Bytes;
 class PageController extends Controller {
  public function __construct(IRequest $request,private IUserSession $session,private Library $library,private IURLGenerator $url,private IAppManager $apps,private IFactory $languages,private IConfig $config,private IGroupManager $groups,private \OCA\Nextgallery\AI\Service\Settings $aiSettings) {parent::__construct('nextgallery',$request);}
- private function canManageAi():bool { $uid=$this->session->getUser()?->getUID();return $uid!==null && ($this->groups->isAdmin($uid) || $uid===$this->aiSettings->get()['user_id']); }
+ private function canManageAi():bool { return $this->session->getUser()!==null; }
  private function data(bool $offline):array {
   $uid=$this->session->getUser()->getUID();
   // Resolve the user's Nextcloud language independently of app l10n files.
@@ -22,10 +23,20 @@ class PageController extends Controller {
  #[NoAdminRequired] #[NoCSRFRequired]
  public function ai():Response {
   if (!$this->canManageAi()) return new \OCP\AppFramework\Http\JSONResponse(['error'=>'KI-Verarbeitung ist für dieses Konto nicht freigegeben.'],403);
-  return new TemplateResponse('nextgallery','ai-index',['galleryUrl'=>$this->url->linkToRoute('nextgallery.page.index'),'appearance'=>$this->library->settings($this->session->getUser()->getUID())['appearance'],'language'=>$this->library->settings($this->session->getUser()->getUID())['language']==='system'?$this->languages->findLanguage():$this->library->settings($this->session->getUser()->getUID())['language']]);
+  return new TemplateResponse('nextgallery','ai-index',['admin'=>$this->groups->isAdmin($this->session->getUser()->getUID()),'galleryUrl'=>$this->url->linkToRoute('nextgallery.page.gallery'),'accountUrl'=>$this->url->linkToRoute('nextgallery.page.processing'),'appearance'=>$this->library->settings($this->session->getUser()->getUID())['appearance'],'language'=>$this->library->settings($this->session->getUser()->getUID())['language']==='system'?$this->languages->findLanguage():$this->library->settings($this->session->getUser()->getUID())['language']]);
  }
  #[NoAdminRequired] #[NoCSRFRequired]
- public function index():TemplateResponse {
+ public function processing():Response {
+  $data=['galleryUrl'=>$this->url->linkToRoute('nextgallery.page.gallery'),'admin'=>false,'adminUrl'=>$this->groups->isAdmin($this->session->getUser()->getUID())?$this->url->linkToRoute('nextgallery.page.ai'):null,'appearance'=>$this->library->settings($this->session->getUser()->getUID())['appearance'],'language'=>$this->library->settings($this->session->getUser()->getUID())['language']==='system'?$this->languages->findLanguage():$this->library->settings($this->session->getUser()->getUID())['language']];
+  return new TemplateResponse('nextgallery','ai-index',$data);
+ }
+ #[NoAdminRequired] #[NoCSRFRequired]
+ public function index():Response {
+  if($this->groups->isAdmin($this->session->getUser()->getUID()))return new RedirectResponse($this->url->linkToRoute('nextgallery.page.ai').'#settings');
+  return $this->gallery();
+ }
+ #[NoAdminRequired] #[NoCSRFRequired]
+ public function gallery():TemplateResponse {
   $response=new TemplateResponse('nextgallery','index',$this->data(false));
   $policy=new ContentSecurityPolicy();$policy->addAllowedWorkerSrcDomain("'self'");
   $response->setContentSecurityPolicy($policy);return $response;

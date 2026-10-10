@@ -212,5 +212,8 @@
   "Änderungen werden automatisch gespeichert.": "Changes are saved automatically.",
   "Wird gespeichert …": "Saving …",
   "Nicht gespeichert. Bitte erneut versuchen.": "Not saved. Please try again.",
-  "Einstellungen gespeichert. Galerie konnte nicht aktualisiert werden.": "Settings saved. The gallery could not be refreshed."
+  "Einstellungen gespeichert. Galerie konnte nicht aktualisiert werden.": "Settings saved. The gallery could not be refreshed.",
+  "Bildsuche nicht erreichbar. Ergebnisse aus der Textsuche.": "Visual search unavailable. Showing text search results.",
+  "Bildsuche noch nicht vorbereitet. Ergebnisse aus der Textsuche.": "Visual search is not indexed yet. Showing text search results.",
+  "Textsuche und ähnliche Bildinhalte.": "Text search and similar visual content."
 }
