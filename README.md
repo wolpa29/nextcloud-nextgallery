@@ -2,7 +2,7 @@
 
 A private photo/video gallery with selected folders, a virtualized chronological grid, year/month/day headers or a date rail, an embedded media viewer, a local GPS world map and explicit offline thumbnail collections.
 
-**NextGallery Server** is the optional server companion for the separate native [NextGallery Android app](https://github.com/wolpa29/app-nextgallery). Android **0.4.0 and later default to ordinary Nextcloud WebDAV**, without installing this extension. Enable the server mode explicitly for a shared index, account-wide folder/date settings and this browser gallery. An administrator installs the companion; ordinary users connect their own instance. The Android app provider separately operates an isolated synthetic review instance. Repository: [nextcloud-nextgallery](https://github.com/wolpa29/nextcloud-nextgallery). Current version: **0.4.0**, Nextcloud 32–35; PHP requirements follow the installed Nextcloud.
+**NextGallery Server** is the optional server companion for the separate native [NextGallery Android app](https://github.com/wolpa29/app-nextgallery). Android **0.4.0 and later default to ordinary Nextcloud WebDAV**, without installing this extension. Enable the server mode explicitly for a shared index, account-wide folder/date settings and this browser gallery. An administrator installs the companion; ordinary users connect their own instance. The Android app provider separately operates an isolated synthetic review instance. Repository: [nextcloud-nextgallery](https://github.com/wolpa29/nextcloud-nextgallery). Current version: **0.4.1**, Nextcloud 32–35; PHP requirements follow the installed Nextcloud.
 
 **Deutsch:** Die optionale Erweiterung heißt **NextGallery Server**. Sie verwaltet einen Index und Ordner-/Datumseinstellungen je Nextcloud-Konto und ergänzt die Browser-Galerie. Ab Android 0.4.0 funktioniert der voreingestellte Standardzugang ohne diese Erweiterung. Die technische App-ID lautet `nextgallery`, der Namespace `OCA\Nextgallery`. Bestehende Installationen werden mit ihren Daten migriert; Android benötigt das aktualisierte Client-Build. Originale bleiben erhalten. Die Android-README beschreibt Datenflüsse, lokalen Speicher, Löschung, Lizenzen und tatsächlich hinterlegte Play-Console-Angaben.
 
@@ -15,7 +15,7 @@ The companion remains **AGPL-3.0-or-later**, separately from the proprietary And
 
 ## Use
 
-Open **NextGallery Server → Einstellungen → Galerien verwalten**, name a gallery, choose its Nextcloud folders and save. Use the gallery name in Gallery, Search or Map to switch collections. Each gallery has its own folders and saved previews; display, dates, theme and language settings are shared across the account. Folder dates are authoritative by default. **Darstellung** changes the order, date groups and two to six columns. **Karte** shows media with GPS; **Offline** manages the selected gallery’s previews, up to 5,000 within a 300 MB budget.
+Open **NextGallery Server → Einstellungen → Galerien verwalten**, name a gallery, choose its Nextcloud folders and save. Use the gallery name in Gallery, Search or Map to switch collections. Each gallery has its own folders and saved previews; display, dates, theme and language settings are shared across the account. Folder dates are authoritative by default. **Einstellungen** exposes order, date groups, two to six columns, theme and language directly; changes save automatically. The compact **Darstellung** dialog shares the same gallery choices. **System** follows the Nextcloud theme, falling back to the operating system; explicit light/dark choices override it. Administrators and the configured processing account see **KI-Verarbeitung** in the main navigation and an introduction above the gallery, including on mobile. **Karte** shows media with GPS; **Offline** manages the selected gallery’s previews, up to 5,000 within a 300 MB budget.
 
 Use **Offline → Gespeicherte Galerie ansehen** to display the saved collection directly, including inside the Android app. **Live öffnen** returns to the server. Reopening an offline URL requires a working Service Worker on the device. A downloadable single-file offline collection is also available; its reopening test is documented under validation.
 
@@ -29,12 +29,15 @@ Requires Nextcloud 32–35, PHP 8.2+ and its supported PHP version, its configur
 
 ```sh
 npm ci --ignore-scripts
+npm ci --ignore-scripts --prefix worker/lmstudio
 npm run build
 npm test
 php tests/dates.php
 ```
 
 Copy `appinfo`, `lib`, `templates`, `css`, `js`, `img` and `worker` to `apps/nextgallery`, set the usual app ownership, then run `occ app:enable nextgallery`. Frontend dependencies are bundled; no CDN is needed. There is no composer install step.
+
+Installable archives also include the LM Studio SDK and its runtime dependencies. Build them with `python3 scripts/package-app.py OUTPUT` and verify the extracted worker with `python3 scripts/verify-worker-package.py OUTPUT/nextgallery-VERSION.tar.gz`. App updates must retain this runtime; otherwise a paused AI run starts and immediately pauses again when OCR tries to connect.
 
 For a chosen user's configured folders:
 
@@ -52,6 +55,7 @@ AGPL-3.0-or-later; third-party library and basemap licenses are recorded in [NOT
 
 | Version | Android companion | Legal revision | Technical changes | Legal changes |
 | --- | --- | --- | --- | --- |
+| 0.4.1 | Native app unchanged | No policy or legal change | Direct autosaving settings and theme/language choices, synchronized display controls, explicit-theme fixes, and prominent AI entry on desktop and mobile. | None. |
 | 0.4.0 | Native app unchanged | No policy or legal change | Named galleries with shared settings/offline management, centered dialogs, native column controls and fast-scroll context. Existing AI analyses never overwrite; model changes apply only to missing analyses, full reset requires an explicit count-aware confirmation. | None. |
 | 0.3.1 | Native app unchanged | No policy or legal change | Shared native light/dark palette, navigation, surfaces and controls across gallery, search, map, offline, settings, viewer, AI workspace and Files metadata; responsive access to AI settings. | None. |
 | 0.1.4 | 0.4.0 / code 6 | 2026-10-05.1 (Android) | Rename to NextGallery Server; retain predecessor app ID; expose original capture evidence and mtime/size for offline date changes. Android extension is optional. | Clarify separate AGPL server licensing and optional processing on the user's Nextcloud. |

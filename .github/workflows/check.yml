@@ -32,6 +32,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: {node-version: '24'}
       - run: npm ci --ignore-scripts --prefix worker/lmstudio
+      - run: python3 scripts/package-app.py /tmp/nextgallery-package && python3 scripts/verify-worker-package.py /tmp/nextgallery-package/nextgallery-$(node -p "JSON.parse(require('fs').readFileSync('package.json')).version").tar.gz
       - run: node --test pipeline/tests/lmstudio_transport.test.mjs
       - run: python -m pip install -r worker/requirements.txt
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg

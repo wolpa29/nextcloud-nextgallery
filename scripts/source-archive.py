@@ -5,7 +5,7 @@ from pathlib import Path
 root=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser();p.add_argument('output',type=Path);args=p.parse_args();args.output.parent.mkdir(parents=True,exist_ok=True)
 version=json.loads((root/'package.json').read_text())['version'];prefix='nextgallery-server-'+version
-tracked=subprocess.check_output(['git','ls-files','-z'],cwd=root).decode().split('\0')
+tracked=subprocess.check_output(['git','ls-files','--cached','--others','--exclude-standard','-z'],cwd=root).decode().split('\0')
 def safe(info):
  parts=Path(info.name).parts
  if any(p in {'.git','.venv','__pycache__','.cache','.bin','state','artifacts'} for p in parts):return None

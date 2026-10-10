@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
-"""Build installable app archives from explicit runtime inputs; exclude secrets/dependencies/state."""
-import argparse,tarfile,hashlib,json
+"""Build installable app archives from explicit runtime inputs; include worker SDK runtime; exclude secrets/build dependencies/state."""
+import argparse,tarfile,hashlib,json,subprocess
 from pathlib import Path
 root=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser();p.add_argument('output',type=Path);args=p.parse_args();args.output.mkdir(parents=True,exist_ok=True)
 version=json.loads((root/'package.json').read_text())['version']
-def excluded(path):return any(part in {'node_modules','__pycache__','.venv','.git','state'} for part in path.parts) or path.suffix=='.pyc'
+sdk=root/'worker/lmstudio'
+if not (sdk/'node_modules/@lmstudio/sdk/package.json').is_file():
+ p.error('Missing worker runtime. Run npm ci --ignore-scripts --prefix worker/lmstudio before packaging.')
+subprocess.run(['node','--input-type=module','-e','await import("@lmstudio/sdk")'],cwd=sdk,check=True)
+def excluded(path):
+ bundled_sdk=path.parts[:3]==('worker','lmstudio','node_modules')
+ return any(part in {'__pycache__','.venv','.git','state'} for part in path.parts) or ('node_modules' in path.parts and not bundled_sdk) or path.suffix=='.pyc'
 def package(name,source,parts,version):
  target=args.output/f'{name}-{version}.tar.gz'
  with tarfile.open(target,'w:gz') as archive:

@@ -205,5 +205,12 @@
   "Bestand: {time} · Vorhandene KI-Metadaten bleiben erhalten. Neue Dateien werden beim nächsten Lauf geprüft.": "Inventory: {time} · Existing AI metadata is preserved. New files are checked in the next run.",
   "Diese Analyse gehört zu einem älteren Dateistand. Sie bleibt bis zum ausdrücklichen Löschen erhalten.": "This analysis belongs to an older file version. It is preserved until explicitly deleted.",
   "Diese Aktionen betreffen nur Media AI. Originaldateien und andere Nextcloud-Daten bleiben erhalten.": "These actions affect AI data only. Original files and other Nextcloud data are preserved.",
-  "Kein Datei- oder Gesamtzeitlimit: Unveränderte fertige Dateien werden übersprungen. Fortsetzen bearbeitet die restlichen Dateien.": "No file count or total time limit: completed files are skipped. Resume processes the remaining files."
+  "Kein Datei- oder Gesamtzeitlimit: Unveränderte fertige Dateien werden übersprungen. Fortsetzen bearbeitet die restlichen Dateien.": "No file count or total time limit: completed files are skipped. Resume processes the remaining files.",
+  "Mehr finden mit KI": "Find more with AI",
+  "Bildinhalte erkennen, Texte lesen und deine Medien danach durchsuchen.": "Recognize image content, read text and search your media using the results.",
+  "KI-Verarbeitung öffnen": "Open AI processing",
+  "Änderungen werden automatisch gespeichert.": "Changes are saved automatically.",
+  "Wird gespeichert …": "Saving …",
+  "Nicht gespeichert. Bitte erneut versuchen.": "Not saved. Please try again.",
+  "Einstellungen gespeichert. Galerie konnte nicht aktualisiert werden.": "Settings saved. The gallery could not be refreshed."
 }
