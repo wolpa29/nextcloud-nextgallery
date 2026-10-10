@@ -15,18 +15,27 @@ class AiAdminController extends Controller {
         $uid=$this->session->getUser()?->getUID();
         return $uid!==null && $this->admin() ? null : new DataResponse(['error'=>'Nur Administratoren dürfen diese Einstellungen öffnen.'],403);
     }
-    private function publicConfig(): array { return $this->settings->publicConfig()+['can_configure_models'=>$this->admin(),'embedding_count'=>$this->embeddings?->count($this->settings->get()['user_id'])??0,'metadata_count'=>$this->metadata?->count($this->settings->get()['user_id'])??0]; }
+    private function publicConfig(): array {
+        $accounts=$this->embeddings?->accounts()??[];$total=0;
+        foreach($accounts as $uid)$total+=$this->embeddings->count($uid);
+        return $this->settings->publicConfig()+['can_configure_models'=>$this->admin(),'embedding_count'=>$this->embeddings?->count($this->settings->get()['user_id'])??0,'embedding_total_count'=>$total,'embedding_accounts_count'=>count($accounts),'metadata_count'=>$this->metadata?->count($this->settings->get()['user_id'])??0];
+    }
     public function config(): DataResponse { if($denied=$this->denied())return $denied; return new DataResponse($this->publicConfig()); }
-    public function save(array $config): DataResponse {
+    public function save(array $config,string $embedding_change_id=''): DataResponse {
         if($denied=$this->denied())return $denied;
         if ($this->state->anyRunning()) {
             return new DataResponse(['error'=>'Bitte zuerst pausieren und das Ende der aktuellen Datei abwarten.'],409);
         }
         $previous=$this->settings->get();
         if(($config['user_id']??null)!==$previous['user_id'])return new DataResponse(['error'=>'Kontoeinstellungen bitte im Bereich Benutzer ändern.'],400);
+        $confirmationMissing=false;
         try {
-            $this->settings->save($config);
-        } catch (\OCP\AppFramework\OCS\OCSBadRequestException $e) {return new DataResponse(['error'=>$e->getMessage()],400);}
+            $this->settings->save($config,function(array $candidate)use($previous,$embedding_change_id,&$confirmationMissing){
+                if(Settings::embeddingSignature($previous)!==Settings::embeddingSignature($candidate)&&($this->embeddings?->accounts()??[])&&!hash_equals(Settings::embeddingSignature($previous),$embedding_change_id)){
+                    $confirmationMissing=true;throw new \OCP\AppFramework\OCS\OCSBadRequestException('Modellwechsel bitte erneut bestätigen. Die Einstellungen haben sich geändert.');
+                }
+            });
+        } catch (\OCP\AppFramework\OCS\OCSBadRequestException $e) {return new DataResponse(['error'=>$e->getMessage()],$confirmationMissing?409:400);}
         catch (\OCP\Files\NotFoundException|\OCP\Files\NotPermittedException $e) {return new DataResponse(['error'=>'Ein Ordner fehlt oder ist nicht lesbar.'],400);}
         $current=$this->settings->get();
         if(Settings::embeddingSignature($previous)!==Settings::embeddingSignature($current))foreach($this->embeddings?->accounts()??[] as $uid){$account=$this->settings->forUser($uid)->get();$this->state->forUser($uid)->requireEmbeddingRebuild(Settings::embeddingSignature($account),['model'=>$current['embedding']['model'],'file_count'=>$this->embeddings->count($uid)]);}

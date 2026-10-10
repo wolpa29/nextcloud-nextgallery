@@ -215,5 +215,8 @@
   "Einstellungen gespeichert. Galerie konnte nicht aktualisiert werden.": "Settings saved. The gallery could not be refreshed.",
   "Bildsuche nicht erreichbar. Ergebnisse aus der Textsuche.": "Visual search unavailable. Showing text search results.",
   "Bildsuche noch nicht vorbereitet. Ergebnisse aus der Textsuche.": "Visual search is not indexed yet. Showing text search results.",
-  "Textsuche und ähnliche Bildinhalte.": "Text search and similar visual content."
+  "Textsuche und ähnliche Bildinhalte.": "Text search and similar visual content.",
+  "Lokale Sammlung entfernen?": "Remove local collection?",
+  "Nur die gespeicherten Vorschauen dieser Galerie werden auf diesem Gerät entfernt. Originaldateien auf Nextcloud bleiben erhalten.": "Only saved previews for this gallery are removed from this device. Original files on Nextcloud are preserved.",
+  "Ordner werden gerade eingelesen. Einstellungen werden gleich gespeichert.": "Folders are being indexed. Settings will be saved shortly."
 }

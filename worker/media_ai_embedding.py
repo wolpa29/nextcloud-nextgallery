@@ -91,7 +91,9 @@ def run(config, source, api, directory, observe, should_stop, retry_errors=False
                     if not source.unchanged(item):raise p.PipelineError('Media changed during embedding')
                     with store.db:store.db.execute('UPDATE embeddings SET vectors=? WHERE id=? AND space=?',(json.dumps(vectors),item.key,space))
                 api.call('publish-embedding',{'file_id':int(item.locator),'etag':item.etag,'space':space,'vectors':vectors})
-                with store.db:store.db.execute("UPDATE embeddings SET status='done',error=NULL WHERE id=? AND space=?",(item.key,space))
+                with store.db:
+                    store.db.execute("UPDATE embeddings SET status='done',error=NULL WHERE id=? AND space=?",(item.key,space))
+                    store.db.execute('DELETE FROM embeddings WHERE id=? AND space<>?',(item.key,space))
                 processed+=1;observe('embedding_finished',path=item.path,file_id=item.locator,stage='embedding',frames=len(vectors),embedding_stats=store.stats(space))
             except p.ServiceUnavailable:raise
             except (p.PipelineError,ValueError,KeyError,TypeError,OSError) as error:

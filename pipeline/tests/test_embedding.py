@@ -69,6 +69,20 @@ class EmbeddingTests(unittest.TestCase):
             self.assertEqual(a['state'],'deferred');self.assertEqual(a['stats']['pending'],1)
             api.fail=False;e.run(config(),Source(),api,d,lambda *a,**k:None,lambda:False)
             self.assertEqual(FakeClient.calls,1);self.assertEqual(len(api.published),1)
+    def test_model_replacement_cleans_old_space_only_after_success(self):
+        with tempfile.TemporaryDirectory() as temp,patch.object(e,'Client',FakeClient):
+            d=Path(temp);api=API();c=config();source=Source()
+            e.run(c,source,api,d,lambda *a,**k:None,lambda:False)
+            old=api.published[-1]['space'];c['embedding']['max_edge']=1024;api.fail=True
+            e.run(c,source,api,d,lambda *a,**k:None,lambda:False)
+            store=e.Store(d/'embeddings.sqlite3')
+            self.assertEqual(store.db.execute('SELECT COUNT(*) FROM embeddings WHERE space=?',(old,)).fetchone()[0],1)
+            store.db.close();api.fail=False
+            e.run(c,source,api,d,lambda *a,**k:None,lambda:False)
+            store=e.Store(d/'embeddings.sqlite3')
+            self.assertEqual(store.db.execute('SELECT COUNT(*) FROM embeddings').fetchone()[0],1)
+            self.assertEqual(store.db.execute('SELECT space FROM embeddings').fetchone()[0],api.published[-1]['space'])
+            store.db.close();self.assertEqual(FakeClient.calls,2)
     def test_file_etag_and_model_space_changes_reembed_without_resetting_captions(self):
         with tempfile.TemporaryDirectory() as temp,patch.object(e,'Client',FakeClient):
             source=Source();api=API();d=Path(temp);c=config()

@@ -39,6 +39,12 @@ try {
  verifyEmbedding($vectors->count($uid)===2,'Distinct media count wrong');
  // Transaction rolls back after invalid input: existing vector rows survive.
  try{$vectors->publish($uid,$invoice->getId(),$invoice->getEtag(),$space,[['frame'=>0,'seconds'=>0,'values'=>array_fill(0,128,NAN)]]);throw new RuntimeException('Invalid vector accepted');}catch(\OCP\AppFramework\OCS\OCSBadRequestException){verifyEmbedding($vectors->count($uid)===2,'Invalid publish erased old vectors');}
+ // A successful replacement discards every old frame/space for this file only.
+ $replacement=str_repeat('c',64);$vectors->publish($uid,$invoice->getId(),$invoice->getEtag(),$replacement,[['frame'=>0,'seconds'=>0,'values'=>array_merge([1.],array_fill(0,255,0.))]]);
+ $rows=$db->executeQuery('SELECT file_id,space,dimensions FROM *PREFIX*nextgallery_ai_vectors WHERE user_id=?',[$uid])->fetchAll();
+ $own=array_values(array_filter($rows,fn($row)=>(int)$row['file_id']===$invoice->getId()));
+ verifyEmbedding(count($own)===1&&$own[0]['space']===$replacement&&(int)$own[0]['dimensions']===256,'Old model/frames retained after replacement');
+ verifyEmbedding(count($rows)===2,'Replacement touched another file');
  $vectors->reset($uid);verifyEmbedding($vectors->count($uid)===0,'Embedding reset failed');
  echo "$checks real Nextcloud embedding scope/freshness/fallback contracts passed\n";
 }finally{$vectors->reset($uid);$settings->save($before);}

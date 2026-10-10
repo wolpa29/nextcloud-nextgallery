@@ -17,6 +17,7 @@ class ApiController extends Controller {
   if($gallery!==''&&!isset($settings['activeGallery']))$settings['activeGallery']=$gallery;
   try {$p=$this->library->save($this->uid(),$settings);return $this->response(['settings'=>$p,'cacheKey'=>$this->library->cacheKey($this->uid())]);}
   catch (\InvalidArgumentException $e) {return new JSONResponse(['error'=>$e->getMessage()],400);}
+  catch (\OCP\Lock\LockedException $e) {return new JSONResponse(['error'=>'Ordner werden gerade eingelesen. Einstellungen werden gleich gespeichert.','retryable'=>true],409);}
  }
  #[NoAdminRequired] #[NoCSRFRequired]
  public function folders(string $path='/'):JSONResponse {try{return $this->response(['folders'=>$this->library->folders($this->uid(),$path)]);}catch(\Throwable){return new JSONResponse(['error'=>'Ordner nicht verfügbar.'],404);}}

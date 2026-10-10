@@ -26,7 +26,8 @@ class Embeddings {
   }
   $this->db->beginTransaction();
   try{
-   $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_ai_vectors WHERE user_id=? AND file_id=? AND space=?',[$uid,$fileId,$space]);
+   // Replace a file's old spaces only inside the successful publish transaction.
+   $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_ai_vectors WHERE user_id=? AND file_id=?',[$uid,$fileId]);
    foreach($values as $row)$this->db->executeStatement('INSERT INTO *PREFIX*nextgallery_ai_vectors ('.implode(',',array_keys($row)).') VALUES ('.implode(',',array_fill(0,count($row),'?')).')',array_values($row));
    $this->db->commit();
   }catch(\Throwable $e){$this->db->rollBack();throw $e;}

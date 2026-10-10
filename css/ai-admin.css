@@ -1,4 +1,4 @@
-@import url('app-theme.css?v=0.4.0');
+@import url('app-theme.css?v=0.4.7');
 /* Workspace layout; app-theme.css supplies the shared native palette. */
 .mai-shell{display:flex;width:100%;height:100%;min-height:0;overflow:hidden;background:var(--color-main-background)}
 #app-navigation.mai-navigation{display:block;position:relative;inset:auto;float:none;flex:0 0 224px;width:224px;min-width:224px;max-width:224px;height:100%;margin:0;padding:26px 14px;box-sizing:border-box;border-right:1px solid var(--color-border);background:var(--color-main-background);overflow-y:auto;transform:none;visibility:visible;z-index:auto}
@@ -72,7 +72,7 @@
 .mai [data-save-status]{font-size:12px;color:var(--color-text-maxcontrast)}
 .mai [data-save-status][data-state=dirty]{color:var(--color-main-text);font-weight:600}
 .mai [data-save-status][data-state=error]{color:var(--color-error-text,var(--color-main-text));font-weight:600}
-.mai-savebar{position:sticky;top:0;z-index:3;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;margin:18px 0;border:1px solid var(--color-primary-element);border-radius:9px;background:var(--color-main-background);box-shadow:0 3px 12px #00000010}
+.mai-savebar{position:relative;z-index:3;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;margin:18px 0;border:1px solid var(--color-primary-element);border-radius:9px;background:var(--color-main-background);box-shadow:0 3px 12px #00000010}
 .mai-savebar[hidden]{display:none}.mai-savebar button{margin:0;flex-shrink:0}
 #mai-message{margin:12px 0;padding:10px 12px;background:var(--mai-soft);border-radius:8px;font-size:13px}
 #mai-message:empty{display:none}.mai-error{color:var(--color-error-text,var(--color-main-text))}
@@ -221,7 +221,7 @@
 .mai button.mai-model-remove:disabled{opacity:.5}
 .mai .mai-model-remove svg{vertical-align:middle;margin-right:4px}
 
-.mai button.mai-model-remove{color:#b42318!important;border:1px solid #b42318!important;background:#fff!important}
+.mai button.mai-model-remove{color:var(--ng-danger,#b42318)!important;border:1px solid var(--ng-danger,#b42318)!important;background:var(--ng-surface)!important}
 .mai .mai-model-dialog{max-width:min(560px,calc(100vw - 32px));padding:24px;border:1px solid var(--color-border);border-radius:16px;color:var(--color-main-text);background:var(--color-main-background)}
 .mai .mai-model-dialog::backdrop{background:rgba(0,0,0,.35)}
 .mai .mai-model-dialog p{line-height:1.6;white-space:pre-line;margin:16px 0 24px}
@@ -254,3 +254,52 @@
 .mai dialog[open]{position:fixed;inset:0;margin:auto;width:min(560px,calc(100vw - 32px));height:fit-content;max-height:calc(100dvh - 40px);overflow:auto;box-sizing:border-box}
 #mai-embedding-settings{padding:0}
 #mai-embedding-settings>summary{padding:18px 20px}
+
+/* Shared administration and personal processing controls. */
+.mai {max-width:1280px;padding:32px 36px 48px;scroll-padding:24px}
+.mai :is(button,input:not([type=checkbox]),select){min-height:44px;border-radius:12px;font-size:14px;font-weight:500}
+.mai :is(input,select,textarea){background-color:var(--ng-surface);color:var(--ng-text)}
+.mai input[type=checkbox]{min-height:0;border-radius:4px}
+.mai .mai-header{margin-bottom:28px}.mai .mai-header h2{font-size:28px;letter-spacing:-.6px}
+.mai :is(.mai-settings-view,#mai-pipeline-settings){max-width:920px;margin-inline:auto}
+.mai .mai-model{border:1px solid var(--ng-line);border-radius:16px;overflow:clip;background:var(--ng-surface)}
+.mai .mai-model>summary{min-height:64px;padding:20px;font-size:15px;line-height:24px;cursor:pointer;list-style:none;display:flex;align-items:center;gap:12px;position:relative}
+.mai .mai-model>summary::-webkit-details-marker{display:none}
+.mai .mai-model>summary::after{content:'';margin-left:auto;width:8px;height:8px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(45deg);transition:transform .15s;flex:none}
+.mai .mai-model[open]>summary::after{transform:rotate(225deg)}
+.mai .mai-model[open]>summary{border-bottom:1px solid var(--ng-line)}
+.mai .mai-model :is(details:not(.mai-model)>summary,.mai-help>summary){font-size:13px;cursor:pointer;line-height:1.5;padding:10px 0}
+.mai .mai-model :is(details p,.mai-muted){font-size:13px;line-height:1.65}
+.mai :is(.mai-external-install,.mai-model-requirements){border:1px solid var(--ng-line);border-radius:12px;padding:16px;background:var(--ng-low)}
+.mai .mai-external-install a{min-height:40px;display:inline-flex;align-items:center;padding:8px 12px;box-sizing:border-box;text-decoration:none;font-size:13px;line-height:20px}
+.mai .mai-user-file{gap:12px 16px;min-width:0}.mai .mai-user-file :is(strong,span){overflow-wrap:anywhere}
+.mai-user .mai-processing-card{background:var(--ng-surface);border:1px solid var(--ng-line);border-radius:16px;display:flex;flex-direction:column;align-items:start}
+.mai-user .mai-processing-card>button{margin-top:auto}.mai-user .mai-processing-card>p:last-child{padding-top:12px;font-size:12px;min-height:36px}
+.mai-user .mai-run-surface{background:var(--ng-surface);padding:20px 24px;border:1px solid var(--ng-line);border-radius:16px}
+.mai .mai-data-section>summary{font-size:14px;font-weight:500;cursor:pointer;padding:6px 0}
+.mai .mai-data-section p{margin:14px 0}
+.mai dialog[open]{background:var(--ng-surface);padding:24px;border-radius:20px;box-shadow:0 24px 64px -12px #0006;scrollbar-gutter:stable}
+.mai dialog::backdrop{background:#0a100c99;backdrop-filter:blur(5px)}
+.mai dialog :is(h3,p,pre){overflow-wrap:anywhere}
+.mai .mai-model-dialog .mai-actions{padding-top:8px;gap:10px}
+.mai :is(a,button,summary):focus-visible{outline:2px solid var(--ng-accent);outline-offset:3px}
+.mai #mai-account-select{margin:8px 0 20px;width:100%;max-width:100%}
+.mai #mai-account-form>.mai-grid{margin-bottom:20px}
+.mai #mai-account-search{width:min(100%,380px)}
+.mai .mai-form-footer{justify-content:space-between}.mai .mai-savebar{max-width:920px;margin:0 auto 20px;box-shadow:none;padding:12px 16px;border-radius:12px;background:var(--ng-surface)}
+.mai #mai-message:empty{display:none}.mai #mai-message:not(:empty){padding:12px 16px;margin-bottom:20px;background:var(--ng-surface);border:1px solid var(--ng-line);border-radius:12px}
+@media(max-width:850px){.mai-shell #app-navigation.mai-navigation :is(.mai-gallery-link){display:inline-flex;margin:12px 8px 0 0;min-height:40px}.mai{padding:24px}.mai-shell #app-content.mai-app-content{min-height:0}}
+@media(max-width:640px){.mai{padding:24px 16px 36px}.mai .mai-header h2{font-size:24px}.mai-user .mai-run-surface{padding:20px}.mai .mai-actions>button{white-space:normal;height:auto}.mai .mai-model-dialog .mai-actions{display:grid;grid-template-columns:1fr}.mai .mai-model-dialog .mai-actions>button{width:100%}.mai .mai-model-dialog .mai-actions>button:last-child{grid-row:1}.mai dialog[open]{padding:20px}.mai .mai-savebar{flex-wrap:wrap}.mai .mai-model>summary{padding:18px}}
+@media(prefers-reduced-motion:reduce){.mai *{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+
+:is(#media-ai-admin,#media-ai-user) :is(button,input:not([type=checkbox]),select){min-height:44px;border-radius:12px;font-weight:500}
+:is(#media-ai-admin,#media-ai-user) .mai-model>:not(summary){margin:20px!important}
+:is(#media-ai-admin,#media-ai-user) .mai-model>summary{padding:20px;font-size:15px}
+:is(#media-ai-admin,#media-ai-user) .mai-savebar{position:relative;inset:auto;box-shadow:none;background:var(--ng-surface);border-radius:12px}
+:is(#media-ai-admin,#media-ai-user) .mai-processing-card{background:var(--ng-surface);border:1px solid var(--ng-line);border-radius:16px}
+:is(#media-ai-admin,#media-ai-user) .mai-run-surface{background:var(--ng-surface);border:1px solid var(--ng-line);border-radius:16px;padding:24px}
+:is(#media-ai-admin,#media-ai-user) .mai-model-dialog{background:var(--ng-surface);border-radius:20px;padding:24px}
+:is(#media-ai-admin,#media-ai-user) .mai-data-section>summary{font-size:14px;font-weight:500;padding:8px 0}
+@media(max-width:640px){:is(#media-ai-admin,#media-ai-user) .mai-model>:not(summary){margin:16px!important}:is(#media-ai-admin,#media-ai-user) .mai-model-dialog{padding:20px}}
+
+.mai #mai-form>.mai-form-footer{max-width:920px;margin-inline:auto}

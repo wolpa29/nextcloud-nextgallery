@@ -11,6 +11,9 @@ if(!is_file('/test-output/ISOLATED_SYNTHETIC_TEST'))throw new RuntimeException('
 $uid='merge-synthetic';Server::get(IUserSession::class)->setUser(Server::get(IUserManager::class)->get($uid));
 $library=Server::get(Library::class);$metadata=Server::get(Metadata::class);$home=Server::get(IRootFolder::class)->getUserFolder($uid);
 $checks=0;function verify($v,$m){global $checks;$checks++;if(!$v)throw new RuntimeException($m);}
+$lockedLibrary=new class extends Library {public function __construct(){}public function save(string $uid,array $settings):array {throw new \OCP\Lock\LockedException('synthetic-index-lock');}};
+$lockedApi=new \OCA\Nextgallery\Controller\ApiController(Server::get(\OCP\IRequest::class),Server::get(IUserSession::class),$lockedLibrary,Server::get(GallerySearch::class),$metadata);
+$lockedResponse=$lockedApi->save(['appearance'=>'dark']);verify($lockedResponse->getStatus()===409&&$lockedResponse->getData()['retryable']===true,'Index lock must be retryable, not an internal server error');
 $settings=$library->settings($uid);verify($settings['galleries'][0]['roots']===$settings['roots'],'Legacy roots lost');$key=$library->cacheKey($uid,'default');
 $folder=$home->nodeExists('TripsSynthetic')?$home->get('TripsSynthetic'):$home->newFolder('TripsSynthetic');
 $sample=file_get_contents('/samples/dog.png');$files=[];
