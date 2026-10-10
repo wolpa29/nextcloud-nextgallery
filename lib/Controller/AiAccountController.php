@@ -48,7 +48,7 @@ class AiAccountController extends Controller {
     public function delete(string $kind,string $confirmation,int $expected_count=-1):DataResponse {
         if($confirmation!==$kind||!in_array($kind,['descriptions','embeddings','all'],true))return new DataResponse(['error'=>'Bestätigung fehlt'],400);
         $state=$this->account();$status=$state->status();
-        if(!$status['online']||empty($status['control']['paused'])||!empty($status['control']['requested'])||$status['state']==='running')return new DataResponse(['error'=>'Bitte zuerst pausieren und das Ende der aktuellen Datei abwarten.'],409);
+        if(!$status['online']||empty($status['control']['paused'])||!empty($status['control']['requested'])||!empty($status['control']['reset_requested'])||$status['state']==='running')return new DataResponse(['error'=>'Bitte zuerst pausieren und das Ende der aktuellen Datei abwarten.'],409);
         $uid=$this->uid();$count=($kind==='embeddings'?0:$this->metadata->count($uid))+($kind==='descriptions'?0:$this->embeddings->count($uid));
         if($expected_count!==$count)return new DataResponse(['error'=>'Die Anzahl hat sich geändert. Bitte die Bestätigung erneut öffnen.'],409);
         try{$state->requestReset($kind);return new DataResponse(['requested'=>true]);}

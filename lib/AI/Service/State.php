@@ -64,7 +64,7 @@ class State {
                 }
             }
             if ($action === 'reset') { $value['paused']=true; $value['requested']=false; $value['reset_requested']=true; $value['reset_request_id']=bin2hex(random_bytes(12)); }
-            elseif ($action === 'pause') { $value['paused'] = true; }
+            elseif ($action === 'pause') { $value['paused'] = true; $value['requested']=false; unset($value['retry_errors']); }
             else { $value['paused'] = false; $value['requested'] = true; $value['request_id'] = bin2hex(random_bytes(12)); }
             if ($action === 'retry') { $value['retry_errors'] = true; }
             if($action==='start')$value['run_kind']=$kind;
@@ -100,7 +100,7 @@ class State {
         if(!in_array($kind,['descriptions','embeddings','all'],true))throw new OCSBadRequestException('Lösch-Auswahl ungültig');
         $lock=fopen($this->directory().'/control.lock','c');
         if(!$lock||!flock($lock,LOCK_EX))throw new \RuntimeException('Steuerung ist gesperrt');
-        try{$value=$this->control();if(empty($value['paused'])||!empty($value['requested'])||($this->status()['state']??'')==='running')throw new OCSBadRequestException('Bitte zuerst pausieren.');$value['reset_kind']=$kind;$value['reset_requested']=true;$value['reset_request_id']=bin2hex(random_bytes(12));$value['paused']=true;$value['requested']=false;$value['updated_at']=time();$this->atomic('control.json',$value);return $value;}
+        try{$value=$this->control();if(empty($value['paused'])||!empty($value['requested'])||!empty($value['reset_requested'])||($this->status()['state']??'')==='running')throw new OCSBadRequestException('Bitte zuerst pausieren.');$value['reset_kind']=$kind;$value['reset_requested']=true;$value['reset_request_id']=bin2hex(random_bytes(12));$value['paused']=true;$value['requested']=false;$value['updated_at']=time();$this->atomic('control.json',$value);return $value;}
         finally{flock($lock,LOCK_UN);fclose($lock);}
     }
     public function requireEmbeddingRebuild(string $signature,array $details=[]):void {
