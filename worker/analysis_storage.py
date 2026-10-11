@@ -39,7 +39,7 @@ def initialize(directory):
                                         value['provenance']=dict(value['provenance']);value['provenance']['models']={stage:value['provenance'].get('models',{}).get(stage,{})}
                                     db.execute('UPDATE files SET metadata=? WHERE id=?',(json.dumps(value,ensure_ascii=False),row['id']))
                                 else:
-                                    db.execute("UPDATE files SET status='pending',error=NULL,attempts=0,retry_at=0,published_revision=NULL WHERE id=?",(row['id'],))
+                                    db.execute("UPDATE files SET status='pending',metadata=NULL,error=NULL,attempts=0,retry_at=0,published_revision=NULL WHERE id=?",(row['id'],))
                             db.execute("UPDATE search SET ocr=''" if stage=='vision' else "UPDATE search SET description='',tags=''")
                         db.execute('PRAGMA wal_checkpoint(TRUNCATE)')
                     finally:db.close()

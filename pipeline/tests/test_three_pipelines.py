@@ -34,6 +34,16 @@ class ThreePipelines(unittest.TestCase):
             self.assertNotIn('ocr',json.loads(description.db.execute("SELECT metadata FROM files WHERE id='image'").fetchone()[0]));self.assertNotIn('vision',json.loads(ocr.db.execute("SELECT metadata FROM files WHERE id='image'").fetchone()[0]))
             description.db.close();ocr.db.close();before=storage.path(root,'ocr').read_bytes();storage.initialize(root);self.assertEqual(before,storage.path(root,'ocr').read_bytes())
 
+    def test_partial_legacy_description_does_not_make_ocr_appear_completed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);old=p.Store(root/'native.sqlite3');item=p.Item('partial','Synthetic/partial.png','1','v1',1,'image/png')
+            old.discover([item],'synthetic','legacy');old.finish(item,'a'*64,{'vision':VISION},{});old.db.close()
+            storage.initialize(root);ocr=p.Store(storage.path(root,'ocr'))
+            self.assertIsNone(ocr.db.execute("SELECT metadata FROM files WHERE id='partial'").fetchone()[0])
+            ocr.discover([item],'synthetic','ocr-revision')
+            self.assertEqual(ocr.stats(),{'pending':1});ocr.db.close()
+            descriptions=p.Store(storage.path(root,'descriptions'));self.assertEqual(descriptions.stats(),{'done':1});descriptions.db.close()
+
     def test_v1_control_migrates_ocr_without_rewriting_active_embeddings(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);w.atomic(root/'pipelines.json',{'version':1});w.atomic(root/'control-descriptions.json',{'paused':False,'requested':True,'request_id':'description'});w.atomic(root/'control-embeddings.json',{'paused':False,'requested':False,'request_id':'embedding'});old=(root/'control-embeddings.json').read_bytes()
