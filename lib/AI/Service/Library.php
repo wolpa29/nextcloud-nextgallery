@@ -44,7 +44,7 @@ class Library {
     }
     public static function totals(): array { return ['total'=>0,'done'=>0,'pending'=>0,'error'=>0,'changed'=>0,'publishing'=>0,'images'=>0,'videos'=>0,'embedded'=>0,'embedding_pending'=>0,'embedding_error'=>0]; }
     private function snapshot(): array {
-        $config=$this->settings->get();$current=$this->state->status();$rebuild=$current['embedding_rebuild']??[];
+        $config=$this->settings->get();$current=$this->state->status();$current=$current['pipelines']['embeddings']??$current;$rebuild=$current['embedding_rebuild']??[];
         $space=$rebuild['target_space']??$rebuild['approved_space']??$current['embedding_space']??$current['last_run']['embedding']['space']??null;
         // A changed model must never present old vectors as completed for the new model.
         if(!empty($rebuild['required'])&&!isset($rebuild['target_space']))$space='';
@@ -121,7 +121,7 @@ class Library {
         $eligible=0;
         foreach ($snapshot['rows'] as $row) { if ($row['next_pending'] && ($row['status']!=='error' || $row['retry_at']<=($config['enabled']?$next->getTimestamp():time()))) { $eligible++; } }
         $roots=[];foreach($config['folders'] as $selectedPath){$selectedPath=trim($selectedPath,'/');if(isset($snapshot['folders'][$selectedPath]))$roots[]=$snapshot['folders'][$selectedPath];}
-        $current=$this->state->status();
+        $current=$this->state->status();$current=$current['pipelines']['descriptions']??$current;
         return ['counts'=>$snapshot['folders']['']['counts'],'folder'=>$folder,'folders'=>$children,'files'=>array_slice($files,$offset,100),'matched'=>count($files),'offset'=>$offset,'next_offset'=>$offset+100<count($files)?$offset+100:null,'recent'=>$snapshot['recent'],'generated_at'=>$snapshot['generated_at'],'current_file_id'=>$current['state']==='running'?($current['current']['file_id']??null):null,'schedule'=>['enabled'=>$config['enabled'],'next_at'=>$config['enabled']?$next->getTimestamp():null,'timezone'=>$config['timezone'],'eligible'=>$eligible,'basis'=>'current_inventory'],'roots'=>$roots,'selection'=>['folders'=>$config['folders'],'excluded'=>$config['exclude_folders']]];
     }
 }

@@ -312,3 +312,8 @@
 @media(max-width:700px){.mai-summary-stages{grid-template-columns:1fr}.mai-summary-stages>section{padding:16px}.mai-selected-folders>li{padding:12px}.mai-selected-folders button{padding-inline:10px}.mai-selection-bar>button{width:100%}}
 
 .mai-user #mai-pipeline-settings{max-width:none;margin-inline:0}.mai .mai-user-folder{max-width:none;width:100%;align-items:flex-start}
+
+#media-ai-user .mai-processing-card .mai-run-surface{align-self:stretch;width:100%;box-sizing:border-box;background:transparent;border:0;border-top:1px solid var(--ng-line);border-radius:0;padding:20px 0 0;margin:20px 0 0}
+#media-ai-user .mai-processing-card .mai-run-surface [role=status]{overflow-wrap:anywhere}
+#mai-processing-admin [data-admin-pipeline]{padding:16px 0;border-bottom:1px solid var(--ng-line)}
+#mai-processing-admin [data-admin-pipeline]:last-of-type{border-bottom:0}

@@ -59,13 +59,29 @@ async function init() {
  let savedSnapshot=null,saving=false,saveError=false,choosingModel=false;
  window.addEventListener('beforeunload',event=>{if(savedSnapshot!==null&&formSnapshot()!==savedSnapshot){event.preventDefault();event.returnValue='';}});
  const formSnapshot=()=>JSON.stringify([...form.elements].filter(i=>i.name&&!i.disabled&&!i.readOnly).map(i=>[i.name,i.type==='checkbox'?i.checked:i.value]));
+ function pipelineRunning(kind){return processingState?.pipelines?.[kind]?.running??lastStatus?.pipelines?.[kind]?.state==='running';}
+ function settingsBlocked(){
+  if(!config)return false;
+  for(const input of form.elements){
+   if(!input.name||input.disabled||input.readOnly)continue;
+   const [group,key]=input.name.split('.');let previous=key?config[group]?.[key]:config[group];
+   if(input.dataset.defaultPrompt)previous=previous||config[group]?.['default_'+key];
+   if(input.type==='checkbox')previous=Boolean(previous);
+   const value=input.type==='checkbox'?input.checked:input.type==='number'?Number(input.value):input.value;
+   if(Array.isArray(previous))previous=previous.join('\n');
+   if(value===(previous??''))continue;
+   const kinds=group==='embedding'?['embeddings']:['vision','ocr','video','analysis_enabled'].includes(group)?['descriptions']:['descriptions','embeddings'];
+   if(kinds.some(pipelineRunning))return true;
+  }
+  return false;
+ }
  function updateSaveState(){
   const dirty=savedSnapshot!==null&&formSnapshot()!==savedSnapshot;
   if(!dirty)saveError=false;
   const state=savedSnapshot===null?'loading':saving?'saving':dirty?(saveError?'error':'dirty'):'saved';
   const labels={loading:'Einstellungen werden geladen …',saving:'Wird gespeichert …',dirty:'Ungespeicherte Änderungen',error:'Nicht gespeichert · erneut versuchen',saved:'Gespeichert'};
   root.querySelectorAll('[data-save-status]').forEach(n=>{n.textContent=tr(labels[state]);n.dataset.state=state;});
-  root.querySelectorAll('button[type="submit"][form="mai-form"],#mai-form button[type="submit"]').forEach(b=>b.disabled=!dirty||saving||(processingState?.running||lastStatus?.state==='running')||lastStatus?.worker_busy);
+  root.querySelectorAll('button[type="submit"][form="mai-form"],#mai-form button[type="submit"]').forEach(b=>b.disabled=!dirty||saving||settingsBlocked());
   $('mai-savebar').hidden=!dirty&&!saving;
   const setupBusy=lastStatus?.online&&config?.embedding?.enabled&&config.embedding.location==='local'&&['preparing','runtime','downloading','verifying'].includes(lastStatus.embedding_service?.phase);
   $('mai-embedding-test').disabled=savedSnapshot===null||dirty||saving||setupBusy||(['native','full'].includes($('mai-embedding-provider').value)&&(!lastStatus?.embedding_service?.ready||(lastStatus.embedding_service.profile||'lite')!==selectedProfile()));
@@ -76,7 +92,7 @@ async function init() {
  for(const event of ['input','change'])form.addEventListener(event,e=>{if(e.target.name)updateSaveState();});
  function loadForm(){for(const input of form.elements){if(!input.name)continue;const parts=input.name.split('.');let v=parts.length===2?config[parts[0]][parts[1]]:config[parts[0]];if(input.dataset.defaultPrompt)v=v||config[parts[0]]['default_'+parts[1]];if(input.type==='checkbox')input.checked=Boolean(v);else if(Array.isArray(v))input.value=v.join('\n');else input.value=v??'';} form.querySelectorAll('[data-image-edge]').forEach(i=>i.dispatchEvent(new Event('input')));const allowed=config.can_configure_models;form.elements.user_id.readOnly=true; $('mai-model-settings').querySelectorAll('input,select,button').forEach(i=>i.disabled=!allowed);$('mai-model-settings').querySelectorAll('textarea').forEach(i=>{i.readOnly=!allowed;i.dispatchEvent(new Event('input'));});root.querySelectorAll('#mai-embedding-settings input,#mai-embedding-settings select,[data-model-admin]').forEach(i=>i.disabled=!allowed);processingExplanation(); savedSnapshot=formSnapshot();saveError=false;updateSaveState(); }
  async function saveForm(){
-  if(!config||saving||choosingModel)return false;if(savedSnapshot===formSnapshot())return true;if((processingState?.running||lastStatus?.state==='running')||!form.reportValidity())return false;
+  if(!config||saving||choosingModel)return false;if(savedSnapshot===formSnapshot())return true;if(settingsBlocked()||!form.reportValidity())return false;
   const submittedSnapshot=formSnapshot(),v=structuredClone(config);
   for(const i of form.elements){if(!i.name)continue;let x=i.type==='checkbox'?i.checked:i.type==='number'?Number(i.value):i.value;const parts=i.name.split('.');if(['folders','exclude_folders'].includes(i.name))x=i.value.split('\n').map(x=>x.trim()).filter(Boolean);if(i.dataset.defaultPrompt&&x===config[parts[0]]['default_'+parts[1]])x='';if(parts.length===2)v[parts[0]][parts[1]]=x;else v[parts[0]]=x;}
   let embeddingChangeId='',embeddingChangeMode='',embeddingAutoRebuild=false;
@@ -101,12 +117,20 @@ async function init() {
  }
  async function processing(){
   processingState=await api('processing');
-  $('mai-processing-admin-status').textContent=tr(processingState.paused?(processingState.running?'Alle Läufe gesperrt. Die aktuelle Datei wird noch abgeschlossen.':'Alle Läufe sind durch den Administrator pausiert.'):'Benutzerläufe sind erlaubt.');
-  $('mai-allow-runs').hidden=!processingState.paused;$('mai-allow-runs').disabled=processingState.running;
-  $('mai-pause-all').disabled=processingState.paused&&!processingState.running;
-  $('mai-processing-accounts').replaceChildren(...processingState.accounts.map(row=>el('li',row.user_id+' · '+tr(row.state==='running'?'Läuft':row.requested?'Vorgemerkt':row.paused?'Pausiert':'Bereit'),true)));
+  for(const kind of ['descriptions','embeddings']){
+   const section=root.querySelector('[data-admin-pipeline="'+kind+'"]'),value=processingState.pipelines?.[kind]||processingState;
+   section.querySelector('[data-processing-status]').textContent=tr(value.paused?(value.running?'Läufe gesperrt. Die aktuelle Datei wird noch abgeschlossen.':'Diese Verarbeitung ist durch den Administrator pausiert.'):'Benutzerläufe sind erlaubt.');
+   const allow=section.querySelector('[data-processing-action="allow_runs"]'),pause=section.querySelector('[data-processing-action="pause_all"]');
+   allow.hidden=!value.paused;allow.disabled=value.running;pause.disabled=value.paused&&!value.running;
+   section.querySelector('[data-processing-accounts]').replaceChildren(...value.accounts.map(row=>el('li',row.user_id+' · '+tr(row.state==='running'?'Läuft':row.requested?'Vorgemerkt':row.paused?'Pausiert':'Bereit'),true)));
+  }
  }
- for(const [id,action] of [['mai-pause-all','pause_all'],['mai-allow-runs','allow_runs']])$(id).onclick=async()=>{try{if(action==='pause_all'&&!await confirmModelAction('Alle Benutzerläufe pausieren?','Die aktuelle Datei wird abgeschlossen. Vorgemerkte Starts werden entfernt; neue und automatische Läufe sind bis zur Freigabe gesperrt.','Alle pausieren'))return;await api('processing',{action});await processing();await status();}catch(error){message(error.message,true);}};
+ root.querySelectorAll('[data-processing-action]').forEach(button=>button.onclick=async()=>{
+  const action=button.dataset.processingAction,kind=button.dataset.kind;
+  try{if(action==='pause_all'&&!await confirmModelAction(kind==='embeddings'?'Alle Embedding-Läufe pausieren?':'Alle Beschreibungs-Läufe pausieren?','Die aktuelle Datei wird abgeschlossen. Vorgemerkte Starts werden entfernt; neue und automatische Läufe dieser Verarbeitung sind bis zur Freigabe gesperrt. Die andere Verarbeitung läuft weiter.','Pausieren'))return;
+   await api('processing',{action,kind});await processing();await status();
+  }catch(error){message(error.message,true);}
+ });
  function confirmModelAction(title,text,label,destructive=false){
   const dialog=$('mai-model-confirm');$('mai-model-confirm-title').textContent=tr(title);$('mai-model-confirm-text').textContent=tr(text);const ok=$('mai-model-confirm-ok');ok.textContent=tr(label);ok.classList.toggle('mai-model-remove',destructive);
   return new Promise(resolve=>{const finish=value=>{dialog.close();resolve(value);};$('mai-model-confirm-cancel').onclick=()=>finish(false);ok.onclick=()=>finish(true);dialog.oncancel=e=>{e.preventDefault();finish(false);};dialog.showModal();$('mai-model-confirm-cancel').focus();});
@@ -130,10 +154,10 @@ async function init() {
   const active=lastStatus?.embedding_install_requested&&(lastStatus.embedding_install_profile||'lite')===profile&&['not_installed','disabled',undefined].includes(health?.phase)||['preparing','runtime','downloading','verifying'].includes(health?.phase);
   const dirty=savedSnapshot!==null&&savedSnapshot!==formSnapshot();
   root.querySelectorAll('[data-embedding-install]').forEach(button=>{
-   button.hidden=!native||Boolean(installed);button.disabled=!config?.can_configure_models||!lastStatus?.online||!supported||lastStatus?.embedding_remove?.requested||installBusy||active||saving||(dirty&&(processingState?.running||lastStatus?.state==='running'));
+   button.hidden=!native||Boolean(installed);button.disabled=!config?.can_configure_models||!lastStatus?.online||!supported||lastStatus?.embedding_remove?.requested||installBusy||active||saving||(dirty&&settingsBlocked());
    button.textContent=tr(active||installBusy?'Einrichtung läuft …':health?.phase==='error'?'Installation erneut versuchen':dirty?'Speichern und Gemma installieren':'Gemma installieren');
   });
-  root.querySelectorAll('[data-embedding-remove]').forEach(button=>{button.hidden=!native||!installed;button.disabled=!config?.can_configure_models||!lastStatus?.online||!lastStatus?.embedding_remove_supported||installBusy||lastStatus?.embedding_remove?.requested||lastStatus?.embedding_install_requested||(processingState?.running||lastStatus?.state==='running');button.title=tr((processingState?.running||lastStatus?.state==='running')?'Zum Entfernen zuerst die laufende Verarbeitung pausieren.':'Modell und Laufzeit deinstallieren');});
+  root.querySelectorAll('[data-embedding-remove]').forEach(button=>{button.hidden=!native||!installed;button.disabled=!config?.can_configure_models||!lastStatus?.online||!lastStatus?.embedding_remove_supported||installBusy||lastStatus?.embedding_remove?.requested||lastStatus?.embedding_install_requested||pipelineRunning('embeddings');button.title=tr(pipelineRunning('embeddings')?'Zum Entfernen zuerst die laufende Verarbeitung pausieren.':'Modell und Laufzeit deinstallieren');});
  }
  root.querySelectorAll('[data-embedding-remove]').forEach(button=>button.addEventListener('click',async()=>{
   if(button.disabled)return;

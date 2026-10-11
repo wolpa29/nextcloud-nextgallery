@@ -113,7 +113,7 @@ try:
  status,body=request('/index.php/apps/nextgallery/ai/account/result?file_id='+str(json.loads((out/'accounts.json').read_text())['ids']['account-bob']),headers=user_headers);assert status==404,(status,body);http.append('other-account-result-denied')
  for kind in ['embeddings','descriptions']:
   status,body=request('/index.php/apps/nextgallery/ai/account/delete',{'kind':kind,'confirmation':kind,'expected_count':1,'user_id':'account-bob'},headers=user_headers);assert status==200,(kind,status,body)
-  status,body=request('/index.php/apps/nextgallery/ai/worker/reset',{},headers={'Authorization':'Bearer '+token,'X-Nextgallery-User':'account-alice'});assert status==200,(kind,status,body)
+  status,body=request('/index.php/apps/nextgallery/ai/worker/reset',{'kind':kind},headers={'Authorization':'Bearer '+token,'X-Nextgallery-User':'account-alice'});assert status==200,(kind,status,body)
   print(docker('exec','-u','www-data',name,'php','/test-scripts/account-contract.php',kind),flush=True);http.append('separate-'+kind+'-delete')
  print(docker('exec','-u','www-data',name,'php','/test-scripts/admin-processing-contract.php'),flush=True)
  result={'case':case,'http_checks':len(http),'routes':http,'nextcloud':data['versionstring'],'url':base,'cli':json.loads((out/'verified.json').read_text())};(out/'result.json').write_text(json.dumps(result,indent=2));print(json.dumps(result),flush=True)

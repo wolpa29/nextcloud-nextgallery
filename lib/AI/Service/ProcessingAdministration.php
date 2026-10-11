@@ -14,20 +14,41 @@ class ProcessingAdministration {
   $db=new \SQLite3($file);$db->enableExceptions(true);$db->busyTimeout(1000);return $db;
  }
  public function overview():array {
-  $rows=[];
-  foreach($this->ids() as $uid){$s=$this->state->forUser($uid)->status();$rows[]=['user_id'=>$uid,'state'=>$s['state'],'requested'=>!empty($s['control']['requested']),'paused'=>!empty($s['control']['paused']),'kind'=>$s['control']['run_kind']??'both'];}
-  return ['paused'=>$this->state->processingPaused(),'running'=>$this->state->anyRunning(),'accounts'=>$rows];
+  $pipelines=[];
+  foreach(['descriptions','embeddings'] as $kind){
+   $rows=[];foreach($this->ids() as $uid){$s=$this->state->forUser($uid)->forPipeline($kind)->status();$rows[]=['user_id'=>$uid,'state'=>$s['state'],'requested'=>!empty($s['control']['requested']),'paused'=>!empty($s['control']['paused']),'kind'=>$kind];}
+   $pipelines[$kind]=['paused'=>$this->state->processingPaused($kind),'running'=>$this->state->anyRunning($kind),'accounts'=>$rows];
+  }
+  return $pipelines['embeddings']+['pipelines'=>$pipelines];
  }
- public function pauseAll():array {
-  // Stop flags can be written while the worker holds its shared processing lock.
-  $this->state->setProcessingPaused(true);
-  foreach($this->ids() as $uid)$this->state->forUser($uid)->setControl('pause');
+ public function pauseAll(string $kind='embeddings'):array {
+  $lane=$this->state->forPipeline($kind);
+  $lane->setProcessingPaused(true);
+  foreach($this->ids() as $uid)$lane->forUser($uid)->setControl('pause');
   return $this->overview();
  }
- public function allowRuns():array {
-  $lock=$this->state->globalLock(true);
-  try{$this->state->setProcessingPaused(false);return $this->overview();}
-  finally{flock($lock,LOCK_UN);fclose($lock);}
+ public function allowRuns(string $kind='embeddings'):array {
+  $lane=$this->state->forPipeline($kind);$lock=$lane->globalLock(true);
+  try{$lane->setProcessingPaused(false);return $this->overview();}
+  finally{State::releaseLock($lock);}
+ }
+ /** Embedding-only settings do not need the description gate (and vice versa). */
+ private static function canonical(mixed $value):mixed {
+  if(is_int($value))return (float)$value; // JSON may reload 0.0 as 0.
+  if(!is_array($value))return $value;
+  if(!array_is_list($value))ksort($value);
+  foreach($value as $key=>$item)$value[$key]=self::canonical($item);
+  return $value;
+ }
+ public static function changedPipelines(array $previous,array $candidate,array $submitted=[]):array {
+  $kinds=[];
+  foreach(array_unique(array_merge(array_keys($previous),array_keys($candidate))) as $key){
+   if(self::canonical($previous[$key]??null)===self::canonical($candidate[$key]??null))continue;
+   $lanes=$key==='embedding'?['embeddings']:(in_array($key,['analysis_enabled','vision','ocr','video'],true)?['descriptions']:['descriptions','embeddings']);
+   $kinds=array_merge($kinds,$lanes);
+  }
+  foreach(['vision','ocr','embedding'] as $key)if(!empty($submitted[$key]['api_key'])||!empty($submitted[$key]['clear_api_key']))$kinds[]=$key==='embedding'?'embeddings':'descriptions';
+  return array_values(array_intersect(['descriptions','embeddings'],array_unique($kinds)));
  }
  private function candidate(array $config):array {return $this->settings->save($config,null,false);}
  private function compatible(array $candidate,array $submitted):array {
@@ -50,11 +71,15 @@ class ProcessingAdministration {
   return ['config_id'=>$this->changeId(),'files'=>$files,'accounts'=>count($this->vectors->accounts())]+$this->compatible($candidate,$config);
  }
  public function save(array $config,string $confirmation,string $mode,bool $rebuild):array {
-  $lock=$this->state->globalLock(true);
+  $settingsLock=fopen($this->state->rootDirectory().'/settings.lock','c');
+  if(!$settingsLock||!flock($settingsLock,LOCK_EX))throw new \RuntimeException('Einstellungen sind gesperrt');
+  $locks=[];
   try{
-   if($this->state->anyRunning())throw new OCSBadRequestException('Bitte alle Läufe pausieren und das Ende der aktuellen Datei abwarten.');
    $previous=$this->settings->get();$candidate=$this->candidate($config);
-   foreach($this->ids() as $uid)if(!empty($this->state->forUser($uid)->control()['reset_requested']))throw new OCSBadRequestException('Bitte zuerst die angeforderten Datenlöschungen abschließen lassen.');
+   $kinds=self::changedPipelines($previous,$candidate,$config);
+   foreach($kinds as $kind){$locks[]=$this->state->globalLock(true,$kind);if($this->state->anyRunning($kind))throw new OCSBadRequestException('Bitte die betroffene Verarbeitung pausieren und das Ende der aktuellen Datei abwarten.');}
+   if(!in_array('embeddings',$kinds,true)){$this->settings->save($config);return ['changed'=>false,'mode'=>$mode,'rebuild_queued'=>0];}
+   foreach($this->ids() as $uid)if(!empty($this->state->forUser($uid)->forPipeline('embeddings')->control()['reset_requested']))throw new OCSBadRequestException('Bitte zuerst die angeforderten Datenlöschungen abschließen lassen.');
    $changed=Settings::embeddingSignature($previous)!==Settings::embeddingSignature($candidate);
    $affected=$this->vectors->accounts();$cached=false;
    foreach($this->ids() as $uid){$db=$this->cache($uid);if(!$db)continue;try{if($db->querySingle('SELECT COUNT(*) FROM embeddings')>0){$cached=true;$affected[]=$uid;}}finally{$db->close();}}
@@ -65,21 +90,21 @@ class ProcessingAdministration {
     if($mode==='keep'&&empty($match['compatible']))throw new OCSBadRequestException($match['reason']);
     // No worker or HTTP start can pass the global gate during cache/DB/config changes.
     if($mode==='reset'){
-     $wasPaused=$this->state->processingPaused();$this->state->setProcessingPaused(true);
+     $wasPaused=$this->state->processingPaused('embeddings');$this->state->setProcessingPaused(true,'embeddings');
      foreach($this->ids() as $uid){$db=$this->cache($uid);if(!$db)continue;try{$db->exec('BEGIN IMMEDIATE');$db->exec('DELETE FROM embeddings');$db->exec('COMMIT');}finally{$db->close();}}
      $this->vectors->resetAll();
     }
     $this->settings->save($config);
     foreach($this->ids() as $uid){
-     $own=$this->state->forUser($uid);$own->atomic('embedding-rebuild.json',$mode==='keep'?['required'=>false,'approved'=>true,'signature'=>Settings::embeddingSignature($this->settings->forUser($uid)->get()),'approved_space'=>$match['space']]:[]);
-     if($mode==='reset'){$c=$own->control();$c['paused']=true;$c['requested']=false;unset($c['retry_errors']);$own->atomic('control.json',$c);$s=$own->status();$s['embedding_stats']=['done'=>0,'pending'=>0,'error'=>0];unset($s['embedding_space']);$own->atomic('status.json',$s);}
+     $own=$this->state->forUser($uid)->forPipeline('embeddings');$own->atomic('embedding-rebuild.json',$mode==='keep'?['required'=>false,'approved'=>true,'signature'=>Settings::embeddingSignature($this->settings->forUser($uid)->get()),'approved_space'=>$match['space']]:[]);
+     if($mode==='reset'){$c=$own->control();$c['paused']=true;$c['requested']=false;unset($c['retry_errors']);$own->atomic('control.json',$c);$s=$own->status();$s['stats']=$s['embedding_stats']=['done'=>0,'pending'=>0,'error'=>0];$s['last_run']=null;$s['current']=null;$s['state']='paused';unset($s['embedding_space']);$own->atomic('status.json',$s);$own->atomic('embedding-cache-reset.json',['revision'=>bin2hex(random_bytes(12))]);}
      if($mode==='reset'&&in_array($uid,$affected,true)&&$rebuild&&$candidate['embedding']['enabled']){
       $own->registerAccount();$control=$own->control();$control['paused']=false;$control['requested']=true;$control['run_kind']='embeddings';$control['request_id']=bin2hex(random_bytes(12));$control['updated_at']=time();unset($control['retry_errors']);$own->atomic('control.json',$control);
      }
     }
-    if($mode==='reset')$this->state->setProcessingPaused($rebuild&&$candidate['embedding']['enabled']?false:$wasPaused);
+    if($mode==='reset')$this->state->setProcessingPaused($rebuild&&$candidate['embedding']['enabled']?false:$wasPaused,'embeddings');
    }else{$this->settings->save($config);}
    return ['changed'=>$changed,'mode'=>$mode,'rebuild_queued'=>$changed&&$mode==='reset'&&$rebuild&&$candidate['embedding']['enabled']?count($affected):0];
-  }finally{flock($lock,LOCK_UN);fclose($lock);}
+  }finally{State::releaseLock($locks);flock($settingsLock,LOCK_UN);fclose($settingsLock);}
  }
 }

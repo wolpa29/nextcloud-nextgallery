@@ -23,15 +23,13 @@ class AiAdminController extends Controller {
     public function config(): DataResponse { if($denied=$this->denied())return $denied; return new DataResponse($this->publicConfig()); }
     public function save(array $config,string $embedding_change_id='',string $embedding_change_mode='',bool $embedding_auto_rebuild=false): DataResponse {
         if($denied=$this->denied())return $denied;
-        if ($this->state->anyRunning()) {
-            return new DataResponse(['error'=>'Bitte zuerst pausieren und das Ende der aktuellen Datei abwarten.'],409);
-        }
         $previous=$this->settings->get();
         if(($config['user_id']??null)!==$previous['user_id'])return new DataResponse(['error'=>'Die Verarbeitungsauswahl gehört zum eigenen Benutzerkonto.'],400);
         if($this->embeddings){
             try{$result=$this->processing()->save($config,$embedding_change_id,$embedding_change_mode,$embedding_auto_rebuild);return new DataResponse($this->publicConfig()+['model_change'=>$result]);}
             catch(\OCP\AppFramework\OCS\OCSBadRequestException $e){return new DataResponse(['error'=>$e->getMessage()],409);}
         }
+        if($this->state->anyRunning())return new DataResponse(['error'=>'Bitte zuerst pausieren und das Ende der aktuellen Datei abwarten.'],409);
         $confirmationMissing=false;
         try {
             $this->settings->save($config,function(array $candidate)use($previous,$embedding_change_id,&$confirmationMissing){
@@ -50,9 +48,9 @@ class AiAdminController extends Controller {
         return new \OCA\Nextgallery\AI\Service\ProcessingAdministration($this->settings,$this->state,$this->embeddings,$this->embeddingClient??new \OCA\Nextgallery\AI\Service\EmbeddingClient());
     }
     public function processingStatus():DataResponse {if($denied=$this->denied())return $denied;return new DataResponse($this->processing()->overview());}
-    public function processingControl(string $action):DataResponse {
+    public function processingControl(string $action,string $kind='embeddings'):DataResponse {
         if($denied=$this->denied())return $denied;
-        try{return new DataResponse(match($action){'pause_all'=>$this->processing()->pauseAll(),'allow_runs'=>$this->processing()->allowRuns(),default=>throw new \OCP\AppFramework\OCS\OCSBadRequestException('Unbekannte Aktion')});}
+        try{return new DataResponse(match($action){'pause_all'=>$this->processing()->pauseAll($kind),'allow_runs'=>$this->processing()->allowRuns($kind),default=>throw new \OCP\AppFramework\OCS\OCSBadRequestException('Unbekannte Aktion')});}
         catch(\OCP\AppFramework\OCS\OCSBadRequestException $e){return new DataResponse(['error'=>$e->getMessage()],409);}
     }
     public function embeddingChangePreview(array $config):DataResponse {
@@ -78,9 +76,9 @@ class AiAdminController extends Controller {
         try{return new DataResponse($this->state->requestEmbeddingRemove($profile));}
         catch(\OCP\AppFramework\OCS\OCSBadRequestException $e){return new DataResponse(['error'=>$e->getMessage()],409);}
     }
-    public function control(string $action,string $embedding_rebuild_id=''): DataResponse {
+    public function control(string $action,string $embedding_rebuild_id='',string $kind='both'): DataResponse {
         if($denied=$this->denied())return $denied;
-        try { return new DataResponse($this->state->setControl($action, true,$embedding_rebuild_id)); }
+        try { return new DataResponse($this->state->setControl($action,true,$embedding_rebuild_id,$kind)); }
         catch (\OCP\AppFramework\OCS\OCSBadRequestException $e) { return new DataResponse(['error'=>$e->getMessage()],409); }
     }
     public function logs(string $date, int $cursor = 0): DataResponse { if($denied=$this->denied())return $denied; return new DataResponse($this->state->logs($date,$cursor)); }

@@ -1,6 +1,7 @@
 """Bundled daemon. Native Nextcloud API, private state, per-image time budgets."""
 from __future__ import annotations
 import argparse
+import signal
 from datetime import datetime, timedelta
 import fcntl
 import json
@@ -17,6 +18,9 @@ import subprocess
 import sys
 import embedding_setup
 
+_shutdown = threading.Event()
+PIPELINES = ('descriptions', 'embeddings')
+
 _local_embedding_process = None
 _local_embedding_signature = None
 _embedding_service_check = (None, 0.0)
@@ -30,8 +34,47 @@ def atomic(path, value):
 
 
 def read(path, fallback):
-    try: return json.loads(path.read_text())
+    try:
+        value=json.loads(path.read_text())
+        return value if isinstance(value,dict) else fallback
     except (FileNotFoundError,ValueError): return fallback
+
+
+def lane_file(directory, name, kind=None):
+    return directory/(name.replace('.json','-'+kind+'.json') if kind else name)
+
+
+def admin_paused(directory, kind=None):
+    return read(lane_file(directory,'processing-admin.json',kind),read(directory/'processing-admin.json',{})).get('paused',False)
+
+
+def initialize_pipelines(directory):
+    """One-time split, shared with PHP; leave native/vector databases untouched."""
+    if (directory/'pipelines.json').is_file():return
+    with (directory/'control.lock').open('a') as lock:
+        fcntl.flock(lock,fcntl.LOCK_EX)
+        if (directory/'pipelines.json').is_file():return
+        old=read(directory/'control.json',{'paused':True,'requested':False})
+        status=read(directory/'status.json',{});schedule=read(directory/'schedule.json',{})
+        for kind in PIPELINES:
+            selected=old.get('run_kind','both') in ('both',kind)
+            control={**old,'run_kind':kind} if selected else {'paused':True,'requested':False,'run_kind':kind}
+            if old.get('reset_requested'):
+                control.update(reset_requested=old.get('reset_kind','all') in ('all',kind),reset_kind=kind)
+                if control['reset_requested']:control.update(paused=True,requested=False)
+            key='analysis_stats' if kind=='descriptions' else 'embedding_stats'
+            stats=status.get(key,status.get('stats',{}) if kind=='descriptions' else {})
+            lane={'state':'paused','current':None,'stats':stats,key:stats}
+            if (status.get('last_run') or {}).get('kind',old.get('run_kind','both'))==kind:lane['last_run']=status.get('last_run')
+            if kind=='embeddings':
+                for field in ('embedding_space','embedding_models','embedding_service','embedding_setup_supported','embedding_setup_profiles','embedding_remove_supported'):
+                    if field in status:lane[field]=status[field]
+            atomic(lane_file(directory,'control.json',kind),control)
+            atomic(lane_file(directory,'status.json',kind),lane)
+            next_schedule=dict(schedule)
+            if kind=='descriptions':next_schedule.pop('embedding_pending',None)
+            atomic(lane_file(directory,'schedule.json',kind),next_schedule)
+        atomic(directory/'pipelines.json',{'version':1})
 
 
 class API:
@@ -101,31 +144,43 @@ class NativePublisher:
 
 
 class Reporter:
-    def __init__(self,directory,service=False):
+    def __init__(self,directory,service=False,kind=None):
+        self.kind=kind
         self.service=service
         self.directory=directory; self.directory.joinpath('logs').mkdir(mode=0o700,exist_ok=True)
-        self.value=read(directory/'status.json',{})
+        self.value=read(lane_file(directory,'status.json',kind),{})
         self.value.update(state='idle',current=None)
         self.lock=threading.RLock(); self.stop=threading.Event(); self.run_id=None; self.timezone="Europe/Vienna"
         self.thread=threading.Thread(target=self.beat,daemon=True); self.thread.start()
+    def sync_cache_reset(self):
+        if self.kind!='embeddings':return
+        marker=read(self.directory/'embedding-cache-reset.json',{})
+        revision=marker.get('revision')
+        if revision and revision!=self.value.get('embedding_cache_revision'):
+            self.value.update(embedding_cache_revision=revision,stats={'done':0,'pending':0,'error':0},
+                              embedding_stats={'done':0,'pending':0,'error':0},last_run=None,current=None,state='paused')
+            self.value.pop('embedding_space',None)
     def beat(self):
         while not self.stop.is_set():
             with self.lock:
-                self.value['heartbeat_at']=time.time(); atomic(self.directory/'status.json',self.value)
-                if self.service:atomic(self.directory/'service.json',{'heartbeat_at':self.value['heartbeat_at'],'active_user_id':self.value.get('active_user_id')})
+                self.sync_cache_reset()
+                self.value['heartbeat_at']=time.time(); atomic(lane_file(self.directory,'status.json',self.kind),self.value)
+                if self.service:atomic(lane_file(self.directory,'service.json',self.kind),{'heartbeat_at':self.value['heartbeat_at'],'active_user_id':self.value.get('active_user_id')})
             self.stop.wait(5)
     def update(self,**fields):
         with self.lock:
-            self.value.update(fields); self.value['heartbeat_at']=time.time(); atomic(self.directory/'status.json',self.value)
-            if self.service:atomic(self.directory/'service.json',{'heartbeat_at':self.value['heartbeat_at'],'active_user_id':self.value.get('active_user_id')})
+            self.sync_cache_reset()
+            self.value.update(fields); self.value['heartbeat_at']=time.time(); atomic(lane_file(self.directory,'status.json',self.kind),self.value)
+            if self.service:atomic(lane_file(self.directory,'service.json',self.kind),{'heartbeat_at':self.value['heartbeat_at'],'active_user_id':self.value.get('active_user_id')})
     def event(self,event,**fields):
         if event == 'inference_progress':
             self.update(current={k:fields[k] for k in ['path','file_id','stage','attempt','total_attempts','reasoning_chars','content_chars']})
             return  # Live progress is status, not an additional activity-log row.
         now=datetime.now(ZoneInfo(self.timezone))
-        row={'time':now.isoformat(timespec='seconds'),'run_id':self.run_id,'event':event,'level':fields.pop('level','info'),**fields}
+        row={'time':now.isoformat(timespec='seconds'),'run_id':self.run_id,'event':event,'kind':self.kind,'level':fields.pop('level','info'),**fields}
         path=self.directory/'logs'/ (now.strftime('%Y-%m-%d')+'.jsonl')
-        with path.open('a') as stream: stream.write(json.dumps(row,ensure_ascii=False)+'\n')
+        with path.open('a') as stream:
+            fcntl.flock(stream,fcntl.LOCK_EX);stream.write(json.dumps(row,ensure_ascii=False)+'\n')
         changes={}
         if 'stats' in fields: changes['stats']=fields['stats']; changes['analysis_stats']=fields['stats']
         if 'embedding_stats' in fields:
@@ -140,23 +195,23 @@ class Reporter:
         self.stop.set(); self.thread.join()
         self.value.update(heartbeat_at=0)
         if not preserve:self.value['state']='stopped'
-        atomic(self.directory/'status.json',self.value)
+        atomic(lane_file(self.directory,'status.json',self.kind),self.value)
 
 
-def consume(directory, request_id):
+def consume(directory, request_id, kind=None):
     with (directory/'control.lock').open('a') as stream:
         fcntl.flock(stream,fcntl.LOCK_EX)
-        control=read(directory/'control.json',{'paused':True})
+        control=read(lane_file(directory,'control.json',kind),{'paused':True})
         if control.get('request_id')==request_id:
-            control['requested']=False; control['retry_errors']=False; atomic(directory/'control.json',control)
+            control['requested']=False; control['retry_errors']=False; atomic(lane_file(directory,'control.json',kind),control)
 
 
-def pause_unavailable(directory, reason):
+def pause_unavailable(directory, reason, kind=None):
     with (directory/'control.lock').open('a') as stream:
         fcntl.flock(stream,fcntl.LOCK_EX)
-        control=read(directory/'control.json',{})
+        control=read(lane_file(directory,'control.json',kind),{})
         control.update(paused=True,requested=False,retry_errors=False,pause_reason=reason,updated_at=time.time())
-        atomic(directory/'control.json',control)
+        atomic(lane_file(directory,'control.json',kind),control)
 
 
 def waiting_status(control):
@@ -166,8 +221,9 @@ def waiting_status(control):
 
 
 def reset_ai(api,directory,reporter,control):
-    api.call('reset',{})
     kind=control.get('reset_kind','all')
+    lane=getattr(reporter,'kind',None)
+    api.call('reset',{'kind':kind})
     if kind in ('all','descriptions'):
         store=p.Store(directory/'native.sqlite3')
         try:
@@ -180,9 +236,9 @@ def reset_ai(api,directory,reporter,control):
         finally:embeddings.db.close()
     with (directory/'control.lock').open('a') as stream:
         fcntl.flock(stream,fcntl.LOCK_EX)
-        current=read(directory/'control.json',{})
+        current=read(lane_file(directory,'control.json',lane),{})
         if current.get('reset_request_id')==control.get('reset_request_id'):
-            current['reset_requested']=False;atomic(directory/'control.json',current)
+            current['reset_requested']=False;atomic(lane_file(directory,'control.json',lane),current)
     remaining=reporter.value.get('embedding_stats' if kind=='descriptions' else 'analysis_stats',{}) if kind!='all' else {}
     reporter.update(stats={key:remaining.get(key,0) for key in ('done','pending','error')},**({'analysis_stats':{}} if kind=='descriptions' else {'embedding_stats':{}} if kind=='embeddings' else {'analysis_stats':{},'embedding_stats':{}}),last_run=None,current=None,state='paused',message='KI-Daten zurückgesetzt')
     reporter.event('ai_reset_finished',kind=kind)
@@ -317,18 +373,21 @@ def cycle(api,config,directory,reporter,control):
     config['analysis_enabled']=config.get('analysis_enabled',True) and kind!='embeddings'
     config.setdefault('embedding',{'enabled':False})
     config['embedding']['enabled']=config['embedding'].get('enabled',False) and kind!='descriptions'
-    store=p.Store(directory/'native.sqlite3')
+    lane=getattr(reporter,'kind',None)
+    store=p.Store(directory/'native.sqlite3') if config['analysis_enabled'] else None
     started=time.monotonic()
     try:
-        with store.db:
-            store.db.execute('DELETE FROM locks')
-            if control.get('retry_errors'):store.db.execute("UPDATE files SET retry_at=0 WHERE status='error'")
+        if store:
+            with store.db:
+                store.db.execute('DELETE FROM locks')
+                if control.get('retry_errors'):store.db.execute("UPDATE files SET retry_at=0 WHERE status='error'")
         source=NativeSource(api,config)
-        with store.db:store.db.execute('UPDATE files SET active=0 WHERE scope<>?',(source.scope,))
+        if store:
+            with store.db:store.db.execute('UPDATE files SET active=0 WHERE scope<>?',(source.scope,))
         reporter.run_id=uuid.uuid4().hex
         reporter.update(state='running',current=None,started_at=time.time(),message='Ausgewählte Verarbeitungsschritte',analysis_enabled=config.get('analysis_enabled',True),embedding_enabled=config.get('embedding',{}).get('enabled',False),analysis_stats={} if not config.get('analysis_enabled',True) else store.stats())
         reporter.event('run_start',kind=kind)
-        stop=lambda:read(directory/'control.json',{'paused':True}).get('paused',True) or read(Path(config.get('_model_directory',directory))/'processing-admin.json',{}).get('paused',False)
+        stop=lambda:_shutdown.is_set() or read(lane_file(directory,'control.json',lane),{'paused':True}).get('paused',True) or admin_paused(Path(config.get('_model_directory',directory)),lane)
         analysis={'state':'disabled','processed':0,'errors':0,'published':0,'cached_stage_results':0}
         if config.get('analysis_enabled',True):
             models={}
@@ -355,12 +414,13 @@ def cycle(api,config,directory,reporter,control):
                 'published':analysis.get('published',0)+dense['processed'],'cached_stage_results':analysis.get('cached_stage_results',0),
                 'analysis':analysis,'embedding':dense,'kind':kind,'seconds':round(time.monotonic()-started,3)}
         if reasons:
-            result['reason']='; '.join(reasons);pause_unavailable(directory,result['reason']);reporter.update(paused=True)
+            result['reason']='; '.join(reasons);pause_unavailable(directory,result['reason'],lane);reporter.update(paused=True)
         reporter.event('run_finished',**result)
         reporter.update(state=state,last_run=result,stats=stats,analysis_stats=analysis_stats,embedding_stats=dense['stats'],
                         current=None,message=result.get('reason','Bildsuche wartet auf die Gemma-Installation.' if dense['state']=='preparing' else 'Lauf abgeschlossen'))
         return result
-    finally:store.db.close()
+    finally:
+        if store:store.db.close()
 
 
 
@@ -416,59 +476,71 @@ def account_directories(directory, legacy_uid):
 
 def main():
     os.umask(0o077)
-    parser=argparse.ArgumentParser();parser.add_argument('--bootstrap',required=True);parser.add_argument('--once',action='store_true');args=parser.parse_args()
+    parser=argparse.ArgumentParser();parser.add_argument('--bootstrap',required=True);parser.add_argument('--once',action='store_true');parser.add_argument('--pipeline',choices=PIPELINES);args=parser.parse_args()
     directory=Path(args.bootstrap).resolve().parent
-    with (directory/'daemon.lock').open('a') as lock:
+    if args.pipeline is None:
+        return supervise(args,directory)
+    kind=args.pipeline
+    with (directory/('daemon-'+kind+'.lock')).open('a') as lock:
         try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         except BlockingIOError:raise SystemExit('Worker already active')
-        bootstrap=read(Path(args.bootstrap),{});api=API(bootstrap);reporter=Reporter(directory,service=True)
+        initialize_pipelines(directory)
+        bootstrap=read(Path(args.bootstrap),{});api=API(bootstrap);reporter=Reporter(directory,service=True,kind=kind)
         try:
-            while True:
+            while not _shutdown.is_set():
                 try:
                     global_config=api.call('config');reporter.timezone=global_config['timezone']
-                    reporter.update(embedding_setup_supported=True,embedding_setup_profiles=['lite','full'],embedding_remove_supported=True)
-                    embedding_ready=maintain_embedding_service(global_config,directory,reporter)
+                    embedding_ready=True
+                    if kind=='embeddings':
+                        reporter.update(embedding_setup_supported=True,embedding_setup_profiles=['lite','full'],embedding_remove_supported=True)
+                        with (directory/'processing-embeddings.lock').open('a') as maintenance_lock:
+                            fcntl.flock(maintenance_lock,fcntl.LOCK_SH|fcntl.LOCK_NB)
+                            global_config=api.call('config')
+                            embedding_ready=maintain_embedding_service(global_config,directory,reporter)
                     candidates=account_directories(directory,global_config['user_id'])
-                    candidates.sort(key=lambda item:(not read(item[1]/'control.json',{}).get('reset_requested'),not read(item[1]/'control.json',{}).get('requested'),read(item[1]/'control.json',{}).get('updated_at',0),item[0]))
+                    for _,account_directory in candidates:initialize_pipelines(account_directory)
+                    candidates.sort(key=lambda item:(not read(lane_file(item[1],'control.json',kind),{}).get('reset_requested'),not read(lane_file(item[1],'control.json',kind),{}).get('requested'),read(lane_file(item[1],'control.json',kind),{}).get('updated_at',0),item[0]))
                     active=False
-                    if read(directory/'processing-admin.json',{}).get('paused',False):
+                    if admin_paused(directory,kind):
                         candidates=[]
                     for uid,account_directory in candidates:
                         scoped_api=API(bootstrap,uid)
-                        control=read(account_directory/'control.json',{'paused':True});schedule=read(account_directory/'schedule.json',{})
+                        control=read(lane_file(account_directory,'control.json',kind),{'paused':True});schedule=read(lane_file(account_directory,'schedule.json',kind),{})
                         if not control.get('reset_requested') and control.get('paused',True):
                             if account_directory==directory:reporter.update(**waiting_status(control))
                             continue
                         child=None;processing_lock=None
                         try:
-                            processing_lock=(directory/'processing.lock').open('a')
+                            processing_lock=(directory/('processing-'+kind+'.lock')).open('a')
                             fcntl.flock(processing_lock,fcntl.LOCK_SH|fcntl.LOCK_NB)
-                            if read(directory/'processing-admin.json',{}).get('paused',False):continue
-                            control=read(account_directory/'control.json',{'paused':True})
+                            if admin_paused(directory,kind):continue
+                            control=read(lane_file(account_directory,'control.json',kind),{'paused':True})
                             if not control.get('reset_requested') and control.get('paused',True):continue
                             config=scoped_api.call('config');config['_model_directory']=str(directory)
+                            config['analysis_enabled']=config.get('analysis_enabled',True) and kind=='descriptions'
+                            config.setdefault('embedding',{})['enabled']=config.get('embedding',{}).get('enabled',False) and kind=='embeddings'
                             if not control.get('reset_requested') and not is_due(config,control,schedule):continue
                             if schedule.get('embedding_pending') and not embedding_ready and not control.get('requested') and not control.get('reset_requested'):continue
-                            child=reporter if account_directory==directory else Reporter(account_directory)
+                            child=reporter if account_directory==directory else Reporter(account_directory,kind=kind)
                             child.timezone=config['timezone']
                             if control.get('reset_requested'):
                                 if not control.get('paused',True):raise p.PipelineError('Reset requires paused worker')
                                 reset_ai(scoped_api,account_directory,child,control)
-                            elif control.get('run_kind','both')!='descriptions' and detect_embedding_rebuild(config,account_directory,child):
+                            elif kind=='embeddings' and detect_embedding_rebuild(config,account_directory,child):
                                 child.update(state='paused',current=None,message='Modellwechsel: Bitte zuerst den Neuaufbau der Bildvektoren bestätigen.')
                                 continue
                             else:
                                 reporter.update(active_user_id=uid)
-                                consume(account_directory,control.get('request_id'))
+                                consume(account_directory,control.get('request_id'),kind)
                                 result_date=datetime.now(ZoneInfo(config['timezone'])).strftime('%Y-%m-%d')
                                 result=cycle(scoped_api,config,account_directory,child,control)
-                                atomic(account_directory/'schedule.json',{'date':result_date,'embedding_pending':result['embedding']['state']=='preparing'})
+                                atomic(lane_file(account_directory,'schedule.json',kind),{'date':result_date,'embedding_pending':result['embedding']['state']=='preparing'})
                                 if not config['enabled'] and result['embedding']['state']!='preparing':
                                     with (account_directory/'control.lock').open('a') as account_lock:
                                         fcntl.flock(account_lock,fcntl.LOCK_EX)
-                                        current=read(account_directory/'control.json',{})
+                                        current=read(lane_file(account_directory,'control.json',kind),{})
                                         if not current.get('requested') and current.get('request_id')==control.get('request_id'):
-                                            current['paused']=True;atomic(account_directory/'control.json',current)
+                                            current['paused']=True;atomic(lane_file(account_directory,'control.json',kind),current)
                             active=True
                         except (p.PipelineError,ValueError,KeyError,TypeError,OSError) as error:
                             if child:child.event('worker_error',level='error',error=str(error)[:300]);child.update(state='error',current=None,message=str(error)[:300])
@@ -482,14 +554,47 @@ def main():
                     for _,account_directory in candidates:
                         for log in (account_directory/'logs').glob('????-??-??.jsonl'):
                             if not log.is_symlink() and log.stat().st_mtime<cutoff.timestamp():log.unlink()
+                except BlockingIOError:
+                    reporter.update(state='idle',current=None,message='Modellwechsel wird abgeschlossen.')
                 except (p.PipelineError,ValueError,KeyError,TypeError,OSError) as error:
                     reporter.event('worker_error',level='error',error=str(error)[:300]);reporter.update(state='error',current=None,message=str(error)[:300])
                 if args.once:break
-                time.sleep(5)
+                _shutdown.wait(5)
         finally:
-            embedding_setup.stop()
+            if kind=='embeddings':embedding_setup.stop()
             if _local_embedding_process is not None and _local_embedding_process.poll() is None:_local_embedding_process.terminate()
             reporter.close()
-            atomic(directory/'service.json',{'heartbeat_at':0,'active_user_id':None})
+            atomic(lane_file(directory,'service.json',kind),{'heartbeat_at':0,'active_user_id':None})
 
-if __name__=='__main__':main()
+
+def supervise(args,directory):
+    """Keep independent processes alive; systemd still manages one service."""
+    with (directory/'daemon.lock').open('a') as lock:
+        try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        except BlockingIOError:raise SystemExit('Worker already active')
+        children={};completed=set()
+        try:
+            while not _shutdown.is_set():
+                for kind in PIPELINES:
+                    child=children.get(kind)
+                    if child is not None and child.poll() is not None:
+                        if args.once:
+                            if child.returncode:raise p.PipelineError('Pipeline worker failed: '+kind)
+                            completed.add(kind)
+                        del children[kind]
+                    if kind not in children and kind not in completed:
+                        command=[sys.executable,str(Path(__file__).resolve()),'--bootstrap',args.bootstrap,'--pipeline',kind]
+                        if args.once:command.append('--once')
+                        children[kind]=subprocess.Popen(command)
+                if args.once and len(completed)==len(PIPELINES):break
+                _shutdown.wait(5)
+        finally:
+            for child in children.values():
+                if child.poll() is None:child.terminate()
+            for child in children.values():
+                try:child.wait(timeout=15)
+                except subprocess.TimeoutExpired:child.kill();child.wait()
+
+if __name__=='__main__':
+    for sig in (signal.SIGTERM,signal.SIGINT):signal.signal(sig,lambda *_:_shutdown.set())
+    main()

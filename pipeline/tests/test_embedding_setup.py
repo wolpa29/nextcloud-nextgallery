@@ -287,7 +287,7 @@ class SetupTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             directory=Path(temp);setup.atomic(directory/'bootstrap.json',{});setup.atomic(directory/'control.json',{'paused':False});setup.atomic(directory/'embedding-rebuild.json',{'required':True})
             api=Mock();api.call.return_value=c;reporter=Mock();client=Mock();client.health.return_value={'space':'b'*64,'dimensions':768}
-            with patch.object(worker.sys,'argv',['worker','--bootstrap',str(directory/'bootstrap.json'),'--once']),patch.object(worker,'API',return_value=api),patch.object(worker,'Reporter',return_value=reporter),patch.object(worker,'maintain_embedding_service',return_value=True),patch.object(worker.embedding,'Client',return_value=client),patch.object(worker,'cycle',side_effect=AssertionError('Scheduled rebuild started without approval')):
+            with patch.object(worker.sys,'argv',['worker','--bootstrap',str(directory/'bootstrap.json'),'--once','--pipeline','embeddings']),patch.object(worker,'API',return_value=api),patch.object(worker,'Reporter',return_value=reporter),patch.object(worker,'maintain_embedding_service',return_value=True),patch.object(worker.embedding,'Client',return_value=client),patch.object(worker,'cycle',side_effect=AssertionError('Scheduled rebuild started without approval')):
                 worker.main()
             self.assertTrue(setup.read(directory/'embedding-rebuild.json')['required'])
             reporter.update.assert_any_call(state='paused',current=None,message='Modellwechsel: Bitte zuerst den Neuaufbau der Bildvektoren bestätigen.')
@@ -299,9 +299,9 @@ class SetupTests(unittest.TestCase):
             with tempfile.TemporaryDirectory() as temp:
                 directory=Path(temp);setup.atomic(directory/'bootstrap.json',{});setup.atomic(directory/'control.json',{'paused':False,'requested':requested});setup.atomic(directory/'processing-admin.json',{'paused':True})
                 api=Mock();api.call.return_value=c;reporter=Mock()
-                with patch.object(worker.sys,'argv',['worker','--bootstrap',str(directory/'bootstrap.json'),'--once']),patch.object(worker,'API',return_value=api),patch.object(worker,'Reporter',return_value=reporter),patch.object(worker,'maintain_embedding_service',return_value=True),patch.object(worker,'cycle',side_effect=AssertionError('Job bypassed admin pause')):
+                with patch.object(worker.sys,'argv',['worker','--bootstrap',str(directory/'bootstrap.json'),'--once','--pipeline','embeddings']),patch.object(worker,'API',return_value=api),patch.object(worker,'Reporter',return_value=reporter),patch.object(worker,'maintain_embedding_service',return_value=True),patch.object(worker,'cycle',side_effect=AssertionError('Job bypassed admin pause')):
                     worker.main()
-                self.assertEqual(api.call.call_count,1)
+                self.assertEqual(api.call.call_count,2)
                 self.assertEqual(setup.read(directory/'control.json')['requested'],requested)
 
     def test_manual_rebuild_waits_for_model_installation_without_second_start(self):
@@ -309,9 +309,9 @@ class SetupTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             directory=Path(temp);setup.atomic(directory/'bootstrap.json',{});setup.atomic(directory/'control.json',{'paused':False,'requested':True,'request_id':'synthetic-rebuild','run_kind':'embeddings'})
             api=Mock();api.call.return_value=c;reporter=Mock();client=Mock();client.health.return_value={'space':'b'*64,'dimensions':768}
-            with patch.object(worker.sys,'argv',['worker','--bootstrap',str(directory/'bootstrap.json'),'--once']),patch.object(worker,'API',return_value=api),patch.object(worker,'Reporter',return_value=reporter),patch.object(worker,'maintain_embedding_service',return_value=False),patch.object(worker.embedding,'Client',return_value=client),patch.object(worker,'cycle',return_value={'embedding':{'state':'preparing'}}):
+            with patch.object(worker.sys,'argv',['worker','--bootstrap',str(directory/'bootstrap.json'),'--once','--pipeline','embeddings']),patch.object(worker,'API',return_value=api),patch.object(worker,'Reporter',return_value=reporter),patch.object(worker,'maintain_embedding_service',return_value=False),patch.object(worker.embedding,'Client',return_value=client),patch.object(worker,'cycle',return_value={'embedding':{'state':'preparing'}}):
                 worker.main()
-            control=setup.read(directory/'control.json');schedule=setup.read(directory/'schedule.json')
+            control=setup.read(directory/'control-embeddings.json');schedule=setup.read(directory/'schedule-embeddings.json')
             self.assertFalse(control['paused']);self.assertFalse(control['requested']);self.assertTrue(schedule['embedding_pending'])
             self.assertTrue(worker.is_due(c,control,schedule))
 
@@ -321,9 +321,9 @@ class SetupTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             directory=Path(temp);setup.atomic(directory/'bootstrap.json',{});setup.atomic(directory/'control.json',{'paused':False,'requested':True})
             api=Mock();api.call.return_value=c;reporter=Mock()
-            with (directory/'processing.lock').open('a') as gate:
+            with (directory/'processing-embeddings.lock').open('a') as gate:
                 fcntl.flock(gate,fcntl.LOCK_EX)
-                with patch.object(worker.sys,'argv',['worker','--bootstrap',str(directory/'bootstrap.json'),'--once']),patch.object(worker,'API',return_value=api),patch.object(worker,'Reporter',return_value=reporter),patch.object(worker,'maintain_embedding_service',return_value=True),patch.object(worker,'cycle',side_effect=AssertionError('Job bypassed model-change gate')):
+                with patch.object(worker.sys,'argv',['worker','--bootstrap',str(directory/'bootstrap.json'),'--once','--pipeline','embeddings']),patch.object(worker,'API',return_value=api),patch.object(worker,'Reporter',return_value=reporter),patch.object(worker,'maintain_embedding_service',return_value=True),patch.object(worker,'cycle',side_effect=AssertionError('Job bypassed model-change gate')):
                     worker.main()
                 self.assertTrue(setup.read(directory/'control.json')['requested'])
 

@@ -24,7 +24,7 @@ class AiAccountController extends Controller {
     /** Only personal selection and schedule are writable; model options remain admin-only. */
     #[NoAdminRequired]
     public function saveConfig(array $config):DataResponse {
-        $state=$this->account();$lock=fopen($state->directory().'/control.lock','c');
+        $state=$this->account();$state->initializePipelines();$lock=fopen($state->directory().'/control.lock','c');
         if(!$lock||!flock($lock,LOCK_EX))throw new \RuntimeException('Verarbeitungseinstellungen konnten nicht gesperrt werden');
         try{
             $status=$state->status();
@@ -49,9 +49,13 @@ class AiAccountController extends Controller {
     }
     #[NoAdminRequired]
     public function status():DataResponse {
-        $status=$this->account()->status();
-        foreach(['active_user_id','embedding_models','embedding_install_requested','embedding_install_profile','embedding_remove','embedding_setup_supported','embedding_setup_profiles','embedding_remove_supported','embedding_service'] as $key)unset($status[$key]);
-        if(isset($status['embedding_rebuild']))$status['embedding_rebuild']=array_intersect_key($status['embedding_rebuild'],array_flip(['required','request_id','file_count','old_dimensions','new_dimensions']));
+        $own=$this->account();$own->initializePipelines();$status=$own->status();
+        $clean=function(array $value):array {
+            foreach(['active_user_id','embedding_models','embedding_install_requested','embedding_install_profile','embedding_remove','embedding_setup_supported','embedding_setup_profiles','embedding_remove_supported','embedding_service'] as $key)unset($value[$key]);
+            if(isset($value['embedding_rebuild']))$value['embedding_rebuild']=array_intersect_key($value['embedding_rebuild'],array_flip(['required','request_id','file_count','old_dimensions','new_dimensions']));
+            return $value;
+        };
+        $status=$clean($status);foreach($status['pipelines']??[] as $kind=>$lane)$status['pipelines'][$kind]=$clean($lane);
         return new DataResponse($status);
     }
     #[NoAdminRequired]
@@ -72,7 +76,7 @@ class AiAccountController extends Controller {
     #[NoAdminRequired]
     public function delete(string $kind,string $confirmation,int $expected_count=-1):DataResponse {
         if($confirmation!==$kind||!in_array($kind,['descriptions','embeddings','all'],true))return new DataResponse(['error'=>'Bestätigung fehlt'],400);
-        $state=$this->account();$status=$state->status();
+        $state=$this->account();if($kind!=='all')$state=$state->forPipeline($kind);$status=$state->status();
         if(!$status['online']||empty($status['control']['paused'])||!empty($status['control']['requested'])||!empty($status['control']['reset_requested'])||$status['state']==='running')return new DataResponse(['error'=>'Bitte zuerst pausieren und das Ende der aktuellen Datei abwarten.'],409);
         $uid=$this->uid();$count=($kind==='embeddings'?0:$this->metadata->count($uid))+($kind==='descriptions'?0:$this->embeddings->count($uid));
         if($expected_count!==$count)return new DataResponse(['error'=>'Die Anzahl hat sich geändert. Bitte die Bestätigung erneut öffnen.'],409);
