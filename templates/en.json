@@ -218,5 +218,7 @@
   "Textsuche und ähnliche Bildinhalte.": "Text search and similar visual content.",
   "Lokale Sammlung entfernen?": "Remove local collection?",
   "Nur die gespeicherten Vorschauen dieser Galerie werden auf diesem Gerät entfernt. Originaldateien auf Nextcloud bleiben erhalten.": "Only saved previews for this gallery are removed from this device. Original files on Nextcloud are preserved.",
-  "Ordner werden gerade eingelesen. Einstellungen werden gleich gespeichert.": "Folders are being indexed. Settings will be saved shortly."
+  "Ordner werden gerade eingelesen. Einstellungen werden gleich gespeichert.": "Folders are being indexed. Settings will be saved shortly.",
+  "Noch keine Texttreffer.": "No text matches yet.",
+  "Bildsuche läuft …": "Searching image contents …"
 }

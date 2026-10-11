@@ -3,10 +3,11 @@ declare(strict_types=1);
 namespace OCA\Nextgallery\Service;
 use OCP\IDBConnection;
 
-/** One gallery scope for filenames and fresh AI text. Dense retrieval can extend this service. */
+/** Immediate lexical lookup or complete hybrid ranking within one authorized gallery scope. */
 class GallerySearch {
  public function __construct(private IDBConnection $db,private Library $library,private ?EmbeddingSearch $embeddingSearch=null) {}
- public function search(string $uid,string $term,string $kind='',int $offset=0,int $limit=60,string $gallery=''):array {
+ public function search(string $uid,string $term,string $kind='',int $offset=0,int $limit=60,string $gallery='',string $phase='hybrid'):array {
+  if(!in_array($phase,['text','hybrid'],true))throw new \InvalidArgumentException('Suchphase ungültig.');
   if (mb_strlen($term)>200 || $offset<0) throw new \InvalidArgumentException('Suchanfrage oder Seitenauswahl ungültig.');
   preg_match_all('/[\p{L}\p{N}_]+/u',mb_strtolower($term),$matches);
   $words=array_slice(array_values(array_unique($matches[0])),0,16);
@@ -28,7 +29,9 @@ class GallerySearch {
   // OR expands recall. Exact filename/text terms contribute to ordering, never a hard similarity cutoff.
   $q->andWhere('('.implode(' OR ',$conditions).')')->addSelect($q->createFunction('('.implode(' + ',$scores).') AS score'))
    ->orderBy('score','DESC')->addOrderBy('c.file_id','ASC')->setFirstResult($offset)->setMaxResults($limit);
-  $embedding=$this->embeddingSearch?->ranks($uid,$term,$gallery,$kind)??['ids'=>[],'state'=>'disabled'];
+  $embedding=$phase==='text'
+   ? ['ids'=>[],'state'=>$this->embeddingSearch?->availability($uid,$gallery,$kind)??'disabled']
+   : ($this->embeddingSearch?->ranks($uid,$term,$gallery,$kind)??['ids'=>[],'state'=>'disabled']);
   if($embedding['ids']){
    // Union of all scoped text and image candidates: no similarity cutoff or AND gate.
    $q->setFirstResult(0)->setMaxResults(null);

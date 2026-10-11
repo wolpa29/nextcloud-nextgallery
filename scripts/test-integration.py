@@ -82,6 +82,8 @@ try:
   status,body=request('/ocs/v2.php/apps/'+app+path+'/api/v1/statuses?format=json',{'file_ids':pre['ids']});assert status==200,(status,body);statuses=json.loads(body)['ocs']['data']['statuses'];assert str(pre['ids'][1]) not in statuses;assert statuses[str(pre['ids'][0])]['status']=='changed';http.append('statuses:'+app)
  for route in ['/ocs/v2.php/search/providers/nextgallery_ai/search?term=RECHNUNG&format=json','/index.php/apps/nextgallery/api/settings','/index.php/apps/nextgallery/api/search?query=RECHNUNG','/index.php/apps/nextgallery/ai','/index.php/apps/nextgallery/ai/preferences','/index.php/apps/nextgallery/ai/account/config','/index.php/apps/nextgallery/']:
   status,body=request(route);assert status==200,(route,status,body[-1000:]);http.append(route)
+ status,body=request('/index.php/apps/nextgallery/api/search?query=RECHNUNG&phase=text');assert status==200 and json.loads(body)['mode']=='lexical',(status,body);http.append('immediate-lexical-search')
+ status,body=request('/index.php/apps/nextgallery/api/search?query=RECHNUNG&phase=invalid');assert status==400,(status,body);http.append('invalid-search-phase-rejected')
  status,body=request('/index.php/apps/nextgallery/ai/admin/config');assert status==403,(status,body);http.append('ordinary-configured-owner-admin-denied')
  for app,path in [('nextgallery','/ai')]:
   route='/index.php/apps/'+app+path+'/worker/config';status,body=request(route,headers={'Authorization':'Bearer incorrect'});assert status==401,(route,status,body)

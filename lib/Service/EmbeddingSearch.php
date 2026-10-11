@@ -12,10 +12,15 @@ class EmbeddingSearch {
   $this->library->scopeQuery($q,$uid,'c.path_text',$gallery);
   if(in_array($kind,['image','video'],true))$q->andWhere($q->expr()->eq('c.kind',$q->createNamedParameter($kind)));return $q;
  }
- public function ranks(string $uid,string $term,string $gallery,string $kind):array {
-  $config=$this->settings->workerConfig()['embedding'];if(!$config['enabled'])return ['ids'=>[],'state'=>'disabled'];
+ /** No model request: safe to use before returning immediately visible text hits. */
+ public function availability(string $uid,string $gallery,string $kind):string {
+  $config=$this->settings->workerConfig()['embedding'];if(!$config['enabled'])return 'disabled';
   $q=$this->scoped($uid,$gallery,$kind);$q->select('v.file_id')->setMaxResults(1);$r=$q->executeQuery();try{$any=$r->fetch();}finally{$r->closeCursor();}
-  if(!$any)return ['ids'=>[],'state'=>'not_indexed'];
+  return $any?'pending':'not_indexed';
+ }
+ public function ranks(string $uid,string $term,string $gallery,string $kind):array {
+  $state=$this->availability($uid,$gallery,$kind);if($state!=='pending')return ['ids'=>[],'state'=>$state];
+  $config=$this->settings->workerConfig()['embedding'];
   try{
    $info=$this->client->info($config);$query=$this->client->query($config,$term,$info);$space=EmbeddingClient::space($info,$config);
    $q=$this->scoped($uid,$gallery,$kind);$q->select('v.file_id','v.vector_data','v.dimensions')->andWhere($q->expr()->eq('v.space',$q->createNamedParameter($space)));

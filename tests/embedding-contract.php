@@ -28,6 +28,14 @@ try {
  $vectors->publish($uid,$invoice->getId(),$invoice->getEtag(),$space,[['frame'=>0,'seconds'=>0,'values'=>$negative],['frame'=>1,'seconds'=>5,'values'=>$positive]]);
  // dog was changed by the base fixture: stale vectors must not enter the result set.
  $vectors->publish($uid,$dog->getId(),'stale-synthetic-etag',$space,[['frame'=>0,'seconds'=>0,'values'=>$positive]]);
+ $client->fail=true;$calls=$client->calls;
+ $r=$search->search($uid,'invoice','',0,60,'default','text');
+ verifyEmbedding($r['mode']==='lexical'&&$r['embedding_state']==='pending'&&count($r['items'])===1,'Immediate lexical phase failed');
+ verifyEmbedding($client->calls===$calls,'Immediate text search contacted an offline model');
+ $r=$search->search($uid,'a semantic paraphrase','',0,60,'default','text');
+ verifyEmbedding(!$r['items']&&$r['embedding_state']==='pending','No-text query cannot continue with semantic enrichment');
+ try{$search->search($uid,'invoice','',0,60,'default','invalid');throw new RuntimeException('Invalid search phase accepted');}catch(\InvalidArgumentException){verifyEmbedding(true,'Invalid phase rejected');}
+ $client->fail=false;
  $r=$embedding->ranks($uid,'a semantic paraphrase','default','');verifyEmbedding($r['ids']===[$invoice->getId()],'Current ETag/frame max/scope failed');
  $r=$search->search($uid,'a semantic paraphrase','',0,1,'default');verifyEmbedding($r['mode']==='hybrid'&&count($r['items'])===1&&$r['items'][0]['id']===$invoice->getId(),'Vector-only candidate excluded');
  $r=$embedding->ranks($uid,'semantic','default','video');verifyEmbedding(!$r['ids'],'Image/video filter leak');
