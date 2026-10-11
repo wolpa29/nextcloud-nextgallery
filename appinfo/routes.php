@@ -56,6 +56,7 @@ return ['routes' => [
  ['name'=>'ai_worker#publishEmbedding', 'url'=>'/ai/worker/publish-embedding', 'verb'=>'POST'],
  ['name'=>'ai_worker#publish', 'url'=>'/ai/worker/publish', 'verb'=>'POST'],
 ], 'ocs'=>[
+ ['name'=>'native_search#search', 'url'=>'/api/v1/search', 'verb'=>'POST'],
  ['name'=>'ai_metadata#resolve', 'url'=>'/ai/api/v1/resolve', 'verb'=>'GET'],
  ['name'=>'ai_metadata#upsert', 'url'=>'/ai/api/v1/metadata', 'verb'=>'POST'],
  ['name'=>'ai_metadata#statuses', 'url'=>'/ai/api/v1/statuses', 'verb'=>'POST'],

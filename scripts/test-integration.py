@@ -93,6 +93,12 @@ try:
   status,body=request('/index.php/apps/nextgallery/ai/worker/reset',{},headers={'Authorization':'Bearer '+token});assert status==409,(status,body);http.append('reset-requires-explicit-request')
  print(docker('exec','-u','www-data',name,'php','/test-scripts/gallery-contract.php'),flush=True)
  print(docker('exec','-u','www-data',name,'php','/test-scripts/embedding-contract.php'),flush=True)
+ print(docker('exec','-u','www-data',name,'php','/test-scripts/native-search-contract.php'),flush=True)
+ native='/ocs/v2.php/apps/nextgallery/api/v1/search?format=json'
+ status,body=request(native,{'query':'native','roots':['/NativeOnly'],'phase':'text','limit':60});assert status==200,(status,body[-1000:]);page=json.loads(body)['ocs']['data'];assert len(page['items'])==60 and page['more'];http.append('native-search-independent-folders')
+ status,body=request(native,{'query':'native','roots':['/NativeOnly'],'phase':'text','offset':page['next']});assert status==200 and len(json.loads(body)['ocs']['data']['items'])==5,(status,body[-1000:]);http.append('native-search-pagination')
+ status,body=request(native,{'query':'native','roots':['/../NativeOnly']});assert status==400,(status,body[-1000:]);http.append('native-search-invalid-scope')
+ status,body=request(native,{'query':'native','roots':['/NativeOnly']},headers={'OCS-APIRequest':''});assert status==403,(status,body[-1000:]);http.append('native-search-requires-header')
  # Old apps are absent from registration and never redirect to the new app.
  for route in ['/index.php/apps/chronicle/','/index.php/apps/media_ai/','/ocs/v2.php/apps/media_ai/api/v1/metadata?format=json&file_id='+str(pre['ids'][2]),'/index.php/apps/chronicle/ai/worker/config']:
   status,body=request(route);assert status in [404,412],(route,status,body[-1000:]);http.append('retired:'+route)
