@@ -1,0 +1,28 @@
+{
+  "checks": [
+    "source synthetic images and model hashes match previous frozen manifest",
+    "62 qrels unchanged",
+    "metrics verified on known artificial ranking",
+    "all vectors finite, 768d and L2 normalized",
+    "metrics and rankings recomputed from saved vectors for all three configurations",
+    "Browser verified filtered top-5 comparison and synthetic thumbnails; screenshot saved"
+  ],
+  "artifacts": {
+    "comparison-preview.png": "7da30aad6b9a08d5f711f095fcc8c3d8aac67a0377eb8b48a2b9667408fca6ad",
+    "requirements.lock.txt": "58f4225554e9ea145ee274af9541d09a1340e97e531516b1b231e7c3819b2070",
+    "inference.json": "518accbf7223b88333f375ed78496241856b80a58d07adba3cabdee61efc6134",
+    "README.md": "3f5fc33a2d3fa82127a554ccdbd674989b8521e685dff2ddac0995dce8da389c",
+    "protocol.json": "9252672af796ecb8c401265aa8663258954274676210c04fccaf492638bbf4a4",
+    "image-vectors-768.npy": "16253a00b6fdbd136bf8ce776e3413366db6095d7c1945acae401afa45bc7885",
+    "query_model_card-vectors-768.npy": "9231e54d8ae3e205dc6ed650c6d448248da8f3bb95a12670c069fae68d28566f",
+    "joint-vectors-768.npy": "032fbba84fdc05339fb213a4e7c795765fcf2656c89ad3d79f7cd1c32928078b",
+    "compare.html": "c2313b170833a72b9352eecfbeb4254d33b1d5b1705bf9908210b49133ebd0c0",
+    "REPORT.md": "b32ef7e04115a311eba55cc9d02ff071d2b2b0b6f2cd4596a038de812dde4c63",
+    "results.json": "6a45a324905a68a094800898f2c4badc4bd1316cd3f5256a52ac9640c6be36af",
+    "benchmark.py": "1b47183846ac25126a2dfe43d6a48cb2338df8f87eadf2518bb4c57e320f3455",
+    "text-vectors-768.npy": "dd812bb32d6c35c4812b19033569c73162811a2eae93d71ddeaad192135ca0a3",
+    "dataset.json": "aae67526b4577c95527d0df3fd20c11f07952a222d2f2f3b798e1e22350dd6ea",
+    "query-vectors-768.npy": "75ca63d4b160e44106d83e0eee53e4bd341175a8494592137e8ba239a13cdfad",
+    "joint_text_first-vectors-768.npy": "c4bcc8c554e115ad6b37f34828ad42b27458e9d8de0024ba5539ee553365129d"
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "commit": "5f0fe18ebedbd3f8360bde1ca8bb04b6bff1e536",
+  "status": "",
+  "fixtures_sha256": "55825db37b4d2cde0121da23f95d9f8daf5d67454ce90609b0418a247dee5300",
+  "images": {
+    "Bahn_Ticket_0014.png": "1140fd2169e8be1a7e91e42545e866e849f1cf9b9708df4205968392f16c8021",
+    "CHAT_0009.png": "c5d1c415ffb99eb3dfd29121bd591da25a3132602c86e311e6c18f9743aae9d6",
+    "CHAT_0010.png": "080ca670814c60b3cdd2f564d6e77d045b0a1568a8d5cd21082bf70646510570",
+    "Fahrrad_Park_0004.png": "6954c4e45079329ed1998b26a1e5dac780d46bd1e0c51fadbcaedbb4eb293884",
+    "IMG_0001.png": "e1edc37f3327fef60a1f0eb56f258a9c4c9e5f11d150135978aded0fb91cfc6f",
+    "IMG_0002.png": "cf3ffd764ab7975bf03c06f5b282668e9e9f4b8442d7cc15403d66c9f2cfa5a0",
+    "IMG_0003.png": "5f47b6b24381bad042b8fc8b1b82cdf2d191ee980517c6fb383d33c1855c1836",
+    "IMG_0005.png": "071bd9206dcbbe4a7f80e8107be5d309afb8ac4a887259f8786ac8a0e92d0c63",
+    "IMG_0006.png": "e76ba7185746589cc039f46d8ab04ace32eee979fa20442e08b8d4f42c2b7f4f",
+    "IMG_0013.png": "ca8b7c33cc362fe7f82bab4fa63450c366df5fc2ae0d5fa724d0ab35102ff4ca",
+    "IMG_0015.png": "fae25f5147be6442058a683ce6c48deaca9fa6173e9ead1cc474d22f79104edc",
+    "IMG_0016.png": "05c44ab67fc99932148becc1e8e90ae8f84f9eb57131ac5b75076fd392382a99",
+    "IMG_0017.png": "db1dbb231560440041abcee098b4437ccbb74b919c15dd921ef24a8ede00fd24",
+    "IMG_0018.png": "c0b98934c65edffce50b39cea2a6fe9ac72d63390ee17754c655004d419b8740",
+    "IMG_0019.png": "bcf41834648f660e19cf605924083597b7e9275a4674cf0ac0de68d5d7d7bcf1",
+    "IMG_0020.png": "48bfa048b2751deb01b0ba8d294748acd793a0a59e2f07804da4c1b747d8e8ee",
+    "SCAN_0007.png": "da6d4b9d87b3cdafc10e80f38542c1c827fec3f2701a0b4d20629f1f2c15c3d0",
+    "SCAN_0008.png": "109bb98b34d2dfcc7e778bcb2bfb60a816b6f96802708f907ccebf0ce1ba0a9a",
+    "SCAN_0012.png": "3c9c5d1ed66b351fb6d4de05d606efb1b7e6317b287c11c13b8f88642d29f9ea",
+    "Speisekarte_0011.png": "97efcef20a14e9702013cc8615f05f0bab1a24261a3a0c55c2acaeffb387c544"
+  },
+  "qrels_review": "All six generated photographs inspected before pipeline inference; visible subjects match frozen labels.",
+  "models": {
+    "text": {
+      "repository": "litert-community/embeddinggemma-2-text-270m-litert-lm",
+      "revision": "9be6e8b90982095dc05c2bd162e4b954ee4dbac7",
+      "filename": "embeddinggemma-2-text-270m.litertlm"
+    },
+    "image": {
+      "repository": "litert-community/embeddinggemma-2-text-vision-440m-litert-lm",
+      "revision": "e301f74d5551b0c2641bd5cb4652a76239d5c5f8",
+      "filename": "embeddinggemma-2-text-vision-440m.litertlm"
+    }
+  },
+  "model_runtime": "litert-lm==0.18.0",
+  "nextcloud_image": "nextcloud@sha256:aa9bb9bbde6e6afc756f7f101d65fbd57526165184737a85e31cc98dfbaaa2e2",
+  "mariadb_image": "mariadb@sha256:6422478cb8e159f080fb1d8ccf65101e26fe51385787fde7d16c3b165a331f15",
+  "image_generation": "Built-in imagegen; prompt manifest at imagegen-prompts.json; immutable generated images retained",
+  "model_sha256": {
+    "model/embeddinggemma-2-text-270m.litertlm": "2d079ee2f6f066b1f368e8d7c819f55214eaef1d0513b312321901f30ab286fb",
+    "five-way/model/embeddinggemma-2-text-vision-440m.litertlm": "92dcbea108899e5d6e30d919b0744f90d9967e80c67a4ab5503ac16d54f62eb0"
+  },
+  "source_file_sha256": {
+    "nextcloud-app/media_ai/lib/Service/Metadata.php": "dcd63831978632cb98621bef7d5b2fa437342e859ad77dfe412e7b6e836ea8a6",
+    "nextcloud-app/media_ai/worker/media_pipeline.py": "48a1afca67d6d07db2af27d99eb8075ec910da15bdb6d665b3f9f9672d656718",
+    "nextcloud-app/media_ai/worker/default_prompts.json": "30d2fb8d8e6f8de118ecf8a325ff54ebe1e1ecbbd3b8d974191860f0b4e49837"
+  }
+}

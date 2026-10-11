@@ -1,0 +1,29 @@
+{
+  "checks": [
+    "All 124 main hybrid rankings independently recomputed from original vectors and real SQL hits; metrics verified",
+    "No lexical hits means no lexical score or change to vector ranking",
+    "Each main hybrid ranking contains every synthetic candidate exactly once",
+    "Content, OCR, filename and no-match groups separated and counts verified",
+    "Dataset identical to original SHA-256 frozen fixture; query/label keys align with cached SQL results"
+  ],
+  "model_inference_rerun": false,
+  "cached_real_vectors": true,
+  "cached_real_sql": true,
+  "pipeline_changes": false,
+  "private_media_read": false,
+  "artifacts": {
+    "comparison-preview.png": "e2022c5faf09c99e786b8e471a32ead596a37bd02a4bde2ab71ec91d6a9cb5a6",
+    "recall-report.md": "328d7615cce15b35aa9bfd868673e303822aa59948adffd7dbec783c1c169620",
+    "README.md": "c1c6341a66d5c294dcce5e42eee1df9fb4091412afd82ba9a4d1dcea7d452edd",
+    "direct-versus-hybrid.md": "fa0e23289278f55cc852523ff28289119e8b30a85b080f1ab25d87c4ee067ca8",
+    "protocol.json": "cb21add68bbe4e46cc296dfa5f0c69e2f625484b27e36303f13f2858dfffa600",
+    "recall-evaluation.py": "e2fabb49b18326c521a9260192f2e5c685f00b2638966f718727750d70a86ea1",
+    "verify.py": "168b36117dcc2495ea948c79e8c5d857bbc65a35fea4e4c0fa69870d0d8fb89f",
+    "recall-results.json": "5feb43e7174d82c5146b2befe84ef5c3d93f12d94e0ea3092800c23af9737690",
+    "compare.html": "b56f820aa31465da56bb0d9334232ed5bc9d05dc08ae452a73db0b1d2f09f413",
+    "REPORT.md": "ec3516d1c5e2f7c50a1c33ed3445601bda0b69724cc0481ddacccf8703a2cd86",
+    "results.json": "b8fd234e0a44719a5658b780c854b69644c56edf7f188db67e4b4cc0d353f186",
+    "benchmark.py": "32562b092e1bbd1af9d4e0ebfba22c9782ddc19d2702c6d8a104bdbf4d7e2cf1",
+    "dataset.json": "aae67526b4577c95527d0df3fd20c11f07952a222d2f2f3b798e1e22350dd6ea"
+  }
+}

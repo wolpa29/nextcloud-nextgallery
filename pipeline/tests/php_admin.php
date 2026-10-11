@@ -40,7 +40,7 @@ $external=$settings->get();$external['embedding']['location']='external';$settin
 $session->uid='paul';check($controller->embeddingRemove('full')->status===403);$session->uid='admin';check($controller->embeddingRemove('../state')->status===409);
 $state->atomic('embedding-install.json',['requested'=>false]);$state->atomic('status.json',['state'=>'paused','heartbeat_at'=>time(),'embedding_remove_supported'=>true,'embedding_models'=>['full'=>['installed'=>true]]]);check($controller->embeddingRemove('full')->status===200);check($state->control()===$beforeInstall);
 unlink($state->directory().'/embedding-remove.json');unlink($state->directory().'/embedding-install.json');
-foreach(['control.json','control.lock'] as $file)unlink($state->directory().'/'.$file);
+foreach(['control.json','control.lock','processing.lock'] as $file)unlink($state->directory().'/'.$file);
 unlink($state->directory().'/status.json');rmdir($state->directory());rmdir($c->dataDirectory);
 echo "$checks PHP admin/owner access assertions passed\n";
 }

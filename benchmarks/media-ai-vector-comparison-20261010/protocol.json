@@ -1,0 +1,37 @@
+{
+  "frozen_before_inference": true,
+  "source_dataset_sha256": "aae67526b4577c95527d0df3fd20c11f07952a222d2f2f3b798e1e22350dd6ea",
+  "source_fixtures_sha256": "55825db37b4d2cde0121da23f95d9f8daf5d67454ce90609b0418a247dee5300",
+  "model": {
+    "repository": "litert-community/embeddinggemma-2-text-vision-440m-litert-lm",
+    "revision": "e301f74d5551b0c2641bd5cb4652a76239d5c5f8",
+    "filename": "embeddinggemma-2-text-vision-440m.litertlm"
+  },
+  "model_sha256": "92dcbea108899e5d6e30d919b0744f90d9967e80c67a4ab5503ac16d54f62eb0",
+  "runtime": "litert-lm==0.18.0",
+  "backend": "CPU, 4 threads per encoder",
+  "dimensions": 768,
+  "vision_tokens_per_image": 140,
+  "max_input_length": 2048,
+  "overflow": "ERROR; no truncation/chunk averaging",
+  "text_content": "Existing pipeline description + tags + objects; excludes OCR and filename",
+  "query_prefix": "task: search query | text: ",
+  "document_prefix": "task: search result | text: ",
+  "primary_two_vectors": "Equal reciprocal rank fusion, k=60, complete corpus ranking",
+  "primary_one_vector": "One compute_embedding([ImageFile, document_text]) call, not averaging",
+  "diagnostics": [
+    "text",
+    "image",
+    "separate_mean",
+    "separate_max",
+    "averaged_vector",
+    "joint_text_first"
+  ],
+  "primary_queries": "42 answerable content queries excluding OCR exact and filenames",
+  "other_queries": "OCR exact, filenames and four no-match controls reported separately",
+  "lexical_search": "Excluded equally from both sides to isolate vector architecture",
+  "metrics": "Hit@1, Hit@5, MRR, Recall@5, nDCG@5; paired disagreements",
+  "tuning": "None; frozen labels, equal weights; diagnostics do not replace primary comparison",
+  "scale_timing": "30k repeated copies of fixture vectors; time/storage only, no quality claim",
+  "time_context": "2026-10-10 Europe/Vienna"
+}

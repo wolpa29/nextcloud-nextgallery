@@ -241,4 +241,28 @@ class SetupTests(unittest.TestCase):
             reporter.update.assert_any_call(state='paused',current=None,message='Modellwechsel: Bitte zuerst den Neuaufbau der Bildvektoren bestätigen.')
 
 
+    def test_admin_pause_blocks_manual_and_scheduled_jobs(self):
+        c=config();c.update(enabled=True,timezone='Europe/Vienna',log_days=30,schedule_time='00:00')
+        for requested in (False,True):
+            with tempfile.TemporaryDirectory() as temp:
+                directory=Path(temp);setup.atomic(directory/'bootstrap.json',{});setup.atomic(directory/'control.json',{'paused':False,'requested':requested});setup.atomic(directory/'processing-admin.json',{'paused':True})
+                api=Mock();api.call.return_value=c;reporter=Mock()
+                with patch.object(worker.sys,'argv',['worker','--bootstrap',str(directory/'bootstrap.json'),'--once']),patch.object(worker,'API',return_value=api),patch.object(worker,'Reporter',return_value=reporter),patch.object(worker,'maintain_embedding_service',return_value=True),patch.object(worker,'cycle',side_effect=AssertionError('Job bypassed admin pause')):
+                    worker.main()
+                self.assertEqual(api.call.call_count,1)
+                self.assertEqual(setup.read(directory/'control.json')['requested'],requested)
+
+    def test_model_transition_lock_blocks_worker_start(self):
+        import fcntl
+        c=config();c.update(enabled=True,timezone='Europe/Vienna',log_days=30,schedule_time='00:00')
+        with tempfile.TemporaryDirectory() as temp:
+            directory=Path(temp);setup.atomic(directory/'bootstrap.json',{});setup.atomic(directory/'control.json',{'paused':False,'requested':True})
+            api=Mock();api.call.return_value=c;reporter=Mock()
+            with (directory/'processing.lock').open('a') as gate:
+                fcntl.flock(gate,fcntl.LOCK_EX)
+                with patch.object(worker.sys,'argv',['worker','--bootstrap',str(directory/'bootstrap.json'),'--once']),patch.object(worker,'API',return_value=api),patch.object(worker,'Reporter',return_value=reporter),patch.object(worker,'maintain_embedding_service',return_value=True),patch.object(worker,'cycle',side_effect=AssertionError('Job bypassed model-change gate')):
+                    worker.main()
+                self.assertTrue(setup.read(directory/'control.json')['requested'])
+
+
 if __name__=='__main__':unittest.main()

@@ -2,6 +2,7 @@
 /** Account isolation and independent deletion. Disposable synthetic Nextcloud only. */
 declare(strict_types=1);
 require '/var/www/html/lib/base.php';
+set_exception_handler(function(\Throwable $error){fwrite(STDERR,get_class($error).': '.$error->getMessage()."\n");exit(1);});
 use OCP\Server;
 use OCA\Nextgallery\AI\Service\{Settings,State,Metadata,Embeddings};
 use OCA\Nextgallery\Controller\{AiAccountController,AiAdminController};
@@ -29,8 +30,8 @@ if(($argv[1]??'prepare')==='prepare'){
  expectAccount($controller->delete('embeddings','embeddings',0)->getStatus()===409,'Stale delete count accepted');
  expectAccount($controller->control('start','descriptions')->getStatus()===200,'Description start unavailable');$a=$state->forUser('account-alice');expectAccount($a->control()['run_kind']==='descriptions','Wrong run selection');expectAccount(empty($state->forUser('account-bob')->control()['requested']),'Other account queue changed');
  $a->atomic('control.json',['paused'=>true,'requested'=>false]);expectAccount($controller->control('start','embeddings')->getStatus()===200,'Embedding start unavailable');$a->atomic('control.json',['paused'=>true,'requested'=>false]);
- $session->setUser($users->get('synthetic-admin'));$admin=Server::get(AiAdminController::class);$before=$settings->get();$changed=$before;$changed['embedding']['max_edge']=1024;expectAccount($admin->save($changed)->getStatus()===409,'Unconfirmed global model change accepted');expectAccount($settings->get()===$before,'Unconfirmed change modified settings');expectAccount($admin->save($changed,Settings::embeddingSignature($before))->getStatus()===200,'Confirmed admin model change rejected');
- foreach(['account-alice','account-bob'] as $uid){expectAccount(!empty($state->forUser($uid)->status()['embedding_rebuild']['required']),'Model change failed to mark account '.$uid);$state->forUser($uid)->atomic('embedding-rebuild.json',[]);}
+ $session->setUser($users->get('synthetic-admin'));$admin=Server::get(AiAdminController::class);$before=$settings->get();$changed=$before;$changed['embedding']['max_edge']=1024;expectAccount($admin->save($changed)->getStatus()===409,'Unconfirmed global model change accepted');expectAccount($settings->get()===$before,'Unconfirmed change modified settings');expectAccount($admin->save($changed,$admin->embeddingChangePreview($changed)->getData()['config_id'],'reset',false)->getStatus()===200,'Confirmed admin model change rejected');
+ foreach(['account-alice','account-bob'] as $uid){expectAccount($vectors->count($uid)===0,'Central model change failed to reset account '.$uid);$f=Server::get(\OCP\Files\IRootFolder::class)->getUserFolder($uid)->get('Synthetic/test.png');$vectors->publish($uid,$f->getId(),$f->getEtag(),str_repeat('a',64),[['frame'=>0,'seconds'=>0,'values'=>array_merge([1.],array_fill(0,127,0.))]]);$state->forUser($uid)->atomic('embedding-rebuild.json',[]);}
  $settings->save($before);$withoutOwner=$before;$withoutOwner['user_id']='nonexistent-synthetic-owner';$settings->save($withoutOwner);expectAccount($admin->save($withoutOwner)->getStatus()===200,'Global model configuration depends on an existing legacy owner');$settings->save($before);$session->setUser($users->get('account-alice'));
  file_put_contents('/test-output/accounts.json',json_encode(['ids'=>$ids,'checks'=>$checks]));echo "$checks real Nextcloud account access/scope assertions passed\n";
 }else{

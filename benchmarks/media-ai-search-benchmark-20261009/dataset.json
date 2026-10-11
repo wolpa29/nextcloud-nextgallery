@@ -1,0 +1,1488 @@
+{
+  "schema": 1,
+  "synthetic": true,
+  "description": "Handgeschriebene synthetische Media-AI-Metadaten; keine Bildanalyse oder privaten Medien.",
+  "documents": [
+    {
+      "key": "wifi",
+      "description": "Ein Zettel mit WLAN-Zugangsdaten hängt neben einem Router.",
+      "tags": [
+        "WLAN",
+        "Router",
+        "Zugangsdaten"
+      ],
+      "objects": [
+        "Zettel",
+        "Router"
+      ],
+      "ocr": "WLAN: Gastnetz\nPasswort: Sommer2026!",
+      "kind": "dokument",
+      "file_id": 1,
+      "path": "Synthetic/IMG_0001.jpg"
+    },
+    {
+      "key": "summer_hike",
+      "description": "Zwei Wanderer gehen auf einem trockenen Bergpfad zwischen grünen Wiesen. Sie tragen Rucksäcke.",
+      "tags": [
+        "Wandern",
+        "Berg",
+        "Sommer",
+        "Wiese",
+        "Rucksack"
+      ],
+      "objects": [
+        "Wanderer",
+        "Rucksack"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 2,
+      "path": "Synthetic/IMG_0002.jpg"
+    },
+    {
+      "key": "ticket",
+      "description": "Ein Zugticket liegt auf einem Tisch neben einer Tasche.",
+      "tags": [
+        "Zugticket",
+        "Bahn",
+        "Tasche"
+      ],
+      "objects": [
+        "Ticket",
+        "Tasche"
+      ],
+      "ocr": "ÖBB\nWien Hbf → Graz Hbf\nZug RJ 755\nSitzplatz 42\n09.10.2026",
+      "kind": "dokument",
+      "file_id": 3,
+      "path": "Synthetic/IMG_0003.jpg"
+    },
+    {
+      "key": "bike_red_beach",
+      "description": "Ein rotes Fahrrad steht am Sandstrand neben einem blauen Sonnenschirm. Im Hintergrund ist das Meer zu sehen.",
+      "tags": [
+        "Fahrrad",
+        "Strand",
+        "rot",
+        "Meer"
+      ],
+      "objects": [
+        "Fahrrad",
+        "Sonnenschirm"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 4,
+      "path": "Synthetic/IMG_0004.jpg"
+    },
+    {
+      "key": "cat_left_dog",
+      "description": "Eine Katze sitzt links neben einem Hund auf einer Bank.",
+      "tags": [
+        "Hund",
+        "Katze",
+        "Bank"
+      ],
+      "objects": [
+        "Hund",
+        "Katze",
+        "Bank"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 5,
+      "path": "Synthetic/IMG_0005.jpg"
+    },
+    {
+      "key": "dog_surf",
+      "description": "Ein Labrador läuft durch die Brandung am Meeresufer. Wasser spritzt um seine Pfoten.",
+      "tags": [
+        "Labrador",
+        "Hund",
+        "Brandung",
+        "Meer",
+        "Wasser"
+      ],
+      "objects": [
+        "Hund"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 6,
+      "path": "Synthetic/IMG_0006.jpg"
+    },
+    {
+      "key": "harbor",
+      "description": "Mehrere Motorboote liegen an einem Steg in einem Hafen.",
+      "tags": [
+        "Motorboot",
+        "Hafen",
+        "Steg"
+      ],
+      "objects": [
+        "Motorboot",
+        "Steg"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 7,
+      "path": "Synthetic/IMG_0007.jpg"
+    },
+    {
+      "key": "wedding",
+      "description": "Zwei Personen in Hochzeitskleidung stehen vor einem Gebäude. Eine Person hält einen Blumenstrauß.",
+      "tags": [
+        "Hochzeit",
+        "Blumenstrauß",
+        "Person"
+      ],
+      "objects": [
+        "Person",
+        "Blumenstrauß"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 8,
+      "path": "Synthetic/IMG_0008.jpg"
+    },
+    {
+      "key": "car_ferry",
+      "description": "Autos stehen dicht nebeneinander auf dem Deck einer Fähre.",
+      "tags": [
+        "Auto",
+        "Fähre",
+        "Schiff",
+        "Deck"
+      ],
+      "objects": [
+        "Auto",
+        "Fähre"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 9,
+      "path": "Synthetic/IMG_0009.jpg"
+    },
+    {
+      "key": "dog_ball",
+      "description": "Ein Hund springt auf einer Wiese nach einem gelben Ball.",
+      "tags": [
+        "Hund",
+        "Ball",
+        "Wiese",
+        "springen"
+      ],
+      "objects": [
+        "Hund",
+        "Ball"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 10,
+      "path": "Synthetic/IMG_0010.jpg"
+    },
+    {
+      "key": "bike_blue_beach",
+      "description": "Ein blaues Fahrrad liegt am Sandstrand. Auf dem Meer fahren Segelboote.",
+      "tags": [
+        "Fahrrad",
+        "blau",
+        "Strand",
+        "Segelboot"
+      ],
+      "objects": [
+        "Fahrrad",
+        "Segelboot"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 11,
+      "path": "Synthetic/IMG_0011.jpg"
+    },
+    {
+      "key": "washing_machine",
+      "description": "Eine Waschmaschine mit runder Glastür steht neben einem Wäschekorb.",
+      "tags": [
+        "Waschmaschine",
+        "Wäschekorb"
+      ],
+      "objects": [
+        "Waschmaschine",
+        "Wäschekorb"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 12,
+      "path": "Synthetic/IMG_0012.jpg"
+    },
+    {
+      "key": "bike_blue_car_red",
+      "description": "Ein blaues Fahrrad lehnt neben einem roten Auto auf einem Parkplatz.",
+      "tags": [
+        "Fahrrad",
+        "Auto",
+        "blau",
+        "rot",
+        "Parkplatz"
+      ],
+      "objects": [
+        "Fahrrad",
+        "Auto"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 13,
+      "path": "Synthetic/IMG_0013.jpg"
+    },
+    {
+      "key": "unknown_device",
+      "description": "Ein schwarzes rechteckiges Gerät mit einem kleinen Display und drei Tasten steht auf einem Tisch. Der Gerätetyp ist nicht erkennbar.",
+      "tags": [
+        "Gerät",
+        "Display",
+        "Taste",
+        "schwarz"
+      ],
+      "objects": [
+        "Gerät",
+        "Display",
+        "Taste"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 14,
+      "path": "Synthetic/IMG_0014.jpg"
+    },
+    {
+      "key": "dog_left_cat",
+      "description": "Ein Hund sitzt links neben einer Katze auf einer Bank.",
+      "tags": [
+        "Hund",
+        "Katze",
+        "Bank"
+      ],
+      "objects": [
+        "Hund",
+        "Katze",
+        "Bank"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 15,
+      "path": "Synthetic/IMG_0015.jpg"
+    },
+    {
+      "key": "concert",
+      "description": "Eine Band spielt auf einer Bühne unter bunten Scheinwerfern. Vor der Bühne stehen viele Zuschauer.",
+      "tags": [
+        "Konzert",
+        "Band",
+        "Bühne",
+        "Publikum",
+        "Musik"
+      ],
+      "objects": [
+        "Musiker",
+        "Gitarre",
+        "Scheinwerfer"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 16,
+      "path": "Synthetic/IMG_0016.jpg"
+    },
+    {
+      "key": "vacuum",
+      "description": "Ein Bodenstaubsauger mit Schlauch und Bürste steht auf einem Teppich.",
+      "tags": [
+        "Staubsauger",
+        "Teppich",
+        "Schlauch"
+      ],
+      "objects": [
+        "Staubsauger",
+        "Bürste"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 17,
+      "path": "Synthetic/IMG_0017.jpg"
+    },
+    {
+      "key": "empty_beach",
+      "description": "Ein leerer Sandstrand mit Wellen und einem Sonnenschirm ist zu sehen. Es sind keine Menschen sichtbar.",
+      "tags": [
+        "Strand",
+        "Meer",
+        "Sonnenschirm",
+        "leer"
+      ],
+      "objects": [
+        "Sonnenschirm"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 18,
+      "path": "Synthetic/IMG_0018.jpg"
+    },
+    {
+      "key": "snow_city",
+      "description": "Mehrere Personen gehen durch eine verschneite Einkaufsstraße zwischen Geschäften.",
+      "tags": [
+        "Schnee",
+        "Stadt",
+        "Winter",
+        "Geschäft"
+      ],
+      "objects": [
+        "Person",
+        "Geschäft"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 19,
+      "path": "Synthetic/IMG_0019.jpg"
+    },
+    {
+      "key": "invoice_471839",
+      "description": "Ein abfotografiertes Rechnungsblatt liegt auf einem Tisch.",
+      "tags": [
+        "Rechnung",
+        "Dokument",
+        "Werkstatt"
+      ],
+      "objects": [
+        "Papier",
+        "Tisch"
+      ],
+      "ocr": "Werkstatt Nord\nRechnung 471839\nBremsbeläge erneuert\nGesamtbetrag 248,90 EUR",
+      "kind": "dokument",
+      "file_id": 20,
+      "path": "Synthetic/IMG_0020.jpg"
+    },
+    {
+      "key": "tea",
+      "description": "Eine weiße Tasse mit Tee steht neben einer Teekanne und Zitronenscheiben.",
+      "tags": [
+        "Tee",
+        "Zitrone",
+        "Teekanne"
+      ],
+      "objects": [
+        "Tasse",
+        "Teekanne",
+        "Zitrone"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 21,
+      "path": "Synthetic/IMG_0021.jpg"
+    },
+    {
+      "key": "ski",
+      "description": "Eine Person fährt mit Skiern einen verschneiten Hang hinunter.",
+      "tags": [
+        "Skifahren",
+        "Schnee",
+        "Winter",
+        "Berg"
+      ],
+      "objects": [
+        "Person",
+        "Ski"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 22,
+      "path": "Synthetic/IMG_0022.jpg"
+    },
+    {
+      "key": "boat_lake",
+      "description": "Ein kleines Segelboot fährt auf einem See vor bewaldeten Bergen.",
+      "tags": [
+        "Segelboot",
+        "See",
+        "Berg",
+        "Wald"
+      ],
+      "objects": [
+        "Segelboot"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 23,
+      "path": "Synthetic/IMG_0023.jpg"
+    },
+    {
+      "key": "umbrella_street",
+      "description": "Eine Person geht mit einem geöffneten Regenschirm über eine nasse Straße.",
+      "tags": [
+        "Regen",
+        "Regenschirm",
+        "Straße"
+      ],
+      "objects": [
+        "Person",
+        "Regenschirm"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 24,
+      "path": "Synthetic/IMG_0024.jpg"
+    },
+    {
+      "key": "busy_beach",
+      "description": "Viele Menschen liegen am Sandstrand unter Sonnenschirmen. Kinder spielen am Wasser.",
+      "tags": [
+        "Strand",
+        "Meer",
+        "Menschen",
+        "Sonnenschirm",
+        "Kind"
+      ],
+      "objects": [
+        "Person",
+        "Sonnenschirm"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 25,
+      "path": "Synthetic/IMG_0025.jpg"
+    },
+    {
+      "key": "breakfast",
+      "description": "Auf einem Frühstückstisch stehen ein Teller mit Rührei, Brot und ein Glas Orangensaft.",
+      "tags": [
+        "Frühstück",
+        "Rührei",
+        "Brot",
+        "Orangensaft"
+      ],
+      "objects": [
+        "Teller",
+        "Brot",
+        "Glas"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 26,
+      "path": "Synthetic/IMG_0026.jpg"
+    },
+    {
+      "key": "receipt",
+      "description": "Ein Kassenbon liegt neben einem Einkaufskorb.",
+      "tags": [
+        "Kassenbon",
+        "Einkauf",
+        "Lebensmittel"
+      ],
+      "objects": [
+        "Papier",
+        "Einkaufskorb"
+      ],
+      "ocr": "Markt West\nMilch 1,49\nBrot 2,90\nSumme 4,39 EUR",
+      "kind": "dokument",
+      "file_id": 27,
+      "path": "Synthetic/IMG_0027.jpg"
+    },
+    {
+      "key": "dinner_indoor",
+      "description": "Mehrere Personen sitzen bei Kerzenlicht an einem gedeckten Tisch in einem Esszimmer.",
+      "tags": [
+        "Abendessen",
+        "Kerze",
+        "Esszimmer",
+        "Tisch"
+      ],
+      "objects": [
+        "Person",
+        "Tisch",
+        "Kerze"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 28,
+      "path": "Synthetic/IMG_0028.jpg"
+    },
+    {
+      "key": "sunrise_mountain",
+      "description": "Die aufgehende Sonne beleuchtet Berggipfel über einer Nebeldecke.",
+      "tags": [
+        "Sonnenaufgang",
+        "Berg",
+        "Nebel",
+        "Morgen"
+      ],
+      "objects": [
+        "Sonne",
+        "Berg"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 29,
+      "path": "Synthetic/IMG_0029.jpg"
+    },
+    {
+      "key": "train_platform",
+      "description": "Ein Zug steht an einem Bahnsteig. Mehrere Personen warten mit Koffern.",
+      "tags": [
+        "Zug",
+        "Bahnsteig",
+        "Koffer",
+        "Reise"
+      ],
+      "objects": [
+        "Zug",
+        "Person",
+        "Koffer"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 30,
+      "path": "Synthetic/IMG_0030.jpg"
+    },
+    {
+      "key": "birthday",
+      "description": "Ein Kind sitzt vor einer Torte mit brennenden Kerzen. Neben dem Tisch liegen verpackte Geschenke.",
+      "tags": [
+        "Geburtstag",
+        "Kind",
+        "Torte",
+        "Kerze",
+        "Geschenk"
+      ],
+      "objects": [
+        "Kind",
+        "Torte",
+        "Kerze",
+        "Geschenk"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 31,
+      "path": "Synthetic/IMG_0031.jpg"
+    },
+    {
+      "key": "airport",
+      "description": "Eine Person zieht einen Rollkoffer durch eine Flughafenhalle.",
+      "tags": [
+        "Flughafen",
+        "Koffer",
+        "Reise"
+      ],
+      "objects": [
+        "Person",
+        "Rollkoffer"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 32,
+      "path": "Synthetic/IMG_0032.jpg"
+    },
+    {
+      "key": "bike_red_city",
+      "description": "Ein rotes Fahrrad steht vor einer Hauswand in einer belebten Stadtstraße.",
+      "tags": [
+        "Fahrrad",
+        "rot",
+        "Stadt",
+        "Straße"
+      ],
+      "objects": [
+        "Fahrrad",
+        "Hauswand"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 33,
+      "path": "Synthetic/IMG_0033.jpg"
+    },
+    {
+      "key": "invoice_4718390",
+      "description": "Ein Rechnungsblatt ist auf einem Schreibtisch zu sehen.",
+      "tags": [
+        "Rechnung",
+        "Dokument",
+        "Elektronik"
+      ],
+      "objects": [
+        "Papier"
+      ],
+      "ocr": "Elektro Süd\nRechnung 4718390\nMonitor\nGesamtbetrag 248,90 EUR",
+      "kind": "dokument",
+      "file_id": 34,
+      "path": "Synthetic/IMG_0034.jpg"
+    },
+    {
+      "key": "screen_error",
+      "description": "Ein Bildschirmfoto zeigt eine Fehlermeldung in einem Programmfenster.",
+      "tags": [
+        "Screenshot",
+        "Fehlermeldung",
+        "Programm"
+      ],
+      "objects": [
+        "Fenster"
+      ],
+      "ocr": "Verbindung fehlgeschlagen\nFehler E_CONN_042\nBitte erneut versuchen",
+      "kind": "screenshot",
+      "file_id": 35,
+      "path": "Synthetic/IMG_0035.jpg"
+    },
+    {
+      "key": "robot_vacuum",
+      "description": "Ein runder Saugroboter steht auf einem Holzboden neben seiner Ladestation.",
+      "tags": [
+        "Saugroboter",
+        "Ladestation",
+        "Holzboden"
+      ],
+      "objects": [
+        "Saugroboter",
+        "Ladestation"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 36,
+      "path": "Synthetic/IMG_0036.jpg"
+    },
+    {
+      "key": "hospital",
+      "description": "Ein Krankenbett mit einem Infusionsständer steht in einem hellen Zimmer.",
+      "tags": [
+        "Krankenbett",
+        "Infusion",
+        "Zimmer"
+      ],
+      "objects": [
+        "Bett",
+        "Infusionsständer"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 37,
+      "path": "Synthetic/IMG_0037.jpg"
+    },
+    {
+      "key": "bread",
+      "description": "Ein Laib Brot und mehrere Brötchen liegen auf einem Schneidebrett in einer Küche.",
+      "tags": [
+        "Brot",
+        "Brötchen",
+        "Küche"
+      ],
+      "objects": [
+        "Brot",
+        "Schneidebrett"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 38,
+      "path": "Synthetic/IMG_0038.jpg"
+    },
+    {
+      "key": "bicycle_stand",
+      "description": "Mehrere leere Fahrradständer stehen vor einem Bahnhof.",
+      "tags": [
+        "Fahrradständer",
+        "Bahnhof",
+        "Metall"
+      ],
+      "objects": [
+        "Fahrradständer"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 39,
+      "path": "Synthetic/IMG_0039.jpg"
+    },
+    {
+      "key": "red_car_blue_house",
+      "description": "Ein rotes Auto steht vor einem blauen Haus.",
+      "tags": [
+        "Auto",
+        "Haus",
+        "rot",
+        "blau"
+      ],
+      "objects": [
+        "Auto",
+        "Haus"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 40,
+      "path": "Synthetic/IMG_0040.jpg"
+    },
+    {
+      "key": "coffee",
+      "description": "Eine weiße Tasse mit Cappuccino und Milchschaum steht auf einem Holztisch neben einem Croissant.",
+      "tags": [
+        "Cappuccino",
+        "Kaffee",
+        "Croissant",
+        "Frühstück"
+      ],
+      "objects": [
+        "Tasse",
+        "Croissant",
+        "Tisch"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 41,
+      "path": "Synthetic/IMG_0041.jpg"
+    },
+    {
+      "key": "flowers",
+      "description": "Rote Rosen wachsen zwischen grünen Blättern in einem Garten.",
+      "tags": [
+        "Rose",
+        "Blume",
+        "Garten",
+        "rot"
+      ],
+      "objects": [
+        "Rose",
+        "Blatt"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 42,
+      "path": "Synthetic/IMG_0042.jpg"
+    },
+    {
+      "key": "cat_water",
+      "description": "Eine Katze sitzt auf einem Steg und blickt auf einen See.",
+      "tags": [
+        "Katze",
+        "Steg",
+        "See",
+        "Wasser"
+      ],
+      "objects": [
+        "Katze",
+        "Steg"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 43,
+      "path": "Synthetic/IMG_0043.jpg"
+    },
+    {
+      "key": "terrace_day",
+      "description": "Auf einer sonnigen Terrasse stehen leere Gartenstühle und ein Tisch mit einer Blumenvase.",
+      "tags": [
+        "Terrasse",
+        "Tag",
+        "Gartenstuhl",
+        "Blume"
+      ],
+      "objects": [
+        "Stuhl",
+        "Tisch",
+        "Blumenvase"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 44,
+      "path": "Synthetic/IMG_0044.jpg"
+    },
+    {
+      "key": "ski_sticks_only",
+      "description": "Zwei Skistöcke lehnen an einer verschneiten Holzhütte. Es sind keine Personen sichtbar.",
+      "tags": [
+        "Skistock",
+        "Schnee",
+        "Hütte"
+      ],
+      "objects": [
+        "Skistock",
+        "Hütte"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 45,
+      "path": "Synthetic/IMG_0045.jpg"
+    },
+    {
+      "key": "poster",
+      "description": "Ein Plakat für einen Musikabend hängt an einer Hauswand.",
+      "tags": [
+        "Plakat",
+        "Musik",
+        "Veranstaltung"
+      ],
+      "objects": [
+        "Plakat",
+        "Hauswand"
+      ],
+      "ocr": "Jazz im Park\nFreitag 18:30\nEintritt frei",
+      "kind": "dokument",
+      "file_id": 46,
+      "path": "Synthetic/IMG_0046.jpg"
+    },
+    {
+      "key": "blue_car_red_house",
+      "description": "Ein blaues Auto steht vor einem roten Haus.",
+      "tags": [
+        "Auto",
+        "Haus",
+        "rot",
+        "blau"
+      ],
+      "objects": [
+        "Auto",
+        "Haus"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 47,
+      "path": "Synthetic/IMG_0047.jpg"
+    },
+    {
+      "key": "motorbike",
+      "description": "Ein rotes Motorrad steht vor einer Garage.",
+      "tags": [
+        "Motorrad",
+        "rot",
+        "Garage"
+      ],
+      "objects": [
+        "Motorrad",
+        "Garage"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 48,
+      "path": "Synthetic/IMG_0048.jpg"
+    },
+    {
+      "key": "mountain_bike",
+      "description": "Eine Person fährt mit einem Mountainbike über einen steinigen Waldweg.",
+      "tags": [
+        "Mountainbike",
+        "Fahrrad",
+        "Wald",
+        "Radfahren"
+      ],
+      "objects": [
+        "Person",
+        "Mountainbike"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 49,
+      "path": "Synthetic/IMG_0049.jpg"
+    },
+    {
+      "key": "dog_sofa",
+      "description": "Ein Labrador schläft eingerollt auf einem Sofa im Wohnzimmer.",
+      "tags": [
+        "Hund",
+        "Labrador",
+        "Sofa",
+        "schlafen"
+      ],
+      "objects": [
+        "Hund",
+        "Sofa"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 50,
+      "path": "Synthetic/IMG_0050.jpg"
+    },
+    {
+      "key": "boat_sea",
+      "description": "Ein Segelboot fährt auf dem offenen Meer. Im Hintergrund ist ein Leuchtturm zu sehen.",
+      "tags": [
+        "Segelboot",
+        "Meer",
+        "Leuchtturm"
+      ],
+      "objects": [
+        "Segelboot",
+        "Leuchtturm"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 51,
+      "path": "Synthetic/IMG_0051.jpg"
+    },
+    {
+      "key": "snow_hike",
+      "description": "Zwei Wanderer gehen auf einem schneebedeckten Bergpfad. Sie tragen Rucksäcke und halten Wanderstöcke.",
+      "tags": [
+        "Wandern",
+        "Schnee",
+        "Berg",
+        "Winter",
+        "Rucksack"
+      ],
+      "objects": [
+        "Wanderer",
+        "Rucksack",
+        "Wanderstock"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 52,
+      "path": "Synthetic/IMG_0052.jpg"
+    },
+    {
+      "key": "invoice_471838",
+      "description": "Ein abfotografiertes Rechnungsblatt liegt auf einem Tisch.",
+      "tags": [
+        "Rechnung",
+        "Dokument",
+        "Werkstatt"
+      ],
+      "objects": [
+        "Papier",
+        "Tisch"
+      ],
+      "ocr": "Werkstatt Nord\nRechnung 471838\nÖlwechsel\nGesamtbetrag 129,00 EUR",
+      "kind": "dokument",
+      "file_id": 53,
+      "path": "Synthetic/IMG_0053.jpg"
+    },
+    {
+      "key": "dinner_terrace",
+      "description": "Mehrere Personen sitzen bei Kerzenlicht an einem gedeckten Tisch auf einer Terrasse. Es ist dunkel, an der Wand hängen Lichterketten.",
+      "tags": [
+        "Abendessen",
+        "Terrasse",
+        "Kerze",
+        "Nacht",
+        "Lichterkette"
+      ],
+      "objects": [
+        "Person",
+        "Tisch",
+        "Kerze",
+        "Lichterkette"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 54,
+      "path": "Synthetic/IMG_0054.jpg"
+    },
+    {
+      "key": "rain_window",
+      "description": "Regentropfen bedecken eine Fensterscheibe. Dahinter sind unscharfe Häuser zu sehen.",
+      "tags": [
+        "Regen",
+        "Fenster",
+        "Haus"
+      ],
+      "objects": [
+        "Fenster",
+        "Haus"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 55,
+      "path": "Synthetic/IMG_0055.jpg"
+    },
+    {
+      "key": "sunset_lake",
+      "description": "Die tief stehende Sonne spiegelt sich orange auf einem ruhigen See. Am Ufer steht eine einzelne Bank.",
+      "tags": [
+        "Sonnenuntergang",
+        "See",
+        "Abend",
+        "Bank"
+      ],
+      "objects": [
+        "Sonne",
+        "Bank"
+      ],
+      "ocr": "",
+      "kind": "foto",
+      "file_id": 56,
+      "path": "Synthetic/IMG_0056.jpg"
+    }
+  ],
+  "queries": [
+    {
+      "id": "q01",
+      "group": "exakt",
+      "text": "Saugroboter Ladestation",
+      "relevant": [
+        "robot_vacuum"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q02",
+      "group": "exakt",
+      "text": "Labrador Sofa",
+      "relevant": [
+        "dog_sofa"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q03",
+      "group": "exakt",
+      "text": "Segelboot See",
+      "relevant": [
+        "boat_lake"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q04",
+      "group": "exakt",
+      "text": "Cappuccino Croissant",
+      "relevant": [
+        "coffee"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q05",
+      "group": "exakt",
+      "text": "Kerze Esszimmer",
+      "relevant": [
+        "dinner_indoor"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q06",
+      "group": "exakt",
+      "text": "Skifahren Schnee",
+      "relevant": [
+        "ski"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q07",
+      "group": "exakt",
+      "text": "Fahrrad Strand",
+      "relevant": [
+        "bike_red_beach",
+        "bike_blue_beach"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q08",
+      "group": "exakt",
+      "text": "Rose Garten",
+      "relevant": [
+        "flowers"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q09",
+      "group": "exakt",
+      "text": "Flughafen Koffer",
+      "relevant": [
+        "airport"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q10",
+      "group": "exakt",
+      "text": "Geburtstag Torte",
+      "relevant": [
+        "birthday"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q11",
+      "group": "umformuliert",
+      "text": "Hund am Meeresufer",
+      "relevant": [
+        "dog_surf"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q12",
+      "group": "umformuliert",
+      "text": "Rad am Sandstrand",
+      "relevant": [
+        "bike_red_beach",
+        "bike_blue_beach"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q13",
+      "group": "umformuliert",
+      "text": "Putzen mit einem Roboter",
+      "relevant": [
+        "robot_vacuum"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q14",
+      "group": "umformuliert",
+      "text": "Winterwanderung",
+      "relevant": [
+        "snow_hike"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q15",
+      "group": "umformuliert",
+      "text": "Frühstück mit Milchkaffee",
+      "relevant": [
+        "coffee"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q16",
+      "group": "umformuliert",
+      "text": "Menschen bei Livemusik",
+      "relevant": [
+        "concert"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q17",
+      "group": "umformuliert",
+      "text": "Boote am Liegeplatz",
+      "relevant": [
+        "harbor"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q18",
+      "group": "umformuliert",
+      "text": "Reise mit dem Flugzeug",
+      "relevant": [
+        "airport"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q19",
+      "group": "umformuliert",
+      "text": "Feier mit Geburtstagskuchen",
+      "relevant": [
+        "birthday"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q20",
+      "group": "umformuliert",
+      "text": "Hund jagt Spielzeug",
+      "relevant": [
+        "dog_ball"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q21",
+      "group": "umformuliert",
+      "text": "Niederschlag auf einer Glasscheibe",
+      "relevant": [
+        "rain_window"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q22",
+      "group": "umformuliert",
+      "text": "Abendrot am Wasser",
+      "relevant": [
+        "sunset_lake"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q23",
+      "group": "natuerliche_frage",
+      "text": "Zeig mir Bilder von einem Hund, der im Meer herumläuft",
+      "relevant": [
+        "dog_surf"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q24",
+      "group": "natuerliche_frage",
+      "text": "Wo haben wir draußen bei Kerzenschein gegessen?",
+      "relevant": [
+        "dinner_terrace"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q25",
+      "group": "natuerliche_frage",
+      "text": "Ich suche das Foto mit Wanderern im Schnee",
+      "relevant": [
+        "snow_hike"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q26",
+      "group": "natuerliche_frage",
+      "text": "Ein kleines Boot auf einem See mit Bergen dahinter",
+      "relevant": [
+        "boat_lake"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q27",
+      "group": "natuerliche_frage",
+      "text": "Das Bild mit einem Kaffee und etwas Gebäck dazu",
+      "relevant": [
+        "coffee"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q28",
+      "group": "natuerliche_frage",
+      "text": "Menschen warten mit Gepäck auf einen Zug",
+      "relevant": [
+        "train_platform"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q29",
+      "group": "natuerliche_frage",
+      "text": "Jemand ist auf einem Fahrrad im Wald unterwegs",
+      "relevant": [
+        "mountain_bike"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q30",
+      "group": "natuerliche_frage",
+      "text": "Ein Zimmer, in dem ein Bett und eine Infusion stehen",
+      "relevant": [
+        "hospital"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q31",
+      "group": "beziehung_verneinung",
+      "text": "rotes Fahrrad am Strand",
+      "relevant": [
+        "bike_red_beach"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q32",
+      "group": "beziehung_verneinung",
+      "text": "blaues Fahrrad neben rotem Auto",
+      "relevant": [
+        "bike_blue_car_red"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q33",
+      "group": "beziehung_verneinung",
+      "text": "rotes Auto vor blauem Haus",
+      "relevant": [
+        "red_car_blue_house"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q34",
+      "group": "beziehung_verneinung",
+      "text": "blaues Auto vor rotem Haus",
+      "relevant": [
+        "blue_car_red_house"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q35",
+      "group": "beziehung_verneinung",
+      "text": "Hund links neben Katze",
+      "relevant": [
+        "dog_left_cat"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q36",
+      "group": "beziehung_verneinung",
+      "text": "Katze links neben Hund",
+      "relevant": [
+        "cat_left_dog"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q37",
+      "group": "beziehung_verneinung",
+      "text": "Strand ohne Menschen",
+      "relevant": [
+        "empty_beach"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q38",
+      "group": "beziehung_verneinung",
+      "text": "Wanderer ohne Schnee",
+      "relevant": [
+        "summer_hike"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q39",
+      "group": "ocr_exakt",
+      "text": "471839",
+      "relevant": [
+        "invoice_471839"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q40",
+      "group": "ocr_exakt",
+      "text": "471838",
+      "relevant": [
+        "invoice_471838"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q41",
+      "group": "ocr_exakt",
+      "text": "4718390",
+      "relevant": [
+        "invoice_4718390"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q42",
+      "group": "ocr_exakt",
+      "text": "E_CONN_042",
+      "relevant": [
+        "screen_error"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q43",
+      "group": "ocr_exakt",
+      "text": "Sommer2026",
+      "relevant": [
+        "wifi"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q44",
+      "group": "ocr_exakt",
+      "text": "Jazz Eintritt frei",
+      "relevant": [
+        "poster"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q45",
+      "group": "ocr_exakt",
+      "text": "ÖBB Graz",
+      "relevant": [
+        "ticket"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q46",
+      "group": "ocr_exakt",
+      "text": "Bremsbeläge erneuert",
+      "relevant": [
+        "invoice_471839"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q47",
+      "group": "ocr_semantisch",
+      "text": "Rechnung für den Austausch der Bremsen",
+      "relevant": [
+        "invoice_471839"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q48",
+      "group": "ocr_semantisch",
+      "text": "Beleg über einen Ölwechsel",
+      "relevant": [
+        "invoice_471838"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q49",
+      "group": "ocr_semantisch",
+      "text": "Wie lautet der Zugang zum drahtlosen Gastnetz?",
+      "relevant": [
+        "wifi"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q50",
+      "group": "ocr_semantisch",
+      "text": "Ein kostenloses Jazzkonzert am Freitag",
+      "relevant": [
+        "poster"
+      ],
+      "note": ""
+    },
+    {
+      "id": "q51",
+      "group": "kein_treffer",
+      "text": "Pinguin auf einer Eisscholle",
+      "relevant": [],
+      "note": "Kein passendes Dokument vorhanden; Top-k allein darf nicht als richtiger Treffer zählen."
+    },
+    {
+      "id": "q52",
+      "group": "kein_treffer",
+      "text": "Unterwasseraufnahme eines Korallenriffs",
+      "relevant": [],
+      "note": "Kein passendes Dokument vorhanden; Top-k allein darf nicht als richtiger Treffer zählen."
+    },
+    {
+      "id": "q53",
+      "group": "kein_treffer",
+      "text": "Rechnung 9988776655",
+      "relevant": [],
+      "note": "Kein passendes Dokument vorhanden; Top-k allein darf nicht als richtiger Treffer zählen."
+    },
+    {
+      "id": "q54",
+      "group": "kein_treffer",
+      "text": "Hund fährt Motorrad",
+      "relevant": [],
+      "note": "Kein passendes Dokument vorhanden; Top-k allein darf nicht als richtiger Treffer zählen."
+    }
+  ]
+}

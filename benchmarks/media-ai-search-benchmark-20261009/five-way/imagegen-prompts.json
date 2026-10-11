@@ -1,0 +1,38 @@
+[
+  {
+    "key": "beach_dog",
+    "prompt": "A realistic candid holiday photograph: one golden retriever running through ankle deep sea water on a sandy beach, a red ball in its mouth, blue ocean and gentle waves. Daylight, no people, no writing or watermarks.",
+    "source": "/home/paul/.codex/generated_images/01a11f5c-7eb9-7d33-96ff-e3453a15eece/exec-0950ae93-2aab-432d-84f6-35691c6df06e.png",
+    "path": "IMG_0001.png"
+  },
+  {
+    "key": "winter_hiker",
+    "prompt": "A realistic candid outdoor photograph: one adult hiker wearing a bright red jacket and a blue backpack walking up a snow covered mountain trail. Evergreen trees, white snow and distant grey peaks. No writing, logos or watermarks.",
+    "source": "/home/paul/.codex/generated_images/01a11f5c-7eb9-7d33-96ff-e3453a15eece/exec-0eca1325-7c39-46f2-b493-6515c896436d.png",
+    "path": "IMG_0002.png"
+  },
+  {
+    "key": "summer_lake",
+    "prompt": "A realistic holiday photograph: two adults and one child having a picnic on a grassy shore of a mountain lake in summer. One green picnic blanket, bread and apples. A yellow canoe on the water. Green mountains, no snow. No writing, logos or watermarks.",
+    "source": "/home/paul/.codex/generated_images/01a11f5c-7eb9-7d33-96ff-e3453a15eece/exec-b2a9e1c8-1e2e-4b72-945f-35617e26ac33.png",
+    "path": "IMG_0003.png"
+  },
+  {
+    "key": "bicycle_park",
+    "prompt": "A realistic photograph of a red bicycle parked against a wooden bench in a leafy city park. Black wheels, green grass, dappled daylight. No people, no writing, no logos or watermarks.",
+    "source": "/home/paul/.codex/generated_images/01a11f5c-7eb9-7d33-96ff-e3453a15eece/exec-edc0fb17-2d37-4d80-bb5c-7fe8693355c6.png",
+    "path": "Fahrrad_Park_0004.png"
+  },
+  {
+    "key": "robot_vacuum",
+    "prompt": "A realistic photograph of a round white robotic vacuum cleaner on a wooden floor beside a grey sofa in a living room. A black cat is sitting on the sofa watching it. Daylight, no writing, logos or watermarks.",
+    "source": "/home/paul/.codex/generated_images/01a11f5c-7eb9-7d33-96ff-e3453a15eece/exec-ad9dc3b2-66d9-450b-8ec0-b0cd2d6a2e9e.png",
+    "path": "IMG_0005.png"
+  },
+  {
+    "key": "rain_umbrella",
+    "prompt": "A realistic candid street photograph of a single person holding a bright yellow umbrella while walking on wet pavement in a city during rain. Reflections and grey buildings, no visible signage, writing, logos or watermarks.",
+    "source": "/home/paul/.codex/generated_images/01a11f5c-7eb9-7d33-96ff-e3453a15eece/exec-a923920e-5dc3-4277-920c-0b79f8eed7c9.png",
+    "path": "IMG_0006.png"
+  }
+]

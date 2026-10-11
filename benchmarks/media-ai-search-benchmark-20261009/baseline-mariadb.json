@@ -1,0 +1,1082 @@
+{
+    "version": "11.8.9-MariaDB-ubu2404",
+    "sql": "Actual Metadata::validate\/upsert\/search called, binary collation and FULLTEXT index",
+    "variables": [
+        {
+            "Variable_name": "innodb_ft_enable_stopword",
+            "Value": "ON"
+        },
+        {
+            "Variable_name": "innodb_ft_min_token_size",
+            "Value": "3"
+        },
+        {
+            "Variable_name": "innodb_ft_server_stopword_table",
+            "Value": ""
+        }
+    ],
+    "queries": {
+        "q01": {
+            "keys": [
+                "robot_vacuum"
+            ],
+            "ms": 0.466311,
+            "relaxed_keys": [
+                "robot_vacuum"
+            ]
+        },
+        "q02": {
+            "keys": [
+                "dog_sofa"
+            ],
+            "ms": 0.302483,
+            "relaxed_keys": [
+                "dog_sofa",
+                "dog_surf"
+            ]
+        },
+        "q03": {
+            "keys": [
+                "boat_lake"
+            ],
+            "ms": 0.218585,
+            "relaxed_keys": [
+                "boat_lake",
+                "boat_sea",
+                "cat_water",
+                "sunset_lake",
+                "bike_blue_beach"
+            ]
+        },
+        "q04": {
+            "keys": [
+                "coffee"
+            ],
+            "ms": 1.223658,
+            "relaxed_keys": [
+                "coffee"
+            ]
+        },
+        "q05": {
+            "keys": [
+                "dinner_indoor"
+            ],
+            "ms": 0.98006,
+            "relaxed_keys": [
+                "dinner_indoor",
+                "birthday",
+                "dinner_terrace"
+            ]
+        },
+        "q06": {
+            "keys": [
+                "ski"
+            ],
+            "ms": 0.468311,
+            "relaxed_keys": [
+                "ski",
+                "snow_city",
+                "ski_sticks_only",
+                "snow_hike"
+            ]
+        },
+        "q07": {
+            "keys": [
+                "bike_red_beach",
+                "bike_blue_beach"
+            ],
+            "ms": 0.227533,
+            "relaxed_keys": [
+                "bike_red_beach",
+                "bike_blue_beach",
+                "bike_blue_car_red",
+                "bike_red_city",
+                "bicycle_stand",
+                "empty_beach",
+                "busy_beach",
+                "mountain_bike"
+            ]
+        },
+        "q08": {
+            "keys": [
+                "flowers"
+            ],
+            "ms": 0.450149,
+            "relaxed_keys": [
+                "flowers",
+                "terrace_day"
+            ]
+        },
+        "q09": {
+            "keys": [
+                "airport"
+            ],
+            "ms": 0.291438,
+            "relaxed_keys": [
+                "airport",
+                "train_platform"
+            ]
+        },
+        "q10": {
+            "keys": [
+                "birthday"
+            ],
+            "ms": 0.256458,
+            "relaxed_keys": [
+                "birthday"
+            ]
+        },
+        "q11": {
+            "keys": [
+                "dog_surf"
+            ],
+            "ms": 0.223869,
+            "relaxed_keys": [
+                "dog_surf",
+                "cat_left_dog",
+                "dog_ball",
+                "dog_left_cat",
+                "dog_sofa"
+            ]
+        },
+        "q12": {
+            "keys": [],
+            "ms": 0.219914,
+            "relaxed_keys": [
+                "mountain_bike",
+                "bike_red_beach",
+                "bike_blue_beach",
+                "empty_beach",
+                "busy_beach"
+            ]
+        },
+        "q13": {
+            "keys": [],
+            "ms": 0.191987,
+            "relaxed_keys": [
+                "unknown_device",
+                "hospital",
+                "coffee",
+                "wifi",
+                "washing_machine",
+                "vacuum",
+                "empty_beach",
+                "umbrella_street",
+                "breakfast",
+                "train_platform",
+                "mountain_bike",
+                "tea",
+                "ski",
+                "birthday",
+                "terrace_day",
+                "harbor",
+                "bike_blue_car_red",
+                "dinner_indoor",
+                "summer_hike",
+                "ticket",
+                "bike_red_beach",
+                "cat_left_dog",
+                "wedding",
+                "dog_ball",
+                "invoice_471839",
+                "boat_lake",
+                "receipt",
+                "invoice_4718390",
+                "screen_error",
+                "robot_vacuum",
+                "bread",
+                "bicycle_stand",
+                "red_car_blue_house",
+                "flowers",
+                "cat_water",
+                "blue_car_red_house",
+                "dog_sofa",
+                "snow_hike",
+                "invoice_471838",
+                "dinner_terrace",
+                "sunset_lake"
+            ]
+        },
+        "q14": {
+            "keys": [],
+            "ms": 0.255244,
+            "relaxed_keys": []
+        },
+        "q15": {
+            "keys": [],
+            "ms": 0.265857,
+            "relaxed_keys": [
+                "breakfast",
+                "coffee",
+                "wifi",
+                "washing_machine",
+                "unknown_device",
+                "vacuum",
+                "empty_beach",
+                "tea",
+                "ski",
+                "umbrella_street",
+                "train_platform",
+                "birthday",
+                "hospital",
+                "terrace_day",
+                "mountain_bike"
+            ]
+        },
+        "q16": {
+            "keys": [],
+            "ms": 0.273128,
+            "relaxed_keys": [
+                "busy_beach",
+                "empty_beach",
+                "dinner_indoor",
+                "dinner_terrace"
+            ]
+        },
+        "q17": {
+            "keys": [],
+            "ms": 0.200762,
+            "relaxed_keys": []
+        },
+        "q18": {
+            "keys": [],
+            "ms": 0.262635,
+            "relaxed_keys": [
+                "train_platform",
+                "airport",
+                "birthday",
+                "car_ferry",
+                "bike_blue_beach",
+                "boat_sea",
+                "wifi",
+                "washing_machine",
+                "unknown_device",
+                "vacuum",
+                "empty_beach",
+                "tea",
+                "ski",
+                "umbrella_street",
+                "breakfast",
+                "hospital",
+                "coffee",
+                "terrace_day",
+                "mountain_bike"
+            ]
+        },
+        "q19": {
+            "keys": [],
+            "ms": 0.220161,
+            "relaxed_keys": [
+                "wifi",
+                "washing_machine",
+                "unknown_device",
+                "vacuum",
+                "empty_beach",
+                "tea",
+                "ski",
+                "umbrella_street",
+                "breakfast",
+                "train_platform",
+                "birthday",
+                "hospital",
+                "coffee",
+                "terrace_day",
+                "mountain_bike"
+            ]
+        },
+        "q20": {
+            "keys": [],
+            "ms": 0.208973,
+            "relaxed_keys": [
+                "cat_left_dog",
+                "dog_ball",
+                "dog_left_cat",
+                "dog_surf",
+                "dog_sofa"
+            ]
+        },
+        "q21": {
+            "keys": [],
+            "ms": 0.18509,
+            "relaxed_keys": [
+                "dog_left_cat",
+                "terrace_day",
+                "bike_red_city",
+                "ticket",
+                "cat_left_dog",
+                "car_ferry",
+                "dog_ball",
+                "concert",
+                "sunrise_mountain",
+                "bread",
+                "dinner_terrace",
+                "tea",
+                "birthday",
+                "ski_sticks_only",
+                "poster",
+                "motorbike",
+                "cat_water",
+                "summer_hike",
+                "bike_blue_beach",
+                "bike_blue_car_red",
+                "unknown_device",
+                "vacuum",
+                "invoice_471839",
+                "boat_lake",
+                "breakfast",
+                "invoice_4718390",
+                "robot_vacuum",
+                "coffee",
+                "dog_sofa",
+                "boat_sea",
+                "snow_hike",
+                "invoice_471838",
+                "sunset_lake"
+            ]
+        },
+        "q22": {
+            "keys": [],
+            "ms": 0.242615,
+            "relaxed_keys": [
+                "dog_surf",
+                "busy_beach",
+                "cat_water"
+            ]
+        },
+        "q23": {
+            "keys": [],
+            "ms": 0.205122,
+            "relaxed_keys": [
+                "cat_left_dog",
+                "dog_ball",
+                "dog_left_cat",
+                "screen_error",
+                "dog_surf",
+                "dog_sofa",
+                "unknown_device",
+                "bike_red_beach",
+                "dinner_terrace",
+                "boat_sea",
+                "concert",
+                "empty_beach",
+                "bike_blue_beach",
+                "busy_beach",
+                "harbor",
+                "bike_blue_car_red",
+                "dinner_indoor",
+                "hospital",
+                "coffee",
+                "wifi",
+                "summer_hike",
+                "ticket",
+                "wedding",
+                "washing_machine",
+                "vacuum",
+                "invoice_471839",
+                "boat_lake",
+                "umbrella_street",
+                "breakfast",
+                "receipt",
+                "train_platform",
+                "invoice_4718390",
+                "robot_vacuum",
+                "bread",
+                "bicycle_stand",
+                "red_car_blue_house",
+                "flowers",
+                "cat_water",
+                "blue_car_red_house",
+                "mountain_bike",
+                "snow_hike",
+                "invoice_471838",
+                "sunset_lake"
+            ]
+        },
+        "q24": {
+            "keys": [],
+            "ms": 0.248998,
+            "relaxed_keys": [
+                "dinner_indoor",
+                "dinner_terrace"
+            ]
+        },
+        "q25": {
+            "keys": [],
+            "ms": 0.228143,
+            "relaxed_keys": [
+                "bike_red_beach",
+                "ski",
+                "snow_city",
+                "ski_sticks_only",
+                "snow_hike",
+                "wifi",
+                "washing_machine",
+                "unknown_device",
+                "vacuum",
+                "empty_beach",
+                "tea",
+                "umbrella_street",
+                "breakfast",
+                "train_platform",
+                "birthday",
+                "hospital",
+                "coffee",
+                "terrace_day",
+                "mountain_bike"
+            ]
+        },
+        "q26": {
+            "keys": [],
+            "ms": 0.293905,
+            "relaxed_keys": [
+                "boat_lake",
+                "cat_water",
+                "sunset_lake",
+                "rain_window",
+                "unknown_device",
+                "coffee",
+                "hospital",
+                "vacuum",
+                "breakfast",
+                "terrace_day",
+                "wifi",
+                "washing_machine",
+                "empty_beach",
+                "umbrella_street",
+                "train_platform",
+                "mountain_bike",
+                "tea",
+                "ski",
+                "birthday",
+                "bike_blue_car_red",
+                "boat_sea",
+                "harbor",
+                "dinner_indoor",
+                "summer_hike",
+                "ticket",
+                "cat_left_dog",
+                "dog_ball",
+                "invoice_471839",
+                "invoice_4718390",
+                "robot_vacuum",
+                "bread",
+                "dog_sofa",
+                "snow_hike",
+                "invoice_471838",
+                "dinner_terrace",
+                "car_ferry",
+                "bike_blue_beach",
+                "dog_left_cat",
+                "concert",
+                "sunrise_mountain",
+                "airport",
+                "bike_red_beach",
+                "wedding",
+                "receipt",
+                "screen_error",
+                "bicycle_stand",
+                "red_car_blue_house",
+                "flowers",
+                "blue_car_red_house",
+                "dog_surf"
+            ]
+        },
+        "q27": {
+            "keys": [],
+            "ms": 1.449718,
+            "relaxed_keys": [
+                "coffee",
+                "bike_red_beach",
+                "screen_error",
+                "unknown_device",
+                "hospital",
+                "wifi",
+                "washing_machine",
+                "vacuum",
+                "empty_beach",
+                "umbrella_street",
+                "breakfast",
+                "train_platform",
+                "mountain_bike",
+                "tea",
+                "ski",
+                "birthday",
+                "terrace_day",
+                "harbor",
+                "bike_blue_car_red",
+                "dinner_indoor",
+                "summer_hike",
+                "ticket",
+                "cat_left_dog",
+                "wedding",
+                "dog_ball",
+                "invoice_471839",
+                "boat_lake",
+                "receipt",
+                "invoice_4718390",
+                "robot_vacuum",
+                "bread",
+                "bicycle_stand",
+                "red_car_blue_house",
+                "flowers",
+                "cat_water",
+                "blue_car_red_house",
+                "dog_sofa",
+                "snow_hike",
+                "invoice_471838",
+                "dinner_terrace",
+                "sunset_lake"
+            ]
+        },
+        "q28": {
+            "keys": [],
+            "ms": 0.96618,
+            "relaxed_keys": [
+                "train_platform",
+                "busy_beach",
+                "wifi",
+                "empty_beach",
+                "ticket",
+                "ski",
+                "mountain_bike",
+                "cat_water",
+                "wedding",
+                "airport",
+                "poster",
+                "unknown_device",
+                "vacuum",
+                "breakfast",
+                "coffee",
+                "terrace_day",
+                "washing_machine",
+                "tea",
+                "umbrella_street",
+                "birthday",
+                "hospital",
+                "summer_hike",
+                "cat_left_dog",
+                "car_ferry",
+                "dog_ball",
+                "bike_blue_beach",
+                "bike_blue_car_red",
+                "dog_left_cat",
+                "concert",
+                "invoice_471839",
+                "boat_lake",
+                "sunrise_mountain",
+                "invoice_4718390",
+                "robot_vacuum",
+                "bread",
+                "dog_sofa",
+                "boat_sea",
+                "snow_hike",
+                "invoice_471838",
+                "dinner_terrace",
+                "sunset_lake"
+            ]
+        },
+        "q29": {
+            "keys": [],
+            "ms": 0.581834,
+            "relaxed_keys": [
+                "bike_red_beach",
+                "bike_blue_car_red",
+                "bike_blue_beach",
+                "bicycle_stand",
+                "bike_red_city",
+                "mountain_bike",
+                "boat_lake",
+                "unknown_device",
+                "invoice_4718390",
+                "dinner_terrace",
+                "boat_sea",
+                "empty_beach",
+                "cat_water",
+                "coffee",
+                "summer_hike",
+                "ticket",
+                "cat_left_dog",
+                "dog_ball",
+                "vacuum",
+                "invoice_471839",
+                "breakfast",
+                "robot_vacuum",
+                "bread",
+                "dog_sofa",
+                "snow_hike",
+                "invoice_471838",
+                "sunset_lake",
+                "car_ferry",
+                "dog_left_cat",
+                "concert",
+                "sunrise_mountain",
+                "terrace_day",
+                "harbor",
+                "dinner_indoor",
+                "hospital",
+                "wifi",
+                "wedding",
+                "washing_machine",
+                "umbrella_street",
+                "receipt",
+                "train_platform",
+                "screen_error",
+                "red_car_blue_house",
+                "flowers",
+                "blue_car_red_house"
+            ]
+        },
+        "q30": {
+            "keys": [],
+            "ms": 1.195847,
+            "relaxed_keys": [
+                "hospital",
+                "car_ferry",
+                "boat_sea",
+                "birthday",
+                "bike_blue_beach",
+                "terrace_day",
+                "wedding",
+                "concert",
+                "breakfast",
+                "bicycle_stand",
+                "sunset_lake",
+                "harbor",
+                "bike_blue_car_red",
+                "unknown_device",
+                "dinner_indoor",
+                "airport",
+                "coffee",
+                "dog_left_cat",
+                "bike_red_city",
+                "wifi",
+                "summer_hike",
+                "ticket",
+                "bike_red_beach",
+                "cat_left_dog",
+                "dog_ball",
+                "washing_machine",
+                "vacuum",
+                "empty_beach",
+                "snow_city",
+                "invoice_471839",
+                "tea",
+                "ski",
+                "boat_lake",
+                "umbrella_street",
+                "receipt",
+                "sunrise_mountain",
+                "train_platform",
+                "invoice_4718390",
+                "screen_error",
+                "robot_vacuum",
+                "bread",
+                "red_car_blue_house",
+                "flowers",
+                "cat_water",
+                "ski_sticks_only",
+                "poster",
+                "blue_car_red_house",
+                "motorbike",
+                "mountain_bike",
+                "dog_sofa"
+            ]
+        },
+        "q31": {
+            "keys": [
+                "bike_red_beach"
+            ],
+            "ms": 0.397451,
+            "relaxed_keys": [
+                "bike_red_beach",
+                "bike_blue_beach",
+                "bike_red_city",
+                "bike_blue_car_red",
+                "bicycle_stand",
+                "empty_beach",
+                "busy_beach",
+                "red_car_blue_house",
+                "motorbike",
+                "mountain_bike"
+            ]
+        },
+        "q32": {
+            "keys": [],
+            "ms": 0.278833,
+            "relaxed_keys": [
+                "bike_blue_car_red",
+                "blue_car_red_house",
+                "bike_blue_beach",
+                "red_car_blue_house",
+                "bike_red_beach",
+                "bike_red_city",
+                "bicycle_stand",
+                "car_ferry",
+                "mountain_bike",
+                "wifi",
+                "ticket",
+                "cat_left_dog",
+                "washing_machine",
+                "dog_left_cat",
+                "tea",
+                "receipt",
+                "birthday",
+                "robot_vacuum",
+                "coffee"
+            ]
+        },
+        "q33": {
+            "keys": [],
+            "ms": 0.59769,
+            "relaxed_keys": [
+                "red_car_blue_house",
+                "blue_car_red_house",
+                "bike_red_city",
+                "bike_blue_car_red",
+                "car_ferry",
+                "poster",
+                "rain_window",
+                "motorbike",
+                "bike_red_beach",
+                "wedding",
+                "concert",
+                "boat_lake",
+                "birthday",
+                "bicycle_stand"
+            ]
+        },
+        "q34": {
+            "keys": [],
+            "ms": 0.678692,
+            "relaxed_keys": [
+                "blue_car_red_house",
+                "red_car_blue_house",
+                "bike_blue_car_red",
+                "bike_red_city",
+                "car_ferry",
+                "poster",
+                "rain_window",
+                "bike_blue_beach",
+                "wedding",
+                "concert",
+                "boat_lake",
+                "birthday",
+                "bicycle_stand",
+                "motorbike"
+            ]
+        },
+        "q35": {
+            "keys": [
+                "cat_left_dog",
+                "dog_left_cat"
+            ],
+            "ms": 0.247955,
+            "relaxed_keys": [
+                "cat_left_dog",
+                "dog_left_cat",
+                "cat_water",
+                "dog_ball",
+                "dog_surf",
+                "dog_sofa",
+                "wifi",
+                "ticket",
+                "bike_red_beach",
+                "car_ferry",
+                "washing_machine",
+                "bike_blue_car_red",
+                "tea",
+                "receipt",
+                "birthday",
+                "robot_vacuum",
+                "coffee"
+            ]
+        },
+        "q36": {
+            "keys": [
+                "cat_left_dog",
+                "dog_left_cat"
+            ],
+            "ms": 0.315892,
+            "relaxed_keys": [
+                "cat_left_dog",
+                "dog_left_cat",
+                "cat_water",
+                "dog_ball",
+                "dog_surf",
+                "dog_sofa",
+                "wifi",
+                "ticket",
+                "bike_red_beach",
+                "car_ferry",
+                "washing_machine",
+                "bike_blue_car_red",
+                "tea",
+                "receipt",
+                "birthday",
+                "robot_vacuum",
+                "coffee"
+            ]
+        },
+        "q37": {
+            "keys": [],
+            "ms": 0.194959,
+            "relaxed_keys": [
+                "busy_beach",
+                "empty_beach",
+                "bike_red_beach",
+                "bike_blue_beach"
+            ]
+        },
+        "q38": {
+            "keys": [],
+            "ms": 0.213382,
+            "relaxed_keys": [
+                "snow_hike",
+                "summer_hike",
+                "snow_city",
+                "ski",
+                "ski_sticks_only"
+            ]
+        },
+        "q39": {
+            "keys": [
+                "invoice_471839",
+                "invoice_4718390"
+            ],
+            "ms": 2.588899,
+            "relaxed_keys": [
+                "invoice_471839",
+                "invoice_4718390"
+            ]
+        },
+        "q40": {
+            "keys": [
+                "invoice_471838"
+            ],
+            "ms": 0.586767,
+            "relaxed_keys": [
+                "invoice_471838"
+            ]
+        },
+        "q41": {
+            "keys": [
+                "invoice_4718390"
+            ],
+            "ms": 0.575434,
+            "relaxed_keys": [
+                "invoice_4718390"
+            ]
+        },
+        "q42": {
+            "keys": [
+                "screen_error"
+            ],
+            "ms": 0.264833,
+            "relaxed_keys": [
+                "screen_error"
+            ]
+        },
+        "q43": {
+            "keys": [
+                "wifi"
+            ],
+            "ms": 0.240151,
+            "relaxed_keys": [
+                "wifi"
+            ]
+        },
+        "q44": {
+            "keys": [
+                "poster"
+            ],
+            "ms": 0.613351,
+            "relaxed_keys": [
+                "poster"
+            ]
+        },
+        "q45": {
+            "keys": [
+                "ticket"
+            ],
+            "ms": 0.299594,
+            "relaxed_keys": [
+                "ticket"
+            ]
+        },
+        "q46": {
+            "keys": [
+                "invoice_471839"
+            ],
+            "ms": 0.325228,
+            "relaxed_keys": [
+                "invoice_471839"
+            ]
+        },
+        "q47": {
+            "keys": [],
+            "ms": 0.249274,
+            "relaxed_keys": [
+                "poster",
+                "invoice_471839",
+                "invoice_4718390",
+                "invoice_471838",
+                "unknown_device",
+                "concert",
+                "dinner_terrace"
+            ]
+        },
+        "q48": {
+            "keys": [],
+            "ms": 0.254312,
+            "relaxed_keys": [
+                "invoice_471838",
+                "mountain_bike",
+                "umbrella_street",
+                "sunrise_mountain",
+                "wedding",
+                "ski",
+                "airport",
+                "cat_water",
+                "poster"
+            ]
+        },
+        "q49": {
+            "keys": [],
+            "ms": 0.23884,
+            "relaxed_keys": [
+                "wifi",
+                "dog_ball",
+                "unknown_device",
+                "concert",
+                "dinner_terrace",
+                "summer_hike",
+                "ticket"
+            ]
+        },
+        "q50": {
+            "keys": [],
+            "ms": 0.281907,
+            "relaxed_keys": [
+                "poster",
+                "harbor",
+                "bike_blue_car_red",
+                "unknown_device",
+                "dinner_indoor",
+                "airport",
+                "hospital",
+                "coffee",
+                "boat_sea",
+                "wifi",
+                "summer_hike",
+                "ticket",
+                "bike_red_beach",
+                "cat_left_dog",
+                "dog_surf",
+                "wedding",
+                "car_ferry",
+                "dog_ball",
+                "bike_blue_beach",
+                "washing_machine",
+                "dog_left_cat",
+                "concert",
+                "vacuum",
+                "empty_beach",
+                "snow_city",
+                "invoice_471839",
+                "tea",
+                "ski",
+                "boat_lake",
+                "umbrella_street",
+                "breakfast",
+                "receipt",
+                "sunrise_mountain",
+                "train_platform",
+                "birthday",
+                "bike_red_city",
+                "invoice_4718390",
+                "screen_error",
+                "robot_vacuum",
+                "bread",
+                "bicycle_stand",
+                "red_car_blue_house",
+                "flowers",
+                "cat_water",
+                "terrace_day",
+                "ski_sticks_only",
+                "blue_car_red_house",
+                "motorbike",
+                "mountain_bike",
+                "dog_sofa"
+            ]
+        },
+        "q51": {
+            "keys": [],
+            "ms": 0.221202,
+            "relaxed_keys": [
+                "dog_left_cat",
+                "terrace_day",
+                "bike_red_city",
+                "ticket",
+                "cat_left_dog",
+                "car_ferry",
+                "dog_ball",
+                "concert",
+                "sunrise_mountain",
+                "bread",
+                "dinner_terrace",
+                "tea",
+                "birthday",
+                "ski_sticks_only",
+                "poster",
+                "motorbike",
+                "cat_water",
+                "summer_hike",
+                "bike_blue_beach",
+                "bike_blue_car_red",
+                "unknown_device",
+                "vacuum",
+                "invoice_471839",
+                "boat_lake",
+                "breakfast",
+                "invoice_4718390",
+                "robot_vacuum",
+                "coffee",
+                "dog_sofa",
+                "boat_sea",
+                "snow_hike",
+                "invoice_471838",
+                "sunset_lake"
+            ]
+        },
+        "q52": {
+            "keys": [],
+            "ms": 0.251345,
+            "relaxed_keys": []
+        },
+        "q53": {
+            "keys": [],
+            "ms": 0.27153,
+            "relaxed_keys": [
+                "invoice_471839",
+                "invoice_4718390",
+                "invoice_471838"
+            ]
+        },
+        "q54": {
+            "keys": [],
+            "ms": 0.45418,
+            "relaxed_keys": [
+                "motorbike",
+                "cat_left_dog",
+                "dog_ball",
+                "dog_left_cat",
+                "dog_surf",
+                "dog_sofa",
+                "ski",
+                "boat_lake",
+                "mountain_bike",
+                "boat_sea"
+            ]
+        }
+    }
+}

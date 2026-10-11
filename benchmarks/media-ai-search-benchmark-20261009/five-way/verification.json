@@ -1,0 +1,19 @@
+{
+  "dataset_sha256": "aae67526b4577c95527d0df3fd20c11f07952a222d2f2f3b798e1e22350dd6ea",
+  "retrieval_repeat_identical": true,
+  "pipeline_processed": 20,
+  "pipeline_errors": 0,
+  "pipeline_published": 0,
+  "original_synthetic_images_unchanged": true,
+  "frozen_qrels_unchanged": true,
+  "source_git_clean": true,
+  "source_snapshot_matches_current_files": true,
+  "ui_functional_checks": [
+    "query q020 selects contrasting bicycle results",
+    "OCR category updates all five summary rows",
+    "RECHNUNG filter leaves four queries",
+    "all query controls restored with q013 selected",
+    "browser error log empty"
+  ],
+  "own_test_containers_remaining": []
+}

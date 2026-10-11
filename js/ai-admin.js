@@ -4,7 +4,7 @@ async function init() {
  const root=document.getElementById('media-ai-admin'); if(!root || root.dataset.ready)return; root.dataset.ready='1';
  const i18n=window.MediaAIi18n;i18n.language=root.closest('.mai-shell')?.dataset.language||document.documentElement.lang;i18n.apply(root);root.lang=i18n.language;const tr=(key,values)=>i18n.t(key,values);
  root.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('keydown',event=>{if(event.key!=='Escape')return;event.preventDefault();event.stopPropagation();const cancel=new Event('cancel',{cancelable:true});dialog.dispatchEvent(cancel);if(!cancel.defaultPrevented)dialog.close();}));
- const $=id=>document.getElementById(id); let config=null,entries=[],cursor=null,logBusy=false,lastStatus=null,canManage=false,modelProbe=null,installBusy=false;
+ const $=id=>document.getElementById(id); let config=null,entries=[],cursor=null,logBusy=false,lastStatus=null,canManage=false,modelProbe=null,installBusy=false,processingState=null;
  const api=async(path,body)=>{const r=await fetch(OC.generateUrl('/apps/nextgallery/ai/admin/'+path),{method:body?'POST':'GET',credentials:'same-origin',headers:{'requesttoken':OC.requestToken,'Content-Type':'application/json','Accept':'application/json'},body:body?JSON.stringify(body):undefined}); if(!r.ok){let detail;try{detail=(await r.json()).error;}catch{}const error=Error(detail?tr(detail):tr('Anfrage fehlgeschlagen (HTTP {code}).',{code:r.status}));error.status=r.status;throw error;}return r.json();};
  const message=(text,error=false)=>{$('mai-message').textContent=tr(text);$('mai-message').classList.toggle('mai-error',error);};
  const el=(tag,text,raw=false)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=raw?text:tr(text);return n;};
@@ -42,7 +42,7 @@ async function init() {
   root.querySelectorAll('[data-embedding-qwen]').forEach(n=>n.hidden=!local||form.elements['embedding.family'].value!=='qwen3_vl');
   renderRequirements(automatic,local);
   const vectorFields=['location','family','model','local_auto_setup','local_profile','local_model_path','local_qwen_source','model_revision','url','max_edge','video_frames'];const changed=config&&vectorFields.some(key=>{const input=form.elements['embedding.'+key];return input&&(input.type==='checkbox'?input.checked:input.type==='number'?Number(input.value):input.value)!==config.embedding[key];});
-  root.querySelectorAll('[data-embedding-rebuild-notice]').forEach(n=>{n.hidden=!(dense&&(lastStatus?.embedding_rebuild?.required||changed&&Number(config?.embedding_total_count)>0));n.textContent=tr('Modellwechsel gilt für alle Benutzer. Neue Bildvektoren entstehen beim nächsten bestätigten Lauf. Alte Vektoren werden je Datei nach erfolgreicher Speicherung ersetzt; die Textsuche bleibt verfügbar.');});
+  root.querySelectorAll('[data-embedding-rebuild-notice]').forEach(n=>{n.hidden=!(dense&&(lastStatus?.embedding_rebuild?.required||changed&&Number(config?.embedding_total_count)>0));n.textContent=tr('Modellwechsel gilt für alle Benutzer. Beim Speichern bestätigst du den Reset oder behältst nachweislich kompatible Bildvektoren. Die Textsuche bleibt verfügbar.');});
   const provider=!local?'external':(form.elements['embedding.local_profile'].value==='full'?'full':'native');root.querySelectorAll('[data-embedding-provider]').forEach(n=>n.value=provider);
  }
  root.querySelectorAll('[data-embedding-provider]').forEach(select=>select.addEventListener('change',()=>{
@@ -56,7 +56,7 @@ async function init() {
  $('mai-embedding-test').onclick=async()=>{const button=$('mai-embedding-test');button.disabled=true;const target=$('mai-embedding-result');target.textContent=tr('Embedding-Dienst wird geprüft …');try{const info=await api('embedding-test',{});target.classList.toggle('mai-error',!info.ready);target.textContent=info.ready?tr('Bereit für Bilder, Video-Standbilder und Suchanfragen.')+' '+info.model+' · '+info.dimensions:tr(info.message);}catch(e){target.classList.add('mai-error');target.textContent=e.message;}finally{button.disabled=false;updateSaveState();}};
  const workspace=window.MediaAIWorkspace.create({root,api,tr,el,configuration:()=>config});
  const form=$('mai-form');
- let savedSnapshot=null,saving=false,saveError=false;
+ let savedSnapshot=null,saving=false,saveError=false,choosingModel=false;
  window.addEventListener('beforeunload',event=>{if(savedSnapshot!==null&&formSnapshot()!==savedSnapshot){event.preventDefault();event.returnValue='';}});
  const formSnapshot=()=>JSON.stringify([...form.elements].filter(i=>i.name&&!i.disabled&&!i.readOnly).map(i=>[i.name,i.type==='checkbox'?i.checked:i.value]));
  function updateSaveState(){
@@ -65,7 +65,7 @@ async function init() {
   const state=savedSnapshot===null?'loading':saving?'saving':dirty?(saveError?'error':'dirty'):'saved';
   const labels={loading:'Einstellungen werden geladen …',saving:'Wird gespeichert …',dirty:'Ungespeicherte Änderungen',error:'Nicht gespeichert · erneut versuchen',saved:'Gespeichert'};
   root.querySelectorAll('[data-save-status]').forEach(n=>{n.textContent=tr(labels[state]);n.dataset.state=state;});
-  root.querySelectorAll('button[type="submit"][form="mai-form"],#mai-form button[type="submit"]').forEach(b=>b.disabled=!dirty||saving||lastStatus?.state==='running'||lastStatus?.worker_busy);
+  root.querySelectorAll('button[type="submit"][form="mai-form"],#mai-form button[type="submit"]').forEach(b=>b.disabled=!dirty||saving||(processingState?.running||lastStatus?.state==='running')||lastStatus?.worker_busy);
   $('mai-savebar').hidden=!dirty&&!saving;
   const setupBusy=lastStatus?.online&&config?.embedding?.enabled&&config.embedding.location==='local'&&['preparing','runtime','downloading','verifying'].includes(lastStatus.embedding_service?.phase);
   $('mai-embedding-test').disabled=savedSnapshot===null||dirty||saving||setupBusy||(['native','full'].includes($('mai-embedding-provider').value)&&(!lastStatus?.embedding_service?.ready||(lastStatus.embedding_service.profile||'lite')!==selectedProfile()));
@@ -76,21 +76,37 @@ async function init() {
  for(const event of ['input','change'])form.addEventListener(event,e=>{if(e.target.name)updateSaveState();});
  function loadForm(){for(const input of form.elements){if(!input.name)continue;const parts=input.name.split('.');let v=parts.length===2?config[parts[0]][parts[1]]:config[parts[0]];if(input.dataset.defaultPrompt)v=v||config[parts[0]]['default_'+parts[1]];if(input.type==='checkbox')input.checked=Boolean(v);else if(Array.isArray(v))input.value=v.join('\n');else input.value=v??'';} form.querySelectorAll('[data-image-edge]').forEach(i=>i.dispatchEvent(new Event('input')));const allowed=config.can_configure_models;form.elements.user_id.readOnly=true; $('mai-model-settings').querySelectorAll('input,select,button').forEach(i=>i.disabled=!allowed);$('mai-model-settings').querySelectorAll('textarea').forEach(i=>{i.readOnly=!allowed;i.dispatchEvent(new Event('input'));});root.querySelectorAll('#mai-embedding-settings input,#mai-embedding-settings select,[data-model-admin]').forEach(i=>i.disabled=!allowed);processingExplanation(); savedSnapshot=formSnapshot();saveError=false;updateSaveState(); }
  async function saveForm(){
-  if(!config||saving)return false;if(savedSnapshot===formSnapshot())return true;if(lastStatus?.state==='running'||!form.reportValidity())return false;
+  if(!config||saving||choosingModel)return false;if(savedSnapshot===formSnapshot())return true;if((processingState?.running||lastStatus?.state==='running')||!form.reportValidity())return false;
   const submittedSnapshot=formSnapshot(),v=structuredClone(config);
   for(const i of form.elements){if(!i.name)continue;let x=i.type==='checkbox'?i.checked:i.type==='number'?Number(i.value):i.value;const parts=i.name.split('.');if(['folders','exclude_folders'].includes(i.name))x=i.value.split('\n').map(x=>x.trim()).filter(Boolean);if(i.dataset.defaultPrompt&&x===config[parts[0]]['default_'+parts[1]])x='';if(parts.length===2)v[parts[0]][parts[1]]=x;else v[parts[0]]=x;}
-  let embeddingChangeId='';
+  let embeddingChangeId='',embeddingChangeMode='',embeddingAutoRebuild=false;
   const keys=['location','family','model','local_auto_setup','local_profile','local_model_path','local_qwen_source','model_revision','url','max_edge','video_frames'];
-  if(Number(config.embedding_total_count)>0&&keys.some(key=>v.embedding[key]!==config.embedding[key])){
-   if(!await confirmModelAction('Embedding-Modell für alle Benutzer ändern?',tr('Betroffene Dateien: {files} · Konten: {accounts}. Benutzer bestätigen den Neuaufbau vor ihrem nächsten Bildsuch-Lauf. Alte Vektoren werden je Datei nach erfolgreichem Ersatz automatisch entfernt. Bis dahin können Bildsuch-Treffer fehlen. Beschreibungen, OCR und Originale bleiben erhalten.',{files:Number(config.embedding_total_count).toLocaleString(i18n.language),accounts:Number(config.embedding_accounts_count).toLocaleString(i18n.language)}),'Modellwechsel speichern'))return false;
-   if(formSnapshot()!==submittedSnapshot)return false;embeddingChangeId=config.embedding_config_id;
+  if(keys.some(key=>v.embedding[key]!==config.embedding[key])){
+   choosingModel=true;try{const preview=await api('embedding-change-preview',{config:v});
+   const choice=await chooseEmbeddingChange(preview);if(!choice||formSnapshot()!==submittedSnapshot)return false;
+   embeddingChangeId=preview.config_id;embeddingChangeMode=choice.mode;embeddingAutoRebuild=choice.rebuild;}finally{choosingModel=false;}
   }
   saving=true;saveError=false;updateSaveState();
-  try{config=await api('config',{config:v,embedding_change_id:embeddingChangeId});if(formSnapshot()===submittedSnapshot)loadForm();else savedSnapshot=submittedSnapshot;message('');return true;}
+  try{config=await api('config',{config:v,embedding_change_id:embeddingChangeId,embedding_change_mode:embeddingChangeMode,embedding_auto_rebuild:embeddingAutoRebuild});if(formSnapshot()===submittedSnapshot)loadForm();else savedSnapshot=submittedSnapshot;message('');return true;}
   catch(e){saveError=true;message(e.message,true);return false;}
   finally{saving=false;updateSaveState();}
  }
- form.addEventListener('submit',async e=>{e.preventDefault();await saveForm();});
+ form.addEventListener('submit',async e=>{e.preventDefault();try{await saveForm();}catch(error){message(error.message,true);}});
+ function chooseEmbeddingChange(preview){
+  const dialog=$('mai-embedding-change');$('mai-embedding-change-text').textContent=tr('Zurücksetzen löscht sofort alle Bildvektoren aller Benutzer und den lokalen Vektor-Verarbeitungsspeicher. Betroffene Dateien: {files} · Konten: {accounts}. Die Bildsuche füllt sich beim Neuaufbau wieder.',{files:Number(preview.files).toLocaleString(i18n.language),accounts:preview.accounts});
+  $('mai-embedding-change-keep').disabled=!preview.compatible;
+  $('mai-embedding-keep-reason').textContent=tr(preview.compatible?'Gleicher Vektorraum nachgewiesen. Vorhandene Vektoren können weiterverwendet werden.':preview.reason);
+  $('mai-embedding-auto-rebuild').checked=true;
+  return new Promise(resolve=>{const finish=mode=>{dialog.close();resolve(mode?{mode,rebuild:mode==='reset'&&$('mai-embedding-auto-rebuild').checked}:null);};$('mai-embedding-change-cancel').onclick=()=>finish(null);$('mai-embedding-change-reset').onclick=()=>finish('reset');$('mai-embedding-change-keep').onclick=()=>finish('keep');dialog.oncancel=e=>{e.preventDefault();finish(null);};dialog.showModal();$('mai-embedding-change-cancel').focus();});
+ }
+ async function processing(){
+  processingState=await api('processing');
+  $('mai-processing-admin-status').textContent=tr(processingState.paused?(processingState.running?'Alle Läufe gesperrt. Die aktuelle Datei wird noch abgeschlossen.':'Alle Läufe sind durch den Administrator pausiert.'):'Benutzerläufe sind erlaubt.');
+  $('mai-allow-runs').hidden=!processingState.paused;$('mai-allow-runs').disabled=processingState.running;
+  $('mai-pause-all').disabled=processingState.paused&&!processingState.running;
+  $('mai-processing-accounts').replaceChildren(...processingState.accounts.map(row=>el('li',row.user_id+' · '+tr(row.state==='running'?'Läuft':row.requested?'Vorgemerkt':row.paused?'Pausiert':'Bereit'),true)));
+ }
+ for(const [id,action] of [['mai-pause-all','pause_all'],['mai-allow-runs','allow_runs']])$(id).onclick=async()=>{try{if(action==='pause_all'&&!await confirmModelAction('Alle Benutzerläufe pausieren?','Die aktuelle Datei wird abgeschlossen. Vorgemerkte Starts werden entfernt; neue und automatische Läufe sind bis zur Freigabe gesperrt.','Alle pausieren'))return;await api('processing',{action});await processing();await status();}catch(error){message(error.message,true);}};
  function confirmModelAction(title,text,label,destructive=false){
   const dialog=$('mai-model-confirm');$('mai-model-confirm-title').textContent=tr(title);$('mai-model-confirm-text').textContent=tr(text);const ok=$('mai-model-confirm-ok');ok.textContent=tr(label);ok.classList.toggle('mai-model-remove',destructive);
   return new Promise(resolve=>{const finish=value=>{dialog.close();resolve(value);};$('mai-model-confirm-cancel').onclick=()=>finish(false);ok.onclick=()=>finish(true);dialog.oncancel=e=>{e.preventDefault();finish(false);};dialog.showModal();$('mai-model-confirm-cancel').focus();});
@@ -114,10 +130,10 @@ async function init() {
   const active=lastStatus?.embedding_install_requested&&(lastStatus.embedding_install_profile||'lite')===profile&&['not_installed','disabled',undefined].includes(health?.phase)||['preparing','runtime','downloading','verifying'].includes(health?.phase);
   const dirty=savedSnapshot!==null&&savedSnapshot!==formSnapshot();
   root.querySelectorAll('[data-embedding-install]').forEach(button=>{
-   button.hidden=!native||Boolean(installed);button.disabled=!config?.can_configure_models||!lastStatus?.online||!supported||lastStatus?.embedding_remove?.requested||installBusy||active||saving||(dirty&&lastStatus?.state==='running');
+   button.hidden=!native||Boolean(installed);button.disabled=!config?.can_configure_models||!lastStatus?.online||!supported||lastStatus?.embedding_remove?.requested||installBusy||active||saving||(dirty&&(processingState?.running||lastStatus?.state==='running'));
    button.textContent=tr(active||installBusy?'Einrichtung läuft …':health?.phase==='error'?'Installation erneut versuchen':dirty?'Speichern und Gemma installieren':'Gemma installieren');
   });
-  root.querySelectorAll('[data-embedding-remove]').forEach(button=>{button.hidden=!native||!installed;button.disabled=!config?.can_configure_models||!lastStatus?.online||!lastStatus?.embedding_remove_supported||installBusy||lastStatus?.embedding_remove?.requested||lastStatus?.embedding_install_requested||lastStatus?.state==='running';button.title=tr(lastStatus?.state==='running'?'Zum Entfernen zuerst die laufende Verarbeitung pausieren.':'Modell und Laufzeit deinstallieren');});
+  root.querySelectorAll('[data-embedding-remove]').forEach(button=>{button.hidden=!native||!installed;button.disabled=!config?.can_configure_models||!lastStatus?.online||!lastStatus?.embedding_remove_supported||installBusy||lastStatus?.embedding_remove?.requested||lastStatus?.embedding_install_requested||(processingState?.running||lastStatus?.state==='running');button.title=tr((processingState?.running||lastStatus?.state==='running')?'Zum Entfernen zuerst die laufende Verarbeitung pausieren.':'Modell und Laufzeit deinstallieren');});
  }
  root.querySelectorAll('[data-embedding-remove]').forEach(button=>button.addEventListener('click',async()=>{
   if(button.disabled)return;
@@ -188,7 +204,7 @@ async function init() {
   for(const id of ['mai-embedding-setup-processing','mai-embedding-setup-settings']){const n=$(id);if(!n)continue;n.hidden=!local;n.textContent=text;n.classList.toggle('mai-error',Boolean(s.online&&health?.phase==='error'));}
   renderEmbeddingInstall();
  }
- async function status(){try{lastStatus=await api('status');embeddingSetupStatus(lastStatus);updateSaveState();workspace.status(lastStatus);}catch(e){message(e.message,true);}}
+ async function status(){try{lastStatus=await api('status');await processing();embeddingSetupStatus(lastStatus);updateSaveState();workspace.status(lastStatus);}catch(e){message(e.message,true);}}
  api('config').then(c=>{canManage=true;config=c;loadForm();workspace.start();status();}).catch(e=>message(e.status===403?'Nur Administratoren dürfen diese Einstellungen öffnen.':e.message,true));
  const timer=setInterval(()=>{if(!document.contains(root)){clearInterval(timer);return;}if(canManage&&!document.hidden)status();},5000);
 }

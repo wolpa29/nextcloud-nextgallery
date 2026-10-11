@@ -21,13 +21,17 @@ class AiAdminController extends Controller {
         return $this->settings->publicConfig()+['can_configure_models'=>$this->admin(),'embedding_count'=>$this->embeddings?->count($this->settings->get()['user_id'])??0,'embedding_total_count'=>$total,'embedding_accounts_count'=>count($accounts),'metadata_count'=>$this->metadata?->count($this->settings->get()['user_id'])??0];
     }
     public function config(): DataResponse { if($denied=$this->denied())return $denied; return new DataResponse($this->publicConfig()); }
-    public function save(array $config,string $embedding_change_id=''): DataResponse {
+    public function save(array $config,string $embedding_change_id='',string $embedding_change_mode='',bool $embedding_auto_rebuild=false): DataResponse {
         if($denied=$this->denied())return $denied;
         if ($this->state->anyRunning()) {
             return new DataResponse(['error'=>'Bitte zuerst pausieren und das Ende der aktuellen Datei abwarten.'],409);
         }
         $previous=$this->settings->get();
         if(($config['user_id']??null)!==$previous['user_id'])return new DataResponse(['error'=>'Die Verarbeitungsauswahl gehört zum eigenen Benutzerkonto.'],400);
+        if($this->embeddings){
+            try{$result=$this->processing()->save($config,$embedding_change_id,$embedding_change_mode,$embedding_auto_rebuild);return new DataResponse($this->publicConfig()+['model_change'=>$result]);}
+            catch(\OCP\AppFramework\OCS\OCSBadRequestException $e){return new DataResponse(['error'=>$e->getMessage()],409);}
+        }
         $confirmationMissing=false;
         try {
             $this->settings->save($config,function(array $candidate)use($previous,$embedding_change_id,&$confirmationMissing){
@@ -40,6 +44,21 @@ class AiAdminController extends Controller {
         $current=$this->settings->get();
         if(Settings::embeddingSignature($previous)!==Settings::embeddingSignature($current))foreach($this->embeddings?->accounts()??[] as $uid){$account=$this->settings->forUser($uid)->get();$this->state->forUser($uid)->requireEmbeddingRebuild(Settings::embeddingSignature($account),['model'=>$current['embedding']['model'],'file_count'=>$this->embeddings->count($uid)]);}
         return new DataResponse($this->publicConfig());
+    }
+    private function processing():\OCA\Nextgallery\AI\Service\ProcessingAdministration {
+        if(!$this->embeddings)throw new \RuntimeException('Embedding storage unavailable');
+        return new \OCA\Nextgallery\AI\Service\ProcessingAdministration($this->settings,$this->state,$this->embeddings,$this->embeddingClient??new \OCA\Nextgallery\AI\Service\EmbeddingClient());
+    }
+    public function processingStatus():DataResponse {if($denied=$this->denied())return $denied;return new DataResponse($this->processing()->overview());}
+    public function processingControl(string $action):DataResponse {
+        if($denied=$this->denied())return $denied;
+        try{return new DataResponse(match($action){'pause_all'=>$this->processing()->pauseAll(),'allow_runs'=>$this->processing()->allowRuns(),default=>throw new \OCP\AppFramework\OCS\OCSBadRequestException('Unbekannte Aktion')});}
+        catch(\OCP\AppFramework\OCS\OCSBadRequestException $e){return new DataResponse(['error'=>$e->getMessage()],409);}
+    }
+    public function embeddingChangePreview(array $config):DataResponse {
+        if($denied=$this->denied())return $denied;
+        try{return new DataResponse($this->processing()->preview($config));}
+        catch(\OCP\AppFramework\OCS\OCSBadRequestException $e){return new DataResponse(['error'=>$e->getMessage()],400);}
     }
     public function library(string $path = '', string $filter = 'all', string $query = '', int $offset = 0): DataResponse {
         if ($denied=$this->denied()) { return $denied; }

@@ -117,7 +117,7 @@ class Settings {
         if (!is_int($value) || $value < $min || $value > $max) { throw new OCSBadRequestException("Ungültiger Wert für $name"); }
         return $value;
     }
-    public function save(array $value, ?callable $validateFolders = null): array {
+    public function save(array $value, ?callable $validateFolders = null, bool $persist = true): array {
         $result = $this->defaults();
         if (!is_bool($value['enabled'] ?? null) || !is_string($value['user_id'] ?? null)
             || !preg_match('/^[^\/\\\\\x00]{1,64}$/uD', $value['user_id'])
@@ -198,6 +198,7 @@ class Settings {
         if($secret!==''||!empty($embedding['clear_api_key']))$secrets['embedding_api_key']=$secret;
         // Validate the entire form before writing any value or encrypted secret.
         if ($validateFolders !== null) { $validateFolders($result); }
+        if (!$persist) { return $result; }
         $this->config->setAppValue('nextgallery', 'ai_settings', json_encode($result, JSON_THROW_ON_ERROR));
         foreach ($secrets as $key => $secret) { $this->setSecret($key, $secret); }
         return $this->publicConfig();

@@ -1,0 +1,640 @@
+{
+    "version": "11.8.9-MariaDB-ubu2404",
+    "sql": "Actual Metadata::validate\/upsert\/search called, binary collation and FULLTEXT index",
+    "variables": [
+        {
+            "Variable_name": "innodb_ft_enable_stopword",
+            "Value": "ON"
+        },
+        {
+            "Variable_name": "innodb_ft_min_token_size",
+            "Value": "3"
+        },
+        {
+            "Variable_name": "innodb_ft_server_stopword_table",
+            "Value": ""
+        }
+    ],
+    "queries": {
+        "q001": {
+            "keys": [
+                "beach_dog"
+            ],
+            "ms": 0.638514,
+            "relaxed_keys": [
+                "beach_dog"
+            ]
+        },
+        "q002": {
+            "keys": [
+                "winter_hiker"
+            ],
+            "ms": 0.634092,
+            "relaxed_keys": [
+                "winter_hiker"
+            ]
+        },
+        "q003": {
+            "keys": [
+                "summer_lake"
+            ],
+            "ms": 0.493133,
+            "relaxed_keys": [
+                "summer_lake"
+            ]
+        },
+        "q004": {
+            "keys": [
+                "red_bike_beach",
+                "blue_bike_beach",
+                "chat_beach",
+                "bicycle_park",
+                "invoice_bike"
+            ],
+            "ms": 0.358452,
+            "relaxed_keys": [
+                "red_bike_beach",
+                "blue_bike_beach",
+                "bicycle_park",
+                "invoice_bike",
+                "chat_beach"
+            ]
+        },
+        "q005": {
+            "keys": [],
+            "ms": 0.317727,
+            "relaxed_keys": []
+        },
+        "q006": {
+            "keys": [
+                "rain_umbrella"
+            ],
+            "ms": 0.290457,
+            "relaxed_keys": [
+                "rain_umbrella"
+            ]
+        },
+        "q007": {
+            "keys": [
+                "invoice_coffee",
+                "invoice_bike"
+            ],
+            "ms": 0.230673,
+            "relaxed_keys": [
+                "invoice_coffee",
+                "invoice_bike"
+            ]
+        },
+        "q008": {
+            "keys": [
+                "menu_coffee"
+            ],
+            "ms": 0.207309,
+            "relaxed_keys": [
+                "menu_coffee"
+            ]
+        },
+        "q009": {
+            "keys": [
+                "exit_sign"
+            ],
+            "ms": 0.263881,
+            "relaxed_keys": [
+                "exit_sign"
+            ]
+        },
+        "q010": {
+            "keys": [
+                "train_ticket"
+            ],
+            "ms": 0.30112,
+            "relaxed_keys": [
+                "train_ticket"
+            ]
+        },
+        "q011": {
+            "keys": [
+                "circle_right",
+                "circle_left"
+            ],
+            "ms": 0.395044,
+            "relaxed_keys": [
+                "circle_right",
+                "circle_left",
+                "beach_dog",
+                "winter_hiker"
+            ]
+        },
+        "q012": {
+            "keys": [
+                "triangle_below",
+                "triangle_above"
+            ],
+            "ms": 1.09736,
+            "relaxed_keys": [
+                "triangle_below",
+                "triangle_above",
+                "summer_lake"
+            ]
+        },
+        "q013": {
+            "keys": [],
+            "ms": 1.143852,
+            "relaxed_keys": [
+                "beach_dog",
+                "summer_lake"
+            ]
+        },
+        "q014": {
+            "keys": [],
+            "ms": 1.084852,
+            "relaxed_keys": [
+                "beach_dog",
+                "blue_bike_beach"
+            ]
+        },
+        "q015": {
+            "keys": [],
+            "ms": 0.976726,
+            "relaxed_keys": [
+                "blue_bike_beach"
+            ]
+        },
+        "q016": {
+            "keys": [
+                "winter_hiker"
+            ],
+            "ms": 1.745286,
+            "relaxed_keys": [
+                "winter_hiker",
+                "chat_park",
+                "chat_beach",
+                "menu_coffee",
+                "red_bike_beach",
+                "rain_umbrella",
+                "menu_pizza",
+                "robot_vacuum",
+                "exit_sign",
+                "blue_bike_beach",
+                "invoice_coffee",
+                "train_ticket",
+                "bicycle_park",
+                "summer_lake",
+                "invoice_bike"
+            ]
+        },
+        "q017": {
+            "keys": [],
+            "ms": 1.437311,
+            "relaxed_keys": [
+                "summer_lake"
+            ]
+        },
+        "q018": {
+            "keys": [],
+            "ms": 0.320363,
+            "relaxed_keys": [
+                "summer_lake",
+                "chat_beach",
+                "chat_park",
+                "menu_coffee",
+                "red_bike_beach",
+                "rain_umbrella",
+                "winter_hiker",
+                "menu_pizza",
+                "robot_vacuum",
+                "exit_sign",
+                "blue_bike_beach",
+                "invoice_coffee",
+                "train_ticket",
+                "bicycle_park",
+                "invoice_bike"
+            ]
+        },
+        "q019": {
+            "keys": [],
+            "ms": 0.41722,
+            "relaxed_keys": [
+                "chat_park",
+                "red_bike_beach",
+                "chat_beach",
+                "bicycle_park",
+                "summer_lake",
+                "robot_vacuum"
+            ]
+        },
+        "q020": {
+            "keys": [],
+            "ms": 0.496997,
+            "relaxed_keys": [
+                "winter_hiker",
+                "red_bike_beach",
+                "blue_bike_beach",
+                "bicycle_park",
+                "invoice_bike",
+                "chat_beach"
+            ]
+        },
+        "q021": {
+            "keys": [],
+            "ms": 0.549557,
+            "relaxed_keys": [
+                "chat_park",
+                "invoice_coffee"
+            ]
+        },
+        "q022": {
+            "keys": [],
+            "ms": 0.823092,
+            "relaxed_keys": [
+                "robot_vacuum",
+                "chat_park",
+                "invoice_coffee"
+            ]
+        },
+        "q023": {
+            "keys": [],
+            "ms": 1.141851,
+            "relaxed_keys": [
+                "blue_bike_beach",
+                "bicycle_park",
+                "robot_vacuum"
+            ]
+        },
+        "q024": {
+            "keys": [],
+            "ms": 1.108424,
+            "relaxed_keys": [
+                "winter_hiker",
+                "blue_bike_beach",
+                "train_ticket",
+                "rain_umbrella",
+                "beach_dog",
+                "invoice_bike"
+            ]
+        },
+        "q025": {
+            "keys": [],
+            "ms": 0.923823,
+            "relaxed_keys": [
+                "beach_dog",
+                "chat_park",
+                "blue_bike_beach"
+            ]
+        },
+        "q026": {
+            "keys": [],
+            "ms": 0.575844,
+            "relaxed_keys": [
+                "chat_park",
+                "circle_right",
+                "chat_beach",
+                "triangle_above"
+            ]
+        },
+        "q027": {
+            "keys": [],
+            "ms": 0.678146,
+            "relaxed_keys": [
+                "beach_dog"
+            ]
+        },
+        "q028": {
+            "keys": [],
+            "ms": 0.233611,
+            "relaxed_keys": []
+        },
+        "q029": {
+            "keys": [],
+            "ms": 0.256114,
+            "relaxed_keys": []
+        },
+        "q030": {
+            "keys": [],
+            "ms": 0.252633,
+            "relaxed_keys": []
+        },
+        "q031": {
+            "keys": [],
+            "ms": 0.754493,
+            "relaxed_keys": []
+        },
+        "q032": {
+            "keys": [],
+            "ms": 0.712899,
+            "relaxed_keys": []
+        },
+        "q033": {
+            "keys": [],
+            "ms": 0.631546,
+            "relaxed_keys": [
+                "train_ticket"
+            ]
+        },
+        "q034": {
+            "keys": [],
+            "ms": 0.380477,
+            "relaxed_keys": []
+        },
+        "q035": {
+            "keys": [
+                "invoice_bike"
+            ],
+            "ms": 0.313502,
+            "relaxed_keys": [
+                "invoice_bike",
+                "invoice_coffee"
+            ]
+        },
+        "q036": {
+            "keys": [
+                "invoice_coffee"
+            ],
+            "ms": 0.279264,
+            "relaxed_keys": [
+                "invoice_coffee",
+                "invoice_bike"
+            ]
+        },
+        "q037": {
+            "keys": [
+                "invoice_bike"
+            ],
+            "ms": 0.233562,
+            "relaxed_keys": [
+                "invoice_bike"
+            ]
+        },
+        "q038": {
+            "keys": [
+                "invoice_coffee"
+            ],
+            "ms": 0.246382,
+            "relaxed_keys": [
+                "invoice_coffee"
+            ]
+        },
+        "q039": {
+            "keys": [
+                "menu_coffee",
+                "invoice_coffee",
+                "train_ticket",
+                "menu_pizza",
+                "invoice_bike"
+            ],
+            "ms": 0.218904,
+            "relaxed_keys": [
+                "menu_pizza",
+                "menu_coffee",
+                "invoice_bike",
+                "invoice_coffee",
+                "train_ticket"
+            ]
+        },
+        "q040": {
+            "keys": [
+                "menu_coffee",
+                "invoice_coffee",
+                "train_ticket",
+                "menu_pizza",
+                "invoice_bike"
+            ],
+            "ms": 0.214571,
+            "relaxed_keys": [
+                "menu_pizza",
+                "menu_coffee",
+                "invoice_bike",
+                "invoice_coffee",
+                "train_ticket"
+            ]
+        },
+        "q041": {
+            "keys": [],
+            "ms": 0.001666,
+            "relaxed_keys": []
+        },
+        "q042": {
+            "keys": [],
+            "ms": 0.000715,
+            "relaxed_keys": []
+        },
+        "q043": {
+            "keys": [
+                "menu_pizza"
+            ],
+            "ms": 0.200509,
+            "relaxed_keys": [
+                "menu_pizza"
+            ]
+        },
+        "q044": {
+            "keys": [
+                "train_ticket"
+            ],
+            "ms": 0.237469,
+            "relaxed_keys": [
+                "train_ticket"
+            ]
+        },
+        "q045": {
+            "keys": [],
+            "ms": 0.240171,
+            "relaxed_keys": [
+                "beach_dog",
+                "chat_beach",
+                "chat_park",
+                "menu_coffee",
+                "red_bike_beach",
+                "rain_umbrella",
+                "winter_hiker",
+                "menu_pizza",
+                "robot_vacuum",
+                "exit_sign",
+                "blue_bike_beach",
+                "invoice_coffee",
+                "train_ticket",
+                "bicycle_park",
+                "summer_lake",
+                "invoice_bike"
+            ]
+        },
+        "q046": {
+            "keys": [],
+            "ms": 0.263892,
+            "relaxed_keys": [
+                "summer_lake",
+                "triangle_below",
+                "triangle_above",
+                "robot_vacuum",
+                "menu_coffee",
+                "train_ticket",
+                "menu_pizza",
+                "invoice_bike",
+                "exit_sign",
+                "circle_right",
+                "red_bike_beach",
+                "rain_umbrella",
+                "blue_bike_beach",
+                "bicycle_park",
+                "circle_left"
+            ]
+        },
+        "q047": {
+            "keys": [],
+            "ms": 0.253565,
+            "relaxed_keys": [
+                "robot_vacuum",
+                "bicycle_park",
+                "red_bike_beach",
+                "rain_umbrella",
+                "blue_bike_beach",
+                "chat_park",
+                "chat_beach",
+                "menu_coffee",
+                "train_ticket",
+                "summer_lake",
+                "menu_pizza",
+                "invoice_bike",
+                "triangle_below",
+                "circle_right",
+                "exit_sign",
+                "triangle_above",
+                "circle_left"
+            ]
+        },
+        "q048": {
+            "keys": [],
+            "ms": 0.468471,
+            "relaxed_keys": [
+                "circle_right",
+                "circle_left",
+                "chat_park",
+                "beach_dog",
+                "winter_hiker"
+            ]
+        },
+        "q049": {
+            "keys": [],
+            "ms": 0.313547,
+            "relaxed_keys": [
+                "circle_right",
+                "circle_left",
+                "chat_park",
+                "blue_bike_beach",
+                "beach_dog",
+                "winter_hiker"
+            ]
+        },
+        "q050": {
+            "keys": [],
+            "ms": 0.25728,
+            "relaxed_keys": [
+                "triangle_below",
+                "triangle_above",
+                "summer_lake"
+            ]
+        },
+        "q051": {
+            "keys": [],
+            "ms": 0.411037,
+            "relaxed_keys": [
+                "triangle_below",
+                "triangle_above",
+                "winter_hiker",
+                "summer_lake"
+            ]
+        },
+        "q052": {
+            "keys": [
+                "blue_bike_beach"
+            ],
+            "ms": 0.309709,
+            "relaxed_keys": [
+                "blue_bike_beach",
+                "red_bike_beach",
+                "beach_dog",
+                "bicycle_park",
+                "invoice_bike",
+                "chat_beach",
+                "circle_right",
+                "circle_left"
+            ]
+        },
+        "q053": {
+            "keys": [],
+            "ms": 0.215741,
+            "relaxed_keys": []
+        },
+        "q054": {
+            "keys": [],
+            "ms": 0.205823,
+            "relaxed_keys": []
+        },
+        "q055": {
+            "keys": [],
+            "ms": 0.195696,
+            "relaxed_keys": []
+        },
+        "q056": {
+            "keys": [],
+            "ms": 0.354695,
+            "relaxed_keys": []
+        },
+        "q057": {
+            "keys": [],
+            "ms": 0.776077,
+            "relaxed_keys": []
+        },
+        "q058": {
+            "keys": [],
+            "ms": 0.559622,
+            "relaxed_keys": []
+        },
+        "q059": {
+            "keys": [],
+            "ms": 0.686806,
+            "relaxed_keys": [
+                "invoice_coffee",
+                "invoice_bike"
+            ]
+        },
+        "q060": {
+            "keys": [],
+            "ms": 0.495897,
+            "relaxed_keys": [
+                "beach_dog",
+                "chat_beach",
+                "chat_park",
+                "menu_coffee",
+                "red_bike_beach",
+                "rain_umbrella",
+                "winter_hiker",
+                "menu_pizza",
+                "robot_vacuum",
+                "exit_sign",
+                "blue_bike_beach",
+                "invoice_coffee",
+                "train_ticket",
+                "bicycle_park",
+                "summer_lake",
+                "invoice_bike"
+            ]
+        },
+        "q061": {
+            "keys": [],
+            "ms": 0.246211,
+            "relaxed_keys": [
+                "winter_hiker"
+            ]
+        },
+        "q062": {
+            "keys": [
+                "train_ticket"
+            ],
+            "ms": 0.39811,
+            "relaxed_keys": [
+                "train_ticket"
+            ]
+        }
+    }
+}

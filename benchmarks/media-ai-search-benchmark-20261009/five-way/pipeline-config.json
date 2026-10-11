@@ -1,0 +1,55 @@
+{
+  "database": "/home/paul/Desktop/Projects/tmp/media-ai-search-benchmark-20261009/five-way/state/media.sqlite3",
+  "source": {
+    "kind": "directory",
+    "directory": "/home/paul/Desktop/Projects/tmp/media-ai-search-benchmark-20261009/five-way/images"
+  },
+  "vision": {
+    "url": "http://10.1.10.78:1234/v1",
+    "model": "qwen/qwen3.8-27b",
+    "model_revision": "qwen3.8-27b-Q4_K_M-20261002",
+    "max_edge": 8192,
+    "max_tokens": 0,
+    "timeout_seconds": 7200,
+    "temperature": 0.2,
+    "allow_reasoning_json": true,
+    "stream": true,
+    "loop_repetitions": 5,
+    "numeric_loop_repetitions": 40,
+    "loop_retries": 3,
+    "retry_temperature": 1.0,
+    "retry_prompt": "",
+    "model_max_pixels": 4194304,
+    "transport": "lmstudio"
+  },
+  "ocr": {
+    "url": "http://10.1.10.78:1234/v1",
+    "model": "qwen/qwen3.8-27b",
+    "model_revision": "qwen3.8-27b-Q4_K_M-20261002",
+    "max_edge": 8192,
+    "max_tokens": 0,
+    "timeout_seconds": 7200,
+    "temperature": 1.0,
+    "stream": true,
+    "loop_repetitions": 5,
+    "numeric_loop_repetitions": 40,
+    "loop_retries": 3,
+    "retry_temperature": 1.0,
+    "retry_prompt": "",
+    "allow_reasoning_json": true,
+    "tile_overlap_percent": 10,
+    "max_batch_images": 20,
+    "model_max_pixels": 4194304,
+    "transport": "lmstudio"
+  },
+  "max_download_bytes": 67108864,
+  "max_image_pixels": 80000000,
+  "nextcloud": {
+    "enabled": false
+  },
+  "image_timeout_seconds": 600,
+  "video": {
+    "frame_count": 10
+  },
+  "max_video_download_bytes": 536870912
+}

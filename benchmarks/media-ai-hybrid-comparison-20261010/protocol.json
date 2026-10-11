@@ -1,0 +1,36 @@
+{
+  "new_comparison_parameters_fixed_before_evaluation": true,
+  "reuse_real_inference": true,
+  "new_model_calls": 0,
+  "dataset_sha256": "aae67526b4577c95527d0df3fd20c11f07952a222d2f2f3b798e1e22350dd6ea",
+  "vector_sha256": {
+    "image-vectors-768.npy": "16253a00b6fdbd136bf8ce776e3413366db6095d7c1945acae401afa45bc7885",
+    "joint-vectors-768.npy": "032fbba84fdc05339fb213a4e7c795765fcf2656c89ad3d79f7cd1c32928078b",
+    "query-vectors-768.npy": "75ca63d4b160e44106d83e0eee53e4bd341175a8494592137e8ba239a13cdfad",
+    "query_model_card-vectors-768.npy": "9231e54d8ae3e205dc6ed650c6d448248da8f3bb95a12670c069fae68d28566f"
+  },
+  "lexical_results_sha256": "9d118244a53ee69624e7328fc8071bb993a29a3ee15374d904282249a99118a2",
+  "model": {
+    "repository": "litert-community/embeddinggemma-2-text-vision-440m-litert-lm",
+    "revision": "e301f74d5551b0c2641bd5cb4652a76239d5c5f8",
+    "filename": "embeddinggemma-2-text-vision-440m.litertlm"
+  },
+  "joint_input": "One Gemma call: image + existing description/tags/objects, no OCR",
+  "image_input": "One Gemma call: same image, no description/OCR",
+  "lexical_primary": "Actual cached MariaDB FULLTEXT AND-prefix matching over description, tags, objects, OCR; ordered by record id as existing app",
+  "lexical_same_both_variants": true,
+  "lexical_not_filename_search": true,
+  "current_mysql_branch_verified": "Identical query predicates and order after table rename; not a new DB run",
+  "main_combination": "Equal-weight reciprocal rank fusion k=60; lexical nonmatches receive zero; complete 20-document semantic ranking",
+  "primary_queries": "42 content questions; 10 OCR, 6 filename, 4 absent controls separate",
+  "diagnostics": [
+    "Same fusion with OR/relevance text search",
+    "Lexical-first, vector orders text matches then fallback",
+    "Text weights 0.5, 1, 2; no tuning",
+    "256 dimensions",
+    "Alternative Google model-card query prefix",
+    "Vector candidates top5, top10, top20"
+  ],
+  "no_answer_based_threshold": true,
+  "limitations": "Reuses a previously inspected small fixed corpus; a follow-up comparison, not an unseen held-out benchmark. Qwen is not measured."
+}

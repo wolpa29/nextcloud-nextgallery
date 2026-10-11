@@ -43,6 +43,11 @@ class Embeddings {
   }catch(\Throwable $e){$this->db->rollBack();throw $e;}
  }
  public function reset(string $uid):void {$this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_ai_vectors WHERE user_id=?',[$uid]);}
+ public function resetAll():void {$this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_ai_vectors');}
+ public function spaces():array {
+  $result=$this->db->executeQuery('SELECT DISTINCT space,dimensions FROM *PREFIX*nextgallery_ai_vectors');
+  try{return $result->fetchAll();}finally{$result->closeCursor();}
+ }
  public function count(string $uid):int {
   $r=$this->db->executeQuery('SELECT COUNT(DISTINCT file_id) FROM *PREFIX*nextgallery_ai_vectors WHERE user_id=?',[$uid]);try{return (int)$r->fetchOne();}finally{$r->closeCursor();}
  }

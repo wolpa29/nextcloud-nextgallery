@@ -328,7 +328,7 @@ def cycle(api,config,directory,reporter,control):
         reporter.run_id=uuid.uuid4().hex
         reporter.update(state='running',current=None,started_at=time.time(),message='Ausgewählte Verarbeitungsschritte',analysis_enabled=config.get('analysis_enabled',True),embedding_enabled=config.get('embedding',{}).get('enabled',False),analysis_stats={} if not config.get('analysis_enabled',True) else store.stats())
         reporter.event('run_start',kind=kind)
-        stop=lambda:read(directory/'control.json',{'paused':True}).get('paused',True)
+        stop=lambda:read(directory/'control.json',{'paused':True}).get('paused',True) or read(Path(config.get('_model_directory',directory))/'processing-admin.json',{}).get('paused',False)
         analysis={'state':'disabled','processed':0,'errors':0,'published':0,'cached_stage_results':0}
         if config.get('analysis_enabled',True):
             models={}
@@ -431,14 +431,21 @@ def main():
                     candidates=account_directories(directory,global_config['user_id'])
                     candidates.sort(key=lambda item:(not read(item[1]/'control.json',{}).get('reset_requested'),not read(item[1]/'control.json',{}).get('requested'),read(item[1]/'control.json',{}).get('updated_at',0),item[0]))
                     active=False
+                    if read(directory/'processing-admin.json',{}).get('paused',False):
+                        candidates=[]
                     for uid,account_directory in candidates:
                         scoped_api=API(bootstrap,uid)
                         control=read(account_directory/'control.json',{'paused':True});schedule=read(account_directory/'schedule.json',{})
                         if not control.get('reset_requested') and control.get('paused',True):
                             if account_directory==directory:reporter.update(**waiting_status(control))
                             continue
-                        child=None
+                        child=None;processing_lock=None
                         try:
+                            processing_lock=(directory/'processing.lock').open('a')
+                            fcntl.flock(processing_lock,fcntl.LOCK_SH|fcntl.LOCK_NB)
+                            if read(directory/'processing-admin.json',{}).get('paused',False):continue
+                            control=read(account_directory/'control.json',{'paused':True})
+                            if not control.get('reset_requested') and control.get('paused',True):continue
                             config=scoped_api.call('config');config['_model_directory']=str(directory)
                             if not control.get('reset_requested') and not is_due(config,control,schedule):continue
                             if schedule.get('embedding_pending') and not embedding_ready and not control.get('requested') and not control.get('reset_requested'):continue
@@ -466,6 +473,8 @@ def main():
                         except (p.PipelineError,ValueError,KeyError,TypeError,OSError) as error:
                             if child:child.event('worker_error',level='error',error=str(error)[:300]);child.update(state='error',current=None,message=str(error)[:300])
                         finally:
+                            if processing_lock is not None:
+                                fcntl.flock(processing_lock,fcntl.LOCK_UN);processing_lock.close()
                             reporter.update(active_user_id=None)
                             if child is not None and child is not reporter:child.close(preserve=True)
                         if active:break  # One account at a time; explicit requests precede schedules.

@@ -1,0 +1,15 @@
+{
+  "primary_text_model": "embeddinggemma-2-text-270m, pinned previous model revision",
+  "primary_image_model": "embeddinggemma-2-text-vision-440m, e301f74d5551b0c2641bd5cb4652a76239d5c5f8",
+  "dimensions": 768,
+  "image_tokens": 140,
+  "query_prefix": "task: search result | query: ",
+  "document_prefix": "title: none | text: ",
+  "combined": "Two separate indexes; equal-weight reciprocal rank fusion, k=60; no lexical rescue",
+  "diagnostics": [
+    "mean of metadata/image cosine scores at fixed 0.5/0.5",
+    "LiteRT guide alternative query/document prefixes"
+  ],
+  "decision": "Frozen before any embeddings or retrieval; no tuning/threshold trained on test answers",
+  "main_metrics": "Hit@1, Hit@5, MRR; answerable content queries separately from filename controls; no-match queries separately"
+}

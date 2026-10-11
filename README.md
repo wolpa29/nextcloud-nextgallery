@@ -61,6 +61,7 @@ AGPL-3.0-or-later; third-party library and basemap licenses are recorded in [NOT
 
 | Version | Android companion | Legal revision | Technical changes | Legal changes |
 | --- | --- | --- | --- | --- |
+| 0.4.9 | Native app unchanged | No policy or legal change | Central pause for all user runs; confirmed global vector/cache reset with optional automatic embedding rebuild; retain vectors only after a matching vector-space check; synthetic comparison data and scripts under benchmarks/. | None. |
 | 0.4.8 | Native app unchanged | No policy or legal change | Central admin model settings; personal folders, exclusions and schedules; separate description/vector inventory counts and filters; confirmed model changes across accounts; automatic replacement of old file vectors after successful publication; accessible responsive dialogs and consistent light/dark UI. | None. |
 | 0.4.5 | Native app unchanged | No policy or legal change | Optional hybrid image-vector search, managed LiteRT/full Gemma CPU models, explicit installation/removal and vector-rebuild confirmation. | None. |
 | 0.4.1 | Native app unchanged | No policy or legal change | Direct autosaving settings and theme/language choices, synchronized display controls, explicit-theme fixes, and prominent AI entry on desktop and mobile. | None. |
@@ -74,3 +75,5 @@ AGPL-3.0-or-later; third-party library and basemap licenses are recorded in [NOT
 ## Network source offer
 
 For a public installation, offer the exact corresponding server source to network users under the AGPL. After building, run `python3 scripts/source-archive.py /private/output/nextgallery-server-0.4.8-source.tar.gz`, publish this server-only archive and configure `occ config:app:set nextgallery source_url --value=https://YOUR-HOST/nextgallery-server-0.4.8-source.tar.gz`. The sidebar then includes a DE/EN download link. The archive contains original frontend/PHP sources, generated assets, build manifests/scripts and the bundled third-party library sources/licences; it contains no Android repository, credentials, generated sample photos or Git history. A private GitHub link alone is not a public source offer.
+
+Synthetic retrieval comparisons, reports, saved vectors and verification scripts: [benchmarks](benchmarks/README.md). Current model-transition and search behavior: [embeddings](docs/EMBEDDINGS.md).

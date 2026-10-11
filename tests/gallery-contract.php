@@ -2,6 +2,7 @@
 /** Synthetic contracts on the disposable test Nextcloud only. */
 declare(strict_types=1);
 require '/var/www/html/lib/base.php';
+set_exception_handler(function(\Throwable $error){fwrite(STDERR,get_class($error).': '.$error->getMessage()."\n");exit(1);});
 use OCP\Server;
 use OCP\{IConfig,IUserSession,IUserManager};
 use OCP\Files\IRootFolder;

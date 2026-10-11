@@ -1,0 +1,1050 @@
+{
+  "priority": "Minimize missing labeled matches; additional suggestions are acceptable. Top1 is secondary.",
+  "query_and_labels_unchanged": true,
+  "new_inference": false,
+  "inputs_sha256": {
+    "dataset.json": "aae67526b4577c95527d0df3fd20c11f07952a222d2f2f3b798e1e22350dd6ea",
+    "results.json": "b8fd234e0a44719a5658b780c854b69644c56edf7f188db67e4b4cc0d353f186"
+  },
+  "methods": {
+    "joint": {
+      "content": [
+        {
+          "depth": 1,
+          "queries": 42,
+          "queries_with_all_labeled_matches": 36,
+          "queries_with_any_labeled_match": 40,
+          "labeled_matches_found": 40,
+          "labeled_matches_total": 47,
+          "micro_recall": 0.851063829787234,
+          "macro_recall": 0.9007936507936508,
+          "labeled_precision": 0.9523809523809523,
+          "average_suggestions": 1.0,
+          "missing": [
+            {
+              "id": "q004",
+              "query": "Fahrrad",
+              "missing": [
+                "blue_bike_beach",
+                "red_bike_beach"
+              ]
+            },
+            {
+              "id": "q007",
+              "query": "Rechnung",
+              "missing": [
+                "invoice_bike"
+              ]
+            },
+            {
+              "id": "q011",
+              "query": "roter Kreis",
+              "missing": [
+                "circle_right"
+              ]
+            },
+            {
+              "id": "q012",
+              "query": "gelbes Dreieck",
+              "missing": [
+                "triangle_above"
+              ]
+            },
+            {
+              "id": "q048",
+              "query": "roter Kreis links vom blauen Quadrat",
+              "missing": [
+                "circle_left"
+              ]
+            },
+            {
+              "id": "q050",
+              "query": "gelbes Dreieck ueber gruenem Stern",
+              "missing": [
+                "triangle_above"
+              ]
+            }
+          ]
+        },
+        {
+          "depth": 3,
+          "queries": 42,
+          "queries_with_all_labeled_matches": 42,
+          "queries_with_any_labeled_match": 42,
+          "labeled_matches_found": 47,
+          "labeled_matches_total": 47,
+          "micro_recall": 1.0,
+          "macro_recall": 1.0,
+          "labeled_precision": 0.373015873015873,
+          "average_suggestions": 3.0,
+          "missing": []
+        },
+        {
+          "depth": 5,
+          "queries": 42,
+          "queries_with_all_labeled_matches": 42,
+          "queries_with_any_labeled_match": 42,
+          "labeled_matches_found": 47,
+          "labeled_matches_total": 47,
+          "micro_recall": 1.0,
+          "macro_recall": 1.0,
+          "labeled_precision": 0.22380952380952382,
+          "average_suggestions": 5.0,
+          "missing": []
+        },
+        {
+          "depth": 10,
+          "queries": 42,
+          "queries_with_all_labeled_matches": 42,
+          "queries_with_any_labeled_match": 42,
+          "labeled_matches_found": 47,
+          "labeled_matches_total": 47,
+          "micro_recall": 1.0,
+          "macro_recall": 1.0,
+          "labeled_precision": 0.11190476190476191,
+          "average_suggestions": 10.0,
+          "missing": []
+        }
+      ],
+      "content_and_ocr": [
+        {
+          "depth": 1,
+          "queries": 52,
+          "queries_with_all_labeled_matches": 46,
+          "queries_with_any_labeled_match": 50,
+          "labeled_matches_found": 50,
+          "labeled_matches_total": 57,
+          "micro_recall": 0.8771929824561403,
+          "macro_recall": 0.9198717948717949,
+          "labeled_precision": 0.9615384615384616,
+          "average_suggestions": 1.0,
+          "missing": [
+            {
+              "id": "q004",
+              "query": "Fahrrad",
+              "missing": [
+                "blue_bike_beach",
+                "red_bike_beach"
+              ]
+            },
+            {
+              "id": "q007",
+              "query": "Rechnung",
+              "missing": [
+                "invoice_bike"
+              ]
+            },
+            {
+              "id": "q011",
+              "query": "roter Kreis",
+              "missing": [
+                "circle_right"
+              ]
+            },
+            {
+              "id": "q012",
+              "query": "gelbes Dreieck",
+              "missing": [
+                "triangle_above"
+              ]
+            },
+            {
+              "id": "q048",
+              "query": "roter Kreis links vom blauen Quadrat",
+              "missing": [
+                "circle_left"
+              ]
+            },
+            {
+              "id": "q050",
+              "query": "gelbes Dreieck ueber gruenem Stern",
+              "missing": [
+                "triangle_above"
+              ]
+            }
+          ]
+        },
+        {
+          "depth": 3,
+          "queries": 52,
+          "queries_with_all_labeled_matches": 52,
+          "queries_with_any_labeled_match": 52,
+          "labeled_matches_found": 57,
+          "labeled_matches_total": 57,
+          "micro_recall": 1.0,
+          "macro_recall": 1.0,
+          "labeled_precision": 0.36538461538461536,
+          "average_suggestions": 3.0,
+          "missing": []
+        },
+        {
+          "depth": 5,
+          "queries": 52,
+          "queries_with_all_labeled_matches": 52,
+          "queries_with_any_labeled_match": 52,
+          "labeled_matches_found": 57,
+          "labeled_matches_total": 57,
+          "micro_recall": 1.0,
+          "macro_recall": 1.0,
+          "labeled_precision": 0.21923076923076923,
+          "average_suggestions": 5.0,
+          "missing": []
+        },
+        {
+          "depth": 10,
+          "queries": 52,
+          "queries_with_all_labeled_matches": 52,
+          "queries_with_any_labeled_match": 52,
+          "labeled_matches_found": 57,
+          "labeled_matches_total": 57,
+          "micro_recall": 1.0,
+          "macro_recall": 1.0,
+          "labeled_precision": 0.10961538461538461,
+          "average_suggestions": 10.0,
+          "missing": []
+        }
+      ],
+      "multiple_matches": [
+        {
+          "depth": 1,
+          "queries": 4,
+          "queries_with_all_labeled_matches": 0,
+          "queries_with_any_labeled_match": 4,
+          "labeled_matches_found": 4,
+          "labeled_matches_total": 9,
+          "micro_recall": 0.4444444444444444,
+          "macro_recall": 0.4583333333333333,
+          "labeled_precision": 1.0,
+          "average_suggestions": 1.0,
+          "missing": [
+            {
+              "id": "q004",
+              "query": "Fahrrad",
+              "missing": [
+                "blue_bike_beach",
+                "red_bike_beach"
+              ]
+            },
+            {
+              "id": "q007",
+              "query": "Rechnung",
+              "missing": [
+                "invoice_bike"
+              ]
+            },
+            {
+              "id": "q011",
+              "query": "roter Kreis",
+              "missing": [
+                "circle_right"
+              ]
+            },
+            {
+              "id": "q012",
+              "query": "gelbes Dreieck",
+              "missing": [
+                "triangle_above"
+              ]
+            }
+          ]
+        },
+        {
+          "depth": 3,
+          "queries": 4,
+          "queries_with_all_labeled_matches": 4,
+          "queries_with_any_labeled_match": 4,
+          "labeled_matches_found": 9,
+          "labeled_matches_total": 9,
+          "micro_recall": 1.0,
+          "macro_recall": 1.0,
+          "labeled_precision": 0.75,
+          "average_suggestions": 3.0,
+          "missing": []
+        },
+        {
+          "depth": 5,
+          "queries": 4,
+          "queries_with_all_labeled_matches": 4,
+          "queries_with_any_labeled_match": 4,
+          "labeled_matches_found": 9,
+          "labeled_matches_total": 9,
+          "micro_recall": 1.0,
+          "macro_recall": 1.0,
+          "labeled_precision": 0.45,
+          "average_suggestions": 5.0,
+          "missing": []
+        },
+        {
+          "depth": 10,
+          "queries": 4,
+          "queries_with_all_labeled_matches": 4,
+          "queries_with_any_labeled_match": 4,
+          "labeled_matches_found": 9,
+          "labeled_matches_total": 9,
+          "micro_recall": 1.0,
+          "macro_recall": 1.0,
+          "labeled_precision": 0.225,
+          "average_suggestions": 10.0,
+          "missing": []
+        }
+      ],
+      "ocr": [
+        {
+          "depth": 1,
+          "queries": 10,
+          "queries_with_all_labeled_matches": 10,
+          "queries_with_any_labeled_match": 10,
+          "labeled_matches_found": 10,
+          "labeled_matches_total": 10,
+          "micro_recall": 1.0,
+          "macro_recall": 1.0,
+          "labeled_precision": 1.0,
+          "average_suggestions": 1.0,
+          "missing": []
+        },
+        {
+          "depth": 3,
+          "queries": 10,
+          "queries_with_all_labeled_matches": 10,
+          "queries_with_any_labeled_match": 10,
+          "labeled_matches_found": 10,
+          "labeled_matches_total": 10,
+          "micro_recall": 1.0,
+          "macro_recall": 1.0,
+          "labeled_precision": 0.3333333333333333,
+          "average_suggestions": 3.0,
+          "missing": []
+        },
+        {
+          "depth": 5,
+          "queries": 10,
+          "queries_with_all_labeled_matches": 10,
+          "queries_with_any_labeled_match": 10,
+          "labeled_matches_found": 10,
+          "labeled_matches_total": 10,
+          "micro_recall": 1.0,
+          "macro_recall": 1.0,
+          "labeled_precision": 0.2,
+          "average_suggestions": 5.0,
+          "missing": []
+        },
+        {
+          "depth": 10,
+          "queries": 10,
+          "queries_with_all_labeled_matches": 10,
+          "queries_with_any_labeled_match": 10,
+          "labeled_matches_found": 10,
+          "labeled_matches_total": 10,
+          "micro_recall": 1.0,
+          "macro_recall": 1.0,
+          "labeled_precision": 0.1,
+          "average_suggestions": 10.0,
+          "missing": []
+        }
+      ],
+      "filename_control": [
+        {
+          "depth": 1,
+          "queries": 6,
+          "queries_with_all_labeled_matches": 3,
+          "queries_with_any_labeled_match": 3,
+          "labeled_matches_found": 3,
+          "labeled_matches_total": 6,
+          "micro_recall": 0.5,
+          "macro_recall": 0.5,
+          "labeled_precision": 0.5,
+          "average_suggestions": 1.0,
+          "missing": [
+            {
+              "id": "q053",
+              "query": "IMG_0001",
+              "missing": [
+                "beach_dog"
+              ]
+            },
+            {
+              "id": "q054",
+              "query": "IMG_0002",
+              "missing": [
+                "winter_hiker"
+              ]
+            },
+            {
+              "id": "q056",
+              "query": "SCAN_0007",
+              "missing": [
+                "invoice_bike"
+              ]
+            }
+          ]
+        },
+        {
+          "depth": 3,
+          "queries": 6,
+          "queries_with_all_labeled_matches": 3,
+          "queries_with_any_labeled_match": 3,
+          "labeled_matches_found": 3,
+          "labeled_matches_total": 6,
+          "micro_recall": 0.5,
+          "macro_recall": 0.5,
+          "labeled_precision": 0.16666666666666666,
+          "average_suggestions": 3.0,
+          "missing": [
+            {
+              "id": "q053",
+              "query": "IMG_0001",
+              "missing": [
+                "beach_dog"
+              ]
+            },
+            {
+              "id": "q054",
+              "query": "IMG_0002",
+              "missing": [
+                "winter_hiker"
+              ]
+            },
+            {
+              "id": "q056",
+              "query": "SCAN_0007",
+              "missing": [
+                "invoice_bike"
+              ]
+            }
+          ]
+        },
+        {
+          "depth": 5,
+          "queries": 6,
+          "queries_with_all_labeled_matches": 3,
+          "queries_with_any_labeled_match": 3,
+          "labeled_matches_found": 3,
+          "labeled_matches_total": 6,
+          "micro_recall": 0.5,
+          "macro_recall": 0.5,
+          "labeled_precision": 0.1,
+          "average_suggestions": 5.0,
+          "missing": [
+            {
+              "id": "q053",
+              "query": "IMG_0001",
+              "missing": [
+                "beach_dog"
+              ]
+            },
+            {
+              "id": "q054",
+              "query": "IMG_0002",
+              "missing": [
+                "winter_hiker"
+              ]
+            },
+            {
+              "id": "q056",
+              "query": "SCAN_0007",
+              "missing": [
+                "invoice_bike"
+              ]
+            }
+          ]
+        },
+        {
+          "depth": 10,
+          "queries": 6,
+          "queries_with_all_labeled_matches": 4,
+          "queries_with_any_labeled_match": 4,
+          "labeled_matches_found": 4,
+          "labeled_matches_total": 6,
+          "micro_recall": 0.6666666666666666,
+          "macro_recall": 0.6666666666666666,
+          "labeled_precision": 0.06666666666666667,
+          "average_suggestions": 10.0,
+          "missing": [
+            {
+              "id": "q054",
+              "query": "IMG_0002",
+              "missing": [
+                "winter_hiker"
+              ]
+            },
+            {
+              "id": "q056",
+              "query": "SCAN_0007",
+              "missing": [
+                "invoice_bike"
+              ]
+            }
+          ]
+        }
+      ],
+      "absent_queries_nonempty": 4
+    },
+    "image_text": {
+      "content": [
+        {
+          "depth": 1,
+          "queries": 42,
+          "queries_with_all_labeled_matches": 35,
+          "queries_with_any_labeled_match": 39,
+          "labeled_matches_found": 39,
+          "labeled_matches_total": 47,
+          "micro_recall": 0.8297872340425532,
+          "macro_recall": 0.8769841269841271,
+          "labeled_precision": 0.9285714285714286,
+          "average_suggestions": 1.0,
+          "missing": [
+            {
+              "id": "q004",
+              "query": "Fahrrad",
+              "missing": [
+                "bicycle_park",
+                "blue_bike_beach"
+              ]
+            },
+            {
+              "id": "q007",
+              "query": "Rechnung",
+              "missing": [
+                "invoice_bike"
+              ]
+            },
+            {
+              "id": "q011",
+              "query": "roter Kreis",
+              "missing": [
+                "circle_left"
+              ]
+            },
+            {
+              "id": "q012",
+              "query": "gelbes Dreieck",
+              "missing": [
+                "triangle_above"
+              ]
+            },
+            {
+              "id": "q020",
+              "query": "Fahrrad unter Baeumen",
+              "missing": [
+                "bicycle_park"
+              ]
+            },
+            {
+              "id": "q048",
+              "query": "roter Kreis links vom blauen Quadrat",
+              "missing": [
+                "circle_left"
+              ]
+            },
+            {
+              "id": "q051",
+              "query": "gelbes Dreieck unter gruenem Stern",
+              "missing": [
+                "triangle_below"
+              ]
+            }
+          ]
+        },
+        {
+          "depth": 3,
+          "queries": 42,
+          "queries_with_all_labeled_matches": 40,
+          "queries_with_any_labeled_match": 41,
+          "labeled_matches_found": 45,
+          "labeled_matches_total": 47,
+          "micro_recall": 0.9574468085106383,
+          "macro_recall": 0.9682539682539681,
+          "labeled_precision": 0.35714285714285715,
+          "average_suggestions": 3.0,
+          "missing": [
+            {
+              "id": "q004",
+              "query": "Fahrrad",
+              "missing": [
+                "bicycle_park"
+              ]
+            },
+            {
+              "id": "q020",
+              "query": "Fahrrad unter Baeumen",
+              "missing": [
+                "bicycle_park"
+              ]
+            }
+          ]
+        },
+        {
+          "depth": 5,
+          "queries": 42,
+          "queries_with_all_labeled_matches": 42,
+          "queries_with_any_labeled_match": 42,
+          "labeled_matches_found": 47,
+          "labeled_matches_total": 47,
+          "micro_recall": 1.0,
+          "macro_recall": 1.0,
+          "labeled_precision": 0.22380952380952382,
+          "average_suggestions": 5.0,
+          "missing": []
+        },
+        {
+          "depth": 10,
+          "queries": 42,
+          "queries_with_all_labeled_matches": 42,
+          "queries_with_any_labeled_match": 42,
+          "labeled_matches_found": 47,
+          "labeled_matches_total": 47,
+          "micro_recall": 1.0,
+          "macro_recall": 1.0,
+          "labeled_precision": 0.11190476190476191,
+          "average_suggestions": 10.0,
+          "missing": []
+        }
+      ],
+      "content_and_ocr": [
+        {
+          "depth": 1,
+          "queries": 52,
+          "queries_with_all_labeled_matches": 43,
+          "queries_with_any_labeled_match": 47,
+          "labeled_matches_found": 47,
+          "labeled_matches_total": 57,
+          "micro_recall": 0.8245614035087719,
+          "macro_recall": 0.8621794871794872,
+          "labeled_precision": 0.9038461538461539,
+          "average_suggestions": 1.0,
+          "missing": [
+            {
+              "id": "q004",
+              "query": "Fahrrad",
+              "missing": [
+                "bicycle_park",
+                "blue_bike_beach"
+              ]
+            },
+            {
+              "id": "q007",
+              "query": "Rechnung",
+              "missing": [
+                "invoice_bike"
+              ]
+            },
+            {
+              "id": "q011",
+              "query": "roter Kreis",
+              "missing": [
+                "circle_left"
+              ]
+            },
+            {
+              "id": "q012",
+              "query": "gelbes Dreieck",
+              "missing": [
+                "triangle_above"
+              ]
+            },
+            {
+              "id": "q020",
+              "query": "Fahrrad unter Baeumen",
+              "missing": [
+                "bicycle_park"
+              ]
+            },
+            {
+              "id": "q039",
+              "query": "42,50 EUR",
+              "missing": [
+                "invoice_bike"
+              ]
+            },
+            {
+              "id": "q040",
+              "query": "18,90 EUR",
+              "missing": [
+                "invoice_coffee"
+              ]
+            },
+            {
+              "id": "q048",
+              "query": "roter Kreis links vom blauen Quadrat",
+              "missing": [
+                "circle_left"
+              ]
+            },
+            {
+              "id": "q051",
+              "query": "gelbes Dreieck unter gruenem Stern",
+              "missing": [
+                "triangle_below"
+              ]
+            }
+          ]
+        },
+        {
+          "depth": 3,
+          "queries": 52,
+          "queries_with_all_labeled_matches": 50,
+          "queries_with_any_labeled_match": 51,
+          "labeled_matches_found": 55,
+          "labeled_matches_total": 57,
+          "micro_recall": 0.9649122807017544,
+          "macro_recall": 0.9743589743589743,
+          "labeled_precision": 0.3525641025641026,
+          "average_suggestions": 3.0,
+          "missing": [
+            {
+              "id": "q004",
+              "query": "Fahrrad",
+              "missing": [
+                "bicycle_park"
+              ]
+            },
+            {
+              "id": "q020",
+              "query": "Fahrrad unter Baeumen",
+              "missing": [
+                "bicycle_park"
+              ]
+            }
+          ]
+        },
+        {
+          "depth": 5,
+          "queries": 52,
+          "queries_with_all_labeled_matches": 52,
+          "queries_with_any_labeled_match": 52,
+          "labeled_matches_found": 57,
+          "labeled_matches_total": 57,
+          "micro_recall": 1.0,
+          "macro_recall": 1.0,
+          "labeled_precision": 0.21923076923076923,
+          "average_suggestions": 5.0,
+          "missing": []
+        },
+        {
+          "depth": 10,
+          "queries": 52,
+          "queries_with_all_labeled_matches": 52,
+          "queries_with_any_labeled_match": 52,
+          "labeled_matches_found": 57,
+          "labeled_matches_total": 57,
+          "micro_recall": 1.0,
+          "macro_recall": 1.0,
+          "labeled_precision": 0.10961538461538461,
+          "average_suggestions": 10.0,
+          "missing": []
+        }
+      ],
+      "multiple_matches": [
+        {
+          "depth": 1,
+          "queries": 4,
+          "queries_with_all_labeled_matches": 0,
+          "queries_with_any_labeled_match": 4,
+          "labeled_matches_found": 4,
+          "labeled_matches_total": 9,
+          "micro_recall": 0.4444444444444444,
+          "macro_recall": 0.4583333333333333,
+          "labeled_precision": 1.0,
+          "average_suggestions": 1.0,
+          "missing": [
+            {
+              "id": "q004",
+              "query": "Fahrrad",
+              "missing": [
+                "bicycle_park",
+                "blue_bike_beach"
+              ]
+            },
+            {
+              "id": "q007",
+              "query": "Rechnung",
+              "missing": [
+                "invoice_bike"
+              ]
+            },
+            {
+              "id": "q011",
+              "query": "roter Kreis",
+              "missing": [
+                "circle_left"
+              ]
+            },
+            {
+              "id": "q012",
+              "query": "gelbes Dreieck",
+              "missing": [
+                "triangle_above"
+              ]
+            }
+          ]
+        },
+        {
+          "depth": 3,
+          "queries": 4,
+          "queries_with_all_labeled_matches": 3,
+          "queries_with_any_labeled_match": 4,
+          "labeled_matches_found": 8,
+          "labeled_matches_total": 9,
+          "micro_recall": 0.8888888888888888,
+          "macro_recall": 0.9166666666666666,
+          "labeled_precision": 0.6666666666666666,
+          "average_suggestions": 3.0,
+          "missing": [
+            {
+              "id": "q004",
+              "query": "Fahrrad",
+              "missing": [
+                "bicycle_park"
+              ]
+            }
+          ]
+        },
+        {
+          "depth": 5,
+          "queries": 4,
+          "queries_with_all_labeled_matches": 4,
+          "queries_with_any_labeled_match": 4,
+          "labeled_matches_found": 9,
+          "labeled_matches_total": 9,
+          "micro_recall": 1.0,
+          "macro_recall": 1.0,
+          "labeled_precision": 0.45,
+          "average_suggestions": 5.0,
+          "missing": []
+        },
+        {
+          "depth": 10,
+          "queries": 4,
+          "queries_with_all_labeled_matches": 4,
+          "queries_with_any_labeled_match": 4,
+          "labeled_matches_found": 9,
+          "labeled_matches_total": 9,
+          "micro_recall": 1.0,
+          "macro_recall": 1.0,
+          "labeled_precision": 0.225,
+          "average_suggestions": 10.0,
+          "missing": []
+        }
+      ],
+      "ocr": [
+        {
+          "depth": 1,
+          "queries": 10,
+          "queries_with_all_labeled_matches": 8,
+          "queries_with_any_labeled_match": 8,
+          "labeled_matches_found": 8,
+          "labeled_matches_total": 10,
+          "micro_recall": 0.8,
+          "macro_recall": 0.8,
+          "labeled_precision": 0.8,
+          "average_suggestions": 1.0,
+          "missing": [
+            {
+              "id": "q039",
+              "query": "42,50 EUR",
+              "missing": [
+                "invoice_bike"
+              ]
+            },
+            {
+              "id": "q040",
+              "query": "18,90 EUR",
+              "missing": [
+                "invoice_coffee"
+              ]
+            }
+          ]
+        },
+        {
+          "depth": 3,
+          "queries": 10,
+          "queries_with_all_labeled_matches": 10,
+          "queries_with_any_labeled_match": 10,
+          "labeled_matches_found": 10,
+          "labeled_matches_total": 10,
+          "micro_recall": 1.0,
+          "macro_recall": 1.0,
+          "labeled_precision": 0.3333333333333333,
+          "average_suggestions": 3.0,
+          "missing": []
+        },
+        {
+          "depth": 5,
+          "queries": 10,
+          "queries_with_all_labeled_matches": 10,
+          "queries_with_any_labeled_match": 10,
+          "labeled_matches_found": 10,
+          "labeled_matches_total": 10,
+          "micro_recall": 1.0,
+          "macro_recall": 1.0,
+          "labeled_precision": 0.2,
+          "average_suggestions": 5.0,
+          "missing": []
+        },
+        {
+          "depth": 10,
+          "queries": 10,
+          "queries_with_all_labeled_matches": 10,
+          "queries_with_any_labeled_match": 10,
+          "labeled_matches_found": 10,
+          "labeled_matches_total": 10,
+          "micro_recall": 1.0,
+          "macro_recall": 1.0,
+          "labeled_precision": 0.1,
+          "average_suggestions": 10.0,
+          "missing": []
+        }
+      ],
+      "filename_control": [
+        {
+          "depth": 1,
+          "queries": 6,
+          "queries_with_all_labeled_matches": 2,
+          "queries_with_any_labeled_match": 2,
+          "labeled_matches_found": 2,
+          "labeled_matches_total": 6,
+          "micro_recall": 0.3333333333333333,
+          "macro_recall": 0.3333333333333333,
+          "labeled_precision": 0.3333333333333333,
+          "average_suggestions": 1.0,
+          "missing": [
+            {
+              "id": "q053",
+              "query": "IMG_0001",
+              "missing": [
+                "beach_dog"
+              ]
+            },
+            {
+              "id": "q054",
+              "query": "IMG_0002",
+              "missing": [
+                "winter_hiker"
+              ]
+            },
+            {
+              "id": "q055",
+              "query": "Fahrrad_Park",
+              "missing": [
+                "bicycle_park"
+              ]
+            },
+            {
+              "id": "q056",
+              "query": "SCAN_0007",
+              "missing": [
+                "invoice_bike"
+              ]
+            }
+          ]
+        },
+        {
+          "depth": 3,
+          "queries": 6,
+          "queries_with_all_labeled_matches": 3,
+          "queries_with_any_labeled_match": 3,
+          "labeled_matches_found": 3,
+          "labeled_matches_total": 6,
+          "micro_recall": 0.5,
+          "macro_recall": 0.5,
+          "labeled_precision": 0.16666666666666666,
+          "average_suggestions": 3.0,
+          "missing": [
+            {
+              "id": "q053",
+              "query": "IMG_0001",
+              "missing": [
+                "beach_dog"
+              ]
+            },
+            {
+              "id": "q054",
+              "query": "IMG_0002",
+              "missing": [
+                "winter_hiker"
+              ]
+            },
+            {
+              "id": "q056",
+              "query": "SCAN_0007",
+              "missing": [
+                "invoice_bike"
+              ]
+            }
+          ]
+        },
+        {
+          "depth": 5,
+          "queries": 6,
+          "queries_with_all_labeled_matches": 3,
+          "queries_with_any_labeled_match": 3,
+          "labeled_matches_found": 3,
+          "labeled_matches_total": 6,
+          "micro_recall": 0.5,
+          "macro_recall": 0.5,
+          "labeled_precision": 0.1,
+          "average_suggestions": 5.0,
+          "missing": [
+            {
+              "id": "q053",
+              "query": "IMG_0001",
+              "missing": [
+                "beach_dog"
+              ]
+            },
+            {
+              "id": "q054",
+              "query": "IMG_0002",
+              "missing": [
+                "winter_hiker"
+              ]
+            },
+            {
+              "id": "q056",
+              "query": "SCAN_0007",
+              "missing": [
+                "invoice_bike"
+              ]
+            }
+          ]
+        },
+        {
+          "depth": 10,
+          "queries": 6,
+          "queries_with_all_labeled_matches": 3,
+          "queries_with_any_labeled_match": 3,
+          "labeled_matches_found": 3,
+          "labeled_matches_total": 6,
+          "micro_recall": 0.5,
+          "macro_recall": 0.5,
+          "labeled_precision": 0.05,
+          "average_suggestions": 10.0,
+          "missing": [
+            {
+              "id": "q053",
+              "query": "IMG_0001",
+              "missing": [
+                "beach_dog"
+              ]
+            },
+            {
+              "id": "q054",
+              "query": "IMG_0002",
+              "missing": [
+                "winter_hiker"
+              ]
+            },
+            {
+              "id": "q056",
+              "query": "SCAN_0007",
+              "missing": [
+                "invoice_bike"
+              ]
+            }
+          ]
+        }
+      ],
+      "absent_queries_nonempty": 4
+    }
+  }
+}

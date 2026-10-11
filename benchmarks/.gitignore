@@ -1,0 +1,7 @@
+**/model/
+**/cache/
+**/state/
+**/text-cache/
+**/.venv/
+**/__pycache__/
+*.log

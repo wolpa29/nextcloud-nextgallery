@@ -1,0 +1,1393 @@
+{
+  "nextcloud_version": "32.0.5",
+  "core_files_provider": true,
+  "database": "sqlite",
+  "only_synthetic_account": true,
+  "providers": [
+    {
+      "id": "files",
+      "appId": "files",
+      "name": "Files",
+      "icon": "/apps/files/img/app.svg",
+      "order": 5,
+      "isExternalProvider": false,
+      "triggers": [
+        "files"
+      ],
+      "filters": {
+        "term": "string",
+        "since": "datetime",
+        "until": "datetime",
+        "person": "person",
+        "min-size": "int",
+        "max-size": "int",
+        "mime": "string",
+        "type": "string",
+        "path": "string",
+        "is-favorite": "bool",
+        "title-only": "bool"
+      },
+      "inAppSearch": false
+    },
+    {
+      "id": "systemtags",
+      "appId": "systemtags",
+      "name": "Tags",
+      "icon": "/apps/systemtags/img/app.svg",
+      "order": 6,
+      "isExternalProvider": false,
+      "triggers": [
+        "systemtags"
+      ],
+      "filters": {
+        "term": "string"
+      },
+      "inAppSearch": false
+    },
+    {
+      "id": "circles",
+      "appId": "circles",
+      "name": "Teams",
+      "icon": "/apps/circles/img/circles.svg",
+      "order": 9,
+      "isExternalProvider": false,
+      "triggers": [
+        "circles"
+      ],
+      "filters": {
+        "term": "string"
+      },
+      "inAppSearch": false
+    },
+    {
+      "id": "comments",
+      "appId": "comments",
+      "name": "Comments",
+      "icon": "/apps/comments/img/comments.svg",
+      "order": 10,
+      "isExternalProvider": false,
+      "triggers": [
+        "comments"
+      ],
+      "filters": {
+        "term": "string"
+      },
+      "inAppSearch": false
+    },
+    {
+      "id": "settings_apps",
+      "appId": "settings",
+      "name": "Apps",
+      "icon": "/apps/settings/img/settings_apps.svg",
+      "order": 100,
+      "isExternalProvider": false,
+      "triggers": [
+        "settings_apps"
+      ],
+      "filters": {
+        "term": "string"
+      },
+      "inAppSearch": false
+    },
+    {
+      "id": "settings",
+      "appId": "settings",
+      "name": "Settings",
+      "icon": "/apps/settings/img/settings.svg",
+      "order": 500,
+      "isExternalProvider": false,
+      "triggers": [
+        "settings"
+      ],
+      "filters": {
+        "term": "string"
+      },
+      "inAppSearch": false
+    }
+  ],
+  "queries": {
+    "q001": {
+      "keys": [],
+      "ms": 218.13652499986347,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q002": {
+      "keys": [],
+      "ms": 194.31686999450903,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q003": {
+      "keys": [],
+      "ms": 199.43227199837565,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q004": {
+      "keys": [
+        "bicycle_park"
+      ],
+      "ms": 209.6442660113098,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [
+              {
+                "thumbnailUrl": "http://127.0.0.1:32774/core/preview?x=32&y=32&fileId=91",
+                "title": "Fahrrad_Park_0004.png",
+                "subline": "in SearchBenchmark",
+                "resourceUrl": "http://127.0.0.1:32774/f/91",
+                "icon": "/apps/theming/img/core/filetypes/image.svg?v=046f5c1d",
+                "rounded": false,
+                "attributes": {
+                  "fileId": "91",
+                  "path": "/SearchBenchmark/Fahrrad_Park_0004.png"
+                }
+              }
+            ],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q005": {
+      "keys": [],
+      "ms": 200.0097359996289,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q006": {
+      "keys": [],
+      "ms": 203.32626400340814,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q007": {
+      "keys": [],
+      "ms": 200.73683200462256,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q008": {
+      "keys": [],
+      "ms": 198.37254800950177,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q009": {
+      "keys": [],
+      "ms": 205.75827099673916,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q010": {
+      "keys": [],
+      "ms": 206.86693300376646,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q011": {
+      "keys": [],
+      "ms": 192.42851600574795,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q012": {
+      "keys": [],
+      "ms": 204.93081999302376,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q013": {
+      "keys": [],
+      "ms": 211.75624799798243,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q014": {
+      "keys": [],
+      "ms": 214.65841699682642,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q015": {
+      "keys": [],
+      "ms": 213.06163400004152,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q016": {
+      "keys": [],
+      "ms": 219.01412299484946,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q017": {
+      "keys": [],
+      "ms": 214.86793000076432,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q018": {
+      "keys": [],
+      "ms": 222.75966899178457,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q019": {
+      "keys": [],
+      "ms": 212.76293200207874,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q020": {
+      "keys": [],
+      "ms": 205.91361400147434,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q021": {
+      "keys": [],
+      "ms": 208.3613559952937,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q022": {
+      "keys": [],
+      "ms": 210.39543799997773,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q023": {
+      "keys": [],
+      "ms": 205.97469800850376,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q024": {
+      "keys": [],
+      "ms": 209.92986900091637,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q025": {
+      "keys": [],
+      "ms": 211.1341359996004,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q026": {
+      "keys": [],
+      "ms": 203.40904098702595,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q027": {
+      "keys": [],
+      "ms": 204.99292599561159,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q028": {
+      "keys": [],
+      "ms": 209.66378699813504,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q029": {
+      "keys": [],
+      "ms": 209.1548349999357,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q030": {
+      "keys": [],
+      "ms": 237.1876529941801,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q031": {
+      "keys": [],
+      "ms": 250.84258100832812,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q032": {
+      "keys": [],
+      "ms": 245.03751000156626,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q033": {
+      "keys": [],
+      "ms": 254.15590399643406,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q034": {
+      "keys": [],
+      "ms": 247.72867900901474,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q035": {
+      "keys": [],
+      "ms": 239.0231190074701,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q036": {
+      "keys": [],
+      "ms": 232.4152360088192,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q037": {
+      "keys": [],
+      "ms": 250.57354399177711,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q038": {
+      "keys": [],
+      "ms": 240.30773699632846,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q039": {
+      "keys": [],
+      "ms": 258.7177730019903,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q040": {
+      "keys": [],
+      "ms": 245.73733199213166,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q041": {
+      "keys": [],
+      "ms": 251.12330200499855,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q042": {
+      "keys": [],
+      "ms": 244.3700909934705,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q043": {
+      "keys": [],
+      "ms": 239.14243899344,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q044": {
+      "keys": [],
+      "ms": 207.44677500624675,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q045": {
+      "keys": [],
+      "ms": 243.97865100763738,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q046": {
+      "keys": [],
+      "ms": 241.2408240052173,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q047": {
+      "keys": [],
+      "ms": 250.1679709966993,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q048": {
+      "keys": [],
+      "ms": 213.85015900887083,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q049": {
+      "keys": [],
+      "ms": 214.86785999150015,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q050": {
+      "keys": [],
+      "ms": 211.89885599596892,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q051": {
+      "keys": [],
+      "ms": 223.18761599308345,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q052": {
+      "keys": [],
+      "ms": 209.2096609994769,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q053": {
+      "keys": [
+        "beach_dog"
+      ],
+      "ms": 208.2217980059795,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [
+              {
+                "thumbnailUrl": "http://127.0.0.1:32774/core/preview?x=32&y=32&fileId=77",
+                "title": "IMG_0001.png",
+                "subline": "in SearchBenchmark",
+                "resourceUrl": "http://127.0.0.1:32774/f/77",
+                "icon": "/apps/theming/img/core/filetypes/image.svg?v=046f5c1d",
+                "rounded": false,
+                "attributes": {
+                  "fileId": "77",
+                  "path": "/SearchBenchmark/IMG_0001.png"
+                }
+              }
+            ],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q054": {
+      "keys": [
+        "winter_hiker"
+      ],
+      "ms": 206.2758949905401,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [
+              {
+                "thumbnailUrl": "http://127.0.0.1:32774/core/preview?x=32&y=32&fileId=85",
+                "title": "IMG_0002.png",
+                "subline": "in SearchBenchmark",
+                "resourceUrl": "http://127.0.0.1:32774/f/85",
+                "icon": "/apps/theming/img/core/filetypes/image.svg?v=046f5c1d",
+                "rounded": false,
+                "attributes": {
+                  "fileId": "85",
+                  "path": "/SearchBenchmark/IMG_0002.png"
+                }
+              }
+            ],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q055": {
+      "keys": [
+        "bicycle_park"
+      ],
+      "ms": 229.36692999792285,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [
+              {
+                "thumbnailUrl": "http://127.0.0.1:32774/core/preview?x=32&y=32&fileId=91",
+                "title": "Fahrrad_Park_0004.png",
+                "subline": "in SearchBenchmark",
+                "resourceUrl": "http://127.0.0.1:32774/f/91",
+                "icon": "/apps/theming/img/core/filetypes/image.svg?v=046f5c1d",
+                "rounded": false,
+                "attributes": {
+                  "fileId": "91",
+                  "path": "/SearchBenchmark/Fahrrad_Park_0004.png"
+                }
+              }
+            ],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q056": {
+      "keys": [
+        "invoice_bike"
+      ],
+      "ms": 212.65147200028878,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [
+              {
+                "thumbnailUrl": "http://127.0.0.1:32774/core/preview?x=32&y=32&fileId=96",
+                "title": "SCAN_0007.png",
+                "subline": "in SearchBenchmark",
+                "resourceUrl": "http://127.0.0.1:32774/f/96",
+                "icon": "/apps/theming/img/core/filetypes/image.svg?v=046f5c1d",
+                "rounded": false,
+                "attributes": {
+                  "fileId": "96",
+                  "path": "/SearchBenchmark/SCAN_0007.png"
+                }
+              }
+            ],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q057": {
+      "keys": [
+        "menu_pizza"
+      ],
+      "ms": 310.6889629998477,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [
+              {
+                "thumbnailUrl": "http://127.0.0.1:32774/core/preview?x=32&y=32&fileId=93",
+                "title": "Speisekarte_0011.png",
+                "subline": "in SearchBenchmark",
+                "resourceUrl": "http://127.0.0.1:32774/f/93",
+                "icon": "/apps/theming/img/core/filetypes/image.svg?v=046f5c1d",
+                "rounded": false,
+                "attributes": {
+                  "fileId": "93",
+                  "path": "/SearchBenchmark/Speisekarte_0011.png"
+                }
+              }
+            ],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q058": {
+      "keys": [
+        "train_ticket"
+      ],
+      "ms": 212.17520300706383,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [
+              {
+                "thumbnailUrl": "http://127.0.0.1:32774/core/preview?x=32&y=32&fileId=89",
+                "title": "Bahn_Ticket_0014.png",
+                "subline": "in SearchBenchmark",
+                "resourceUrl": "http://127.0.0.1:32774/f/89",
+                "icon": "/apps/theming/img/core/filetypes/image.svg?v=046f5c1d",
+                "rounded": false,
+                "attributes": {
+                  "fileId": "89",
+                  "path": "/SearchBenchmark/Bahn_Ticket_0014.png"
+                }
+              }
+            ],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q059": {
+      "keys": [],
+      "ms": 238.33964199002367,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q060": {
+      "keys": [],
+      "ms": 217.73448601015843,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q061": {
+      "keys": [],
+      "ms": 208.16245500463992,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    },
+    "q062": {
+      "keys": [],
+      "ms": 287.49971800425556,
+      "raw_response": {
+        "ocs": {
+          "meta": {
+            "status": "ok",
+            "statuscode": 200,
+            "message": "OK"
+          },
+          "data": {
+            "name": "Files",
+            "isPaginated": true,
+            "entries": [],
+            "cursor": 25
+          }
+        }
+      }
+    }
+  }
+}

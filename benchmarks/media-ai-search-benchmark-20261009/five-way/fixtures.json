@@ -1,0 +1,640 @@
+{
+  "documents": [
+    {
+      "key": "beach_dog",
+      "path": "IMG_0001.png",
+      "label": "Hund mit rotem Ball im Meer",
+      "origin": "imagegen",
+      "file_id": 1
+    },
+    {
+      "key": "chat_park",
+      "path": "CHAT_0010.png",
+      "label": "Parktermin 09:15 Uhr",
+      "origin": "procedural",
+      "file_id": 2
+    },
+    {
+      "key": "menu_coffee",
+      "path": "SCAN_0012.png",
+      "label": "Kaffee Speisekarte",
+      "origin": "procedural",
+      "file_id": 3
+    },
+    {
+      "key": "triangle_below",
+      "path": "IMG_0018.png",
+      "label": "Gelbes Dreieck unter gruenem Stern",
+      "origin": "procedural",
+      "file_id": 4
+    },
+    {
+      "key": "circle_right",
+      "path": "IMG_0016.png",
+      "label": "Roter Kreis rechts von blauem Quadrat",
+      "origin": "procedural",
+      "file_id": 5
+    },
+    {
+      "key": "red_bike_beach",
+      "path": "IMG_0020.png",
+      "label": "Rotes Fahrrad am Strand (Grafik)",
+      "origin": "procedural",
+      "file_id": 6
+    },
+    {
+      "key": "rain_umbrella",
+      "path": "IMG_0006.png",
+      "label": "Gelber Regenschirm im Regen",
+      "origin": "imagegen",
+      "file_id": 7
+    },
+    {
+      "key": "exit_sign",
+      "path": "IMG_0013.png",
+      "label": "Notausgang Schild",
+      "origin": "procedural",
+      "file_id": 8
+    },
+    {
+      "key": "winter_hiker",
+      "path": "IMG_0002.png",
+      "label": "Wanderer im Schnee",
+      "origin": "imagegen",
+      "file_id": 9
+    },
+    {
+      "key": "blue_bike_beach",
+      "path": "IMG_0019.png",
+      "label": "Blaues Fahrrad am Strand (Grafik)",
+      "origin": "procedural",
+      "file_id": 10
+    },
+    {
+      "key": "invoice_coffee",
+      "path": "SCAN_0008.png",
+      "label": "Kaffeehaus Rechnung 12346",
+      "origin": "procedural",
+      "file_id": 11
+    },
+    {
+      "key": "chat_beach",
+      "path": "CHAT_0009.png",
+      "label": "Strandtermin 17:30 Uhr",
+      "origin": "procedural",
+      "file_id": 12
+    },
+    {
+      "key": "train_ticket",
+      "path": "Bahn_Ticket_0014.png",
+      "label": "Zugticket Wien Graz",
+      "origin": "procedural",
+      "file_id": 13
+    },
+    {
+      "key": "triangle_above",
+      "path": "IMG_0017.png",
+      "label": "Gelbes Dreieck ueber gruenem Stern",
+      "origin": "procedural",
+      "file_id": 14
+    },
+    {
+      "key": "bicycle_park",
+      "path": "Fahrrad_Park_0004.png",
+      "label": "Rotes Fahrrad im Park",
+      "origin": "imagegen",
+      "file_id": 15
+    },
+    {
+      "key": "summer_lake",
+      "path": "IMG_0003.png",
+      "label": "Picknick am See mit gelbem Kanu",
+      "origin": "imagegen",
+      "file_id": 16
+    },
+    {
+      "key": "menu_pizza",
+      "path": "Speisekarte_0011.png",
+      "label": "Pizza Speisekarte",
+      "origin": "procedural",
+      "file_id": 17
+    },
+    {
+      "key": "robot_vacuum",
+      "path": "IMG_0005.png",
+      "label": "Weisser Saugroboter und schwarze Katze",
+      "origin": "imagegen",
+      "file_id": 18
+    },
+    {
+      "key": "circle_left",
+      "path": "IMG_0015.png",
+      "label": "Roter Kreis links von blauem Quadrat",
+      "origin": "procedural",
+      "file_id": 19
+    },
+    {
+      "key": "invoice_bike",
+      "path": "SCAN_0007.png",
+      "label": "Fahrradwerkstatt Rechnung 12345",
+      "origin": "procedural",
+      "file_id": 20
+    }
+  ],
+  "queries": [
+    {
+      "id": "q001",
+      "category": "Begriffe",
+      "text": "Hund",
+      "relevant": [
+        "beach_dog"
+      ]
+    },
+    {
+      "id": "q002",
+      "category": "Begriffe",
+      "text": "Schnee",
+      "relevant": [
+        "winter_hiker"
+      ]
+    },
+    {
+      "id": "q003",
+      "category": "Begriffe",
+      "text": "Picknick",
+      "relevant": [
+        "summer_lake"
+      ]
+    },
+    {
+      "id": "q004",
+      "category": "Begriffe",
+      "text": "Fahrrad",
+      "relevant": [
+        "bicycle_park",
+        "blue_bike_beach",
+        "red_bike_beach"
+      ]
+    },
+    {
+      "id": "q005",
+      "category": "Begriffe",
+      "text": "Saugroboter",
+      "relevant": [
+        "robot_vacuum"
+      ]
+    },
+    {
+      "id": "q006",
+      "category": "Begriffe",
+      "text": "Regenschirm",
+      "relevant": [
+        "rain_umbrella"
+      ]
+    },
+    {
+      "id": "q007",
+      "category": "Begriffe",
+      "text": "Rechnung",
+      "relevant": [
+        "invoice_bike",
+        "invoice_coffee"
+      ]
+    },
+    {
+      "id": "q008",
+      "category": "Begriffe",
+      "text": "Cappuccino",
+      "relevant": [
+        "menu_coffee"
+      ]
+    },
+    {
+      "id": "q009",
+      "category": "Begriffe",
+      "text": "Notausgang",
+      "relevant": [
+        "exit_sign"
+      ]
+    },
+    {
+      "id": "q010",
+      "category": "Begriffe",
+      "text": "Fahrkarte",
+      "relevant": [
+        "train_ticket"
+      ]
+    },
+    {
+      "id": "q011",
+      "category": "Begriffe",
+      "text": "roter Kreis",
+      "relevant": [
+        "circle_left",
+        "circle_right"
+      ]
+    },
+    {
+      "id": "q012",
+      "category": "Begriffe",
+      "text": "gelbes Dreieck",
+      "relevant": [
+        "triangle_above",
+        "triangle_below"
+      ]
+    },
+    {
+      "id": "q013",
+      "category": "Umschreibungen",
+      "text": "Vierbeiner spielt im Wasser",
+      "relevant": [
+        "beach_dog"
+      ]
+    },
+    {
+      "id": "q014",
+      "category": "Umschreibungen",
+      "text": "Hund apportiert Spielzeug am Meer",
+      "relevant": [
+        "beach_dog"
+      ]
+    },
+    {
+      "id": "q015",
+      "category": "Umschreibungen",
+      "text": "Bergtour bei winterlichem Wetter",
+      "relevant": [
+        "winter_hiker"
+      ]
+    },
+    {
+      "id": "q016",
+      "category": "Umschreibungen",
+      "text": "Person wandert mit Rucksack im Winter",
+      "relevant": [
+        "winter_hiker"
+      ]
+    },
+    {
+      "id": "q017",
+      "category": "Umschreibungen",
+      "text": "Familie isst draussen am See",
+      "relevant": [
+        "summer_lake"
+      ]
+    },
+    {
+      "id": "q018",
+      "category": "Umschreibungen",
+      "text": "Sommerausflug mit Boot und Picknick",
+      "relevant": [
+        "summer_lake"
+      ]
+    },
+    {
+      "id": "q019",
+      "category": "Umschreibungen",
+      "text": "Zweirad neben einer Sitzbank",
+      "relevant": [
+        "bicycle_park"
+      ]
+    },
+    {
+      "id": "q020",
+      "category": "Umschreibungen",
+      "text": "Fahrrad unter Baeumen",
+      "relevant": [
+        "bicycle_park"
+      ]
+    },
+    {
+      "id": "q021",
+      "category": "Umschreibungen",
+      "text": "Geraet reinigt den Fussboden",
+      "relevant": [
+        "robot_vacuum"
+      ]
+    },
+    {
+      "id": "q022",
+      "category": "Umschreibungen",
+      "text": "Haustier beobachtet den Staubsauger",
+      "relevant": [
+        "robot_vacuum"
+      ]
+    },
+    {
+      "id": "q023",
+      "category": "Umschreibungen",
+      "text": "Schutz vor schlechtem Wetter",
+      "relevant": [
+        "rain_umbrella"
+      ]
+    },
+    {
+      "id": "q024",
+      "category": "Umschreibungen",
+      "text": "Person geht bei nassem Wetter durch die Stadt",
+      "relevant": [
+        "rain_umbrella"
+      ]
+    },
+    {
+      "id": "q025",
+      "category": "Umschreibungen",
+      "text": "Wann treffen wir uns am Meer",
+      "relevant": [
+        "chat_beach"
+      ]
+    },
+    {
+      "id": "q026",
+      "category": "Umschreibungen",
+      "text": "Zugreise zwischen zwei Staedten",
+      "relevant": [
+        "train_ticket"
+      ]
+    },
+    {
+      "id": "q027",
+      "category": "Englisch",
+      "text": "dog with a ball on the beach",
+      "relevant": [
+        "beach_dog"
+      ]
+    },
+    {
+      "id": "q028",
+      "category": "Englisch",
+      "text": "hiking in the snow",
+      "relevant": [
+        "winter_hiker"
+      ]
+    },
+    {
+      "id": "q029",
+      "category": "Englisch",
+      "text": "family picnic near a lake",
+      "relevant": [
+        "summer_lake"
+      ]
+    },
+    {
+      "id": "q030",
+      "category": "Englisch",
+      "text": "red bicycle next to a bench",
+      "relevant": [
+        "bicycle_park"
+      ]
+    },
+    {
+      "id": "q031",
+      "category": "Englisch",
+      "text": "robot vacuum cleaner and a black cat",
+      "relevant": [
+        "robot_vacuum"
+      ]
+    },
+    {
+      "id": "q032",
+      "category": "Englisch",
+      "text": "yellow umbrella in the rain",
+      "relevant": [
+        "rain_umbrella"
+      ]
+    },
+    {
+      "id": "q033",
+      "category": "Englisch",
+      "text": "train ticket Vienna to Graz",
+      "relevant": [
+        "train_ticket"
+      ]
+    },
+    {
+      "id": "q034",
+      "category": "Englisch",
+      "text": "coffee and apple strudel menu",
+      "relevant": [
+        "menu_coffee"
+      ]
+    },
+    {
+      "id": "q035",
+      "category": "OCR exakt",
+      "text": "RECHNUNG 12345",
+      "relevant": [
+        "invoice_bike"
+      ]
+    },
+    {
+      "id": "q036",
+      "category": "OCR exakt",
+      "text": "RECHNUNG 12346",
+      "relevant": [
+        "invoice_coffee"
+      ]
+    },
+    {
+      "id": "q037",
+      "category": "OCR exakt",
+      "text": "12345",
+      "relevant": [
+        "invoice_bike"
+      ]
+    },
+    {
+      "id": "q038",
+      "category": "OCR exakt",
+      "text": "12346",
+      "relevant": [
+        "invoice_coffee"
+      ]
+    },
+    {
+      "id": "q039",
+      "category": "OCR exakt",
+      "text": "42,50 EUR",
+      "relevant": [
+        "invoice_bike"
+      ]
+    },
+    {
+      "id": "q040",
+      "category": "OCR exakt",
+      "text": "18,90 EUR",
+      "relevant": [
+        "invoice_coffee"
+      ]
+    },
+    {
+      "id": "q041",
+      "category": "OCR exakt",
+      "text": "17:30",
+      "relevant": [
+        "chat_beach"
+      ]
+    },
+    {
+      "id": "q042",
+      "category": "OCR exakt",
+      "text": "09:15",
+      "relevant": [
+        "chat_park"
+      ]
+    },
+    {
+      "id": "q043",
+      "category": "OCR exakt",
+      "text": "Margherita 9,50",
+      "relevant": [
+        "menu_pizza"
+      ]
+    },
+    {
+      "id": "q044",
+      "category": "OCR exakt",
+      "text": "IC 507",
+      "relevant": [
+        "train_ticket"
+      ]
+    },
+    {
+      "id": "q045",
+      "category": "Visuelle Details",
+      "text": "Hund mit rotem Ball",
+      "relevant": [
+        "beach_dog"
+      ]
+    },
+    {
+      "id": "q046",
+      "category": "Visuelle Details",
+      "text": "gelbes Kanu auf dem See",
+      "relevant": [
+        "summer_lake"
+      ]
+    },
+    {
+      "id": "q047",
+      "category": "Visuelle Details",
+      "text": "schwarze Katze auf grauem Sofa",
+      "relevant": [
+        "robot_vacuum"
+      ]
+    },
+    {
+      "id": "q048",
+      "category": "Visuelle Details",
+      "text": "roter Kreis links vom blauen Quadrat",
+      "relevant": [
+        "circle_left"
+      ]
+    },
+    {
+      "id": "q049",
+      "category": "Visuelle Details",
+      "text": "roter Kreis rechts vom blauen Quadrat",
+      "relevant": [
+        "circle_right"
+      ]
+    },
+    {
+      "id": "q050",
+      "category": "Visuelle Details",
+      "text": "gelbes Dreieck ueber gruenem Stern",
+      "relevant": [
+        "triangle_above"
+      ]
+    },
+    {
+      "id": "q051",
+      "category": "Visuelle Details",
+      "text": "gelbes Dreieck unter gruenem Stern",
+      "relevant": [
+        "triangle_below"
+      ]
+    },
+    {
+      "id": "q052",
+      "category": "Visuelle Details",
+      "text": "blaues Fahrrad am Strand",
+      "relevant": [
+        "blue_bike_beach"
+      ]
+    },
+    {
+      "id": "q053",
+      "category": "Dateiname",
+      "text": "IMG_0001",
+      "relevant": [
+        "beach_dog"
+      ]
+    },
+    {
+      "id": "q054",
+      "category": "Dateiname",
+      "text": "IMG_0002",
+      "relevant": [
+        "winter_hiker"
+      ]
+    },
+    {
+      "id": "q055",
+      "category": "Dateiname",
+      "text": "Fahrrad_Park",
+      "relevant": [
+        "bicycle_park"
+      ]
+    },
+    {
+      "id": "q056",
+      "category": "Dateiname",
+      "text": "SCAN_0007",
+      "relevant": [
+        "invoice_bike"
+      ]
+    },
+    {
+      "id": "q057",
+      "category": "Dateiname",
+      "text": "Speisekarte_0011",
+      "relevant": [
+        "menu_pizza"
+      ]
+    },
+    {
+      "id": "q058",
+      "category": "Dateiname",
+      "text": "Bahn_Ticket",
+      "relevant": [
+        "train_ticket"
+      ]
+    },
+    {
+      "id": "q059",
+      "category": "Nicht vorhanden",
+      "text": "RECHNUNG 12349",
+      "relevant": []
+    },
+    {
+      "id": "q060",
+      "category": "Nicht vorhanden",
+      "text": "Hund mit gruenem Ball",
+      "relevant": []
+    },
+    {
+      "id": "q061",
+      "category": "Nicht vorhanden",
+      "text": "Elefant im Schnee",
+      "relevant": []
+    },
+    {
+      "id": "q062",
+      "category": "Nicht vorhanden",
+      "text": "Abfahrt 23:59",
+      "relevant": []
+    }
+  ],
+  "protocol": "Frozen before Media AI inference or retrieval; photo prompts inspected separately; no filename fed to embeddings."
+}

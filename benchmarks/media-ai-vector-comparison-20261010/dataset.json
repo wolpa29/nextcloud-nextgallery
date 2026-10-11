@@ -1,0 +1,3949 @@
+{
+  "documents": [
+    {
+      "key": "beach_dog",
+      "path": "IMG_0001.png",
+      "label": "Hund mit rotem Ball im Meer",
+      "origin": "imagegen",
+      "file_id": 1,
+      "kind": "foto",
+      "description": "Ein nasser, goldfarbener Hund läuft durch flaches Wasser am Strand und hält einen roten Ball im Maul. Im Hintergrund sind blaues Meer und weiße Wellen zu sehen.",
+      "tags": [
+        "Hund",
+        "Ball",
+        "Strand",
+        "Meer",
+        "Welle",
+        "Wasser",
+        "nasses Fell",
+        "roter Ball",
+        "goldener Hund",
+        "Schnauze",
+        "Pfote",
+        "Schaum",
+        "Küste"
+      ],
+      "objects": [
+        "Hund",
+        "Ball",
+        "Wasser",
+        "Welle"
+      ],
+      "ocr": "",
+      "metadata": {
+        "provenance": {
+          "pipeline": "structured-stream-2",
+          "analyzed_at": 1791531151.9747698,
+          "models": {
+            "vision": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "756443e05332f4ece7a2d563c57ef509ea8b30f99c074945d0f6dc0f98842bea",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            },
+            "ocr": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "891b536791122eca0bfdba258f276715564c1fac1090abd38f9f6c42f71669cb",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            }
+          },
+          "images": {
+            "vision": {
+              "content_width": 1536,
+              "content_height": 1024,
+              "padding_right": 0,
+              "padding_bottom": 0,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 1536,
+              "source_height": 1024,
+              "oriented_width": 1536,
+              "oriented_height": 1024,
+              "sent_width": 1536,
+              "sent_height": 1024,
+              "sent_pixels": 1572864,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 2252936,
+              "sha256": "1d1175ef772d87b9bb8d40bc8cdba10741041539f05c2e08ad08e692be21959c"
+            },
+            "ocr": {
+              "content_width": 1536,
+              "content_height": 1024,
+              "padding_right": 0,
+              "padding_bottom": 0,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 1536,
+              "source_height": 1024,
+              "oriented_width": 1536,
+              "oriented_height": 1024,
+              "sent_width": 1536,
+              "sent_height": 1024,
+              "sent_pixels": 1572864,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 2252936,
+              "sha256": "1d1175ef772d87b9bb8d40bc8cdba10741041539f05c2e08ad08e692be21959c",
+              "image_count": 1,
+              "tiles": [],
+              "tile_overlap_percent": 10,
+              "total_sent_bytes": 2252936
+            }
+          },
+          "output_channels": {
+            "vision": "reasoning_json_workaround",
+            "ocr": "reasoning_json_workaround"
+          },
+          "inference_attempts": {
+            "vision": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 21.204,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 0.2,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 2047,
+                  "completion_tokens": 206,
+                  "total_tokens": 2253
+                },
+                "empty_text": false
+              }
+            ],
+            "ocr": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 3.815,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 1.0,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 1925,
+                  "completion_tokens": 6,
+                  "total_tokens": 1931
+                },
+                "empty_text": true
+              }
+            ]
+          }
+        },
+        "vision": {
+          "type": "foto",
+          "description": "Ein nasser, goldfarbener Hund läuft durch flaches Wasser am Strand und hält einen roten Ball im Maul. Im Hintergrund sind blaues Meer und weiße Wellen zu sehen.",
+          "tags": [
+            "Hund",
+            "Ball",
+            "Strand",
+            "Meer",
+            "Welle",
+            "Wasser",
+            "nasses Fell",
+            "roter Ball",
+            "goldener Hund",
+            "Schnauze",
+            "Pfote",
+            "Schaum",
+            "Küste"
+          ],
+          "objects": [
+            "Hund",
+            "Ball",
+            "Wasser",
+            "Welle"
+          ],
+          "uncertain_details": [
+            "Hunderasse",
+            "Material des Balls"
+          ]
+        },
+        "ocr": {
+          "text": "",
+          "source": "ocr_model_json"
+        }
+      }
+    },
+    {
+      "key": "chat_park",
+      "path": "CHAT_0010.png",
+      "label": "Parktermin 09:15 Uhr",
+      "origin": "procedural",
+      "file_id": 2,
+      "kind": "screenshot",
+      "description": "Ein Screenshot einer Chat-Oberfläche mit dunkelblauem Kopfbereich und hellgrauem Hintergrund. Es sind zwei Textzeilen in schwarzer Schrift sichtbar.",
+      "tags": [
+        "Chat",
+        "Nachricht",
+        "Text",
+        "Oberfläche",
+        "Kopfbereich",
+        "Hintergrund"
+      ],
+      "objects": [
+        "Chatfenster",
+        "Textzeile",
+        "Kopfleiste"
+      ],
+      "ocr": "Chat - Testansicht\n\nTreffen im Park um 09:15 Uhr.\n\nBitte bring den blauen Rucksack mit.",
+      "metadata": {
+        "provenance": {
+          "pipeline": "structured-stream-2",
+          "analyzed_at": 1791530950.7573,
+          "models": {
+            "vision": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "756443e05332f4ece7a2d563c57ef509ea8b30f99c074945d0f6dc0f98842bea",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            },
+            "ocr": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "891b536791122eca0bfdba258f276715564c1fac1090abd38f9f6c42f71669cb",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            }
+          },
+          "images": {
+            "vision": {
+              "content_width": 1100,
+              "content_height": 1000,
+              "padding_right": 20,
+              "padding_bottom": 24,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 1100,
+              "source_height": 1000,
+              "oriented_width": 1100,
+              "oriented_height": 1000,
+              "sent_width": 1120,
+              "sent_height": 1024,
+              "sent_pixels": 1146880,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 26859,
+              "sha256": "86bc645ed2a5e3241fb38d17b29f5334a66a462cbebcb9ad8c7e8800a98ab4ad"
+            },
+            "ocr": {
+              "content_width": 1100,
+              "content_height": 1000,
+              "padding_right": 20,
+              "padding_bottom": 24,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 1100,
+              "source_height": 1000,
+              "oriented_width": 1100,
+              "oriented_height": 1000,
+              "sent_width": 1120,
+              "sent_height": 1024,
+              "sent_pixels": 1146880,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 26859,
+              "sha256": "86bc645ed2a5e3241fb38d17b29f5334a66a462cbebcb9ad8c7e8800a98ab4ad",
+              "image_count": 1,
+              "tiles": [],
+              "tile_overlap_percent": 10,
+              "total_sent_bytes": 26859
+            }
+          },
+          "output_channels": {
+            "vision": "reasoning_json_workaround",
+            "ocr": "reasoning_json_workaround"
+          },
+          "inference_attempts": {
+            "vision": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 87.259,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 0.2,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 1631,
+                  "completion_tokens": 141,
+                  "total_tokens": 1772
+                },
+                "empty_text": false
+              }
+            ],
+            "ocr": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 19.305,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 1.0,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 1509,
+                  "completion_tokens": 42,
+                  "total_tokens": 1551
+                },
+                "empty_text": false
+              }
+            ]
+          }
+        },
+        "vision": {
+          "type": "screenshot",
+          "description": "Ein Screenshot einer Chat-Oberfläche mit dunkelblauem Kopfbereich und hellgrauem Hintergrund. Es sind zwei Textzeilen in schwarzer Schrift sichtbar.",
+          "tags": [
+            "Chat",
+            "Nachricht",
+            "Text",
+            "Oberfläche",
+            "Kopfbereich",
+            "Hintergrund"
+          ],
+          "objects": [
+            "Chatfenster",
+            "Textzeile",
+            "Kopfleiste"
+          ],
+          "uncertain_details": []
+        },
+        "ocr": {
+          "text": "Chat - Testansicht\n\nTreffen im Park um 09:15 Uhr.\n\nBitte bring den blauen Rucksack mit.",
+          "source": "ocr_model_json"
+        }
+      }
+    },
+    {
+      "key": "menu_coffee",
+      "path": "SCAN_0012.png",
+      "label": "Kaffee Speisekarte",
+      "origin": "procedural",
+      "file_id": 3,
+      "kind": "dokument",
+      "description": "Ein digitales Dokument mit dem Titel 'CAFE KARTE' auf dunkelblauem Hintergrund. Darunter sind auf weißem Grund drei Zeilen mit Getränken und Speisen sowie deren Preisen in Euro aufgeführt.",
+      "tags": [
+        "Speisekarte",
+        "Cafe",
+        "Getraenke",
+        "Preise",
+        "Cappuccino",
+        "Espresso",
+        "Apfelstrudel",
+        "Text",
+        "Liste",
+        "Euro"
+      ],
+      "objects": [
+        "Textzeilen",
+        "Titel",
+        "Preise"
+      ],
+      "ocr": "CAFE KARTE\nCappuccino 3,80 EUR\nEspresso 2,50 EUR\nApfelstrudel 5,20 EUR",
+      "metadata": {
+        "provenance": {
+          "pipeline": "structured-stream-2",
+          "analyzed_at": 1791532083.4188926,
+          "models": {
+            "vision": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "756443e05332f4ece7a2d563c57ef509ea8b30f99c074945d0f6dc0f98842bea",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            },
+            "ocr": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "891b536791122eca0bfdba258f276715564c1fac1090abd38f9f6c42f71669cb",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            }
+          },
+          "images": {
+            "vision": {
+              "content_width": 1100,
+              "content_height": 1000,
+              "padding_right": 20,
+              "padding_bottom": 24,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 1100,
+              "source_height": 1000,
+              "oriented_width": 1100,
+              "oriented_height": 1000,
+              "sent_width": 1120,
+              "sent_height": 1024,
+              "sent_pixels": 1146880,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 30154,
+              "sha256": "09e38242dabf0fd1f9493dd746d2b542360bd0e26517dc8781f7cb76020f803b"
+            },
+            "ocr": {
+              "content_width": 1100,
+              "content_height": 1000,
+              "padding_right": 20,
+              "padding_bottom": 24,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 1100,
+              "source_height": 1000,
+              "oriented_width": 1100,
+              "oriented_height": 1000,
+              "sent_width": 1120,
+              "sent_height": 1024,
+              "sent_pixels": 1146880,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 30154,
+              "sha256": "09e38242dabf0fd1f9493dd746d2b542360bd0e26517dc8781f7cb76020f803b",
+              "image_count": 1,
+              "tiles": [],
+              "tile_overlap_percent": 10,
+              "total_sent_bytes": 30154
+            }
+          },
+          "output_channels": {
+            "vision": "reasoning_json_workaround",
+            "ocr": "reasoning_json_workaround"
+          },
+          "inference_attempts": {
+            "vision": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 87.608,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 0.2,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 1631,
+                  "completion_tokens": 175,
+                  "total_tokens": 1806
+                },
+                "empty_text": false
+              }
+            ],
+            "ocr": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 17.475,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 1.0,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 1509,
+                  "completion_tokens": 44,
+                  "total_tokens": 1553
+                },
+                "empty_text": false
+              }
+            ]
+          }
+        },
+        "vision": {
+          "type": "dokument",
+          "description": "Ein digitales Dokument mit dem Titel 'CAFE KARTE' auf dunkelblauem Hintergrund. Darunter sind auf weißem Grund drei Zeilen mit Getränken und Speisen sowie deren Preisen in Euro aufgeführt.",
+          "tags": [
+            "Speisekarte",
+            "Cafe",
+            "Getraenke",
+            "Preise",
+            "Cappuccino",
+            "Espresso",
+            "Apfelstrudel",
+            "Text",
+            "Liste",
+            "Euro"
+          ],
+          "objects": [
+            "Textzeilen",
+            "Titel",
+            "Preise"
+          ],
+          "uncertain_details": []
+        },
+        "ocr": {
+          "text": "CAFE KARTE\nCappuccino 3,80 EUR\nEspresso 2,50 EUR\nApfelstrudel 5,20 EUR",
+          "source": "ocr_model_json"
+        }
+      }
+    },
+    {
+      "key": "triangle_below",
+      "path": "IMG_0018.png",
+      "label": "Gelbes Dreieck unter gruenem Stern",
+      "origin": "procedural",
+      "file_id": 4,
+      "kind": "grafik",
+      "description": "Ein grüner Fünfstern und ein gelbes Dreieck sind vertikal auf einem hellen Hintergrund angeordnet.",
+      "tags": [
+        "grafik",
+        "geometrische formen",
+        "stern",
+        "dreieck",
+        "grün",
+        "gelb",
+        "hintergrund"
+      ],
+      "objects": [
+        "stern",
+        "dreieck"
+      ],
+      "ocr": "",
+      "metadata": {
+        "provenance": {
+          "pipeline": "structured-stream-2",
+          "analyzed_at": 1791531828.030342,
+          "models": {
+            "vision": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "756443e05332f4ece7a2d563c57ef509ea8b30f99c074945d0f6dc0f98842bea",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            },
+            "ocr": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "891b536791122eca0bfdba258f276715564c1fac1090abd38f9f6c42f71669cb",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            }
+          },
+          "images": {
+            "vision": {
+              "content_width": 900,
+              "content_height": 1100,
+              "padding_right": 28,
+              "padding_bottom": 20,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 900,
+              "source_height": 1100,
+              "oriented_width": 900,
+              "oriented_height": 1100,
+              "sent_width": 928,
+              "sent_height": 1120,
+              "sent_pixels": 1039360,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 7654,
+              "sha256": "8fdeda4a7b8fbfdea950822ae83c2c6405160bf4ac60da9869482e9571f011cf"
+            },
+            "ocr": {
+              "content_width": 900,
+              "content_height": 1100,
+              "padding_right": 28,
+              "padding_bottom": 20,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 900,
+              "source_height": 1100,
+              "oriented_width": 900,
+              "oriented_height": 1100,
+              "sent_width": 928,
+              "sent_height": 1120,
+              "sent_pixels": 1039360,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 7654,
+              "sha256": "8fdeda4a7b8fbfdea950822ae83c2c6405160bf4ac60da9869482e9571f011cf",
+              "image_count": 1,
+              "tiles": [],
+              "tile_overlap_percent": 10,
+              "total_sent_bytes": 7654
+            }
+          },
+          "output_channels": {
+            "vision": "reasoning_json_workaround",
+            "ocr": "reasoning_json_workaround"
+          },
+          "inference_attempts": {
+            "vision": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 19.778,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 0.2,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 1526,
+                  "completion_tokens": 133,
+                  "total_tokens": 1659
+                },
+                "empty_text": false
+              }
+            ],
+            "ocr": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 2.994,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 1.0,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 1404,
+                  "completion_tokens": 10,
+                  "total_tokens": 1414
+                },
+                "empty_text": true
+              }
+            ]
+          }
+        },
+        "vision": {
+          "type": "grafik",
+          "description": "Ein grüner Fünfstern und ein gelbes Dreieck sind vertikal auf einem hellen Hintergrund angeordnet.",
+          "tags": [
+            "grafik",
+            "geometrische formen",
+            "stern",
+            "dreieck",
+            "grün",
+            "gelb",
+            "hintergrund"
+          ],
+          "objects": [
+            "stern",
+            "dreieck"
+          ],
+          "uncertain_details": []
+        },
+        "ocr": {
+          "text": "",
+          "source": "ocr_model_json"
+        }
+      }
+    },
+    {
+      "key": "circle_right",
+      "path": "IMG_0016.png",
+      "label": "Roter Kreis rechts von blauem Quadrat",
+      "origin": "procedural",
+      "file_id": 5,
+      "kind": "grafik",
+      "description": "Zwei geometrische Formen auf weißem Hintergrund: ein blaues Quadrat links und ein roter Kreis rechts.",
+      "tags": [
+        "grafik",
+        "geometrische Form",
+        "Quadrat",
+        "Kreis",
+        "blau",
+        "rot",
+        "weißer Hintergrund"
+      ],
+      "objects": [
+        "Quadrat",
+        "Kreis"
+      ],
+      "ocr": "",
+      "metadata": {
+        "provenance": {
+          "pipeline": "structured-stream-2",
+          "analyzed_at": 1791531717.5012336,
+          "models": {
+            "vision": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "756443e05332f4ece7a2d563c57ef509ea8b30f99c074945d0f6dc0f98842bea",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            },
+            "ocr": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "891b536791122eca0bfdba258f276715564c1fac1090abd38f9f6c42f71669cb",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            }
+          },
+          "images": {
+            "vision": {
+              "content_width": 1100,
+              "content_height": 800,
+              "padding_right": 20,
+              "padding_bottom": 0,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 1100,
+              "source_height": 800,
+              "oriented_width": 1100,
+              "oriented_height": 800,
+              "sent_width": 1120,
+              "sent_height": 800,
+              "sent_pixels": 896000,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 5297,
+              "sha256": "06622de899dc7767c782bcf9f50b008f4393b584bce270c0df2ec1850be35643"
+            },
+            "ocr": {
+              "content_width": 1100,
+              "content_height": 800,
+              "padding_right": 20,
+              "padding_bottom": 0,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 1100,
+              "source_height": 800,
+              "oriented_width": 1100,
+              "oriented_height": 800,
+              "sent_width": 1120,
+              "sent_height": 800,
+              "sent_pixels": 896000,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 5297,
+              "sha256": "06622de899dc7767c782bcf9f50b008f4393b584bce270c0df2ec1850be35643",
+              "image_count": 1,
+              "tiles": [],
+              "tile_overlap_percent": 10,
+              "total_sent_bytes": 5297
+            }
+          },
+          "output_channels": {
+            "vision": "reasoning_json_workaround",
+            "ocr": "reasoning_json_workaround"
+          },
+          "inference_attempts": {
+            "vision": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 18.185,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 0.2,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 1386,
+                  "completion_tokens": 124,
+                  "total_tokens": 1510
+                },
+                "empty_text": false
+              }
+            ],
+            "ocr": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 2.71,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 1.0,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 1264,
+                  "completion_tokens": 8,
+                  "total_tokens": 1272
+                },
+                "empty_text": true
+              }
+            ]
+          }
+        },
+        "vision": {
+          "type": "grafik",
+          "description": "Zwei geometrische Formen auf weißem Hintergrund: ein blaues Quadrat links und ein roter Kreis rechts.",
+          "tags": [
+            "grafik",
+            "geometrische Form",
+            "Quadrat",
+            "Kreis",
+            "blau",
+            "rot",
+            "weißer Hintergrund"
+          ],
+          "objects": [
+            "Quadrat",
+            "Kreis"
+          ],
+          "uncertain_details": []
+        },
+        "ocr": {
+          "text": "",
+          "source": "ocr_model_json"
+        }
+      }
+    },
+    {
+      "key": "red_bike_beach",
+      "path": "IMG_0020.png",
+      "label": "Rotes Fahrrad am Strand (Grafik)",
+      "origin": "procedural",
+      "file_id": 6,
+      "kind": "grafik",
+      "description": "Eine stilisierte Grafik zeigt ein rotes Fahrrad mit schwarzen Rädern auf einem sandfarbenen Boden. Im Hintergrund sind ein blauer Streifen und ein heller blauer Himmel mit einer gelben Sonne zu sehen.",
+      "tags": [
+        "Fahrrad",
+        "Grafik",
+        "Illustration",
+        "Sonne",
+        "Himmel",
+        "Strand",
+        "Rad",
+        "Landschaft",
+        "Vektorgrafik",
+        "Flache Gestaltung"
+      ],
+      "objects": [
+        "Fahrrad",
+        "Sonne",
+        "Rad"
+      ],
+      "ocr": "",
+      "metadata": {
+        "provenance": {
+          "pipeline": "structured-stream-2",
+          "analyzed_at": 1791531942.2322006,
+          "models": {
+            "vision": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "756443e05332f4ece7a2d563c57ef509ea8b30f99c074945d0f6dc0f98842bea",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            },
+            "ocr": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "891b536791122eca0bfdba258f276715564c1fac1090abd38f9f6c42f71669cb",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            }
+          },
+          "images": {
+            "vision": {
+              "content_width": 1280,
+              "content_height": 720,
+              "padding_right": 0,
+              "padding_bottom": 16,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 1280,
+              "source_height": 720,
+              "oriented_width": 1280,
+              "oriented_height": 720,
+              "sent_width": 1280,
+              "sent_height": 736,
+              "sent_pixels": 942080,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 9215,
+              "sha256": "b65a170b4aba43abe2b3716a90d56519df10119a412a01a430118bfed02dfc50"
+            },
+            "ocr": {
+              "content_width": 1280,
+              "content_height": 720,
+              "padding_right": 0,
+              "padding_bottom": 16,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 1280,
+              "source_height": 720,
+              "oriented_width": 1280,
+              "oriented_height": 720,
+              "sent_width": 1280,
+              "sent_height": 736,
+              "sent_pixels": 942080,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 9215,
+              "sha256": "b65a170b4aba43abe2b3716a90d56519df10119a412a01a430118bfed02dfc50",
+              "image_count": 1,
+              "tiles": [],
+              "tile_overlap_percent": 10,
+              "total_sent_bytes": 9215
+            }
+          },
+          "output_channels": {
+            "vision": "reasoning_json_workaround",
+            "ocr": "reasoning_json_workaround"
+          },
+          "inference_attempts": {
+            "vision": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 20.697,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 0.2,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 1431,
+                  "completion_tokens": 202,
+                  "total_tokens": 1633
+                },
+                "empty_text": false
+              }
+            ],
+            "ocr": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 2.902,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 1.0,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 1309,
+                  "completion_tokens": 10,
+                  "total_tokens": 1319
+                },
+                "empty_text": true
+              }
+            ]
+          }
+        },
+        "vision": {
+          "type": "grafik",
+          "description": "Eine stilisierte Grafik zeigt ein rotes Fahrrad mit schwarzen Rädern auf einem sandfarbenen Boden. Im Hintergrund sind ein blauer Streifen und ein heller blauer Himmel mit einer gelben Sonne zu sehen.",
+          "tags": [
+            "Fahrrad",
+            "Grafik",
+            "Illustration",
+            "Sonne",
+            "Himmel",
+            "Strand",
+            "Rad",
+            "Landschaft",
+            "Vektorgrafik",
+            "Flache Gestaltung"
+          ],
+          "objects": [
+            "Fahrrad",
+            "Sonne",
+            "Rad"
+          ],
+          "uncertain_details": [
+            "Ob der blaue Streifen Wasser oder eine andere Fläche darstellt, ist nicht eindeutig bestimmbar."
+          ]
+        },
+        "ocr": {
+          "text": "",
+          "source": "ocr_model_json"
+        }
+      }
+    },
+    {
+      "key": "rain_umbrella",
+      "path": "IMG_0006.png",
+      "label": "Gelber Regenschirm im Regen",
+      "origin": "imagegen",
+      "file_id": 7,
+      "kind": "foto",
+      "description": "Eine Frau mit langem braunen Haar geht auf einem nassen, reflektierenden Gehweg und hält einen gelben Regenschirm. Sie trägt einen schwarzen Mantel, eine schwarze Tasche, blaue Jeans und schwarze Stiefel, während im Hintergrund ein regnerischer Stadtboulevard mit Autos und Gebäuden zu sehen ist.",
+      "tags": [
+        "Frau",
+        "Regenschirm",
+        "gelber Schirm",
+        "nasser Gehweg",
+        "Regen",
+        "Stadt",
+        "schwarzer Mantel",
+        "blaue Jeans",
+        "schwarze Stiefel",
+        "Handtasche",
+        "Autos",
+        "Gebäude",
+        "Straßenlaterne",
+        "Reflexion",
+        "Boulevard"
+      ],
+      "objects": [
+        "Frau",
+        "Regenschirm",
+        "Handtasche",
+        "Mantel",
+        "Jeans",
+        "Stiefel",
+        "Autos",
+        "Gebäude",
+        "Straßenlaterne",
+        "Gehweg"
+      ],
+      "ocr": "",
+      "metadata": {
+        "provenance": {
+          "pipeline": "structured-stream-2",
+          "analyzed_at": 1791531490.265035,
+          "models": {
+            "vision": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "756443e05332f4ece7a2d563c57ef509ea8b30f99c074945d0f6dc0f98842bea",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            },
+            "ocr": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "891b536791122eca0bfdba258f276715564c1fac1090abd38f9f6c42f71669cb",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            }
+          },
+          "images": {
+            "vision": {
+              "content_width": 1374,
+              "content_height": 1145,
+              "padding_right": 2,
+              "padding_bottom": 7,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 1374,
+              "source_height": 1145,
+              "oriented_width": 1374,
+              "oriented_height": 1145,
+              "sent_width": 1376,
+              "sent_height": 1152,
+              "sent_pixels": 1585152,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 2391119,
+              "sha256": "69caec0e980913160b4f5ee12e441141656903888762f9e59e41c061e68eb552"
+            },
+            "ocr": {
+              "content_width": 1374,
+              "content_height": 1145,
+              "padding_right": 2,
+              "padding_bottom": 7,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 1374,
+              "source_height": 1145,
+              "oriented_width": 1374,
+              "oriented_height": 1145,
+              "sent_width": 1376,
+              "sent_height": 1152,
+              "sent_pixels": 1585152,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 2391119,
+              "sha256": "69caec0e980913160b4f5ee12e441141656903888762f9e59e41c061e68eb552",
+              "image_count": 1,
+              "tiles": [],
+              "tile_overlap_percent": 10,
+              "total_sent_bytes": 2391119
+            }
+          },
+          "output_channels": {
+            "vision": "reasoning_json_workaround",
+            "ocr": "reasoning_json_workaround"
+          },
+          "inference_attempts": {
+            "vision": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 25.026,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 0.2,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 2059,
+                  "completion_tokens": 324,
+                  "total_tokens": 2383
+                },
+                "empty_text": false
+              }
+            ],
+            "ocr": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 84.259,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 1.0,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 1937,
+                  "completion_tokens": 8,
+                  "total_tokens": 1945
+                },
+                "empty_text": true
+              }
+            ]
+          }
+        },
+        "vision": {
+          "type": "foto",
+          "description": "Eine Frau mit langem braunen Haar geht auf einem nassen, reflektierenden Gehweg und hält einen gelben Regenschirm. Sie trägt einen schwarzen Mantel, eine schwarze Tasche, blaue Jeans und schwarze Stiefel, während im Hintergrund ein regnerischer Stadtboulevard mit Autos und Gebäuden zu sehen ist.",
+          "tags": [
+            "Frau",
+            "Regenschirm",
+            "gelber Schirm",
+            "nasser Gehweg",
+            "Regen",
+            "Stadt",
+            "schwarzer Mantel",
+            "blaue Jeans",
+            "schwarze Stiefel",
+            "Handtasche",
+            "Autos",
+            "Gebäude",
+            "Straßenlaterne",
+            "Reflexion",
+            "Boulevard"
+          ],
+          "objects": [
+            "Frau",
+            "Regenschirm",
+            "Handtasche",
+            "Mantel",
+            "Jeans",
+            "Stiefel",
+            "Autos",
+            "Gebäude",
+            "Straßenlaterne",
+            "Gehweg"
+          ],
+          "uncertain_details": [
+            "Die genaue Stadt oder der Ort ist nicht erkennbar.",
+            "Die Marke der Kleidung und des Schirms ist nicht bestimmbar."
+          ]
+        },
+        "ocr": {
+          "text": "",
+          "source": "ocr_model_json"
+        }
+      }
+    },
+    {
+      "key": "exit_sign",
+      "path": "IMG_0013.png",
+      "label": "Notausgang Schild",
+      "origin": "procedural",
+      "file_id": 8,
+      "kind": "grafik",
+      "description": "Ein digitales Banner mit einem grünen Balken oben und einem hellen Hintergrund, auf dem der Text 'NOTAUSGANG' und 'Bitte freihalten' zu sehen ist.",
+      "tags": [
+        "grafik",
+        "text",
+        "gruen",
+        "banner",
+        "hinweis",
+        "notausgang",
+        "freihalten"
+      ],
+      "objects": [
+        "text",
+        "banner"
+      ],
+      "ocr": "NOTAUSGANG\nBitte freihalten",
+      "metadata": {
+        "provenance": {
+          "pipeline": "structured-stream-2",
+          "analyzed_at": 1791531600.8284347,
+          "models": {
+            "vision": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "756443e05332f4ece7a2d563c57ef509ea8b30f99c074945d0f6dc0f98842bea",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            },
+            "ocr": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "891b536791122eca0bfdba258f276715564c1fac1090abd38f9f6c42f71669cb",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            }
+          },
+          "images": {
+            "vision": {
+              "content_width": 1100,
+              "content_height": 1000,
+              "padding_right": 20,
+              "padding_bottom": 24,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 1100,
+              "source_height": 1000,
+              "oriented_width": 1100,
+              "oriented_height": 1000,
+              "sent_width": 1120,
+              "sent_height": 1024,
+              "sent_pixels": 1146880,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 14921,
+              "sha256": "3020de8d5d1ea5ddf13fa34bea98fede102c5ed0d44afc32635176ea0c07514f"
+            },
+            "ocr": {
+              "content_width": 1100,
+              "content_height": 1000,
+              "padding_right": 20,
+              "padding_bottom": 24,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 1100,
+              "source_height": 1000,
+              "oriented_width": 1100,
+              "oriented_height": 1000,
+              "sent_width": 1120,
+              "sent_height": 1024,
+              "sent_pixels": 1146880,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 14921,
+              "sha256": "3020de8d5d1ea5ddf13fa34bea98fede102c5ed0d44afc32635176ea0c07514f",
+              "image_count": 1,
+              "tiles": [],
+              "tile_overlap_percent": 10,
+              "total_sent_bytes": 14921
+            }
+          },
+          "output_channels": {
+            "vision": "reasoning_json_workaround",
+            "ocr": "reasoning_json_workaround"
+          },
+          "inference_attempts": {
+            "vision": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 22.192,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 0.2,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 1631,
+                  "completion_tokens": 136,
+                  "total_tokens": 1767
+                },
+                "empty_text": false
+              }
+            ],
+            "ocr": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 3.331,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 1.0,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 1509,
+                  "completion_tokens": 20,
+                  "total_tokens": 1529
+                },
+                "empty_text": false
+              }
+            ]
+          }
+        },
+        "vision": {
+          "type": "grafik",
+          "description": "Ein digitales Banner mit einem grünen Balken oben und einem hellen Hintergrund, auf dem der Text 'NOTAUSGANG' und 'Bitte freihalten' zu sehen ist.",
+          "tags": [
+            "grafik",
+            "text",
+            "gruen",
+            "banner",
+            "hinweis",
+            "notausgang",
+            "freihalten"
+          ],
+          "objects": [
+            "text",
+            "banner"
+          ],
+          "uncertain_details": []
+        },
+        "ocr": {
+          "text": "NOTAUSGANG\nBitte freihalten",
+          "source": "ocr_model_json"
+        }
+      }
+    },
+    {
+      "key": "winter_hiker",
+      "path": "IMG_0002.png",
+      "label": "Wanderer im Schnee",
+      "origin": "imagegen",
+      "file_id": 9,
+      "kind": "foto",
+      "description": "Eine Person in roter Jacke und mit blauem Rucksack wandert mit Stöcken einen schneebedeckten Hang hinauf. Im Hintergrund sind schneebedeckte Tannenbäume und eine Bergkette unter einem bewölkten Himmel zu sehen.",
+      "tags": [
+        "Wanderer",
+        "Schnee",
+        "Berge",
+        "Tannen",
+        "Rucksack",
+        "rote Jacke",
+        "Wanderstöcke",
+        "Winterlandschaft",
+        "Himmel",
+        "Wald"
+      ],
+      "objects": [
+        "Person",
+        "Rucksack",
+        "Wanderstöcke",
+        "Bäume",
+        "Berge",
+        "Schnee"
+      ],
+      "ocr": "",
+      "metadata": {
+        "provenance": {
+          "pipeline": "structured-stream-2",
+          "analyzed_at": 1791531178.1958861,
+          "models": {
+            "vision": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "756443e05332f4ece7a2d563c57ef509ea8b30f99c074945d0f6dc0f98842bea",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            },
+            "ocr": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "891b536791122eca0bfdba258f276715564c1fac1090abd38f9f6c42f71669cb",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            }
+          },
+          "images": {
+            "vision": {
+              "content_width": 1536,
+              "content_height": 1024,
+              "padding_right": 0,
+              "padding_bottom": 0,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 1536,
+              "source_height": 1024,
+              "oriented_width": 1536,
+              "oriented_height": 1024,
+              "sent_width": 1536,
+              "sent_height": 1024,
+              "sent_pixels": 1572864,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 2753757,
+              "sha256": "dcd63d4e3a72c37cffece501a4013d60510e4587281f3a1f74d0b03bb44e85a1"
+            },
+            "ocr": {
+              "content_width": 1536,
+              "content_height": 1024,
+              "padding_right": 0,
+              "padding_bottom": 0,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 1536,
+              "source_height": 1024,
+              "oriented_width": 1536,
+              "oriented_height": 1024,
+              "sent_width": 1536,
+              "sent_height": 1024,
+              "sent_pixels": 1572864,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 2753757,
+              "sha256": "dcd63d4e3a72c37cffece501a4013d60510e4587281f3a1f74d0b03bb44e85a1",
+              "image_count": 1,
+              "tiles": [],
+              "tile_overlap_percent": 10,
+              "total_sent_bytes": 2753757
+            }
+          },
+          "output_channels": {
+            "vision": "reasoning_json_workaround",
+            "ocr": "reasoning_json_workaround"
+          },
+          "inference_attempts": {
+            "vision": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 88.377,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 0.2,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 2047,
+                  "completion_tokens": 206,
+                  "total_tokens": 2253
+                },
+                "empty_text": false
+              }
+            ],
+            "ocr": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 16.907,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 1.0,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 1925,
+                  "completion_tokens": 8,
+                  "total_tokens": 1933
+                },
+                "empty_text": true
+              }
+            ]
+          }
+        },
+        "vision": {
+          "type": "foto",
+          "description": "Eine Person in roter Jacke und mit blauem Rucksack wandert mit Stöcken einen schneebedeckten Hang hinauf. Im Hintergrund sind schneebedeckte Tannenbäume und eine Bergkette unter einem bewölkten Himmel zu sehen.",
+          "tags": [
+            "Wanderer",
+            "Schnee",
+            "Berge",
+            "Tannen",
+            "Rucksack",
+            "rote Jacke",
+            "Wanderstöcke",
+            "Winterlandschaft",
+            "Himmel",
+            "Wald"
+          ],
+          "objects": [
+            "Person",
+            "Rucksack",
+            "Wanderstöcke",
+            "Bäume",
+            "Berge",
+            "Schnee"
+          ],
+          "uncertain_details": []
+        },
+        "ocr": {
+          "text": "",
+          "source": "ocr_model_json"
+        }
+      }
+    },
+    {
+      "key": "blue_bike_beach",
+      "path": "IMG_0019.png",
+      "label": "Blaues Fahrrad am Strand (Grafik)",
+      "origin": "procedural",
+      "file_id": 10,
+      "kind": "grafik",
+      "description": "Eine stilisierte Grafik zeigt ein blaues Fahrrad mit schwarzen Rädern vor einem Hintergrund aus horizontalen Streifen in Blau und Beige. Oben rechts ist eine gelbe Sonne auf hellem Blau zu sehen.",
+      "tags": [
+        "grafik",
+        "fahrrad",
+        "sonne",
+        "himmel",
+        "meer",
+        "strand",
+        "illustration",
+        "flache-gestaltung",
+        "blau",
+        "gelb",
+        "beige",
+        "rad",
+        "rahmen",
+        "lenker",
+        "sitz"
+      ],
+      "objects": [
+        "fahrrad",
+        "sonne",
+        "rad",
+        "rahmen",
+        "lenker",
+        "sitz"
+      ],
+      "ocr": "",
+      "metadata": {
+        "provenance": {
+          "pipeline": "structured-stream-2",
+          "analyzed_at": 1791531850.9170165,
+          "models": {
+            "vision": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "756443e05332f4ece7a2d563c57ef509ea8b30f99c074945d0f6dc0f98842bea",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            },
+            "ocr": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "891b536791122eca0bfdba258f276715564c1fac1090abd38f9f6c42f71669cb",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            }
+          },
+          "images": {
+            "vision": {
+              "content_width": 1280,
+              "content_height": 720,
+              "padding_right": 0,
+              "padding_bottom": 16,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 1280,
+              "source_height": 720,
+              "oriented_width": 1280,
+              "oriented_height": 720,
+              "sent_width": 1280,
+              "sent_height": 736,
+              "sent_pixels": 942080,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 9202,
+              "sha256": "acb60fe71d9a9be033b2edf125eb99973f10801bcffaaffb1a4cb54547802ff3"
+            },
+            "ocr": {
+              "content_width": 1280,
+              "content_height": 720,
+              "padding_right": 0,
+              "padding_bottom": 16,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 1280,
+              "source_height": 720,
+              "oriented_width": 1280,
+              "oriented_height": 720,
+              "sent_width": 1280,
+              "sent_height": 736,
+              "sent_pixels": 942080,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 9202,
+              "sha256": "acb60fe71d9a9be033b2edf125eb99973f10801bcffaaffb1a4cb54547802ff3",
+              "image_count": 1,
+              "tiles": [],
+              "tile_overlap_percent": 10,
+              "total_sent_bytes": 9202
+            }
+          },
+          "output_channels": {
+            "vision": "reasoning_json_workaround",
+            "ocr": "reasoning_json_workaround"
+          },
+          "inference_attempts": {
+            "vision": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 7.826,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 0.2,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 1431,
+                  "completion_tokens": 220,
+                  "total_tokens": 1651
+                },
+                "empty_text": false
+              }
+            ],
+            "ocr": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 83.363,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 1.0,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 1309,
+                  "completion_tokens": 6,
+                  "total_tokens": 1315
+                },
+                "empty_text": true
+              }
+            ]
+          }
+        },
+        "vision": {
+          "type": "grafik",
+          "description": "Eine stilisierte Grafik zeigt ein blaues Fahrrad mit schwarzen Rädern vor einem Hintergrund aus horizontalen Streifen in Blau und Beige. Oben rechts ist eine gelbe Sonne auf hellem Blau zu sehen.",
+          "tags": [
+            "grafik",
+            "fahrrad",
+            "sonne",
+            "himmel",
+            "meer",
+            "strand",
+            "illustration",
+            "flache-gestaltung",
+            "blau",
+            "gelb",
+            "beige",
+            "rad",
+            "rahmen",
+            "lenker",
+            "sitz"
+          ],
+          "objects": [
+            "fahrrad",
+            "sonne",
+            "rad",
+            "rahmen",
+            "lenker",
+            "sitz"
+          ],
+          "uncertain_details": []
+        },
+        "ocr": {
+          "text": "",
+          "source": "ocr_model_json"
+        }
+      }
+    },
+    {
+      "key": "invoice_coffee",
+      "path": "SCAN_0008.png",
+      "label": "Kaffeehaus Rechnung 12346",
+      "origin": "procedural",
+      "file_id": 11,
+      "kind": "dokument",
+      "description": "Ein digitales Dokument mit einem dunkelblauen Kopfbereich und weißem Hintergrund, das den Text 'RECHNUNG 12346' sowie 'Kaffeehaus', ein Datum und einen Betrag in Euro enthält.",
+      "tags": [
+        "Rechnung",
+        "Kaffeehaus",
+        "Datum",
+        "Betrag",
+        "EUR",
+        "Dokument",
+        "Text",
+        "Kopfbereich",
+        "dunkelblau",
+        "weiss"
+      ],
+      "objects": [
+        "Textzeile",
+        "Kopfbereich"
+      ],
+      "ocr": "RECHNUNG 12346\nKaffeehaus\nDatum: 09.10.2026\nBetrag: 18,90 EUR\nVielen Dank fuer Ihren Einkauf",
+      "metadata": {
+        "provenance": {
+          "pipeline": "structured-stream-2",
+          "analyzed_at": 1791532059.193519,
+          "models": {
+            "vision": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "756443e05332f4ece7a2d563c57ef509ea8b30f99c074945d0f6dc0f98842bea",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            },
+            "ocr": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "891b536791122eca0bfdba258f276715564c1fac1090abd38f9f6c42f71669cb",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            }
+          },
+          "images": {
+            "vision": {
+              "content_width": 1100,
+              "content_height": 1000,
+              "padding_right": 20,
+              "padding_bottom": 24,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 1100,
+              "source_height": 1000,
+              "oriented_width": 1100,
+              "oriented_height": 1000,
+              "sent_width": 1120,
+              "sent_height": 1024,
+              "sent_pixels": 1146880,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 34533,
+              "sha256": "4a2ac1f3d24cb6bfb596756c860896f009cd21174479a94a8a3a7890a2a3c5ab"
+            },
+            "ocr": {
+              "content_width": 1100,
+              "content_height": 1000,
+              "padding_right": 20,
+              "padding_bottom": 24,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 1100,
+              "source_height": 1000,
+              "oriented_width": 1100,
+              "oriented_height": 1000,
+              "sent_width": 1120,
+              "sent_height": 1024,
+              "sent_pixels": 1146880,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 34533,
+              "sha256": "4a2ac1f3d24cb6bfb596756c860896f009cd21174479a94a8a3a7890a2a3c5ab",
+              "image_count": 1,
+              "tiles": [],
+              "tile_overlap_percent": 10,
+              "total_sent_bytes": 34533
+            }
+          },
+          "output_channels": {
+            "vision": "reasoning_json_workaround",
+            "ocr": "reasoning_json_workaround"
+          },
+          "inference_attempts": {
+            "vision": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 20.069,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 0.2,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 1631,
+                  "completion_tokens": 174,
+                  "total_tokens": 1805
+                },
+                "empty_text": false
+              }
+            ],
+            "ocr": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 4.011,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 1.0,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 1509,
+                  "completion_tokens": 55,
+                  "total_tokens": 1564
+                },
+                "empty_text": false
+              }
+            ]
+          }
+        },
+        "vision": {
+          "type": "dokument",
+          "description": "Ein digitales Dokument mit einem dunkelblauen Kopfbereich und weißem Hintergrund, das den Text 'RECHNUNG 12346' sowie 'Kaffeehaus', ein Datum und einen Betrag in Euro enthält.",
+          "tags": [
+            "Rechnung",
+            "Kaffeehaus",
+            "Datum",
+            "Betrag",
+            "EUR",
+            "Dokument",
+            "Text",
+            "Kopfbereich",
+            "dunkelblau",
+            "weiss"
+          ],
+          "objects": [
+            "Textzeile",
+            "Kopfbereich"
+          ],
+          "uncertain_details": []
+        },
+        "ocr": {
+          "text": "RECHNUNG 12346\nKaffeehaus\nDatum: 09.10.2026\nBetrag: 18,90 EUR\nVielen Dank fuer Ihren Einkauf",
+          "source": "ocr_model_json"
+        }
+      }
+    },
+    {
+      "key": "chat_beach",
+      "path": "CHAT_0009.png",
+      "label": "Strandtermin 17:30 Uhr",
+      "origin": "procedural",
+      "file_id": 12,
+      "kind": "screenshot",
+      "description": "Ein Screenshot einer Chat-Oberfläche mit dunkelblauem Kopfbereich und weißem Text. Darunter befindet sich ein heller Bereich mit zwei Textzeilen in schwarzer Schrift.",
+      "tags": [
+        "Chat",
+        "Oberfläche",
+        "Text",
+        "Kopfbereich",
+        "Nachricht",
+        "Schriftzug",
+        "Anzeige"
+      ],
+      "objects": [
+        "Chatfenster",
+        "Textzeile",
+        "Kopfleiste"
+      ],
+      "ocr": "Chat - Testansicht\nTreifen am Strand um 17:30 Uhr.\nBitte bring das rote Fahrrad mit.",
+      "metadata": {
+        "provenance": {
+          "pipeline": "structured-stream-2",
+          "analyzed_at": 1791530939.8706677,
+          "models": {
+            "vision": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "756443e05332f4ece7a2d563c57ef509ea8b30f99c074945d0f6dc0f98842bea",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            },
+            "ocr": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "891b536791122eca0bfdba258f276715564c1fac1090abd38f9f6c42f71669cb",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            }
+          },
+          "images": {
+            "vision": {
+              "content_width": 1100,
+              "content_height": 1000,
+              "padding_right": 20,
+              "padding_bottom": 24,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 1100,
+              "source_height": 1000,
+              "oriented_width": 1100,
+              "oriented_height": 1000,
+              "sent_width": 1120,
+              "sent_height": 1024,
+              "sent_pixels": 1146880,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 26315,
+              "sha256": "09c3c28347b41324286b21654809a3e1f7211f86b6ec7a9f8d96fbf97516f1f3"
+            },
+            "ocr": {
+              "content_width": 1100,
+              "content_height": 1000,
+              "padding_right": 20,
+              "padding_bottom": 24,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 1100,
+              "source_height": 1000,
+              "oriented_width": 1100,
+              "oriented_height": 1000,
+              "sent_width": 1120,
+              "sent_height": 1024,
+              "sent_pixels": 1146880,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 26315,
+              "sha256": "09c3c28347b41324286b21654809a3e1f7211f86b6ec7a9f8d96fbf97516f1f3",
+              "image_count": 1,
+              "tiles": [],
+              "tile_overlap_percent": 10,
+              "total_sent_bytes": 26315
+            }
+          },
+          "output_channels": {
+            "vision": "reasoning_json_workaround",
+            "ocr": "reasoning_json_workaround"
+          },
+          "inference_attempts": {
+            "vision": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 7.042,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 0.2,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 1631,
+                  "completion_tokens": 174,
+                  "total_tokens": 1805
+                },
+                "empty_text": false
+              }
+            ],
+            "ocr": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 3.731,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 1.0,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 1509,
+                  "completion_tokens": 34,
+                  "total_tokens": 1543
+                },
+                "empty_text": false
+              }
+            ]
+          }
+        },
+        "vision": {
+          "type": "screenshot",
+          "description": "Ein Screenshot einer Chat-Oberfläche mit dunkelblauem Kopfbereich und weißem Text. Darunter befindet sich ein heller Bereich mit zwei Textzeilen in schwarzer Schrift.",
+          "tags": [
+            "Chat",
+            "Oberfläche",
+            "Text",
+            "Kopfbereich",
+            "Nachricht",
+            "Schriftzug",
+            "Anzeige"
+          ],
+          "objects": [
+            "Chatfenster",
+            "Textzeile",
+            "Kopfleiste"
+          ],
+          "uncertain_details": [
+            "Es ist unklar, ob es sich um eine Desktop- oder Mobilansicht handelt."
+          ]
+        },
+        "ocr": {
+          "text": "Chat - Testansicht\nTreifen am Strand um 17:30 Uhr.\nBitte bring das rote Fahrrad mit.",
+          "source": "ocr_model_json"
+        }
+      }
+    },
+    {
+      "key": "train_ticket",
+      "path": "Bahn_Ticket_0014.png",
+      "label": "Zugticket Wien Graz",
+      "origin": "procedural",
+      "file_id": 13,
+      "kind": "dokument",
+      "description": "Ein digitales Dokument mit dem Titel 'FAHRKARTE' auf dunkelblauem Hintergrund. Darunter sind auf weißem Grund die Route, die Abfahrtszeit, die Zugnummer und der Preis in Euro aufgeführt.",
+      "tags": [
+        "Fahrscheindokument",
+        "Reisedokument",
+        "Zugticket",
+        "Abfahrtszeit",
+        "Preisangabe",
+        "Zugnummer",
+        "Reiseroute",
+        "Textdokument"
+      ],
+      "objects": [
+        "Textzeilen",
+        "Kopfzeile"
+      ],
+      "ocr": "FAHRKARTE\nWien Hbf -> Graz Hbf\nAbfahrt: 14:22 Uhr\nZug: IC 507\nPreis: 29,90 EUR",
+      "metadata": {
+        "provenance": {
+          "pipeline": "structured-stream-2",
+          "analyzed_at": 1791530902.3511584,
+          "models": {
+            "vision": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "756443e05332f4ece7a2d563c57ef509ea8b30f99c074945d0f6dc0f98842bea",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            },
+            "ocr": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "891b536791122eca0bfdba258f276715564c1fac1090abd38f9f6c42f71669cb",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            }
+          },
+          "images": {
+            "vision": {
+              "content_width": 1100,
+              "content_height": 1000,
+              "padding_right": 20,
+              "padding_bottom": 24,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 1100,
+              "source_height": 1000,
+              "oriented_width": 1100,
+              "oriented_height": 1000,
+              "sent_width": 1120,
+              "sent_height": 1024,
+              "sent_pixels": 1146880,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 28775,
+              "sha256": "4b75180b15bc64f182458bbc72f18109e14b56f959e4315b9ef170d68829d01a"
+            },
+            "ocr": {
+              "content_width": 1100,
+              "content_height": 1000,
+              "padding_right": 20,
+              "padding_bottom": 24,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 1100,
+              "source_height": 1000,
+              "oriented_width": 1100,
+              "oriented_height": 1000,
+              "sent_width": 1120,
+              "sent_height": 1024,
+              "sent_pixels": 1146880,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 28775,
+              "sha256": "4b75180b15bc64f182458bbc72f18109e14b56f959e4315b9ef170d68829d01a",
+              "image_count": 1,
+              "tiles": [],
+              "tile_overlap_percent": 10,
+              "total_sent_bytes": 28775
+            }
+          },
+          "output_channels": {
+            "vision": "reasoning_json_workaround",
+            "ocr": "reasoning_json_workaround"
+          },
+          "inference_attempts": {
+            "vision": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 19.076,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 0.2,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 1631,
+                  "completion_tokens": 169,
+                  "total_tokens": 1800
+                },
+                "empty_text": false
+              }
+            ],
+            "ocr": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 18.319,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 1.0,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 1509,
+                  "completion_tokens": 55,
+                  "total_tokens": 1564
+                },
+                "empty_text": false
+              }
+            ]
+          }
+        },
+        "vision": {
+          "type": "dokument",
+          "description": "Ein digitales Dokument mit dem Titel 'FAHRKARTE' auf dunkelblauem Hintergrund. Darunter sind auf weißem Grund die Route, die Abfahrtszeit, die Zugnummer und der Preis in Euro aufgeführt.",
+          "tags": [
+            "Fahrscheindokument",
+            "Reisedokument",
+            "Zugticket",
+            "Abfahrtszeit",
+            "Preisangabe",
+            "Zugnummer",
+            "Reiseroute",
+            "Textdokument"
+          ],
+          "objects": [
+            "Textzeilen",
+            "Kopfzeile"
+          ],
+          "uncertain_details": []
+        },
+        "ocr": {
+          "text": "FAHRKARTE\nWien Hbf -> Graz Hbf\nAbfahrt: 14:22 Uhr\nZug: IC 507\nPreis: 29,90 EUR",
+          "source": "ocr_model_json"
+        }
+      }
+    },
+    {
+      "key": "triangle_above",
+      "path": "IMG_0017.png",
+      "label": "Gelbes Dreieck ueber gruenem Stern",
+      "origin": "procedural",
+      "file_id": 14,
+      "kind": "grafik",
+      "description": "Zwei geometrische Formen auf weißem Hintergrund: oben ein gelbes Dreieck und unten ein grüner Fünfstern.",
+      "tags": [
+        "Dreieck",
+        "Stern",
+        "geometrische Form",
+        "gelb",
+        "grün",
+        "Fünfstern",
+        "Fläche",
+        "Vektorgrafik"
+      ],
+      "objects": [
+        "Dreieck",
+        "Stern"
+      ],
+      "ocr": "",
+      "metadata": {
+        "provenance": {
+          "pipeline": "structured-stream-2",
+          "analyzed_at": 1791531738.5151048,
+          "models": {
+            "vision": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "756443e05332f4ece7a2d563c57ef509ea8b30f99c074945d0f6dc0f98842bea",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            },
+            "ocr": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "891b536791122eca0bfdba258f276715564c1fac1090abd38f9f6c42f71669cb",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            }
+          },
+          "images": {
+            "vision": {
+              "content_width": 900,
+              "content_height": 1100,
+              "padding_right": 28,
+              "padding_bottom": 20,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 900,
+              "source_height": 1100,
+              "oriented_width": 900,
+              "oriented_height": 1100,
+              "sent_width": 928,
+              "sent_height": 1120,
+              "sent_pixels": 1039360,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 7654,
+              "sha256": "cdcd22a6e7b524c4e4f46d9a6715be0b01c131f5c8837bdf8609164a5992e2f2"
+            },
+            "ocr": {
+              "content_width": 900,
+              "content_height": 1100,
+              "padding_right": 28,
+              "padding_bottom": 20,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 900,
+              "source_height": 1100,
+              "oriented_width": 900,
+              "oriented_height": 1100,
+              "sent_width": 928,
+              "sent_height": 1120,
+              "sent_pixels": 1039360,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 7654,
+              "sha256": "cdcd22a6e7b524c4e4f46d9a6715be0b01c131f5c8837bdf8609164a5992e2f2",
+              "image_count": 1,
+              "tiles": [],
+              "tile_overlap_percent": 10,
+              "total_sent_bytes": 7654
+            }
+          },
+          "output_channels": {
+            "vision": "reasoning_json_workaround",
+            "ocr": "reasoning_json_workaround"
+          },
+          "inference_attempts": {
+            "vision": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 5.99,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 0.2,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 1526,
+                  "completion_tokens": 146,
+                  "total_tokens": 1672
+                },
+                "empty_text": false
+              }
+            ],
+            "ocr": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 83.409,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 1.0,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 1404,
+                  "completion_tokens": 6,
+                  "total_tokens": 1410
+                },
+                "empty_text": true
+              }
+            ]
+          }
+        },
+        "vision": {
+          "type": "grafik",
+          "description": "Zwei geometrische Formen auf weißem Hintergrund: oben ein gelbes Dreieck und unten ein grüner Fünfstern.",
+          "tags": [
+            "Dreieck",
+            "Stern",
+            "geometrische Form",
+            "gelb",
+            "grün",
+            "Fünfstern",
+            "Fläche",
+            "Vektorgrafik"
+          ],
+          "objects": [
+            "Dreieck",
+            "Stern"
+          ],
+          "uncertain_details": []
+        },
+        "ocr": {
+          "text": "",
+          "source": "ocr_model_json"
+        }
+      }
+    },
+    {
+      "key": "bicycle_park",
+      "path": "Fahrrad_Park_0004.png",
+      "label": "Rotes Fahrrad im Park",
+      "origin": "imagegen",
+      "file_id": 15,
+      "kind": "foto",
+      "description": "Ein rotes Fahrrad mit schwarzen Reifen und einem schwarzen Sattel steht auf einem gepflasterten Weg vor einer hölzernen Parkbank. Im Hintergrund sind grüne Bäume, ein Baumstumpf und eine Laterne in einem Park zu sehen.",
+      "tags": [
+        "Fahrrad",
+        "Parkbank",
+        "Park",
+        "Bäume",
+        "Gras",
+        "Pflasterweg",
+        "Laterne",
+        "Baumstumpf",
+        "Natur",
+        "Freizeit"
+      ],
+      "objects": [
+        "Fahrrad",
+        "Parkbank",
+        "Bäume",
+        "Gras",
+        "Pflasterweg",
+        "Laterne",
+        "Baumstumpf"
+      ],
+      "ocr": "",
+      "metadata": {
+        "provenance": {
+          "pipeline": "structured-stream-2",
+          "analyzed_at": 1791531057.4517255,
+          "models": {
+            "vision": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "756443e05332f4ece7a2d563c57ef509ea8b30f99c074945d0f6dc0f98842bea",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            },
+            "ocr": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "891b536791122eca0bfdba258f276715564c1fac1090abd38f9f6c42f71669cb",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            }
+          },
+          "images": {
+            "vision": {
+              "content_width": 1536,
+              "content_height": 1024,
+              "padding_right": 0,
+              "padding_bottom": 0,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 1536,
+              "source_height": 1024,
+              "oriented_width": 1536,
+              "oriented_height": 1024,
+              "sent_width": 1536,
+              "sent_height": 1024,
+              "sent_pixels": 1572864,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 2959699,
+              "sha256": "fd2d3a005ddd36d6182e0aac7b52c5e1659029ff93ed803fc75937c044c205c6"
+            },
+            "ocr": {
+              "content_width": 1536,
+              "content_height": 1024,
+              "padding_right": 0,
+              "padding_bottom": 0,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 1536,
+              "source_height": 1024,
+              "oriented_width": 1536,
+              "oriented_height": 1024,
+              "sent_width": 1536,
+              "sent_height": 1024,
+              "sent_pixels": 1572864,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 2959699,
+              "sha256": "fd2d3a005ddd36d6182e0aac7b52c5e1659029ff93ed803fc75937c044c205c6",
+              "image_count": 1,
+              "tiles": [],
+              "tile_overlap_percent": 10,
+              "total_sent_bytes": 2959699
+            }
+          },
+          "output_channels": {
+            "vision": "reasoning_json_workaround",
+            "ocr": "reasoning_json_workaround"
+          },
+          "inference_attempts": {
+            "vision": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 8.372,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 0.2,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 2047,
+                  "completion_tokens": 209,
+                  "total_tokens": 2256
+                },
+                "empty_text": false
+              }
+            ],
+            "ocr": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 85.253,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 1.0,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 1925,
+                  "completion_tokens": 8,
+                  "total_tokens": 1933
+                },
+                "empty_text": true
+              }
+            ]
+          }
+        },
+        "vision": {
+          "type": "foto",
+          "description": "Ein rotes Fahrrad mit schwarzen Reifen und einem schwarzen Sattel steht auf einem gepflasterten Weg vor einer hölzernen Parkbank. Im Hintergrund sind grüne Bäume, ein Baumstumpf und eine Laterne in einem Park zu sehen.",
+          "tags": [
+            "Fahrrad",
+            "Parkbank",
+            "Park",
+            "Bäume",
+            "Gras",
+            "Pflasterweg",
+            "Laterne",
+            "Baumstumpf",
+            "Natur",
+            "Freizeit"
+          ],
+          "objects": [
+            "Fahrrad",
+            "Parkbank",
+            "Bäume",
+            "Gras",
+            "Pflasterweg",
+            "Laterne",
+            "Baumstumpf"
+          ],
+          "uncertain_details": []
+        },
+        "ocr": {
+          "text": "",
+          "source": "ocr_model_json"
+        }
+      }
+    },
+    {
+      "key": "summer_lake",
+      "path": "IMG_0003.png",
+      "label": "Picknick am See mit gelbem Kanu",
+      "origin": "imagegen",
+      "file_id": 16,
+      "kind": "foto",
+      "description": "Eine Familie mit einem Kind sitzt auf einer grünen Decke am Ufer eines Sees und isst Äpfel und Brot. Im Hintergrund sind bewaldete Berge und ein gelbes Boot auf dem Wasser zu sehen.",
+      "tags": [
+        "Familie",
+        "Kind",
+        "Mann",
+        "Frau",
+        "Picknick",
+        "See",
+        "Berge",
+        "Boot",
+        "Äpfel",
+        "Brot",
+        "Decke",
+        "Korb",
+        "Natur",
+        "Gras",
+        "Steine",
+        "Wald"
+      ],
+      "objects": [
+        "Familie",
+        "Kind",
+        "Mann",
+        "Frau",
+        "Picknickdecke",
+        "Korb",
+        "Äpfel",
+        "Brot",
+        "Boot",
+        "See",
+        "Berge",
+        "Gras",
+        "Steine",
+        "Wald"
+      ],
+      "ocr": "",
+      "metadata": {
+        "provenance": {
+          "pipeline": "structured-stream-2",
+          "analyzed_at": 1791531284.427299,
+          "models": {
+            "vision": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "756443e05332f4ece7a2d563c57ef509ea8b30f99c074945d0f6dc0f98842bea",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            },
+            "ocr": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "891b536791122eca0bfdba258f276715564c1fac1090abd38f9f6c42f71669cb",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            }
+          },
+          "images": {
+            "vision": {
+              "content_width": 1536,
+              "content_height": 1024,
+              "padding_right": 0,
+              "padding_bottom": 0,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 1536,
+              "source_height": 1024,
+              "oriented_width": 1536,
+              "oriented_height": 1024,
+              "sent_width": 1536,
+              "sent_height": 1024,
+              "sent_pixels": 1572864,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 2579879,
+              "sha256": "fc6e96e3bc88eb06e9f464cda62136e93713b92d741dd3b169db8833e69c234d"
+            },
+            "ocr": {
+              "content_width": 1536,
+              "content_height": 1024,
+              "padding_right": 0,
+              "padding_bottom": 0,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 1536,
+              "source_height": 1024,
+              "oriented_width": 1536,
+              "oriented_height": 1024,
+              "sent_width": 1536,
+              "sent_height": 1024,
+              "sent_pixels": 1572864,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 2579879,
+              "sha256": "fc6e96e3bc88eb06e9f464cda62136e93713b92d741dd3b169db8833e69c234d",
+              "image_count": 1,
+              "tiles": [],
+              "tile_overlap_percent": 10,
+              "total_sent_bytes": 2579879
+            }
+          },
+          "output_channels": {
+            "vision": "reasoning_json_workaround",
+            "ocr": "reasoning_json_workaround"
+          },
+          "inference_attempts": {
+            "vision": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 9.183,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 0.2,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 2047,
+                  "completion_tokens": 268,
+                  "total_tokens": 2315
+                },
+                "empty_text": false
+              }
+            ],
+            "ocr": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 84.675,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 1.0,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 1925,
+                  "completion_tokens": 9,
+                  "total_tokens": 1934
+                },
+                "empty_text": true
+              }
+            ]
+          }
+        },
+        "vision": {
+          "type": "foto",
+          "description": "Eine Familie mit einem Kind sitzt auf einer grünen Decke am Ufer eines Sees und isst Äpfel und Brot. Im Hintergrund sind bewaldete Berge und ein gelbes Boot auf dem Wasser zu sehen.",
+          "tags": [
+            "Familie",
+            "Kind",
+            "Mann",
+            "Frau",
+            "Picknick",
+            "See",
+            "Berge",
+            "Boot",
+            "Äpfel",
+            "Brot",
+            "Decke",
+            "Korb",
+            "Natur",
+            "Gras",
+            "Steine",
+            "Wald"
+          ],
+          "objects": [
+            "Familie",
+            "Kind",
+            "Mann",
+            "Frau",
+            "Picknickdecke",
+            "Korb",
+            "Äpfel",
+            "Brot",
+            "Boot",
+            "See",
+            "Berge",
+            "Gras",
+            "Steine",
+            "Wald"
+          ],
+          "uncertain_details": []
+        },
+        "ocr": {
+          "text": "",
+          "source": "ocr_model_json"
+        }
+      }
+    },
+    {
+      "key": "menu_pizza",
+      "path": "Speisekarte_0011.png",
+      "label": "Pizza Speisekarte",
+      "origin": "procedural",
+      "file_id": 17,
+      "kind": "dokument",
+      "description": "Ein digitales Dokument mit dem Titel 'SPEISEKARTE' auf einem dunkelblauen Balken. Darunter sind drei Zeilen mit Speisennamen und Preisen in Euro auf weißem Hintergrund aufgeführt.",
+      "tags": [
+        "Speisekarte",
+        "Menü",
+        "Pizza",
+        "Margherita",
+        "Fungghi",
+        "Apfelsaft",
+        "Preisliste",
+        "EUR",
+        "Textdokument"
+      ],
+      "objects": [
+        "Text",
+        "Titel",
+        "Liste"
+      ],
+      "ocr": "SPEISEKarte\n\nPizza Margherita 9,50 EUR\n\nPizza Funghi 11,00 EUR\n\nApfelsaft 3,20 EUR",
+      "metadata": {
+        "provenance": {
+          "pipeline": "structured-stream-2",
+          "analyzed_at": 1791532188.6238644,
+          "models": {
+            "vision": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "756443e05332f4ece7a2d563c57ef509ea8b30f99c074945d0f6dc0f98842bea",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            },
+            "ocr": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "891b536791122eca0bfdba258f276715564c1fac1090abd38f9f6c42f71669cb",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            }
+          },
+          "images": {
+            "vision": {
+              "content_width": 1100,
+              "content_height": 1000,
+              "padding_right": 20,
+              "padding_bottom": 24,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 1100,
+              "source_height": 1000,
+              "oriented_width": 1100,
+              "oriented_height": 1000,
+              "sent_width": 1120,
+              "sent_height": 1024,
+              "sent_pixels": 1146880,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 29917,
+              "sha256": "b860386651820fb7fb936261435d2e99a46f0f5caf546df248ba0b8390618ba7"
+            },
+            "ocr": {
+              "content_width": 1100,
+              "content_height": 1000,
+              "padding_right": 20,
+              "padding_bottom": 24,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 1100,
+              "source_height": 1000,
+              "oriented_width": 1100,
+              "oriented_height": 1000,
+              "sent_width": 1120,
+              "sent_height": 1024,
+              "sent_pixels": 1146880,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 29917,
+              "sha256": "b860386651820fb7fb936261435d2e99a46f0f5caf546df248ba0b8390618ba7",
+              "image_count": 1,
+              "tiles": [],
+              "tile_overlap_percent": 10,
+              "total_sent_bytes": 29917
+            }
+          },
+          "output_channels": {
+            "vision": "reasoning_json_workaround",
+            "ocr": "reasoning_json_workaround"
+          },
+          "inference_attempts": {
+            "vision": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 6.765,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 0.2,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 1631,
+                  "completion_tokens": 166,
+                  "total_tokens": 1797
+                },
+                "empty_text": false
+              }
+            ],
+            "ocr": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 3.78,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 1.0,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 1509,
+                  "completion_tokens": 46,
+                  "total_tokens": 1555
+                },
+                "empty_text": false
+              }
+            ]
+          }
+        },
+        "vision": {
+          "type": "dokument",
+          "description": "Ein digitales Dokument mit dem Titel 'SPEISEKARTE' auf einem dunkelblauen Balken. Darunter sind drei Zeilen mit Speisennamen und Preisen in Euro auf weißem Hintergrund aufgeführt.",
+          "tags": [
+            "Speisekarte",
+            "Menü",
+            "Pizza",
+            "Margherita",
+            "Fungghi",
+            "Apfelsaft",
+            "Preisliste",
+            "EUR",
+            "Textdokument"
+          ],
+          "objects": [
+            "Text",
+            "Titel",
+            "Liste"
+          ],
+          "uncertain_details": []
+        },
+        "ocr": {
+          "text": "SPEISEKarte\n\nPizza Margherita 9,50 EUR\n\nPizza Funghi 11,00 EUR\n\nApfelsaft 3,20 EUR",
+          "source": "ocr_model_json"
+        }
+      }
+    },
+    {
+      "key": "robot_vacuum",
+      "path": "IMG_0005.png",
+      "label": "Weisser Saugroboter und schwarze Katze",
+      "origin": "imagegen",
+      "file_id": 18,
+      "kind": "foto",
+      "description": "Ein schwarzer Kater sitzt auf einem grauen Sofa und blickt auf einen weißen, runden Staubsaugerroboter auf dem Holzboden. Im Hintergrund sind Zimmerpflanzen, ein Fenster mit weißen Vorhängen und ein runder Holztisch mit einer Decke zu sehen.",
+      "tags": [
+        "Kater",
+        "schwarzer Kater",
+        "Sofa",
+        "graues Sofa",
+        "Staubsaugerroboter",
+        "weißer Staubsaugerroboter",
+        "Holzboden",
+        "Zimmerpflanze",
+        "Topfpflanze",
+        "Fenster",
+        "Vorhang",
+        "Holztisch",
+        "Decke",
+        "Kissen",
+        "Teppich",
+        "Wohnzimmer"
+      ],
+      "objects": [
+        "Kater",
+        "Sofa",
+        "Staubsaugerroboter",
+        "Zimmerpflanze",
+        "Fenster",
+        "Holztisch",
+        "Decke",
+        "Kissen",
+        "Teppich"
+      ],
+      "ocr": "",
+      "metadata": {
+        "provenance": {
+          "pipeline": "structured-stream-2",
+          "analyzed_at": 1791531379.303648,
+          "models": {
+            "vision": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "756443e05332f4ece7a2d563c57ef509ea8b30f99c074945d0f6dc0f98842bea",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            },
+            "ocr": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "891b536791122eca0bfdba258f276715564c1fac1090abd38f9f6c42f71669cb",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            }
+          },
+          "images": {
+            "vision": {
+              "content_width": 1536,
+              "content_height": 1024,
+              "padding_right": 0,
+              "padding_bottom": 0,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 1536,
+              "source_height": 1024,
+              "oriented_width": 1536,
+              "oriented_height": 1024,
+              "sent_width": 1536,
+              "sent_height": 1024,
+              "sent_pixels": 1572864,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 2333586,
+              "sha256": "13661c22741545a0e0ffcc0d62d9f9c77896593301e1301fd8ab95e0ad9898ab"
+            },
+            "ocr": {
+              "content_width": 1536,
+              "content_height": 1024,
+              "padding_right": 0,
+              "padding_bottom": 0,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 1536,
+              "source_height": 1024,
+              "oriented_width": 1536,
+              "oriented_height": 1024,
+              "sent_width": 1536,
+              "sent_height": 1024,
+              "sent_pixels": 1572864,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 2333586,
+              "sha256": "13661c22741545a0e0ffcc0d62d9f9c77896593301e1301fd8ab95e0ad9898ab",
+              "image_count": 1,
+              "tiles": [],
+              "tile_overlap_percent": 10,
+              "total_sent_bytes": 2333586
+            }
+          },
+          "output_channels": {
+            "vision": "reasoning_json_workaround",
+            "ocr": "reasoning_json_workaround"
+          },
+          "inference_attempts": {
+            "vision": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 25.04,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 0.2,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 2047,
+                  "completion_tokens": 322,
+                  "total_tokens": 2369
+                },
+                "empty_text": false
+              }
+            ],
+            "ocr": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 84.782,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 1.0,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 1925,
+                  "completion_tokens": 8,
+                  "total_tokens": 1933
+                },
+                "empty_text": true
+              }
+            ]
+          }
+        },
+        "vision": {
+          "type": "foto",
+          "description": "Ein schwarzer Kater sitzt auf einem grauen Sofa und blickt auf einen weißen, runden Staubsaugerroboter auf dem Holzboden. Im Hintergrund sind Zimmerpflanzen, ein Fenster mit weißen Vorhängen und ein runder Holztisch mit einer Decke zu sehen.",
+          "tags": [
+            "Kater",
+            "schwarzer Kater",
+            "Sofa",
+            "graues Sofa",
+            "Staubsaugerroboter",
+            "weißer Staubsaugerroboter",
+            "Holzboden",
+            "Zimmerpflanze",
+            "Topfpflanze",
+            "Fenster",
+            "Vorhang",
+            "Holztisch",
+            "Decke",
+            "Kissen",
+            "Teppich",
+            "Wohnzimmer"
+          ],
+          "objects": [
+            "Kater",
+            "Sofa",
+            "Staubsaugerroboter",
+            "Zimmerpflanze",
+            "Fenster",
+            "Holztisch",
+            "Decke",
+            "Kissen",
+            "Teppich"
+          ],
+          "uncertain_details": [
+            "Die genaue Art der Zimmerpflanzen ist nicht bestimmbar.",
+            "Die genaue Marke des Staubsaugerroboters ist nicht erkennbar."
+          ]
+        },
+        "ocr": {
+          "text": "",
+          "source": "ocr_model_json"
+        }
+      }
+    },
+    {
+      "key": "circle_left",
+      "path": "IMG_0015.png",
+      "label": "Roter Kreis links von blauem Quadrat",
+      "origin": "procedural",
+      "file_id": 19,
+      "kind": "grafik",
+      "description": "Ein roter Kreis und ein blaues Quadrat auf weißem Hintergrund.",
+      "tags": [
+        "Kreis",
+        "Quadrat",
+        "rot",
+        "blau",
+        "geometrische Form",
+        "Abstraktion"
+      ],
+      "objects": [
+        "Kreis",
+        "Quadrat"
+      ],
+      "ocr": "",
+      "metadata": {
+        "provenance": {
+          "pipeline": "structured-stream-2",
+          "analyzed_at": 1791531626.4802551,
+          "models": {
+            "vision": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "756443e05332f4ece7a2d563c57ef509ea8b30f99c074945d0f6dc0f98842bea",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            },
+            "ocr": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "891b536791122eca0bfdba258f276715564c1fac1090abd38f9f6c42f71669cb",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            }
+          },
+          "images": {
+            "vision": {
+              "content_width": 1100,
+              "content_height": 800,
+              "padding_right": 20,
+              "padding_bottom": 0,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 1100,
+              "source_height": 800,
+              "oriented_width": 1100,
+              "oriented_height": 800,
+              "sent_width": 1120,
+              "sent_height": 800,
+              "sent_pixels": 896000,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 5291,
+              "sha256": "53a1a3697c3e404b614d29d01a7fcb5d50dd586fc2986dd3e7f101f1f547b5ae"
+            },
+            "ocr": {
+              "content_width": 1100,
+              "content_height": 800,
+              "padding_right": 20,
+              "padding_bottom": 0,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 1100,
+              "source_height": 800,
+              "oriented_width": 1100,
+              "oriented_height": 800,
+              "sent_width": 1120,
+              "sent_height": 800,
+              "sent_pixels": 896000,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 5291,
+              "sha256": "53a1a3697c3e404b614d29d01a7fcb5d50dd586fc2986dd3e7f101f1f547b5ae",
+              "image_count": 1,
+              "tiles": [],
+              "tile_overlap_percent": 10,
+              "total_sent_bytes": 5291
+            }
+          },
+          "output_channels": {
+            "vision": "reasoning_json_workaround",
+            "ocr": "reasoning_json_workaround"
+          },
+          "inference_attempts": {
+            "vision": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 5.125,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 0.2,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 1386,
+                  "completion_tokens": 109,
+                  "total_tokens": 1495
+                },
+                "empty_text": false
+              }
+            ],
+            "ocr": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 85.797,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 1.0,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 1264,
+                  "completion_tokens": 6,
+                  "total_tokens": 1270
+                },
+                "empty_text": true
+              }
+            ]
+          }
+        },
+        "vision": {
+          "type": "grafik",
+          "description": "Ein roter Kreis und ein blaues Quadrat auf weißem Hintergrund.",
+          "tags": [
+            "Kreis",
+            "Quadrat",
+            "rot",
+            "blau",
+            "geometrische Form",
+            "Abstraktion"
+          ],
+          "objects": [
+            "Kreis",
+            "Quadrat"
+          ],
+          "uncertain_details": []
+        },
+        "ocr": {
+          "text": "",
+          "source": "ocr_model_json"
+        }
+      }
+    },
+    {
+      "key": "invoice_bike",
+      "path": "SCAN_0007.png",
+      "label": "Fahrradwerkstatt Rechnung 12345",
+      "origin": "procedural",
+      "file_id": 20,
+      "kind": "dokument",
+      "description": "Ein digitales Dokument mit dem Titel 'RECHNUNG 12345' auf einem dunkelblauen Balken. Darunter stehen die Angaben 'Fahrradwerkstatt', 'Datum: 09.10.2026', 'Betrag: 42,50 EUR' und 'Vielen Dank fuer Ihren Einkauf' auf weißem Hintergrund.",
+      "tags": [
+        "Rechnung",
+        "Fahrradwerkstatt",
+        "Datum",
+        "Betrag",
+        "EUR",
+        "Dank",
+        "Einkauf",
+        "Dokument",
+        "Text",
+        "Blau",
+        "Weiß"
+      ],
+      "objects": [
+        "Textzeilen",
+        "Kopfzeile"
+      ],
+      "ocr": "RECHNUNG 12345\n\nFahrradwerkstatt\n\nDatum: 09.10.2026\n\nBetrag: 42,50 EUR\n\nVielen Dank fuer Ihren Einkauf",
+      "metadata": {
+        "provenance": {
+          "pipeline": "structured-stream-2",
+          "analyzed_at": 1791531965.931637,
+          "models": {
+            "vision": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "756443e05332f4ece7a2d563c57ef509ea8b30f99c074945d0f6dc0f98842bea",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            },
+            "ocr": {
+              "id": "qwen/qwen3.8-27b",
+              "weights": "qwen3.8-27b-Q4_K_M-20261002",
+              "fingerprint": "891b536791122eca0bfdba258f276715564c1fac1090abd38f9f6c42f71669cb",
+              "max_edge": 8192,
+              "model_max_pixels": 4194304,
+              "transport": "lmstudio"
+            }
+          },
+          "images": {
+            "vision": {
+              "content_width": 1100,
+              "content_height": 1000,
+              "padding_right": 20,
+              "padding_bottom": 24,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 1100,
+              "source_height": 1000,
+              "oriented_width": 1100,
+              "oriented_height": 1000,
+              "sent_width": 1120,
+              "sent_height": 1024,
+              "sent_pixels": 1146880,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 34731,
+              "sha256": "257ca0ea575849e198645ed84c77f83274a08ffb24357db045d7fb9ebe66c0d3"
+            },
+            "ocr": {
+              "content_width": 1100,
+              "content_height": 1000,
+              "padding_right": 20,
+              "padding_bottom": 24,
+              "model_max_pixels": 4194304,
+              "encoder_grid": 32,
+              "resized": false,
+              "source_width": 1100,
+              "source_height": 1000,
+              "oriented_width": 1100,
+              "oriented_height": 1000,
+              "sent_width": 1120,
+              "sent_height": 1024,
+              "sent_pixels": 1146880,
+              "max_edge": 8192,
+              "full_frame": true,
+              "frame_index": 0,
+              "mime": "image/png",
+              "sent_bytes": 34731,
+              "sha256": "257ca0ea575849e198645ed84c77f83274a08ffb24357db045d7fb9ebe66c0d3",
+              "image_count": 1,
+              "tiles": [],
+              "tile_overlap_percent": 10,
+              "total_sent_bytes": 34731
+            }
+          },
+          "output_channels": {
+            "vision": "reasoning_json_workaround",
+            "ocr": "reasoning_json_workaround"
+          },
+          "inference_attempts": {
+            "vision": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 7.731,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 0.2,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 1631,
+                  "completion_tokens": 211,
+                  "total_tokens": 1842
+                },
+                "empty_text": false
+              }
+            ],
+            "ocr": [
+              {
+                "attempt": 1,
+                "total_attempts": 4,
+                "state": "valid",
+                "seconds": 85.412,
+                "streamed": true,
+                "finish_reason": "stop",
+                "temperature": 1.0,
+                "output_channel": "reasoning_json_workaround",
+                "usage": {
+                  "prompt_tokens": 1509,
+                  "completion_tokens": 63,
+                  "total_tokens": 1572
+                },
+                "empty_text": false
+              }
+            ]
+          }
+        },
+        "vision": {
+          "type": "dokument",
+          "description": "Ein digitales Dokument mit dem Titel 'RECHNUNG 12345' auf einem dunkelblauen Balken. Darunter stehen die Angaben 'Fahrradwerkstatt', 'Datum: 09.10.2026', 'Betrag: 42,50 EUR' und 'Vielen Dank fuer Ihren Einkauf' auf weißem Hintergrund.",
+          "tags": [
+            "Rechnung",
+            "Fahrradwerkstatt",
+            "Datum",
+            "Betrag",
+            "EUR",
+            "Dank",
+            "Einkauf",
+            "Dokument",
+            "Text",
+            "Blau",
+            "Weiß"
+          ],
+          "objects": [
+            "Textzeilen",
+            "Kopfzeile"
+          ],
+          "uncertain_details": []
+        },
+        "ocr": {
+          "text": "RECHNUNG 12345\n\nFahrradwerkstatt\n\nDatum: 09.10.2026\n\nBetrag: 42,50 EUR\n\nVielen Dank fuer Ihren Einkauf",
+          "source": "ocr_model_json"
+        }
+      }
+    }
+  ],
+  "queries": [
+    {
+      "id": "q001",
+      "category": "Begriffe",
+      "text": "Hund",
+      "relevant": [
+        "beach_dog"
+      ]
+    },
+    {
+      "id": "q002",
+      "category": "Begriffe",
+      "text": "Schnee",
+      "relevant": [
+        "winter_hiker"
+      ]
+    },
+    {
+      "id": "q003",
+      "category": "Begriffe",
+      "text": "Picknick",
+      "relevant": [
+        "summer_lake"
+      ]
+    },
+    {
+      "id": "q004",
+      "category": "Begriffe",
+      "text": "Fahrrad",
+      "relevant": [
+        "bicycle_park",
+        "blue_bike_beach",
+        "red_bike_beach"
+      ]
+    },
+    {
+      "id": "q005",
+      "category": "Begriffe",
+      "text": "Saugroboter",
+      "relevant": [
+        "robot_vacuum"
+      ]
+    },
+    {
+      "id": "q006",
+      "category": "Begriffe",
+      "text": "Regenschirm",
+      "relevant": [
+        "rain_umbrella"
+      ]
+    },
+    {
+      "id": "q007",
+      "category": "Begriffe",
+      "text": "Rechnung",
+      "relevant": [
+        "invoice_bike",
+        "invoice_coffee"
+      ]
+    },
+    {
+      "id": "q008",
+      "category": "Begriffe",
+      "text": "Cappuccino",
+      "relevant": [
+        "menu_coffee"
+      ]
+    },
+    {
+      "id": "q009",
+      "category": "Begriffe",
+      "text": "Notausgang",
+      "relevant": [
+        "exit_sign"
+      ]
+    },
+    {
+      "id": "q010",
+      "category": "Begriffe",
+      "text": "Fahrkarte",
+      "relevant": [
+        "train_ticket"
+      ]
+    },
+    {
+      "id": "q011",
+      "category": "Begriffe",
+      "text": "roter Kreis",
+      "relevant": [
+        "circle_left",
+        "circle_right"
+      ]
+    },
+    {
+      "id": "q012",
+      "category": "Begriffe",
+      "text": "gelbes Dreieck",
+      "relevant": [
+        "triangle_above",
+        "triangle_below"
+      ]
+    },
+    {
+      "id": "q013",
+      "category": "Umschreibungen",
+      "text": "Vierbeiner spielt im Wasser",
+      "relevant": [
+        "beach_dog"
+      ]
+    },
+    {
+      "id": "q014",
+      "category": "Umschreibungen",
+      "text": "Hund apportiert Spielzeug am Meer",
+      "relevant": [
+        "beach_dog"
+      ]
+    },
+    {
+      "id": "q015",
+      "category": "Umschreibungen",
+      "text": "Bergtour bei winterlichem Wetter",
+      "relevant": [
+        "winter_hiker"
+      ]
+    },
+    {
+      "id": "q016",
+      "category": "Umschreibungen",
+      "text": "Person wandert mit Rucksack im Winter",
+      "relevant": [
+        "winter_hiker"
+      ]
+    },
+    {
+      "id": "q017",
+      "category": "Umschreibungen",
+      "text": "Familie isst draussen am See",
+      "relevant": [
+        "summer_lake"
+      ]
+    },
+    {
+      "id": "q018",
+      "category": "Umschreibungen",
+      "text": "Sommerausflug mit Boot und Picknick",
+      "relevant": [
+        "summer_lake"
+      ]
+    },
+    {
+      "id": "q019",
+      "category": "Umschreibungen",
+      "text": "Zweirad neben einer Sitzbank",
+      "relevant": [
+        "bicycle_park"
+      ]
+    },
+    {
+      "id": "q020",
+      "category": "Umschreibungen",
+      "text": "Fahrrad unter Baeumen",
+      "relevant": [
+        "bicycle_park"
+      ]
+    },
+    {
+      "id": "q021",
+      "category": "Umschreibungen",
+      "text": "Geraet reinigt den Fussboden",
+      "relevant": [
+        "robot_vacuum"
+      ]
+    },
+    {
+      "id": "q022",
+      "category": "Umschreibungen",
+      "text": "Haustier beobachtet den Staubsauger",
+      "relevant": [
+        "robot_vacuum"
+      ]
+    },
+    {
+      "id": "q023",
+      "category": "Umschreibungen",
+      "text": "Schutz vor schlechtem Wetter",
+      "relevant": [
+        "rain_umbrella"
+      ]
+    },
+    {
+      "id": "q024",
+      "category": "Umschreibungen",
+      "text": "Person geht bei nassem Wetter durch die Stadt",
+      "relevant": [
+        "rain_umbrella"
+      ]
+    },
+    {
+      "id": "q025",
+      "category": "Umschreibungen",
+      "text": "Wann treffen wir uns am Meer",
+      "relevant": [
+        "chat_beach"
+      ]
+    },
+    {
+      "id": "q026",
+      "category": "Umschreibungen",
+      "text": "Zugreise zwischen zwei Staedten",
+      "relevant": [
+        "train_ticket"
+      ]
+    },
+    {
+      "id": "q027",
+      "category": "Englisch",
+      "text": "dog with a ball on the beach",
+      "relevant": [
+        "beach_dog"
+      ]
+    },
+    {
+      "id": "q028",
+      "category": "Englisch",
+      "text": "hiking in the snow",
+      "relevant": [
+        "winter_hiker"
+      ]
+    },
+    {
+      "id": "q029",
+      "category": "Englisch",
+      "text": "family picnic near a lake",
+      "relevant": [
+        "summer_lake"
+      ]
+    },
+    {
+      "id": "q030",
+      "category": "Englisch",
+      "text": "red bicycle next to a bench",
+      "relevant": [
+        "bicycle_park"
+      ]
+    },
+    {
+      "id": "q031",
+      "category": "Englisch",
+      "text": "robot vacuum cleaner and a black cat",
+      "relevant": [
+        "robot_vacuum"
+      ]
+    },
+    {
+      "id": "q032",
+      "category": "Englisch",
+      "text": "yellow umbrella in the rain",
+      "relevant": [
+        "rain_umbrella"
+      ]
+    },
+    {
+      "id": "q033",
+      "category": "Englisch",
+      "text": "train ticket Vienna to Graz",
+      "relevant": [
+        "train_ticket"
+      ]
+    },
+    {
+      "id": "q034",
+      "category": "Englisch",
+      "text": "coffee and apple strudel menu",
+      "relevant": [
+        "menu_coffee"
+      ]
+    },
+    {
+      "id": "q035",
+      "category": "OCR exakt",
+      "text": "RECHNUNG 12345",
+      "relevant": [
+        "invoice_bike"
+      ]
+    },
+    {
+      "id": "q036",
+      "category": "OCR exakt",
+      "text": "RECHNUNG 12346",
+      "relevant": [
+        "invoice_coffee"
+      ]
+    },
+    {
+      "id": "q037",
+      "category": "OCR exakt",
+      "text": "12345",
+      "relevant": [
+        "invoice_bike"
+      ]
+    },
+    {
+      "id": "q038",
+      "category": "OCR exakt",
+      "text": "12346",
+      "relevant": [
+        "invoice_coffee"
+      ]
+    },
+    {
+      "id": "q039",
+      "category": "OCR exakt",
+      "text": "42,50 EUR",
+      "relevant": [
+        "invoice_bike"
+      ]
+    },
+    {
+      "id": "q040",
+      "category": "OCR exakt",
+      "text": "18,90 EUR",
+      "relevant": [
+        "invoice_coffee"
+      ]
+    },
+    {
+      "id": "q041",
+      "category": "OCR exakt",
+      "text": "17:30",
+      "relevant": [
+        "chat_beach"
+      ]
+    },
+    {
+      "id": "q042",
+      "category": "OCR exakt",
+      "text": "09:15",
+      "relevant": [
+        "chat_park"
+      ]
+    },
+    {
+      "id": "q043",
+      "category": "OCR exakt",
+      "text": "Margherita 9,50",
+      "relevant": [
+        "menu_pizza"
+      ]
+    },
+    {
+      "id": "q044",
+      "category": "OCR exakt",
+      "text": "IC 507",
+      "relevant": [
+        "train_ticket"
+      ]
+    },
+    {
+      "id": "q045",
+      "category": "Visuelle Details",
+      "text": "Hund mit rotem Ball",
+      "relevant": [
+        "beach_dog"
+      ]
+    },
+    {
+      "id": "q046",
+      "category": "Visuelle Details",
+      "text": "gelbes Kanu auf dem See",
+      "relevant": [
+        "summer_lake"
+      ]
+    },
+    {
+      "id": "q047",
+      "category": "Visuelle Details",
+      "text": "schwarze Katze auf grauem Sofa",
+      "relevant": [
+        "robot_vacuum"
+      ]
+    },
+    {
+      "id": "q048",
+      "category": "Visuelle Details",
+      "text": "roter Kreis links vom blauen Quadrat",
+      "relevant": [
+        "circle_left"
+      ]
+    },
+    {
+      "id": "q049",
+      "category": "Visuelle Details",
+      "text": "roter Kreis rechts vom blauen Quadrat",
+      "relevant": [
+        "circle_right"
+      ]
+    },
+    {
+      "id": "q050",
+      "category": "Visuelle Details",
+      "text": "gelbes Dreieck ueber gruenem Stern",
+      "relevant": [
+        "triangle_above"
+      ]
+    },
+    {
+      "id": "q051",
+      "category": "Visuelle Details",
+      "text": "gelbes Dreieck unter gruenem Stern",
+      "relevant": [
+        "triangle_below"
+      ]
+    },
+    {
+      "id": "q052",
+      "category": "Visuelle Details",
+      "text": "blaues Fahrrad am Strand",
+      "relevant": [
+        "blue_bike_beach"
+      ]
+    },
+    {
+      "id": "q053",
+      "category": "Dateiname",
+      "text": "IMG_0001",
+      "relevant": [
+        "beach_dog"
+      ]
+    },
+    {
+      "id": "q054",
+      "category": "Dateiname",
+      "text": "IMG_0002",
+      "relevant": [
+        "winter_hiker"
+      ]
+    },
+    {
+      "id": "q055",
+      "category": "Dateiname",
+      "text": "Fahrrad_Park",
+      "relevant": [
+        "bicycle_park"
+      ]
+    },
+    {
+      "id": "q056",
+      "category": "Dateiname",
+      "text": "SCAN_0007",
+      "relevant": [
+        "invoice_bike"
+      ]
+    },
+    {
+      "id": "q057",
+      "category": "Dateiname",
+      "text": "Speisekarte_0011",
+      "relevant": [
+        "menu_pizza"
+      ]
+    },
+    {
+      "id": "q058",
+      "category": "Dateiname",
+      "text": "Bahn_Ticket",
+      "relevant": [
+        "train_ticket"
+      ]
+    },
+    {
+      "id": "q059",
+      "category": "Nicht vorhanden",
+      "text": "RECHNUNG 12349",
+      "relevant": []
+    },
+    {
+      "id": "q060",
+      "category": "Nicht vorhanden",
+      "text": "Hund mit gruenem Ball",
+      "relevant": []
+    },
+    {
+      "id": "q061",
+      "category": "Nicht vorhanden",
+      "text": "Elefant im Schnee",
+      "relevant": []
+    },
+    {
+      "id": "q062",
+      "category": "Nicht vorhanden",
+      "text": "Abfahrt 23:59",
+      "relevant": []
+    }
+  ],
+  "protocol": "Frozen before Media AI inference or retrieval; photo prompts inspected separately; no filename fed to embeddings."
+}

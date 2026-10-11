@@ -29,6 +29,33 @@ class State {
         $root=$this->rootDirectory();$service=is_file($root.'/service.json')?json_decode((string)file_get_contents($root.'/service.json'),true):[];
         return (!empty($service['active_user_id'])&&time()-(float)($service['heartbeat_at']??0)<20)||($this->status()['state']??'')==='running';
     }
+    /** Shared by the worker and all HTTP run/model changes. */
+    public function globalLock(bool $exclusive=false) {
+        $lock=fopen($this->rootDirectory().'/processing.lock','c');
+        if(!$lock||!flock($lock,($exclusive?LOCK_EX:LOCK_SH)|LOCK_NB)){
+            if($lock)fclose($lock);
+            throw new OCSBadRequestException('Bitte alle Läufe pausieren und das Ende der aktuellen Datei abwarten.');
+        }
+        return $lock;
+    }
+    public function processingPaused():bool {
+        $root=clone $this;$root->account=null;
+        return !empty($root->read('processing-admin.json',[])['paused']);
+    }
+    public function setProcessingPaused(bool $paused):void {
+        $root=clone $this;$root->account=null;
+        $root->atomic('processing-admin.json',['paused'=>$paused,'updated_at'=>time()]);
+    }
+    public function accountIds():array {
+        $global=json_decode($this->config->getAppValue('nextgallery','ai_settings','{}'),true)??[];
+        $ids=[$global['user_id']??'paul'];
+        foreach(glob($this->rootDirectory().'/accounts/*/account.json')?:[] as $path){
+            if(is_link(dirname($path))||is_link($path)||filesize($path)>4096)continue;
+            $uid=(json_decode((string)file_get_contents($path),true)??[])['user_id']??null;
+            if(is_string($uid)&&hash('sha256',$uid)===basename(dirname($path)))$ids[]=$uid;
+        }
+        return array_values(array_unique($ids));
+    }
     private function read(string $name, array $fallback): array {
         $path = $this->directory() . '/' . $name;
         if (!is_file($path)) { return $fallback; }
@@ -40,6 +67,8 @@ class State {
     public function setControl(string $action, bool $validate = false, string $rebuildConfirmation='',string $kind='both'): array {
         if(!in_array($kind,['both','descriptions','embeddings'],true))throw new OCSBadRequestException('Verarbeitungsauswahl ungültig');
         if (!in_array($action, ['start','pause','resume','retry','reset'], true)) { throw new OCSBadRequestException('Unbekannte Aktion'); }
+        $gate=$this->globalLock();
+        if($action!=='pause'&&$action!=='reset'&&$this->processingPaused()){flock($gate,LOCK_UN);fclose($gate);throw new OCSBadRequestException('Alle Läufe wurden vom Administrator pausiert.');}
         $lock = fopen($this->directory() . '/control.lock', 'c');
         if (!$lock || !flock($lock, LOCK_EX)) { throw new \RuntimeException('Steuerung ist gesperrt'); }
         try {
@@ -72,7 +101,7 @@ class State {
             $value['updated_at'] = time();
             $this->atomic('control.json', $value);
             return $value;
-        } finally { flock($lock, LOCK_UN); fclose($lock); }
+        } finally { flock($lock, LOCK_UN); fclose($lock);flock($gate,LOCK_UN);fclose($gate); }
     }
     public function atomic(string $name, array $value): void {
         $target = $this->directory() . '/' . $name;
@@ -91,6 +120,7 @@ class State {
             if(($value['state']??'not_started')==='not_started')$value['state']='paused';
         }
         $value['control'] = $this->control();
+        $value['admin_paused']=$this->processingPaused();
         $install=$this->read('embedding-install.json', []);$value['embedding_install_requested']=!empty($install['requested']);$value['embedding_install_profile']=$install['profile']??'lite';
         $value['embedding_remove']=$this->read('embedding-remove.json',[]);
         $value['embedding_rebuild']=$this->read('embedding-rebuild.json',[]);
@@ -98,10 +128,11 @@ class State {
     }
     public function requestReset(string $kind):array {
         if(!in_array($kind,['descriptions','embeddings','all'],true))throw new OCSBadRequestException('Lösch-Auswahl ungültig');
+        $gate=$this->globalLock();
         $lock=fopen($this->directory().'/control.lock','c');
-        if(!$lock||!flock($lock,LOCK_EX))throw new \RuntimeException('Steuerung ist gesperrt');
+        if(!$lock||!flock($lock,LOCK_EX)){flock($gate,LOCK_UN);fclose($gate);throw new \RuntimeException('Steuerung ist gesperrt');}
         try{$value=$this->control();if(empty($value['paused'])||!empty($value['requested'])||!empty($value['reset_requested'])||($this->status()['state']??'')==='running')throw new OCSBadRequestException('Bitte zuerst pausieren.');$value['reset_kind']=$kind;$value['reset_requested']=true;$value['reset_request_id']=bin2hex(random_bytes(12));$value['paused']=true;$value['requested']=false;$value['updated_at']=time();$this->atomic('control.json',$value);return $value;}
-        finally{flock($lock,LOCK_UN);fclose($lock);}
+        finally{flock($lock,LOCK_UN);fclose($lock);flock($gate,LOCK_UN);fclose($gate);}
     }
     public function requireEmbeddingRebuild(string $signature,array $details=[]):void {
         $lock=fopen($this->directory().'/control.lock','c');
