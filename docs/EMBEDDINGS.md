@@ -8,7 +8,7 @@ Fotos erhalten einen Vektor. Videos werden gleichmäßig anhand echter Frame-Zei
 
 ## Gemma auf der lokalen CPU
 
-Unter **Embedding-Dienst** stehen **Gemma 2 · sparsam (CPU)** und **Gemma 2 · Original, mehr Bilddetails (CPU)**, **Externer Embedding-Server** und die erweiterte manuelle lokale Einrichtung zur Auswahl. Bei einem externen Server werden Modellfamilie, Modell-ID, API-Adresse und API-Key angezeigt. Es wird dort nichts installiert.
+Unter **Embedding-Dienst** stehen **Gemma 2 · sparsam (CPU)**, **Gemma 2 · Original (CPU)** und **Externer Embedding-Server** zur Auswahl. Bei einem externen Server werden Modellfamilie, Modell-ID, API-Adresse und API-Key angezeigt. Es wird dort nichts installiert.
 
 Ein fehlendes lokales Gemma wird **erst nach einem Klick auf „Gemma installieren“** heruntergeladen. Auswählen, Speichern, Aktivieren und Starten eines Medienlaufs starten allein keinen Modell-Download. Bei ungespeicherten Einstellungen heißt der Button **„Speichern und Gemma installieren“** und speichert die Auswahl vor der Installationsanforderung. Eine Installation kann auch bei ausgeschalteter visueller Bildsuche stattfinden. Der Button erscheint nur, solange die ausgewählte verwaltete Gemma-Installation fehlt; danach zeigt die Oberfläche „installiert“ bzw. „bereit“ und einen roten Papierkorb zum Deinstallieren.
 
@@ -88,3 +88,16 @@ Die aktuelle Suche vergleicht exakt alle berechtigten Vektoren auf dem Nextcloud
 ## Nachweis für LM Studio, 10. Oktober 2026
 
 Am tatsächlich laufenden Server `10.1.10.78:1234` war `text-embedding-embeddinggemma-2` (Unsloth GGUF Q8_0, Kontext 8192) geladen. Text lieferte 768 Werte. Bild- und Video-Objekte am `/v1/embeddings`-Endpunkt wurden mit HTTP 400 zurückgewiesen. Zusätzliche `images`-Felder wurden ignoriert: roter Kreis und blaues Quadrat lieferten identische Vektoren. Diese API ist daher für diese Bild-Pipeline ungeeignet. Das sagt nichts über die grundsätzlichen multimodalen Fähigkeiten der Modellgewichte aus.
+
+## Suchablauf und Speicherung
+
+1. Die Galerie durchsucht innerhalb der angemeldeten Benutzer- und Galerieauswahl Dateinamen und Pfade sowie aktuelle Beschreibungen, Tags, Objekte und OCR. Suchwörter sind mit ODER verknüpft; Dateinamen und strukturierte Begriffe werden bei der Sortierung stärker gewichtet.
+2. Ist die Bildsuche aktiviert und indexiert, sendet Nextcloud nur den Suchtext zum konfigurierten Embedding-Dienst: lokal auf dem Nextcloud-Host oder zum externen Server. Dieser erzeugt einen Suchvektor mit demselben Modell wie die gespeicherten Bildvektoren. Die Beschreibungspipeline wird nicht erneut ausgeführt.
+3. Nextcloud vergleicht normalisierte Vektoren exakt per Skalarprodukt (entspricht Cosinus-Ähnlichkeit). Bei Videos gilt der höchste Standbildwert. Nur passende Modellräume, aktuelle Dateiversionen und derselbe Benutzer/Galerieumfang werden berücksichtigt.
+4. Die Vereinigung aus Text- und Bildtreffern wird per gleich gewichteter Rangfusion sortiert. Es gibt keine feste Ähnlichkeitsschwelle; auch weiter hinten liegende Kandidaten bleiben nachladbar. Das begünstigt Recall, kann aber unpassende Vorschläge enthalten. Es ist keine Garantie, dass ein Modell jedes gesuchte Motiv erkennt. Bei einem ausgefallenen Embedding-Dienst bleibt die Textsuche verfügbar.
+
+Die Suchvektoren und Bildvektoren liegen nicht dauerhaft auf dem externen Rechner. Die veröffentlichten Bild-/Standbildvektoren speichert Nextcloud in seiner normalen Datenbank in `<Tabellenpräfix>nextgallery_ai_vectors`, getrennt nach Benutzer, Datei, Dateiversion, Modellraum und Videostandbild. Beim bestehenden Server ist das `oc_nextgallery_ai_vectors` in MariaDB. Eine gesonderte Vektordatenbank wie Qdrant ist nicht eingerichtet; die aktuelle Suche führt einen exakten Vergleich der passenden gespeicherten Vektoren aus. Sehr große Bestände können später einen speziellen Vektorindex erfordern; eine Produktionslatenz wurde hier nicht gemessen.
+
+Der Worker besitzt zusätzlich einen privaten Verarbeitungsspeicher `embeddings.sqlite3` für Vektoren, Wiederholungen, Fehler und Veröffentlichungsstatus. Das ursprüngliche Konto nutzt `/var/www/nextcloud-data/.nextgallery_ai/embeddings.sqlite3`; andere Konten liegen unter `.nextgallery_ai/accounts/<SHA256-Benutzer-ID>/embeddings.sqlite3`. Der zentrale bestätigte Reset entfernt sowohl die veröffentlichten Datenbankvektoren als auch alle Zeilen dieser Caches. Suchtextvektoren werden für die Anfrage erzeugt und nicht dauerhaft als Benutzerdateien gespeichert. Modellgewichte und ausdrücklich angelegte Sicherungen werden beim Vektorreset nicht entfernt.
+
+Die Nextcloud-weite Suchoberfläche nutzt weiterhin ihre vorhandenen Suchanbieter. Die beschriebene Rangfusion läuft in der NextGallery-Galeriesuche; der NextGallery-KI-Anbieter in der globalen Nextcloud-Suche durchsucht KI-Texte.
