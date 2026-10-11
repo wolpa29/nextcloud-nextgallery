@@ -5,10 +5,12 @@ process keeps the worker responsive and reports progress through an atomic file.
 """
 from __future__ import annotations
 import argparse
+import errno
 import fcntl
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import signal
 import shutil
@@ -16,6 +18,7 @@ import subprocess
 import sys
 import time
 import urllib.parse
+import urllib.error
 import urllib.request
 import uuid
 import venv
@@ -28,6 +31,54 @@ MODEL_URL = ('https://huggingface.co/litert-community/embeddinggemma-2-text-visi
 REQUIREMENTS = Path(__file__).with_name('requirements-embeddings.txt')
 FULL_REQUIREMENTS = Path(__file__).with_name('requirements-embeddings-full.txt')
 FULL_MANIFEST = Path(__file__).with_name('embedding-full-model.json')
+PIP_VERSION = '26.2.1'
+
+
+def run_setup(command, timeout):
+    """Keep subprocess diagnostics private; retain output for error classification."""
+    try:
+        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                text=True, timeout=timeout)
+    except subprocess.TimeoutExpired as error:
+        output = error.output or ''
+        if isinstance(output, bytes): output = output.decode('utf-8', errors='replace')
+        if output: print(output, end='', flush=True)
+        raise
+    if result.stdout:
+        print(result.stdout, end='', flush=True)
+    if result.returncode:
+        raise subprocess.CalledProcessError(result.returncode, command, output=result.stdout)
+
+
+def setup_failure(error, step):
+    """Expose a useful cause without command lines, URLs, credentials or host paths."""
+    output = getattr(error, 'output', '') or ''
+    if isinstance(output, bytes): output = output.decode('utf-8', errors='replace')
+    code, reason = 'setup_failed', 'Einrichtung fehlgeschlagen.'
+    if (isinstance(error, OSError) and error.errno == errno.ENOSPC) or 'No space left on device' in output:
+        code, reason = 'disk_full', 'Nicht genügend freier Speicher für die Installation.'
+    elif isinstance(error, PermissionError):
+        code, reason = 'permission_denied', 'Der Worker darf nicht in das Installationsverzeichnis schreiben.'
+    elif isinstance(error, subprocess.TimeoutExpired):
+        code, reason = 'timeout', 'Zeitlimit für diesen Installationsschritt überschritten.'
+    elif isinstance(error, urllib.error.HTTPError):
+        code, reason = 'download_http_error', f'Modelldownload vom Server abgelehnt (HTTP {error.code}).'
+    elif isinstance(error, urllib.error.URLError) or any(x in output for x in ('ConnectionError', 'Connection broken', 'Failed to establish a new connection', 'Name or service not known', 'CERTIFICATE_VERIFY_FAILED')):
+        code, reason = 'network_error', 'Download fehlgeschlagen: Verbindung, DNS oder TLS-Zertifikat prüfen.'
+    elif 'inconsistent Name' in output:
+        code, reason = 'package_metadata_mismatch', 'Der Paketinstaller verwirft eine Abhängigkeit wegen abweichender Paketnamen in den Metadaten.'
+    elif 'No matching distribution found for ' in output:
+        code, reason = 'package_unavailable', 'Für diese Python-Version oder Plattform fehlt ein passendes Binärpaket.'
+        package = re.search(r'No matching distribution found for ([A-Za-z0-9][A-Za-z0-9_.-]{0,80})(?=[<>=!~\s]|$)', output)
+        if package: reason += f' Paket: {package.group(1)}.'
+    elif isinstance(error, ValueError) and str(error) == 'Model checksum mismatch':
+        code, reason = 'model_checksum_mismatch', 'Das heruntergeladene Modell ist unvollständig oder seine Prüfsumme stimmt nicht.'
+    elif step == 'Python-Umgebung':
+        code, reason = 'python_environment_failed', 'Python-Umgebung konnte nicht erstellt werden. venv/ensurepip-Unterstützung prüfen.'
+    elif isinstance(error, subprocess.CalledProcessError):
+        reason = f'Installationsprogramm mit Fehlercode {error.returncode} beendet.'
+    return {'error_code': code, 'failed_step': step,
+            'message': f'{step}: {reason} Details im privaten setup.log der gewählten Variante. Erneuter Versuch nach fünf Minuten oder über „Installation erneut versuchen“.'}
 
 def paths(directory, profile='lite'):
     if profile not in ('lite','full'): raise ValueError('Invalid Gemma profile')
@@ -214,24 +265,40 @@ def install(root, profile='lite'):
     update = lambda **fields: atomic(root/'setup.json', {**fields, 'updated_at':time.time()})
     with (root/'setup.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
+        step = 'Python-Umgebung'
         try:
             expected = identity(profile)
             update(phase='runtime', message='Python-Laufzeit wird eingerichtet …')
             runtime = root/'runtime'; python = runtime/'bin/python'
             if read(root/'runtime.json').get('identity') != expected or not python.is_file():
                 venv.EnvBuilder(with_pip=True,symlinks=True).create(runtime)
+                step = 'Paketinstaller aktualisieren'
+                update(phase='runtime', message='Python-Paketinstaller wird aktualisiert …')
+                # Debian ensurepip can seed pip 23.0.1, which rejects the CPU
+                # index's typing_extensions metadata as typing-extensions.
+                run_setup([str(python), '-m', 'pip', 'install', '--upgrade', '--only-binary=:all:',
+                           '--index-url', 'https://pypi.org/simple', '--disable-pip-version-check',
+                           '--no-input', '--no-cache-dir', '--timeout', '30', '--retries', '2',
+                           f'pip=={PIP_VERSION}'], timeout=300)
                 if profile=='full':
-                    subprocess.run([str(python),'-m','pip','install','--only-binary=:all:','--index-url','https://download.pytorch.org/whl/cpu','--disable-pip-version-check','--no-input','--no-cache-dir','--timeout','30','--retries','2','torch==2.14.1','torchvision==0.29.1'],check=True,timeout=900)
-                subprocess.run([str(python), '-m', 'pip', 'install', '--only-binary=:all:', '--index-url', 'https://pypi.org/simple',
+                    step = 'PyTorch-CPU-Pakete installieren'
+                    update(phase='runtime', message='PyTorch-CPU-Pakete werden installiert …')
+                    run_setup([str(python),'-m','pip','install','--only-binary=:all:','--index-url','https://download.pytorch.org/whl/cpu','--disable-pip-version-check','--no-input','--no-cache-dir','--timeout','30','--retries','2','torch==2.14.1','torchvision==0.29.1'],timeout=900)
+                step = 'Modell-Laufzeit installieren'
+                update(phase='runtime', message='Modell-Laufzeit wird installiert …')
+                run_setup([str(python), '-m', 'pip', 'install', '--only-binary=:all:', '--index-url', 'https://pypi.org/simple',
                     '--disable-pip-version-check', '--no-input', '--no-cache-dir', '--timeout', '30', '--retries', '2',
-                    '-r', str(REQUIREMENTS if profile=='lite' else FULL_REQUIREMENTS)], check=True, timeout=900)
-                subprocess.run([str(python), '-c', 'import litert_lm; from PIL import Image; import pillow_heif' if profile=='lite' else 'import torch, torchvision, transformers, sentence_transformers; from PIL import Image; import pillow_heif'], check=True, timeout=60)
+                    '-r', str(REQUIREMENTS if profile=='lite' else FULL_REQUIREMENTS)], timeout=900)
+                step = 'Laufzeit prüfen'
+                update(phase='runtime', message='Modell-Laufzeit wird geprüft …')
+                run_setup([str(python), '-c', 'import litert_lm; from PIL import Image; import pillow_heif' if profile=='lite' else 'import torch, torchvision, transformers, sentence_transformers; from PIL import Image; import pillow_heif'], timeout=60)
                 atomic(root/'runtime.json', {'identity':expected})
+            step = 'Modell herunterladen und prüfen'
             model = download(root, update) if profile=='lite' else download_full(root, update)
             atomic(root/'ready.json', {'identity':expected, 'model_sha256':MODEL_SHA256 if profile=='lite' else digest(FULL_MANIFEST)})
             update(phase='installed', message='Modell und Laufzeit installiert.')
-        except Exception:
-            update(phase='error', message='Automatische Einrichtung fehlgeschlagen. Internetzugang, freien Speicher und Python-Unterstützung prüfen. Der Worker versucht es erneut.')
+        except Exception as error:
+            update(phase='error', **setup_failure(error, step))
             raise
 
 

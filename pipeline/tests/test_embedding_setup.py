@@ -3,6 +3,8 @@ import io
 import json
 from pathlib import Path
 import tempfile
+import subprocess
+import urllib.error
 import unittest
 from unittest.mock import Mock, patch
 import embedding_setup as setup
@@ -64,6 +66,56 @@ class SetupTests(unittest.TestCase):
                 with self.assertRaises(RuntimeError):setup.install(root)
             self.assertEqual(setup.read(root/'setup.json')['phase'],'error')
             self.assertFalse((root/'ready.json').exists())
+
+    def test_full_setup_upgrades_seeded_pip_before_cpu_packages(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp)
+            with patch.object(setup.venv,'EnvBuilder'),patch.object(setup,'run_setup') as run,patch.object(setup,'download_full',return_value=root/'model'):
+                setup.install(root,'full')
+            commands=[call.args[0] for call in run.call_args_list]
+            self.assertIn('pip=='+setup.PIP_VERSION,commands[0])
+            self.assertIn('https://pypi.org/simple',commands[0])
+            self.assertIn('torch==2.14.1',commands[1])
+            self.assertIn('https://download.pytorch.org/whl/cpu',commands[1])
+            self.assertEqual(setup.read(root/'setup.json')['phase'],'installed')
+
+    def test_pip_failure_exposes_step_and_cause_without_raw_sensitive_output(self):
+        output="https://user:secret@example.invalid/private inconsistent Name: expected 'typing-extensions', but metadata has 'typing_extensions'"
+        error=subprocess.CalledProcessError(1,['/private/runtime/python'],output=output)
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp)
+            with patch.object(setup.venv,'EnvBuilder'),patch.object(setup,'run_setup',side_effect=[None,error]):
+                with self.assertRaises(subprocess.CalledProcessError):setup.install(root,'full')
+            state=setup.read(root/'setup.json')
+            self.assertEqual(state['error_code'],'package_metadata_mismatch')
+            self.assertEqual(state['failed_step'],'PyTorch-CPU-Pakete installieren')
+            self.assertIn('Paketnamen',state['message'])
+            self.assertNotIn('secret',json.dumps(state));self.assertNotIn('/private',json.dumps(state))
+            self.assertFalse((root/'ready.json').exists());self.assertFalse((root/'runtime.json').exists())
+
+    def test_setup_failure_reports_download_http_storage_and_timeout_causes(self):
+        for error,code in ((urllib.error.HTTPError('https://secret.invalid',403,'private',{},None),'download_http_error'),
+                           (OSError(28,'private path'),'disk_full'),
+                           (subprocess.TimeoutExpired(['/private/python'],300),'timeout')):
+            with self.subTest(code=code):
+                state=setup.setup_failure(error,'Modell herunterladen und prüfen')
+                self.assertEqual(state['error_code'],code)
+                self.assertNotIn('secret',json.dumps(state));self.assertNotIn('/private',json.dumps(state))
+
+    def test_setup_command_failure_retains_output_for_private_log_and_classification(self):
+        result=subprocess.CompletedProcess(['synthetic'],1,stdout='No matching distribution found for synthetic-package>=1\n')
+        with patch.object(setup.subprocess,'run',return_value=result),patch('builtins.print') as log:
+            with self.assertRaises(subprocess.CalledProcessError) as raised:setup.run_setup(['synthetic'],60)
+        log.assert_called_once()
+        state=setup.setup_failure(raised.exception,'Modell-Laufzeit installieren')
+        self.assertEqual(state['error_code'],'package_unavailable');self.assertIn('synthetic-package',state['message'])
+
+    def test_setup_timeout_preserves_partial_output_in_private_log(self):
+        error=subprocess.TimeoutExpired(['synthetic'],60,output=b'private download progress\n')
+        with patch.object(setup.subprocess,'run',side_effect=error),patch('builtins.print') as log:
+            with self.assertRaises(subprocess.TimeoutExpired):setup.run_setup(['synthetic'],60)
+        log.assert_called_once_with('private download progress\n',end='',flush=True)
+        self.assertNotIn('private download',setup.setup_failure(error,'Modell-Laufzeit installieren')['message'])
 
     def test_failed_installer_backs_off_instead_of_spawning_each_poll(self):
         with tempfile.TemporaryDirectory() as temp:
