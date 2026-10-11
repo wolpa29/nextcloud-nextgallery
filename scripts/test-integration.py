@@ -98,6 +98,7 @@ try:
  status,body=request('/index.php/apps/nextgallery/ai/worker/reset',{},headers={'Authorization':'Bearer '+token});assert status==200,(status,body);http.append('explicit-synthetic-reset')
  print(docker('exec','-u','www-data',name,'php','/test-scripts/reset-contract.php','verify'),flush=True)
  print(docker('exec','-u','www-data',name,'php','/test-scripts/account-contract.php','prepare'),flush=True)
+ print(docker('exec','-u','www-data',name,'php','/test-scripts/personal-processing-contract.php'),flush=True)
  alice_auth=base64.b64encode(b'account-alice:SyntheticAccountOnly2026!').decode()
  user_headers={'Authorization':'Basic '+alice_auth}
  status,body=request('/index.php/apps/nextgallery/ai/account/config?user_id=account-bob',headers=user_headers);assert status==200 and json.loads(body)['user_id']=='account-alice',(status,body);http.append('forged-user-read-ignored')

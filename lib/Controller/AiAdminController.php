@@ -27,7 +27,7 @@ class AiAdminController extends Controller {
             return new DataResponse(['error'=>'Bitte zuerst pausieren und das Ende der aktuellen Datei abwarten.'],409);
         }
         $previous=$this->settings->get();
-        if(($config['user_id']??null)!==$previous['user_id'])return new DataResponse(['error'=>'Kontoeinstellungen bitte im Bereich Benutzer ändern.'],400);
+        if(($config['user_id']??null)!==$previous['user_id'])return new DataResponse(['error'=>'Die Verarbeitungsauswahl gehört zum eigenen Benutzerkonto.'],400);
         $confirmationMissing=false;
         try {
             $this->settings->save($config,function(array $candidate)use($previous,$embedding_change_id,&$confirmationMissing){

@@ -6,7 +6,7 @@ use OCP\AppFramework\OCS\OCSBadRequestException;
 
 /** Read-only presentation of the selected inventory, published results and worker queue. */
 class Library {
-    public function __construct(private Inventory $inventory, private Settings $settings, private State $state, private ?ICacheFactory $caches = null) {}
+    public function __construct(private Inventory $inventory, private Settings $settings, private State $state, private ?ICacheFactory $caches = null, private ?Embeddings $embeddings = null) {}
     public function forUser(string $uid):self {$copy=clone $this;$copy->inventory=$this->inventory->forUser($uid);$copy->settings=$this->settings->forUser($uid);$copy->state=$this->state->forUser($uid);return $copy;}
     private function queue(): array {
         $path=$this->state->directory().'/native.sqlite3';
@@ -25,6 +25,12 @@ class Library {
         foreach ($rows as $row) { $result[(int)$row['locator']]=$row; }
         return $result;
     }
+    private function embeddingQueue(?string $space):array {
+        $path=$this->state->directory().'/embeddings.sqlite3';
+        if(!$space||!is_file($path)||is_link($path))return [];
+        $db=new \PDO('sqlite:file:'.$path.'?mode=ro',null,null,[\PDO::ATTR_ERRMODE=>\PDO::ERRMODE_EXCEPTION]);$db->exec('PRAGMA query_only=ON');$db->exec('PRAGMA busy_timeout=250');
+        $query=$db->prepare('SELECT path,etag,status,error FROM embeddings WHERE active=1 AND space=?');$query->execute([$space]);$result=[];foreach($query->fetchAll(\PDO::FETCH_ASSOC) as $row)$result[$row['path']]=$row;return $result;
+    }
     public static function classify(array $item, ?array $queued): string {
         // Published metadata is authoritative, including after queue/app/model changes.
         if ($item['analyzed_etag']) { return $item['analyzed_etag']===$item['etag'] ? 'done' : 'changed'; }
@@ -36,13 +42,17 @@ class Library {
         if ($item['analyzed_etag'] && $item['analyzed_etag']===$item['etag']) { return 'done'; }
         return $item['analyzed_etag'] ? 'changed' : 'pending';
     }
-    public static function totals(): array { return ['total'=>0,'done'=>0,'pending'=>0,'error'=>0,'changed'=>0,'publishing'=>0,'images'=>0,'videos'=>0]; }
+    public static function totals(): array { return ['total'=>0,'done'=>0,'pending'=>0,'error'=>0,'changed'=>0,'publishing'=>0,'images'=>0,'videos'=>0,'embedded'=>0,'embedding_pending'=>0,'embedding_error'=>0]; }
     private function snapshot(): array {
-        $config=$this->settings->get();
+        $config=$this->settings->get();$current=$this->state->status();$rebuild=$current['embedding_rebuild']??[];
+        $space=$rebuild['target_space']??$rebuild['approved_space']??$current['embedding_space']??$current['last_run']['embedding']['space']??null;
+        // A changed model must never present old vectors as completed for the new model.
+        if(!empty($rebuild['required'])&&!isset($rebuild['target_space']))$space='';
         $cache=$this->caches?->createLocal('nextgallery_ai_library');
-        $key=hash('sha256',json_encode([$config['user_id'],$config['folders'],$config['exclude_folders']],JSON_THROW_ON_ERROR));
+        $key=hash('sha256',json_encode([$config['user_id'],$config['folders'],$config['exclude_folders'],Settings::embeddingSignature($config),$space,$rebuild['required']??false],JSON_THROW_ON_ERROR));
         $stored=$cache?->get($key); if (is_array($stored)) { return $stored; }
         $queue=$this->queue(); $rows=$this->inventory->snapshot();
+        $stored=$this->embeddings?->processingStatuses($config['user_id'],array_column($rows,'file_id'),$space)??[];$embeddingQueue=$this->embeddingQueue($space);
         $folders=[''=>['path'=>'','name'=>'Alle ausgewählten Dateien','counts'=>self::totals()]]; $recent=[];
         foreach ($rows as &$row) {
             $queued=$queue[$row['file_id']]??null;
@@ -51,6 +61,9 @@ class Library {
             $row['next_pending']=!$row['has_metadata'] && $row['status']!=='done';
             $row['error']=$row['status']==='error' ? ($queued['error']??'') : ($row['status']==='publishing' ? ($queued['publish_error']??'') : '');
             $row['retry_at']=$row['status']==='error' ? (float)($queued['retry_at']??0) : 0;
+            $embedding=$embeddingQueue[$row['path']]??null;$row['has_embedding']=isset($stored[$row['file_id']]);
+            $row['embedding_status']=$row['has_embedding']?'done':($embedding&&$embedding['etag']===$row['etag']&&$embedding['status']==='error'?'error':'pending');
+            $row['embedding_error']=$row['embedding_status']==='error'?($embedding['error']??''):'';
             $row['name']=basename($row['path']); $row['parent']=dirname($row['path']);
             if ($row['parent']==='.') { $row['parent']=''; }
             $parent=$row['parent']; $paths=[''];
@@ -60,7 +73,7 @@ class Library {
                 $parent=dirname($parent); if ($parent==='.') { $parent=''; }
             }
             foreach ($paths as $path) {
-                $folders[$path]['counts']['total']++; $folders[$path]['counts'][$row['status']]++;
+                $folders[$path]['counts']['total']++;$folders[$path]['counts'][match($row['embedding_status']){'done'=>'embedded','error'=>'embedding_error',default=>'embedding_pending'}]++; $folders[$path]['counts'][$row['status']]++;
                 $folders[$path]['counts'][str_starts_with($row['mime'],'video/')?'videos':'images']++;
             }
             if ($row['status']==='done') { $recent[]=['file_id'=>$row['file_id'],'path'=>$row['path'],'name'=>$row['name'],'updated_at'=>$row['updated_at']]; }
@@ -83,8 +96,8 @@ class Library {
         }
         return $selected;
     }
-    public function browse(string $path='', string $filter='all', string $query='', int $offset=0): array {
-        if (strlen($path)>2000 || str_contains($path,"\0") || str_contains($path,'\\') || preg_match('~(^|/)(\.|\.\.)(/|$)~',$path) || $offset<0 || $offset>10000000 || strlen($query)>200 || !in_array($filter,['all','analyzed','done','pending','error','changed'],true)) { throw new OCSBadRequestException('Ungültige Dateiauswahl'); }
+    public function browse(string $path='', string $filter='all', string $query='', int $offset=0,string $embeddingFilter='all'): array {
+        if (strlen($path)>2000 || str_contains($path,"\0") || str_contains($path,'\\') || preg_match('~(^|/)(\.|\.\.)(/|$)~',$path) || $offset<0 || $offset>10000000 || strlen($query)>200 || !in_array($embeddingFilter,['all','done','pending','error'],true) || !in_array($filter,['all','analyzed','done','pending','unprocessed','error','changed'],true)) { throw new OCSBadRequestException('Ungültige Dateiauswahl'); }
         $path=trim($path,'/'); $snapshot=$this->snapshot(); $config=$this->settings->get();
         if (!isset($snapshot['folders'][$path])) { throw new OCSBadRequestException('Ordner außerhalb der Auswahl oder ohne Medien'); }
         $folder=$snapshot['folders'][$path]; $children=[]; $files=[];
@@ -95,8 +108,9 @@ class Library {
         // Search/filter recurse within the current folder. Unfiltered browsing is one level.
         foreach ($snapshot['rows'] as $row) {
             $inside=$path==='' || str_starts_with($row['path'],$path.'/');
-            if (!$inside || ($filter==='all' && $query==='' && $row['parent']!==$path)) { continue; }
-            if ($filter==='analyzed' ? !$row['has_metadata'] : ($filter==='pending' ? !$row['next_pending'] : ($filter!=='all' && $row['status']!==$filter))) { continue; }
+            if (!$inside || ($filter==='all' && $embeddingFilter==='all' && $query==='' && $row['parent']!==$path)) { continue; }
+            if ($filter==='analyzed' ? !$row['has_metadata'] : ($filter==='pending' ? !$row['next_pending'] : ($filter==='unprocessed' ? !in_array($row['status'],['pending','publishing'],true) : ($filter!=='all' && $row['status']!==$filter)))) { continue; }
+            if($embeddingFilter!=='all'&&$row['embedding_status']!==$embeddingFilter)continue;
             if ($query!=='' && mb_stripos($row['path'],$query)===false) { continue; }
             $files[]=$row;
         }

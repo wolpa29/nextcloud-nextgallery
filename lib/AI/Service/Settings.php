@@ -46,7 +46,7 @@ class Settings {
     public function saveAccount(string $uid,array $value,?callable $validateFolders=null):array {
         $result=$this->forUser($uid)->get();
         foreach(['enabled','folders','exclude_folders','schedule_time','timezone'] as $key)if(array_key_exists($key,$value))$result[$key]=$value[$key];
-        if(!is_bool($result['enabled'])||!preg_match('/^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/D',$result['schedule_time'])||!in_array($result['timezone'],\DateTimeZone::listIdentifiers(),true))throw new OCSBadRequestException('Zeitplan ungültig');
+        if(!is_bool($result['enabled'])||!is_string($result['schedule_time'])||!is_string($result['timezone'])||!preg_match('/^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/D',$result['schedule_time'])||!in_array($result['timezone'],\DateTimeZone::listIdentifiers(),true))throw new OCSBadRequestException('Zeitplan ungültig');
         $result['folders']=$this->paths($result['folders']);$result['exclude_folders']=$this->paths($result['exclude_folders']);
         if(!$result['folders'])throw new OCSBadRequestException('Mindestens einen Ordner auswählen');
         if($validateFolders)$validateFolders($result);

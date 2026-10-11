@@ -9,6 +9,16 @@ class Embeddings {
   if(!$ids)return [];$q=$this->db->getQueryBuilder();$q->select('v.file_id','v.etag')->from('nextgallery_ai_vectors','v')->innerJoin('v','filecache','f','f.fileid=v.file_id AND f.etag=v.etag')->where($q->expr()->eq('v.user_id',$q->createNamedParameter($uid)))->andWhere($q->expr()->in('v.file_id',$q->createNamedParameter($ids,\OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT_ARRAY)));
   $rows=$q->executeQuery();$result=[];try{while($row=$rows->fetch())$result[(int)$row['file_id']]=$row['etag'];}finally{$rows->closeCursor();}return $result;
  }
+ /** Current published vectors, grouped by file; stale etags and other users are excluded. */
+ public function processingStatuses(string $uid,array $ids,?string $space=null):array {
+  $result=[];
+  foreach(array_chunk($ids,500) as $chunk){
+   $q=$this->db->getQueryBuilder();$q->selectDistinct('v.file_id')->from('nextgallery_ai_vectors','v')->innerJoin('v','filecache','f','f.fileid=v.file_id AND f.etag=v.etag')->where($q->expr()->eq('v.user_id',$q->createNamedParameter($uid)))->andWhere($q->expr()->in('v.file_id',$q->createNamedParameter($chunk,\OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT_ARRAY)));
+   if($space!==null)$q->andWhere($q->expr()->eq('v.space',$q->createNamedParameter($space)));
+   $rows=$q->executeQuery();try{while($row=$rows->fetch())$result[(int)$row['file_id']]=true;}finally{$rows->closeCursor();}
+  }
+  return $result;
+ }
  public function __construct(private IDBConnection $db){}
  public static function normalize(array $values):array {
   if(!array_is_list($values) || count($values)<128 || count($values)>4096)throw new OCSBadRequestException('Ungültiger Vektor');

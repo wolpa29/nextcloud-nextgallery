@@ -2,6 +2,7 @@
 declare(strict_types=1);
 namespace OCA\Nextgallery\Controller;
 use OCP\{IRequest,IUserSession};
+use OCP\Files\{IRootFolder,Folder};
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -9,7 +10,7 @@ use OCA\Nextgallery\AI\Service\{Settings,State,Library,Metadata,Embeddings,Files
 
 /** Account identity always comes from the authenticated session, never a form. */
 class AiAccountController extends Controller {
-    public function __construct(IRequest $request,private IUserSession $session,private Settings $settings,private State $state,private Library $library,private Metadata $metadata,private Embeddings $embeddings,private Files $files){parent::__construct('nextgallery',$request);}
+    public function __construct(IRequest $request,private IUserSession $session,private Settings $settings,private State $state,private Library $library,private Metadata $metadata,private Embeddings $embeddings,private Files $files,private IRootFolder $root){parent::__construct('nextgallery',$request);}
     private function uid():string { $user=$this->session->getUser();if(!$user)throw new \OCP\AppFramework\OCS\OCSException('Anmeldung erforderlich',401);return $user->getUID(); }
     private function account():State {$state=$this->state->forUser($this->uid());$state->registerAccount();return $state;}
     #[NoAdminRequired]
@@ -20,6 +21,32 @@ class AiAccountController extends Controller {
             'metadata_count'=>$this->metadata->count($uid),'embedding_count'=>$this->embeddings->count($uid),
             'schedule'=>['enabled'=>$config['enabled'],'time'=>$config['schedule_time'],'timezone'=>$config['timezone']]]);
     }
+    /** Only personal selection and schedule are writable; model options remain admin-only. */
+    #[NoAdminRequired]
+    public function saveConfig(array $config):DataResponse {
+        $state=$this->account();$lock=fopen($state->directory().'/control.lock','c');
+        if(!$lock||!flock($lock,LOCK_EX))throw new \RuntimeException('Verarbeitungseinstellungen konnten nicht gesperrt werden');
+        try{
+            $status=$state->status();
+            if($status['state']==='running'||!empty($status['control']['requested'])||!empty($status['control']['reset_requested']))return new DataResponse(['error'=>'Bitte zuerst pausieren und das Ende der aktuellen Verarbeitung abwarten.'],409);
+            $uid=$this->uid();$home=$this->root->getUserFolder($uid);
+            $this->settings->saveAccount($uid,$config,function(array $candidate)use($home){
+                foreach(array_merge($candidate['folders'],$candidate['exclude_folders']) as $path){$folder=$path==='/'?$home:$home->get(ltrim($path,'/'));if(!$folder instanceof Folder||!$folder->isReadable())throw new \OCP\AppFramework\OCS\OCSBadRequestException('Ein Ordner fehlt oder ist nicht lesbar.');}
+            });
+            return $this->config();
+        }catch(\OCP\AppFramework\OCS\OCSBadRequestException|\OCP\Files\NotFoundException|\OCP\Files\NotPermittedException $e){return new DataResponse(['error'=>'Ordnerauswahl oder Zeitplan ungültig. Bitte die Eingaben prüfen.'],400);}
+        finally{flock($lock,LOCK_UN);fclose($lock);}
+    }
+    #[NoAdminRequired]
+    public function folders(string $path='/'):DataResponse {
+        if(strlen($path)>2000||str_contains($path,"\0")||str_contains($path,'\\')||preg_match('~(^|/)(\.|\.\.)(/|$)~',$path))return new DataResponse(['error'=>'Ungültiger Ordnerpfad'],400);
+        try{
+            $home=$this->root->getUserFolder($this->uid());$folder=trim($path,'/')===''?$home:$home->get(trim($path,'/'));
+            if(!$folder instanceof Folder||!$folder->isReadable())return new DataResponse(['error'=>'Ordner nicht verfügbar'],404);
+            $rows=[];foreach($folder->getDirectoryListing() as $child)if($child instanceof Folder&&$child->isReadable())$rows[]=['name'=>$child->getName(),'path'=>'/'.trim($home->getRelativePath($child->getPath()),'/')];
+            usort($rows,fn($a,$b)=>strnatcasecmp($a['name'],$b['name']));return new DataResponse(['path'=>'/'.trim($path,'/'),'folders'=>$rows]);
+        }catch(\OCP\Files\NotFoundException|\OCP\Files\NotPermittedException $e){return new DataResponse(['error'=>'Ordner nicht verfügbar'],404);}
+    }
     #[NoAdminRequired]
     public function status():DataResponse {
         $status=$this->account()->status();
@@ -28,10 +55,8 @@ class AiAccountController extends Controller {
         return new DataResponse($status);
     }
     #[NoAdminRequired]
-    public function library(string $path='',string $filter='all',string $query='',int $offset=0):DataResponse {
-        try{$data=$this->library->forUser($this->uid())->browse($path,$filter,$query,$offset);$stored=$this->embeddings->statuses($this->uid(),array_column($data['files'],'file_id'));
-            foreach($data['files'] as &$file)$file['has_embedding']=isset($stored[$file['file_id']]);unset($file);
-            return new DataResponse($data);
+    public function library(string $path='',string $filter='all',string $query='',int $offset=0,string $embedding_filter='all'):DataResponse {
+        try{return new DataResponse($this->library->forUser($this->uid())->browse($path,$filter,$query,$offset,$embedding_filter));
         }catch(\OCP\AppFramework\OCS\OCSBadRequestException $e){return new DataResponse(['error'=>$e->getMessage()],400);}
     }
     #[NoAdminRequired]

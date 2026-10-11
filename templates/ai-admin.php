@@ -51,7 +51,5 @@ script('nextgallery','ai-i18n'); script('nextgallery','ai-workspace'); script('n
  </details>
   <div class="mai-view mai-actions mai-form-footer" data-view="settings"><button type="submit" class="primary" disabled>Speichern</button><span data-save-status role="status" aria-live="polite">Einstellungen werden geladen …</span></div>
  </form>
- <section class="mai-view mai-settings-view" id="mai-accounts" data-view="accounts" hidden><p class="mai-muted">Ordner und Zeitplan je Benutzer. Die Modelle gelten für alle.</p>
-  <div class="mai-actions"><input id="mai-account-search" aria-label="Benutzer suchen" type="search" placeholder="Benutzer suchen" maxlength="100"><button type="button" id="mai-account-search-button">Suchen</button></div>
-  <p id="mai-account-list-message" role="status"></p><label>Benutzer<select id="mai-account-select"></select></label><form id="mai-account-form" hidden><div class="mai-grid"><label>Ordner (ein Pfad je Zeile)<textarea name="folders" rows="3" required></textarea></label><label>Ausgeschlossene Ordner<textarea name="exclude_folders" rows="3"></textarea></label></div><label class="mai-check"><input name="enabled" type="checkbox">Täglichen Lauf aktivieren</label><div class="mai-grid"><label>Startzeit<input name="schedule_time" type="time" required></label><label>Zeitzone<input name="timezone" required></label></div><p class="mai-muted">Zeitpläne laufen nach dem ersten Start. Pausieren stoppt auch automatische Läufe.</p><button type="submit" class="primary">Benutzereinstellungen speichern</button><p id="mai-account-message" role="status"></p></form></section>
+
 </div>

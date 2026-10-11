@@ -2,7 +2,7 @@
 'use strict';
 window.MediaAIWorkspace={create({root,tr}){
  const $=id=>document.getElementById(id),nav=$('app-navigation');
- const views={settings:['Server-Einstellungen','Modelle und Dienste für alle Benutzer.','mai-settings'],accounts:['Benutzer','Ordner und Zeitplan je Benutzer.','mai-accounts']};
+ const views={settings:['Server-Einstellungen','Modelle und Dienste für alle Benutzer.','mai-settings']};
  let current='settings';
  function show(view,options={}){
   if(!views[view])view='settings';current=view;

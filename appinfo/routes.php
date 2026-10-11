@@ -19,6 +19,8 @@ return ['routes' => [
  ['name'=>'media#original', 'url'=>'/original/{id}', 'verb'=>'GET', 'requirements'=>['id'=>'\\d+']],
 
  ['name'=>'ai_account#config', 'url'=>'/ai/account/config', 'verb'=>'GET'],
+ ['name'=>'ai_account#saveConfig', 'url'=>'/ai/account/config', 'verb'=>'POST'],
+ ['name'=>'ai_account#folders', 'url'=>'/ai/account/folders', 'verb'=>'GET'],
  ['name'=>'ai_account#status', 'url'=>'/ai/account/status', 'verb'=>'GET'],
  ['name'=>'ai_account#library', 'url'=>'/ai/account/library', 'verb'=>'GET'],
  ['name'=>'ai_account#logs', 'url'=>'/ai/account/logs', 'verb'=>'GET'],

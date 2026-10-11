@@ -131,6 +131,7 @@ class Reporter:
         if 'embedding_stats' in fields:
             changes['embedding_stats']=fields['embedding_stats']
             changes['stats']={key:self.value.get('analysis_stats',{}).get(key,0)+fields['embedding_stats'].get(key,0) for key in ('done','pending','error')}
+        if 'embedding_space' in fields: changes['embedding_space']=fields['embedding_space']
         if event in {'file_start','stage_start'}: changes['current']={k:fields[k] for k in ['path','file_id','stage']}; changes['stage_started_at']=time.time()
         if event == 'inference_attempt_start': changes['current']={k:fields[k] for k in ['path','file_id','stage','attempt','total_attempts']}
         if event in {'file_finished','file_error','embedding_finished','embedding_error'}: changes['current']=None
