@@ -44,7 +44,7 @@ class Accounts(unittest.TestCase):
                 self.assertEqual((a/kept).read_bytes(),sentinel)
                 self.assertEqual((b/'native.sqlite3').read_bytes(),b'other account untouched')
                 self.assertFalse(w.read(a/'control.json',{})['reset_requested'])
-                self.assertEqual(reporter.value['stats']['done'],9 if kind=='descriptions' else 7)
+                self.assertEqual(reporter.value['stats']['done'],0)
                 self.assertEqual(api.calls,[('reset',{'kind':kind})])
     def test_separate_runs_do_not_call_the_other_model(self):
         class Source:

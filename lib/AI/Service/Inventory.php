@@ -22,7 +22,8 @@ class Inventory {
         return $result;
     }
     private function escaped(string $value): string { return str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $value); }
-    public function page(int $cursor = 0): array {
+    public function page(int $cursor = 0,string $kind='descriptions'): array {
+        if(!in_array($kind,['descriptions','ocr','embeddings'],true))throw new OCSBadRequestException('Verarbeitungsauswahl ungültig');
         if ($cursor < 0) { throw new OCSBadRequestException('Inventar-Cursor ungültig'); }
         $scopes = $this->scopes();
         $config = $this->settings->get();
@@ -32,11 +33,13 @@ class Inventory {
             $parameters[] = $scope['storage']; $parameters[] = $this->escaped(($scope['path'] === '' ? '' : $scope['path'] . '/')) . '%';
         }
         // Read core file cache only; versions, paths and metadata are never modified.
-        $sql = 'SELECT DISTINCT f.fileid,f.storage,f.path,f.etag,f.size,m.mimetype,a.etag AS analyzed_etag FROM *PREFIX*filecache f JOIN *PREFIX*mimetypes m ON m.id=f.mimetype LEFT JOIN *PREFIX*nextgallery_ai_meta a ON a.file_id=f.fileid AND a.user_id=? WHERE f.fileid>? AND (m.mimetype LIKE \'image/%\' OR m.mimetype LIKE \'video/%\') AND (' . implode(' OR ', $conditions) . ') ORDER BY f.fileid LIMIT 1000';
+        $sql = 'SELECT DISTINCT f.fileid,f.storage,f.path,f.etag,f.size,m.mimetype,a.etag AS analyzed_etag,a.metadata_json FROM *PREFIX*filecache f JOIN *PREFIX*mimetypes m ON m.id=f.mimetype LEFT JOIN *PREFIX*nextgallery_ai_meta a ON a.file_id=f.fileid AND a.user_id=? WHERE f.fileid>? AND (m.mimetype LIKE \'image/%\' OR m.mimetype LIKE \'video/%\') AND (' . implode(' OR ', $conditions) . ') ORDER BY f.fileid LIMIT 1000';
         $result = $this->db->executeQuery($sql, $parameters);
         try { $rows = $result->fetchAll(); } finally { $result->closeCursor(); }
         $config = $this->settings->get(); $items = [];
         foreach ($rows as $row) {
+            if($kind==='ocr'&&str_starts_with($row['mimetype'],'video/'))continue;
+            $stages=Metadata::stages(['etag'=>$row['analyzed_etag']??null,'metadata_json'=>$row['metadata_json']??'{}']);$row['analyzed_etag']=$stages[$kind]??null;
             $path = null;
             foreach ($scopes as $scope) {
                 if ((int)$row['storage'] === $scope['storage'] && str_starts_with($row['path'], ($scope['path'] === '' ? '' : $scope['path'] . '/'))) {
@@ -61,10 +64,11 @@ class Inventory {
             $parameters[] = $scope['storage'];
             $parameters[] = $this->escaped(($scope['path'] === '' ? '' : $scope['path'].'/')).'%';
         }
-        $sql = "SELECT DISTINCT f.fileid,f.storage,f.path,f.etag,f.size,m.mimetype,a.etag AS analyzed_etag,a.updated_at FROM *PREFIX*filecache f JOIN *PREFIX*mimetypes m ON m.id=f.mimetype LEFT JOIN *PREFIX*nextgallery_ai_meta a ON a.file_id=f.fileid AND a.user_id=? WHERE (m.mimetype LIKE 'image/%' OR m.mimetype LIKE 'video/%') AND (".implode(' OR ', $conditions).') ORDER BY f.fileid';
+        $sql = "SELECT DISTINCT f.fileid,f.storage,f.path,f.etag,f.size,m.mimetype,a.etag AS analyzed_etag,a.metadata_json,a.updated_at FROM *PREFIX*filecache f JOIN *PREFIX*mimetypes m ON m.id=f.mimetype LEFT JOIN *PREFIX*nextgallery_ai_meta a ON a.file_id=f.fileid AND a.user_id=? WHERE (m.mimetype LIKE 'image/%' OR m.mimetype LIKE 'video/%') AND (".implode(' OR ', $conditions).') ORDER BY f.fileid';
         $result = $this->db->executeQuery($sql, $parameters); $items = [];
         try {
             while ($row = $result->fetch()) {
+                $stages=Metadata::stages(['etag'=>$row['analyzed_etag']??null,'metadata_json'=>$row['metadata_json']??'{}']);$row['analyzed_etag']=$stages['descriptions']??null;$row['ocr_etag']=$stages['ocr']??null;
                 foreach ($scopes as $scope) {
                     $prefix = $scope['path'] === '' ? '' : $scope['path'].'/';
                     if ((int)$row['storage'] !== $scope['storage'] || !str_starts_with($row['path'], $prefix)) { continue; }
@@ -72,7 +76,7 @@ class Inventory {
                     foreach ($config['exclude_folders'] as $exclude) {
                         if ($exclude === '/' || $path === $exclude || str_starts_with($path, rtrim($exclude, '/').'/')) { continue 3; }
                     }
-                    $items[] = ['file_id'=>(int)$row['fileid'],'path'=>ltrim($path,'/'),'etag'=>$row['etag'],'size'=>(int)$row['size'],'mime'=>$row['mimetype'],'analyzed_etag'=>$row['analyzed_etag'],'updated_at'=>(int)$row['updated_at']];
+                    $items[] = ['file_id'=>(int)$row['fileid'],'path'=>ltrim($path,'/'),'etag'=>$row['etag'],'size'=>(int)$row['size'],'mime'=>$row['mimetype'],'analyzed_etag'=>$row['analyzed_etag'],'updated_at'=>(int)$row['updated_at'],'ocr_etag'=>$row['ocr_etag']];
                     break;
                 }
             }

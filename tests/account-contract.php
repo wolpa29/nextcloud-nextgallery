@@ -18,9 +18,9 @@ if(($argv[1]??'prepare')==='prepare'){
   $vectors->publish($uid,$file->getId(),$file->getEtag(),str_repeat('a',64),[['frame'=>0,'seconds'=>0,'values'=>array_merge([1.],array_fill(0,127,0.))]]);$ids[$uid]=$file->getId();
  }
  foreach(['account-alice','account-bob','synthetic-admin'] as $uiUser)Server::get(\OCA\Nextgallery\Service\Library::class)->save($uiUser,['language'=>'de']);
- foreach(['descriptions','embeddings'] as $lane)$state->forPipeline($lane)->atomic('service.json',['heartbeat_at'=>time()+1800,'active_user_id'=>null]);$state->atomic('status.json',['state'=>'paused','heartbeat_at'=>time()+1800]);
+ foreach(['descriptions','ocr','embeddings'] as $lane)$state->forPipeline($lane)->atomic('service.json',['heartbeat_at'=>time()+1800,'active_user_id'=>null]);$state->atomic('status.json',['state'=>'paused','heartbeat_at'=>time()+1800]);
  $session->setUser($users->get('account-alice'));$controller=Server::get(AiAccountController::class);$config=$controller->config()->getData();
- expectAccount($config['user_id']==='account-alice'&&$config['metadata_count']===1&&$config['embedding_count']===1,'Personal counts wrong');
+ expectAccount($config['user_id']==='account-alice'&&$config['metadata_count']===1&&$config['description_count']===1&&$config['ocr_count']===1&&$config['embedding_count']===1,'Personal counts wrong');
  foreach(['vision','ocr','embedding','api_key','url','can_configure_models'] as $key)expectAccount(!array_key_exists($key,$config),'Admin settings leaked: '.$key);
  $status=$controller->status()->getData();expectAccount(!isset($status['embedding_service'])&&!isset($status['embedding_models']),'Admin model status leaked');
  expectAccount($state->forUser('account-alice')->directory()!==$state->forUser('account-bob')->directory(),'Account queues shared');
@@ -29,7 +29,7 @@ if(($argv[1]??'prepare')==='prepare'){
  expectAccount(Server::get(AiAdminController::class)->save([])->getStatus()===403,'Ordinary user changed admin config');
  expectAccount($controller->delete('embeddings','embeddings',0)->getStatus()===409,'Stale delete count accepted');
  expectAccount($controller->control('start','descriptions')->getStatus()===200,'Description start unavailable');$a=$state->forUser('account-alice');expectAccount($a->forPipeline('descriptions')->control()['run_kind']==='descriptions','Wrong run selection');expectAccount(empty($state->forUser('account-bob')->control()['requested']),'Other account queue changed');
- expectAccount($controller->control('start','embeddings')->getStatus()===200,'Embedding start unavailable');expectAccount($a->forPipeline('descriptions')->control()['requested']&&$a->forPipeline('embeddings')->control()['requested'],'Concurrent starts lost');$a->setControl('pause');
+ expectAccount($controller->control('start','ocr')->getStatus()===200&&$controller->control('start','embeddings')->getStatus()===200,'Embedding start unavailable');expectAccount($a->forPipeline('descriptions')->control()['requested']&&$a->forPipeline('embeddings')->control()['requested'],'Concurrent starts lost');$a->setControl('pause');
  $session->setUser($users->get('synthetic-admin'));$admin=Server::get(AiAdminController::class);$before=$settings->get();$changed=$before;$changed['embedding']['max_edge']=1024;expectAccount($admin->save($changed)->getStatus()===409,'Unconfirmed global model change accepted');expectAccount($settings->get()===$before,'Unconfirmed change modified settings');expectAccount($admin->save($changed,$admin->embeddingChangePreview($changed)->getData()['config_id'],'reset',false)->getStatus()===200,'Confirmed admin model change rejected');
  foreach(['account-alice','account-bob'] as $uid){expectAccount($vectors->count($uid)===0,'Central model change failed to reset account '.$uid);$f=Server::get(\OCP\Files\IRootFolder::class)->getUserFolder($uid)->get('Synthetic/test.png');$vectors->publish($uid,$f->getId(),$f->getEtag(),str_repeat('a',64),[['frame'=>0,'seconds'=>0,'values'=>array_merge([1.],array_fill(0,127,0.))]]);$state->forUser($uid)->atomic('embedding-rebuild.json',[]);}
  $settings->save($before);$withoutOwner=$before;$withoutOwner['user_id']='nonexistent-synthetic-owner';$settings->save($withoutOwner);expectAccount($admin->save($withoutOwner)->getStatus()===200,'Global model configuration depends on an existing legacy owner');$settings->save($before);$session->setUser($users->get('account-alice'));
@@ -37,7 +37,8 @@ if(($argv[1]??'prepare')==='prepare'){
 }else{
  $kind=$argv[1];$uid='account-alice';expectAccount($metadata->count('account-bob')===1&&$vectors->count('account-bob')===1,'Other account data deleted');
  if($kind==='embeddings'){expectAccount($metadata->count($uid)===1&&$vectors->count($uid)===0,'Embedding delete damaged descriptions');}
- else{expectAccount($metadata->count($uid)===0&&$vectors->count($uid)===0,'Description delete failed');}
+ elseif($kind==='descriptions'){expectAccount($metadata->count($uid)===1&&$metadata->count($uid,'descriptions')===0&&$metadata->count($uid,'ocr')===1&&$vectors->count($uid)===0,'Description delete damaged OCR');}
+ else{expectAccount($metadata->count($uid)===0&&$vectors->count($uid)===0,'OCR delete failed');}
  $home=Server::get(\OCP\Files\IRootFolder::class)->getUserFolder($uid);expectAccount(hash('sha256',$home->get('Synthetic/test.png')->getContent())===hash_file('sha256','/samples/dog.png'),'Original changed');
  $own=$state->forUser($uid)->forPipeline($kind);$own->atomic('control.json',['paused'=>true,'requested'=>false]);echo "$checks separate deletion/account/original preservation assertions passed\n";
 }

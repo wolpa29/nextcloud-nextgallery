@@ -10,7 +10,7 @@ async function init() {
  const el=(tag,text,raw=false)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=raw?text:tr(text);return n;};
  function promptField(stage,key,label,rows){const l=el('label',label),t=el('textarea');t.name=stage+'.'+key;t.rows=rows;t.maxLength=20000;t.dataset.defaultPrompt='1';l.append(t);const actions=el('div');actions.className='mai-actions mai-prompt-actions';const reset=el('button','Standardprompt wiederherstellen');reset.type='button';reset.dataset.promptReset='1';reset.setAttribute('aria-label',tr('Standardprompt wiederherstellen')+' · '+tr(label)+' · '+stageNameForPrompt(stage));const note=el('span');note.className='mai-muted';const standard=()=>config?.[stage]?.['default_'+key]||'';const update=()=>note.textContent=tr(!t.value||t.value===standard()?'Standardprompt aktiv':'Eigener Prompt');t.addEventListener('input',update);reset.onclick=()=>{t.value=standard();t.dispatchEvent(new Event('input',{bubbles:true}));};actions.append(reset,note);return [l,actions];}
  function stageNameForPrompt(stage){return tr(stage==='vision'?'Bildanalyse':'Texterkennung');}
- function fields(stage,label){const section=el('details');section.className='mai-model';section.append(el('summary',label));const grid=el('div');grid.className='mai-grid';const advanced=el('details'),advancedGrid=el('div');advanced.append(el('summary','Erweiterte Modelleinstellungen'));advancedGrid.className='mai-grid';advanced.append(advancedGrid);
+ function fields(stage,label){const section=el('details');section.className='mai-model';section.dataset.modelStage=stage;section.append(el('summary',label));const grid=el('div');grid.className='mai-grid';const advanced=el('details'),advancedGrid=el('div');advanced.append(el('summary','Erweiterte Modelleinstellungen'));advancedGrid.className='mai-grid';advanced.append(advancedGrid);
   for(const [key,title,type] of [['url','API-Adresse','url'],['model','Modell-ID','text'],['model_revision','Modellstand (zur Dokumentation)','text'],['max_edge','Zusätzliche Kantengrenze (Pixel)','number'],['model_max_pixels','Bildbudget des Encoders (Pixel, 0 = nur Kantengrenze)','number'],['max_tokens','Max. Antwort-Tokens (0 = kein App-Limit)','number'],['timeout_seconds','Netzwerk-Wartezeit pro Anfrage (Sekunden)','number'],['temperature','Temperatur','number'],['retry_temperature','Temperatur bei Korrektur','number'],['loop_repetitions','Gleiche Textblöcke bis Abbruch','number'],['numeric_loop_repetitions','Fortlaufende Zahlen-Labels bis Abbruch','number'],['loop_retries','Korrekturversuche (0–3)','number'],['api_key','API-Key (leer = beibehalten)','password']]){const l=el('label',title),i=el('input');i.name=stage+'.'+key;i.type=type;i.autocomplete=type==='password'?'new-password':'off';if(type==='number')i.step=key.endsWith('temperature')?'0.1':'1';const bounds={model_max_pixels:[0,67108864],max_edge:[256,8192],max_tokens:[0,32768],timeout_seconds:[15,7200],temperature:[0,2],retry_temperature:[0,2],loop_repetitions:[3,20],numeric_loop_repetitions:[20,200],loop_retries:[0,3]};if(bounds[key]){i.min=bounds[key][0];i.max=bounds[key][1];}if(key!=='api_key')i.required=true;l.append(i);if(key==='model_max_pixels'){const hint=el('span');hint.className='mai-muted';i.dataset.imageEdge='1';const update=()=>hint.textContent=tr('Bis zu {mp} MP je Bild unabhängig vom Seitenverhältnis. Vollständiger Rahmen; Rasterausgleich mit kleinen weißen Rändern.',{mp:(Number(i.value)/1000000).toLocaleString(i18n.language,{maximumFractionDigits:2})});i.addEventListener('input',update);l.append(hint);}(['url','model','api_key'].includes(key)?grid:advancedGrid).append(l);}
   {const l=el('label','Modellzugang'),i=el('select');i.name=stage+'.transport';for(const [value,title] of [['lmstudio','LM Studio SDK'],['openai','OpenAI-kompatible HTTP-API']]){const option=el('option',title);option.value=value;i.append(option);}l.append(i);grid.append(l);}
   if(stage==='ocr'){
@@ -27,11 +27,13 @@ async function init() {
   {const l=el('label','Qwen / LM Studio: schema-valides JSON aus Reasoning-Feld erlauben'),i=el('input');l.className='mai-check';i.type='checkbox';i.name=stage+'.allow_reasoning_json';l.prepend(i);advanced.append(l);}
   $('mai-model-settings').append(section);
  }
- fields('vision','Beschreibungen und Objekte');fields('ocr','Texterkennung (OCR)');const descriptionEnabled=el('label','Für Benutzer aktivieren'),descriptionCheck=el('input');descriptionEnabled.className='mai-check';descriptionCheck.type='checkbox';descriptionCheck.name='analysis_enabled';descriptionEnabled.prepend(descriptionCheck);$('mai-model-settings').querySelector('details').querySelector('summary').after(descriptionEnabled);
+ fields('vision','Beschreibungen und Objekte');fields('ocr','Texterkennung (OCR)');
+ for(const [stage,key] of [['vision','analysis_enabled'],['ocr','ocr_enabled']]){const label=el('label','Für Benutzer aktivieren'),check=el('input');label.className='mai-check';check.type='checkbox';check.name=key;label.prepend(check);$('mai-model-settings').querySelector('[data-model-stage="'+stage+'"]>summary').after(label);}
+
  function processingExplanation(){
   const form=$('mai-form'),analysis=form.elements.analysis_enabled.checked,dense=form.elements['embedding.enabled'].checked,local=form.elements['embedding.location'].value==='local';
   const gemma=form.elements['embedding.family'].value==='gemma2',automatic=local&&gemma&&form.elements['embedding.local_auto_setup'].checked;
-  const parts=['Dateinamen und Pfade'];if(analysis)parts.push('Beschreibungen, Tags, Objekte und OCR');if(dense)parts.push('ähnliche Bildinhalte');
+  const parts=['Dateinamen und Pfade'];if(analysis)parts.push('Beschreibungen, Tags und Objekte');if(form.elements.ocr_enabled.checked)parts.push('erkannter Text');if(dense)parts.push('ähnliche Bildinhalte');
    root.querySelectorAll('[data-embedding-local]').forEach(n=>n.hidden=!local);
   root.querySelectorAll('[data-embedding-auto]').forEach(n=>n.hidden=!local||!gemma);
   root.querySelectorAll('[data-embedding-auto-help]').forEach(n=>n.hidden=!automatic);
@@ -51,7 +53,7 @@ async function init() {
   if(['native','full'].includes(provider)){form.elements['embedding.local_profile'].value=provider==='full'?'full':'lite';form.elements['embedding.family'].value='gemma2';form.elements['embedding.model'].value=provider==='full'?'embeddinggemma-2-full':'embeddinggemma-2';}
   updateSaveState();if(lastStatus)embeddingSetupStatus(lastStatus);
  }));
- for(const name of ['analysis_enabled','embedding.enabled','embedding.location','embedding.family','embedding.local_auto_setup'])$('mai-form').elements[name].addEventListener('change',processingExplanation);
+ for(const name of ['analysis_enabled','ocr_enabled','embedding.enabled','embedding.location','embedding.family','embedding.local_auto_setup'])$('mai-form').elements[name].addEventListener('change',processingExplanation);
  $('mai-form').elements['embedding.family'].addEventListener('change',()=>{$('mai-form').elements['embedding.model'].value=$('mai-form').elements['embedding.family'].value==='gemma2'?'embeddinggemma-2':'Qwen/Qwen3-VL-Embedding-2B';updateSaveState();});
  $('mai-embedding-test').onclick=async()=>{const button=$('mai-embedding-test');button.disabled=true;const target=$('mai-embedding-result');target.textContent=tr('Embedding-Dienst wird geprüft …');try{const info=await api('embedding-test',{});target.classList.toggle('mai-error',!info.ready);target.textContent=info.ready?tr('Bereit für Bilder, Video-Standbilder und Suchanfragen.')+' '+info.model+' · '+info.dimensions:tr(info.message);}catch(e){target.classList.add('mai-error');target.textContent=e.message;}finally{button.disabled=false;updateSaveState();}};
  const workspace=window.MediaAIWorkspace.create({root,api,tr,el,configuration:()=>config});
@@ -70,7 +72,7 @@ async function init() {
    const value=input.type==='checkbox'?input.checked:input.type==='number'?Number(input.value):input.value;
    if(Array.isArray(previous))previous=previous.join('\n');
    if(value===(previous??''))continue;
-   const kinds=group==='embedding'?['embeddings']:['vision','ocr','video','analysis_enabled'].includes(group)?['descriptions']:['descriptions','embeddings'];
+   const kinds=group==='embedding'?['embeddings']:['ocr','ocr_enabled'].includes(group)?['ocr']:['vision','video','analysis_enabled'].includes(group)?['descriptions']:['descriptions','ocr','embeddings'];
    if(kinds.some(pipelineRunning))return true;
   }
   return false;
@@ -117,7 +119,7 @@ async function init() {
  }
  async function processing(){
   processingState=await api('processing');
-  for(const kind of ['descriptions','embeddings']){
+  for(const kind of ['descriptions','ocr','embeddings']){
    const section=root.querySelector('[data-admin-pipeline="'+kind+'"]'),value=processingState.pipelines?.[kind]||processingState;
    section.querySelector('[data-processing-status]').textContent=tr(value.paused?(value.running?'Läufe gesperrt. Die aktuelle Datei wird noch abgeschlossen.':'Diese Verarbeitung ist durch den Administrator pausiert.'):'Benutzerläufe sind erlaubt.');
    const allow=section.querySelector('[data-processing-action="allow_runs"]'),pause=section.querySelector('[data-processing-action="pause_all"]');
@@ -127,7 +129,7 @@ async function init() {
  }
  root.querySelectorAll('[data-processing-action]').forEach(button=>button.onclick=async()=>{
   const action=button.dataset.processingAction,kind=button.dataset.kind;
-  try{if(action==='pause_all'&&!await confirmModelAction(kind==='embeddings'?'Alle Embedding-Läufe pausieren?':'Alle Beschreibungs-Läufe pausieren?','Die aktuelle Datei wird abgeschlossen. Vorgemerkte Starts werden entfernt; neue und automatische Läufe dieser Verarbeitung sind bis zur Freigabe gesperrt. Die andere Verarbeitung läuft weiter.','Pausieren'))return;
+  try{if(action==='pause_all'&&!await confirmModelAction(kind==='embeddings'?'Alle Embedding-Läufe pausieren?':kind==='ocr'?'Alle OCR-Läufe pausieren?':'Alle Beschreibungs-Läufe pausieren?','Die aktuelle Datei wird abgeschlossen. Vorgemerkte Starts werden entfernt; neue und automatische Läufe dieser Verarbeitung sind bis zur Freigabe gesperrt. Die anderen Verarbeitungen laufen weiter.','Pausieren'))return;
    await api('processing',{action,kind});await processing();await status();
   }catch(error){message(error.message,true);}
  });

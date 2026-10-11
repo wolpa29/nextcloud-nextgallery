@@ -8,6 +8,7 @@ import tempfile
 import time
 from pathlib import Path
 import media_pipeline as p
+from inference_gate import hold,InferenceCancelled
 from embedding_server import vector
 
 
@@ -36,6 +37,10 @@ class Client:
         self.info=info; self.space=space_id(info,self.config)
         return info
     def image(self, wire):
+        with hold(self.config.get("_inference_directory"),self.url):
+            return self._image(wire)
+
+    def _image(self, wire):
         result=self.call('embed',{'model':self.config['model'],'image':base64.b64encode(wire).decode()})
         values=vector(result['embedding'])
         if result['space']!=self.info['space'] or len(values)!=self.info['dimensions']: raise p.PipelineError('Embedding model changed during run')
@@ -76,7 +81,7 @@ def run(config, source, api, directory, observe, should_stop, retry_errors=False
             try:
                 vectors=json.loads(row['vectors']) if row['vectors'] else None
                 if vectors is None:
-                    with p.ImageBudget(config.get('image_timeout_seconds',0)), tempfile.TemporaryDirectory(prefix='nextgallery-embedding-') as temp:
+                    with hold(config['embedding'].get('_inference_directory'),getattr(client,'url',config['embedding']['url']),should_stop), p.ImageBudget(config.get('image_timeout_seconds',0)), tempfile.TemporaryDirectory(prefix='nextgallery-embedding-') as temp:
                         if p.is_video(item):
                             path=Path(temp)/('source'+Path(item.path).suffix)
                             maximum=config['max_video_download_bytes']
@@ -95,6 +100,7 @@ def run(config, source, api, directory, observe, should_stop, retry_errors=False
                     store.db.execute("UPDATE embeddings SET status='done',error=NULL WHERE id=? AND space=?",(item.key,space))
                     store.db.execute('DELETE FROM embeddings WHERE id=? AND space<>?',(item.key,space))
                 processed+=1;observe('embedding_finished',path=item.path,file_id=item.locator,stage='embedding',frames=len(vectors),embedding_stats=store.stats(space))
+            except InferenceCancelled:break
             except p.ServiceUnavailable:raise
             except (p.PipelineError,ValueError,KeyError,TypeError,OSError) as error:
                 with store.db:store.db.execute("UPDATE embeddings SET status='error',error=? WHERE id=? AND space=?",(str(error)[:300],item.key,space))

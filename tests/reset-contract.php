@@ -19,6 +19,6 @@ if(($argv[1]??'')==='prepare'){
  $data=Metadata::validate($file->getId(),$file->getEtag(),str_repeat('a',64),str_repeat('c',64),['vision'=>['type'=>'foto','description'=>'New analysis after explicit deletion','tags'=>[],'objects'=>[],'uncertain_details'=>[]],'ocr'=>['text'=>'NEWANALYSIS']],[]);
  $meta->upsert($uid,$data);
  if(json_decode($meta->get($uid,$file->getId())['metadata_json'],true)['analysis']['vision']['description']!=='New analysis after explicit deletion')throw new RuntimeException('New analysis after reset refused');
- foreach(['descriptions','embeddings'] as $kind)$state->forPipeline($kind)->atomic('control.json',['paused'=>true,'requested'=>false]);
+ foreach(['descriptions','ocr','embeddings'] as $kind)$state->forPipeline($kind)->atomic('control.json',['paused'=>true,'requested'=>false]);
  echo "3 explicit reset/original preservation/new analysis assertions passed\n";
 }

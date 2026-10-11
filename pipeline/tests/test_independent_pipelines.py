@@ -143,9 +143,9 @@ class IndependentPipelines(unittest.TestCase):
             def wait(self,timeout):return self.returncode
         with tempfile.TemporaryDirectory() as temporary,patch.object(w,'_shutdown',shutdown),patch.object(w.subprocess,'Popen',side_effect=Child):
             w.supervise(SimpleNamespace(bootstrap=str(Path(temporary)/'bootstrap.json'),once=False),Path(temporary))
-        self.assertEqual([child.kind for child in created],['descriptions','embeddings','embeddings'])
+        self.assertEqual([child.kind for child in created],['descriptions','ocr','embeddings','embeddings'])
         self.assertTrue(created[0].terminated)  # Only stopped when the supervisor itself shuts down.
-        self.assertFalse(created[1].terminated)  # This process failed independently.
+        self.assertFalse(created[2].terminated)  # This process failed independently.
 
     def test_empty_php_reset_marker_and_invalid_control_are_read_safely(self):
         with tempfile.TemporaryDirectory() as temporary:

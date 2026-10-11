@@ -20,24 +20,28 @@ class AiWorkerController extends Controller {
         }
         return null;
     }
+    private function sourceFile(int $id):\OCP\Files\File|DataResponse {
+        try{return $this->inventory->allowedFile($id);}
+        catch(\OCP\AppFramework\OCS\OCSNotFoundException|\OCP\Files\NotFoundException|\OCP\Files\NotPermittedException){return new DataResponse(['error'=>'Media unavailable'],404);}
+    }
     #[PublicPage] #[NoCSRFRequired]
     public function config(): DataResponse { if ($denied = $this->denied()) { return $denied; } $response = new DataResponse($this->settings->workerConfig()); $response->addHeader('Cache-Control','no-store'); return $response; }
     #[PublicPage] #[NoCSRFRequired]
-    public function inventory(int $cursor = 0): DataResponse { if ($denied = $this->denied()) { return $denied; } return new DataResponse($this->inventory->page($cursor)); }
+    public function inventory(int $cursor = 0,string $kind='descriptions'): DataResponse { if ($denied = $this->denied()) { return $denied; } return new DataResponse($this->inventory->page($cursor,$kind)); }
     #[PublicPage] #[NoCSRFRequired]
     public function resolve(int $file_id): DataResponse {
-        if ($denied = $this->denied()) { return $denied; } $file = $this->inventory->allowedFile($file_id);
+        if ($denied = $this->denied()) { return $denied; } $file = $this->sourceFile($file_id);if($file instanceof DataResponse)return $file;
         return new DataResponse(['file_id'=>$file->getId(), 'etag'=>$file->getEtag(), 'size'=>$file->getSize()]);
     }
     #[PublicPage] #[NoCSRFRequired]
     public function image(int $file_id, string $etag): StreamResponse|DataResponse {
-        if ($denied = $this->denied()) { return $denied; } $file = $this->inventory->allowedFile($file_id);
-        if (!hash_equals($file->getEtag(), $etag)) { throw new OCSException('Image changed', 409); }
+        if ($denied = $this->denied()) { return $denied; } $file = $this->sourceFile($file_id);if($file instanceof DataResponse)return $file;
+        if (!hash_equals($file->getEtag(), $etag)) { return new DataResponse(['error'=>'Image changed'],409); }
         $config = $this->settings->get();
         $maximum = str_starts_with($file->getMimeType(), 'video/') ? $config['max_video_download_bytes'] : $config['max_download_bytes'];
-        if ($file->getSize() > $maximum) { throw new OCSException('Image exceeds download limit', 413); }
+        if ($file->getSize() > $maximum) { return new DataResponse(['error'=>'Image exceeds download limit'],413); }
         $stream = $file->fopen('rb');
-        if (!is_resource($stream)) { throw new OCSException('Image unavailable', 503); }
+        if (!is_resource($stream)) { return new DataResponse(['error'=>'Image unavailable'],503); }
         $response = new StreamResponse($stream);
         $response->addHeader('Content-Type', $file->getMimeType());
         $response->addHeader('Content-Length', (string)$file->getSize());
@@ -48,13 +52,16 @@ class AiWorkerController extends Controller {
     #[PublicPage] #[NoCSRFRequired]
     public function reset(string $kind='all'): DataResponse {
         if($denied=$this->denied())return $denied;
-        if(!in_array($kind,['all','descriptions','embeddings'],true))return new DataResponse(['error'=>'Invalid reset kind'],400);
+        if(!in_array($kind,['all','descriptions','ocr','embeddings'],true))return new DataResponse(['error'=>'Invalid reset kind'],400);
         $state=$kind==='all'?$this->state:$this->state?->forPipeline($kind);
         $control=$state?->control()??[];
-        if($kind==='all'&&$state&&is_file($state->directory().'/pipelines.json'))foreach(['descriptions','embeddings'] as $lane){$c=$state->forPipeline($lane)->control();if(empty($c['reset_requested'])||empty($c['paused']))return new DataResponse(['error'=>'Explicit paused reset request required for both pipelines'],409);}
+        if($kind==='all'&&$state&&is_file($state->directory().'/pipelines.json'))foreach(['descriptions','ocr','embeddings'] as $lane){$c=$state->forPipeline($lane)->control();if(empty($c['reset_requested'])||empty($c['paused']))return new DataResponse(['error'=>'Explicit paused reset request required for all pipelines'],409);}
         if(empty($control['reset_requested']) || empty($control['paused']))return new DataResponse(['error'=>'Explicit paused reset request required'],409);
         $uid=$this->settings->get()['user_id'];$kind=$control['reset_kind']??$kind;
-        if(in_array($kind,['all','descriptions'],true))$this->metadata->reset($uid);
+        if(in_array($kind,['all','descriptions','ocr'],true)){
+            $lock=fopen($state->directory().'/publication.lock','c');if(!$lock||!flock($lock,LOCK_EX))throw new \RuntimeException('Publication gate unavailable');
+            try{$this->metadata->reset($uid,$kind==='all'?null:$kind);}finally{flock($lock,LOCK_UN);fclose($lock);}
+        }
         if(in_array($kind,['all','embeddings'],true))$this->embeddings?->reset($uid);
         return new DataResponse(['reset'=>true]);
     }
@@ -62,16 +69,20 @@ class AiWorkerController extends Controller {
     public function publishEmbedding(int $file_id,string $etag,string $space,array $vectors):DataResponse {
         if($denied=$this->denied())return $denied;
         if(!$this->settings->get()['embedding']['enabled'])return new DataResponse(['error'=>'Embeddings disabled'],409);
-        $file=$this->inventory->allowedFile($file_id);if(!hash_equals($file->getEtag(),$etag))throw new OCSException('Media changed',409);
+        $file=$this->sourceFile($file_id);if($file instanceof DataResponse)return $file;if(!hash_equals($file->getEtag(),$etag))return new DataResponse(['error'=>'Media changed'],409);
         if(!$this->embeddings)throw new \RuntimeException('Embedding storage unavailable');
         $this->embeddings->publish($this->settings->get()['user_id'],$file_id,$etag,$space,$vectors);return new DataResponse(['stored'=>true]);
     }
     #[PublicPage] #[NoCSRFRequired]
-    public function publish(int $file_id, string $etag, string $sha256, string $revision, array $metadata, array $exif = []): DataResponse {
-        if ($denied = $this->denied()) { return $denied; } $data = Metadata::validate($file_id,$etag,$sha256,$revision,$metadata,$exif);
-        $file = $this->inventory->allowedFile($file_id);
-        if (!hash_equals($file->getEtag(),$etag)) { throw new OCSException('Image changed',409); }
-        $this->metadata->upsert($this->settings->get()['user_id'],$data);
+    public function publish(int $file_id, string $etag, string $sha256, string $revision, array $metadata, array $exif = [],string $stage=''): DataResponse {
+        if ($denied = $this->denied()) { return $denied; } try{$data = Metadata::validate($file_id,$etag,$sha256,$revision,$metadata,$exif,$stage);}catch(\OCP\AppFramework\OCS\OCSBadRequestException $e){return new DataResponse(['error'=>$e->getMessage()],400);}
+        $file = $this->sourceFile($file_id);if($file instanceof DataResponse)return $file;
+        if (!hash_equals($file->getEtag(),$etag)) { return new DataResponse(['error'=>'Image changed'],409); }
+        if($stage!==''&&!$this->state)throw new \RuntimeException('Publication state unavailable');
+        $lock=$this->state?fopen($this->state->directory().'/publication.lock','c'):null;
+        if($this->state&&!$lock)throw new \RuntimeException('Publication gate unavailable');
+        if($lock&&!flock($lock,LOCK_EX))throw new \RuntimeException('Publication gate unavailable');
+        try{$this->metadata->upsert($this->settings->get()['user_id'],$data,$stage);}finally{if($lock){flock($lock,LOCK_UN);fclose($lock);}}
         return new DataResponse(['stored'=>true,'file_id'=>$file_id]);
     }
 }

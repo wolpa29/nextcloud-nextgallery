@@ -17,8 +17,8 @@ class AiAccountController extends Controller {
     public function config():DataResponse {
         $uid=$this->uid();$config=$this->settings->forUser($uid)->get();$this->account();
         return new DataResponse(['user_id'=>$uid,'folders'=>$config['folders'],'exclude_folders'=>$config['exclude_folders'],
-            'analysis_enabled'=>$config['analysis_enabled'],'embedding_enabled'=>$config['embedding']['enabled'],
-            'metadata_count'=>$this->metadata->count($uid),'embedding_count'=>$this->embeddings->count($uid),
+            'analysis_enabled'=>$config['analysis_enabled'],'ocr_enabled'=>$config['ocr_enabled'],'embedding_enabled'=>$config['embedding']['enabled'],
+            'metadata_count'=>$this->metadata->count($uid),'description_count'=>$this->metadata->count($uid,'descriptions'),'ocr_count'=>$this->metadata->count($uid,'ocr'),'embedding_count'=>$this->embeddings->count($uid),
             'schedule'=>['enabled'=>$config['enabled'],'time'=>$config['schedule_time'],'timezone'=>$config['timezone']]]);
     }
     /** Only personal selection and schedule are writable; model options remain admin-only. */
@@ -59,8 +59,8 @@ class AiAccountController extends Controller {
         return new DataResponse($status);
     }
     #[NoAdminRequired]
-    public function library(string $path='',string $filter='all',string $query='',int $offset=0,string $embedding_filter='all'):DataResponse {
-        try{return new DataResponse($this->library->forUser($this->uid())->browse($path,$filter,$query,$offset,$embedding_filter));
+    public function library(string $path='',string $filter='all',string $query='',int $offset=0,string $embedding_filter='all',string $ocr_filter='all'):DataResponse {
+        try{return new DataResponse($this->library->forUser($this->uid())->browse($path,$filter,$query,$offset,$embedding_filter,$ocr_filter));
         }catch(\OCP\AppFramework\OCS\OCSBadRequestException $e){return new DataResponse(['error'=>$e->getMessage()],400);}
     }
     #[NoAdminRequired]
@@ -69,16 +69,16 @@ class AiAccountController extends Controller {
     public function control(string $action,string $kind='both',string $embedding_rebuild_id=''):DataResponse {
         if(!in_array($action,['start','pause','resume','retry'],true))return new DataResponse(['error'=>'Unbekannte Aktion'],400);
         $config=$this->settings->forUser($this->uid())->get();
-        if($action==='start'&&(($kind!=='embeddings'&&!$config['analysis_enabled'])||($kind!=='descriptions'&&!$config['embedding']['enabled'])))return new DataResponse(['error'=>'Diese Verarbeitung ist vom Administrator noch nicht eingerichtet.'],409);
+        if($action==='start'&&(($kind==='descriptions'&&!$config['analysis_enabled'])||($kind==='ocr'&&!$config['ocr_enabled'])||($kind==='embeddings'&&!$config['embedding']['enabled'])||($kind==='both'&&(!$config['analysis_enabled']||!$config['ocr_enabled']||!$config['embedding']['enabled']))))return new DataResponse(['error'=>'Diese Verarbeitung ist vom Administrator noch nicht eingerichtet.'],409);
         try{return new DataResponse($this->account()->setControl($action,true,$embedding_rebuild_id,$kind));}
         catch(\OCP\AppFramework\OCS\OCSBadRequestException $e){return new DataResponse(['error'=>$e->getMessage()],409);}
     }
     #[NoAdminRequired]
     public function delete(string $kind,string $confirmation,int $expected_count=-1):DataResponse {
-        if($confirmation!==$kind||!in_array($kind,['descriptions','embeddings','all'],true))return new DataResponse(['error'=>'Bestätigung fehlt'],400);
+        if($confirmation!==$kind||!in_array($kind,['descriptions','ocr','embeddings','all'],true))return new DataResponse(['error'=>'Bestätigung fehlt'],400);
         $state=$this->account();if($kind!=='all')$state=$state->forPipeline($kind);$status=$state->status();
         if(!$status['online']||empty($status['control']['paused'])||!empty($status['control']['requested'])||!empty($status['control']['reset_requested'])||$status['state']==='running')return new DataResponse(['error'=>'Bitte zuerst pausieren und das Ende der aktuellen Datei abwarten.'],409);
-        $uid=$this->uid();$count=($kind==='embeddings'?0:$this->metadata->count($uid))+($kind==='descriptions'?0:$this->embeddings->count($uid));
+        $uid=$this->uid();$count=$kind==='all'?$this->metadata->count($uid)+$this->embeddings->count($uid):($kind==='embeddings'?$this->embeddings->count($uid):$this->metadata->count($uid,$kind));
         if($expected_count!==$count)return new DataResponse(['error'=>'Die Anzahl hat sich geändert. Bitte die Bestätigung erneut öffnen.'],409);
         try{$state->requestReset($kind);return new DataResponse(['requested'=>true]);}
         catch(\OCP\AppFramework\OCS\OCSBadRequestException $e){return new DataResponse(['error'=>$e->getMessage()],409);}

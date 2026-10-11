@@ -15,7 +15,7 @@ class Session implements \OCP\IUserSession {public ?string $uid='bob';public fun
 class Groups implements \OCP\IGroupManager {public function isAdmin($uid){return $uid==='admin';}}
 class Folder implements \OCP\Files\Folder {public function isReadable(){return true;}public function get($path){if($path==='missing')throw new \OCP\Files\NotFoundException();return $this;}}
 class Root implements \OCP\Files\IRootFolder {public function getUserFolder($uid){return new Folder();}}
-class Meta extends \OCA\Nextgallery\AI\Service\Metadata {public int $amount=4000;public function __construct(){}public function count(string $uid):int{return $this->amount;}}
+class Meta extends \OCA\Nextgallery\AI\Service\Metadata {public int $amount=4000;public function __construct(){}public function count(string $uid,?string $stage=null):int{return $this->amount;}}
 class Probe extends \OCA\Nextgallery\AI\Service\ModelConnection {public int $calls=0;public function inspect(array $config):array{$this->calls++;return ['checked_at'=>123,'vision'=>['loaded'=>true,'context_length'=>114810]];}}
 class Request implements \OCP\IRequest {}
 $checks=0;function check($v){global $checks;$checks++;if(!$v)throw new \Exception('Assertion '.$checks.' failed');}

@@ -17,9 +17,10 @@ import media_ai_embedding as embedding
 import subprocess
 import sys
 import embedding_setup
+import analysis_storage
 
 _shutdown = threading.Event()
-PIPELINES = ('descriptions', 'embeddings')
+PIPELINES = ('descriptions', 'ocr', 'embeddings')
 
 _local_embedding_process = None
 _local_embedding_signature = None
@@ -50,31 +51,41 @@ def admin_paused(directory, kind=None):
 
 def initialize_pipelines(directory):
     """One-time split, shared with PHP; leave native/vector databases untouched."""
-    if (directory/'pipelines.json').is_file():return
+    if read(directory/'pipelines.json',{}).get('version',0)>=2:return
     with (directory/'control.lock').open('a') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX)
-        if (directory/'pipelines.json').is_file():return
-        old=read(directory/'control.json',{'paused':True,'requested':False})
-        status=read(directory/'status.json',{});schedule=read(directory/'schedule.json',{})
-        for kind in PIPELINES:
-            selected=old.get('run_kind','both') in ('both',kind)
-            control={**old,'run_kind':kind} if selected else {'paused':True,'requested':False,'run_kind':kind}
-            if old.get('reset_requested'):
-                control.update(reset_requested=old.get('reset_kind','all') in ('all',kind),reset_kind=kind)
-                if control['reset_requested']:control.update(paused=True,requested=False)
-            key='analysis_stats' if kind=='descriptions' else 'embedding_stats'
-            stats=status.get(key,status.get('stats',{}) if kind=='descriptions' else {})
-            lane={'state':'paused','current':None,'stats':stats,key:stats}
-            if (status.get('last_run') or {}).get('kind',old.get('run_kind','both'))==kind:lane['last_run']=status.get('last_run')
-            if kind=='embeddings':
-                for field in ('embedding_space','embedding_models','embedding_service','embedding_setup_supported','embedding_setup_profiles','embedding_remove_supported'):
-                    if field in status:lane[field]=status[field]
-            atomic(lane_file(directory,'control.json',kind),control)
-            atomic(lane_file(directory,'status.json',kind),lane)
-            next_schedule=dict(schedule)
-            if kind=='descriptions':next_schedule.pop('embedding_pending',None)
-            atomic(lane_file(directory,'schedule.json',kind),next_schedule)
-        atomic(directory/'pipelines.json',{'version':1})
+        if read(directory/'pipelines.json',{}).get('version',0)>=2:return
+        version=read(directory/'pipelines.json',{}).get('version',0)
+        if version<1:
+            old=read(directory/'control.json',{'paused':True,'requested':False})
+            status=read(directory/'status.json',{});schedule=read(directory/'schedule.json',{})
+            for kind in ('descriptions','embeddings'):
+                selected=old.get('run_kind','both') in ('both',kind)
+                control={**old,'run_kind':kind} if selected else {'paused':True,'requested':False,'run_kind':kind}
+                if old.get('reset_requested'):
+                    control.update(reset_requested=old.get('reset_kind','all') in ('all',kind),reset_kind=kind)
+                    if control['reset_requested']:control.update(paused=True,requested=False)
+                key='analysis_stats' if kind=='descriptions' else 'embedding_stats'
+                stats=status.get(key,status.get('stats',{}) if kind=='descriptions' else {})
+                lane={'state':'paused','current':None,'stats':stats,key:stats}
+                if (status.get('last_run') or {}).get('kind',old.get('run_kind','both'))==kind:lane['last_run']=status.get('last_run')
+                if kind=='embeddings':
+                    for field in ('embedding_space','embedding_models','embedding_service','embedding_setup_supported','embedding_setup_profiles','embedding_remove_supported'):
+                        if field in status:lane[field]=status[field]
+                atomic(lane_file(directory,'control.json',kind),control)
+                atomic(lane_file(directory,'status.json',kind),lane)
+                next_schedule=dict(schedule)
+                if kind=='descriptions':next_schedule.pop('embedding_pending',None)
+                atomic(lane_file(directory,'schedule.json',kind),next_schedule)
+        description=read(directory/'control-descriptions.json',{'paused':True,'requested':False})
+        control={**description,'run_kind':'ocr'}
+        if control.get('reset_requested'):control['reset_kind']='ocr'
+        atomic(directory/'control-ocr.json',control)
+        atomic(directory/'status-ocr.json',{'state':'paused','current':None,'stats':{},'ocr_stats':{}})
+        atomic(directory/'schedule-ocr.json',read(directory/'schedule-descriptions.json',{}))
+        if (directory/'processing-admin-descriptions.json').exists():atomic(directory/'processing-admin-ocr.json',read(directory/'processing-admin-descriptions.json',{}))
+        atomic(directory/'pipelines.json',{'version':2})
+
 
 
 class API:
@@ -102,11 +113,12 @@ class API:
 class NativeSource:
     def __init__(self,api,config):
         self.api=api
+        self.kind=config.get('_pipeline','descriptions')
         self.scope=p.digest(['native',getattr(api,'scope_url',api.url),config['user_id'],config['folders'],config['exclude_folders']])
     def inventory(self):
         cursor=0; items=[]; seen=set()
         while True:
-            page=self.api.call('inventory?'+urllib.parse.urlencode({'cursor':cursor}))
+            page=self.api.call('inventory?'+urllib.parse.urlencode({'cursor':cursor,'kind':self.kind}))
             for row in page['items']:
                 identifier=str(row['file_id'])
                 if identifier in seen: raise p.PipelineError('Duplicate inventory identity')
@@ -133,14 +145,14 @@ class NativeSource:
 class NativePublisher:
     def __init__(self,api,config):
         # Publication identity participates in the analysis revision; keep it stable across the app move.
-        self.api=api; self.config={'url':getattr(api,'scope_url',api.url),'user_id':config['user_id']}
+        self.api=api; self.pipeline=config.get('_pipeline',''); self.config={'url':getattr(api,'scope_url',api.url),'user_id':config['user_id']}
     def capture(self,item,source):
         target=self.api.call('resolve?file_id='+item.locator)
         if target['etag']!=item.etag: raise p.PipelineError('Image changed before analysis')
         return {'file_id':int(item.locator),'etag':item.etag}
     def send(self,row):
         metadata=json.loads(row['metadata'])
-        self.api.call('publish',{**metadata['nextcloud_target'],'sha256':row['sha256'],'revision':row['revision'],'metadata':metadata,'exif':json.loads(row['exif'])})
+        self.api.call('publish',{'stage':self.pipeline if self.pipeline!='both' else '',**metadata['nextcloud_target'],'sha256':row['sha256'],'revision':row['revision'],'metadata':metadata,'exif':json.loads(row['exif'])})
 
 
 class Reporter:
@@ -182,7 +194,9 @@ class Reporter:
         with path.open('a') as stream:
             fcntl.flock(stream,fcntl.LOCK_EX);stream.write(json.dumps(row,ensure_ascii=False)+'\n')
         changes={}
-        if 'stats' in fields: changes['stats']=fields['stats']; changes['analysis_stats']=fields['stats']
+        if 'stats' in fields:
+            changes['stats']=fields['stats'];changes['analysis_stats']=fields['stats']
+            if self.kind=='ocr':changes['ocr_stats']=fields['stats']
         if 'embedding_stats' in fields:
             changes['embedding_stats']=fields['embedding_stats']
             changes['stats']={key:self.value.get('analysis_stats',{}).get(key,0)+fields['embedding_stats'].get(key,0) for key in ('done','pending','error')}
@@ -224,8 +238,10 @@ def reset_ai(api,directory,reporter,control):
     kind=control.get('reset_kind','all')
     lane=getattr(reporter,'kind',None)
     api.call('reset',{'kind':kind})
-    if kind in ('all','descriptions'):
-        store=p.Store(directory/'native.sqlite3')
+    if kind in ('all','descriptions','ocr'):
+      analysis_storage.reset_legacy(directory,kind)
+      for analysis_kind in (('descriptions','ocr') if kind=='all' else (kind,)):
+        store=p.Store(analysis_storage.path(directory,analysis_kind))
         try:
             with store.db:
                 for table in ['files','results','search','locks']:store.db.execute('DELETE FROM '+table)
@@ -239,8 +255,9 @@ def reset_ai(api,directory,reporter,control):
         current=read(lane_file(directory,'control.json',lane),{})
         if current.get('reset_request_id')==control.get('reset_request_id'):
             current['reset_requested']=False;atomic(lane_file(directory,'control.json',lane),current)
-    remaining=reporter.value.get('embedding_stats' if kind=='descriptions' else 'analysis_stats',{}) if kind!='all' else {}
-    reporter.update(stats={key:remaining.get(key,0) for key in ('done','pending','error')},**({'analysis_stats':{}} if kind=='descriptions' else {'embedding_stats':{}} if kind=='embeddings' else {'analysis_stats':{},'embedding_stats':{}}),last_run=None,current=None,state='paused',message='KI-Daten zurückgesetzt')
+    fields={'analysis_stats':{}} if kind in ('descriptions','ocr') else {'embedding_stats':{}} if kind=='embeddings' else {'analysis_stats':{},'embedding_stats':{}}
+    if kind=='ocr':fields['ocr_stats']={}
+    reporter.update(stats={'done':0,'pending':0,'error':0},last_run=None,current=None,state='paused',message='KI-Daten zurückgesetzt',**fields)
     reporter.event('ai_reset_finished',kind=kind)
 
 
@@ -370,11 +387,15 @@ def maintain_embedding_service(config, directory, reporter):
 def cycle(api,config,directory,reporter,control):
     config=json.loads(json.dumps(config))
     kind=control.get('run_kind','both')
-    config['analysis_enabled']=config.get('analysis_enabled',True) and kind!='embeddings'
+    config['analysis_enabled']=(config.get('ocr_enabled',config.get('analysis_enabled',True)) if kind=='ocr' else config.get('analysis_enabled',True)) and kind!='embeddings'
     config.setdefault('embedding',{'enabled':False})
-    config['embedding']['enabled']=config['embedding'].get('enabled',False) and kind!='descriptions'
+    config['embedding']['enabled']=config['embedding'].get('enabled',False) and kind in ('embeddings','both')
     lane=getattr(reporter,'kind',None)
-    store=p.Store(directory/'native.sqlite3') if config['analysis_enabled'] else None
+    analysis_kind='ocr' if kind=='ocr' else 'descriptions'
+    config['_pipeline']=kind
+    config['_inference_directory']=config.get('_model_directory')
+    config['embedding']['_inference_directory']=config.get('_model_directory')
+    store=p.Store(directory/'native.sqlite3' if kind=='both' else analysis_storage.path(directory,analysis_kind)) if config['analysis_enabled'] else None
     started=time.monotonic()
     try:
         if store:
@@ -391,9 +412,10 @@ def cycle(api,config,directory,reporter,control):
         analysis={'state':'disabled','processed':0,'errors':0,'published':0,'cached_stage_results':0}
         if config.get('analysis_enabled',True):
             models={}
-            for stage in ['vision','ocr']:
+            for stage in (['vision','ocr'] if kind=='both' else ['ocr'] if kind=='ocr' else ['vision']):
                 data=dict(config[stage]);secret=data.pop('api_key','');name='MEDIA_AI_'+stage.upper()+'_KEY'
                 os.environ[name]=secret;data['api_key_env']=name;models[stage]=p.Model(data,stage)
+                models[stage].inference_directory=config.get('_model_directory')
             analysis=p.run(config,store,source,models,limit=0,max_seconds=0,publisher=NativePublisher(api,config),observe=reporter.event,should_stop=stop)
         reporter.update(analysis_stats=store.stats() if config.get('analysis_enabled',True) else {})
         dense={'state':'disabled','processed':0,'errors':0,'stats':{'done':0,'pending':0,'error':0}}
@@ -485,6 +507,7 @@ def main():
         try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         except BlockingIOError:raise SystemExit('Worker already active')
         initialize_pipelines(directory)
+        if kind!='embeddings':analysis_storage.initialize(directory)
         bootstrap=read(Path(args.bootstrap),{});api=API(bootstrap);reporter=Reporter(directory,service=True,kind=kind)
         try:
             while not _shutdown.is_set():
@@ -498,7 +521,9 @@ def main():
                             global_config=api.call('config')
                             embedding_ready=maintain_embedding_service(global_config,directory,reporter)
                     candidates=account_directories(directory,global_config['user_id'])
-                    for _,account_directory in candidates:initialize_pipelines(account_directory)
+                    for _,account_directory in candidates:
+                        initialize_pipelines(account_directory)
+                        if kind!='embeddings':analysis_storage.initialize(account_directory)
                     candidates.sort(key=lambda item:(not read(lane_file(item[1],'control.json',kind),{}).get('reset_requested'),not read(lane_file(item[1],'control.json',kind),{}).get('requested'),read(lane_file(item[1],'control.json',kind),{}).get('updated_at',0),item[0]))
                     active=False
                     if admin_paused(directory,kind):
@@ -517,7 +542,8 @@ def main():
                             control=read(lane_file(account_directory,'control.json',kind),{'paused':True})
                             if not control.get('reset_requested') and control.get('paused',True):continue
                             config=scoped_api.call('config');config['_model_directory']=str(directory)
-                            config['analysis_enabled']=config.get('analysis_enabled',True) and kind=='descriptions'
+                            config['_pipeline']=kind
+                            config['analysis_enabled']=(config.get('ocr_enabled',config.get('analysis_enabled',True)) if kind=='ocr' else config.get('analysis_enabled',True)) and kind!='embeddings'
                             config.setdefault('embedding',{})['enabled']=config.get('embedding',{}).get('enabled',False) and kind=='embeddings'
                             if not control.get('reset_requested') and not is_due(config,control,schedule):continue
                             if schedule.get('embedding_pending') and not embedding_ready and not control.get('requested') and not control.get('reset_requested'):continue

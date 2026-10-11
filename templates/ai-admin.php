@@ -11,9 +11,9 @@ script('nextgallery','ai-i18n'); script('nextgallery','ai-workspace'); script('n
  <section class="mai-view mai-settings-view" id="mai-settings" data-view="settings" hidden>
   <div class="mai-section-header"><div><h3>Server-Einstellungen</h3><p class="mai-muted">Modelle und Dienste für alle Benutzer.</p></div></div>
   <p class="mai-muted">Modelle werden zentral eingerichtet. Benutzer starten ihre eigenen Läufe.</p>
-  <div class="mai-actions"><button id="mai-test" type="button">Beschreibungsmodelle prüfen</button></div><div id="mai-model-result" role="status"></div>
-  <details id="mai-processing-admin" class="mai-model"><summary>Benutzerläufe</summary><p class="mai-muted">Beschreibungen und Embeddings laufen unabhängig. Modellwechsel betreffen nur die jeweilige Verarbeitung.</p>
-   <?php foreach(['descriptions'=>'Beschreibungen und OCR','embeddings'=>'Visuelle Bildsuche · Embeddings'] as $kind=>$label): ?>
+  <div class="mai-actions"><button id="mai-test" type="button">Beschreibung und OCR prüfen</button></div><div id="mai-model-result" role="status"></div>
+  <details id="mai-processing-admin" class="mai-model"><summary>Benutzerläufe</summary><p class="mai-muted">Beschreibungen, Texterkennung und Embeddings laufen unabhängig. Modellwechsel betreffen nur die jeweilige Verarbeitung.</p>
+   <?php foreach(['descriptions'=>'Beschreibungen','ocr'=>'Texterkennung (OCR)','embeddings'=>'Visuelle Bildsuche · Embeddings'] as $kind=>$label): ?>
    <section data-admin-pipeline="<?php p($kind); ?>"><h4><?php p($label); ?></h4><p data-processing-status role="status"></p><div class="mai-actions"><button type="button" data-processing-action="pause_all" data-kind="<?php p($kind); ?>">Alle Läufe dieser Verarbeitung pausieren</button><button type="button" data-processing-action="allow_runs" data-kind="<?php p($kind); ?>" hidden>Läufe wieder erlauben</button></div><ul data-processing-accounts></ul></section>
    <?php endforeach; ?>
    <p class="mai-muted">Pausieren schließt die aktuelle Datei ab, entfernt vorgemerkte Starts und sperrt neue sowie automatische Läufe dieser Verarbeitung.</p>

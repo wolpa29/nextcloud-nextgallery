@@ -14,7 +14,7 @@ class Settings {
         return $this->config->getAppValue('nextgallery', 'ai_' . $key, $default);
     }
     public function defaults(): array {
-        return ['enabled' => false, 'analysis_enabled' => true, 'embedding' => ['enabled'=>false, 'location'=>'local', 'local_auto_setup'=>true, 'local_profile'=>'lite', 'transport'=>'multimodal', 'family'=>'gemma2', 'model'=>'embeddinggemma-2', 'url'=>'http://10.1.10.78:9379/v1', 'local_model_path'=>'/opt/nextgallery-ai-models/embeddinggemma-2-text-vision-440m.litertlm', 'local_qwen_source'=>'', 'model_revision'=>'', 'max_edge'=>2048, 'video_frames'=>10, 'timeout_seconds'=>120], 'user_id' => 'paul', 'folders' => ['/'], 'exclude_folders' => [],
+        return ['enabled' => false, 'analysis_enabled' => true, 'ocr_enabled'=>true, 'embedding' => ['enabled'=>false, 'location'=>'local', 'local_auto_setup'=>true, 'local_profile'=>'lite', 'transport'=>'multimodal', 'family'=>'gemma2', 'model'=>'embeddinggemma-2', 'url'=>'http://10.1.10.78:9379/v1', 'local_model_path'=>'/opt/nextgallery-ai-models/embeddinggemma-2-text-vision-440m.litertlm', 'local_qwen_source'=>'', 'model_revision'=>'', 'max_edge'=>2048, 'video_frames'=>10, 'timeout_seconds'=>120], 'user_id' => 'paul', 'folders' => ['/'], 'exclude_folders' => [],
             'schedule_time' => '03:00', 'timezone' => 'Europe/Vienna', 'image_timeout_seconds' => 600, 'log_days' => 30, 'max_download_bytes' => 67108864,
             'max_image_pixels' => 80000000, 'max_video_download_bytes' => 536870912, 'video' => ['frame_count' => 10],
             'vision' => ['url' => 'http://10.1.10.78:1234/v1', 'model' => 'qwen/qwen3.8-27b',
@@ -31,6 +31,7 @@ class Settings {
     public function get(): array {
         $saved = json_decode($this->stored('settings', '{}'), true, 64, JSON_THROW_ON_ERROR);
         $value = array_replace_recursive($this->defaults(), $saved);
+        $value['ocr_enabled']=$saved['ocr_enabled']??$value['analysis_enabled'];
         // Existing installations with a configured model keep their explicit setup.
         if(isset($saved['embedding']['local_model_path'])&&!array_key_exists('local_auto_setup',$saved['embedding'])&&$saved['embedding']['local_model_path']!==$this->defaults()['embedding']['local_model_path'])$value['embedding']['local_auto_setup']=false;
         unset($value['limit'], $value['max_seconds']); // Former batch limits no longer apply.
@@ -174,6 +175,8 @@ class Settings {
             if (!is_string($secret) || strlen($secret) > 4096 || str_contains($secret, "\n") || str_contains($secret, "\r")) { throw new OCSBadRequestException('API-Key ungültig'); }
             if ($secret !== '' || !empty($data['clear_api_key'])) { $secrets[$stage . '_api_key'] = $secret; }
         }
+        $result['ocr_enabled']=$value['ocr_enabled']??($value['analysis_enabled']??true);
+        if(!is_bool($result['ocr_enabled']))throw new OCSBadRequestException('Verarbeitungsauswahl ungültig');
         $result['analysis_enabled']=$value['analysis_enabled']??true;
         if(!is_bool($result['analysis_enabled']))throw new OCSBadRequestException('Verarbeitungsauswahl ungültig');
         $embedding=$value['embedding']??$result['embedding'];

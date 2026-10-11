@@ -111,11 +111,13 @@ try:
  user_headers={'Authorization':'Basic '+alice_auth}
  status,body=request('/index.php/apps/nextgallery/ai/account/config?user_id=account-bob',headers=user_headers);assert status==200 and json.loads(body)['user_id']=='account-alice',(status,body);http.append('forged-user-read-ignored')
  status,body=request('/index.php/apps/nextgallery/ai/account/result?file_id='+str(json.loads((out/'accounts.json').read_text())['ids']['account-bob']),headers=user_headers);assert status==404,(status,body);http.append('other-account-result-denied')
- for kind in ['embeddings','descriptions']:
+ for kind in ['embeddings','descriptions','ocr']:
   status,body=request('/index.php/apps/nextgallery/ai/account/delete',{'kind':kind,'confirmation':kind,'expected_count':1,'user_id':'account-bob'},headers=user_headers);assert status==200,(kind,status,body)
   status,body=request('/index.php/apps/nextgallery/ai/worker/reset',{'kind':kind},headers={'Authorization':'Bearer '+token,'X-Nextgallery-User':'account-alice'});assert status==200,(kind,status,body)
   print(docker('exec','-u','www-data',name,'php','/test-scripts/account-contract.php',kind),flush=True);http.append('separate-'+kind+'-delete')
  print(docker('exec','-u','www-data',name,'php','/test-scripts/admin-processing-contract.php'),flush=True)
+ print(docker('exec','-u','www-data',name,'php','/test-scripts/three-pipelines-contract.php'),flush=True)
+ if case=='fresh35':print(run('python3',str(root/'scripts/test-stage-publication.py')),flush=True)
  result={'case':case,'http_checks':len(http),'routes':http,'nextcloud':data['versionstring'],'url':base,'cli':json.loads((out/'verified.json').read_text())};(out/'result.json').write_text(json.dumps(result,indent=2));print(json.dumps(result),flush=True)
  if a.keep:print('Disposable containers retained for UI verification:',name,flush=True)
 finally:

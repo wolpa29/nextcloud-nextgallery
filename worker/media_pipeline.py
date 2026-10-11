@@ -27,6 +27,7 @@ import urllib.request
 import uuid
 import xml.etree.ElementTree as ET
 from dataclasses import asdict, dataclass
+from inference_gate import InferenceCancelled
 from media_ai_inputs import ImageBatch, prepare_ocr, prepare_video, VIDEO_SAMPLING_REVISION
 from media_ai_budget import ImageBudget, ImageTimeout, check_budget, network_timeout, track_response
 from media_ai_stream import chat_stream, StreamFailure, StreamLoop, StreamServerFailure, RepetitionGuard
@@ -474,6 +475,11 @@ class Model:
         return {'text': value['text'], 'source': 'ocr_model_json'}
 
     def analyze(self, data, mime):
+        from inference_gate import hold
+        with hold(getattr(self,"inference_directory",None),self.url):
+            return self._analyze(data,mime)
+
+    def _analyze(self, data, mime):
         self.attempt_history, self.retry_messages, self.usage = [], [], {}
         batch = data if isinstance(data, ImageBatch) else ImageBatch([(data, mime, '')], '')
         content = [{'type': 'text', 'text': self.prompt + ('\n\n' + batch.instructions if batch.instructions else '')}]
@@ -655,7 +661,7 @@ class Store:
             self.db.execute("INSERT OR REPLACE INTO results VALUES(?,?,?,?,?)", (hash_, stage, revision, json.dumps(result, ensure_ascii=False), time.time()))
 
     def finish(self, item, hash_, metadata, exif):
-        vision, ocr = metadata["vision"], metadata["ocr"]
+        vision, ocr = metadata.get("vision",{"description":"","tags":[],"objects":[]}), metadata.get("ocr",{"text":""})
         with self.db:
             self.db.execute("UPDATE files SET status='done',sha256=?,metadata=?,exif=?,error=NULL,attempts=0,retry_at=0,analyzed_at=?,analyzed_etag=? WHERE id=?",
                             (hash_, json.dumps(metadata, ensure_ascii=False), json.dumps(exif, ensure_ascii=False), time.time(), item.etag, item.key))
@@ -777,7 +783,8 @@ def run(config, store, source, models, limit=100, max_seconds=3600, preprocess=p
             current_stage, image_start = 'download', time.monotonic()
             try:
                 video = is_video(item)
-                with ImageBudget(config.get('image_timeout_seconds', 0)), tempfile.TemporaryDirectory(prefix='media-ai-') as temporary:
+                from inference_gate import hold
+                with hold(config.get('_inference_directory'),getattr(next(iter(models.values())),'url',''),should_stop), ImageBudget(config.get('image_timeout_seconds', 0)), tempfile.TemporaryDirectory(prefix='media-ai-') as temporary:
                     target = publisher.capture(item, source) if publisher else None
                     maximum = config.get('max_video_download_bytes', 512*1024*1024) if video else config.get("max_download_bytes", 64*1024*1024)
                     if item.size > maximum:
@@ -857,6 +864,8 @@ def run(config, store, source, models, limit=100, max_seconds=3600, preprocess=p
                     corrective_retries=sum(max(0,len(history)-1) for history in attempts.values()),
                     detected_loops=sum(a['state']=='loop' for history in attempts.values() for a in history),
                     images=metadata['provenance'].get('images', {}))
+            except InferenceCancelled:
+                break
             except ServiceUnavailable as error:
                 # No invalid media/result: keep successful stage caches and the
                 # queue entry available immediately for an explicit resume.

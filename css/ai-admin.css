@@ -317,3 +317,11 @@
 #media-ai-user .mai-processing-card .mai-run-surface [role=status]{overflow-wrap:anywhere}
 #mai-processing-admin [data-admin-pipeline]{padding:16px 0;border-bottom:1px solid var(--ng-line)}
 #mai-processing-admin [data-admin-pipeline]:last-of-type{border-bottom:0}
+
+/* Align matching rows across all three independent pipeline cards. */
+#media-ai-user .mai-processing-options{grid-template-columns:repeat(3,minmax(0,1fr));gap:0 16px}
+#media-ai-user .mai-processing-card{display:grid;grid-template-rows:subgrid;grid-row:span 6;row-gap:0;min-width:0;align-items:start}
+#media-ai-user .mai-processing-card>button{margin:12px 0 10px;justify-self:start}
+#media-ai-user .mai-processing-card>p{overflow-wrap:anywhere}
+#media-ai-user .mai-summary-stages{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media(max-width:1050px){#media-ai-user .mai-processing-options{grid-template-columns:1fr;gap:16px}#media-ai-user .mai-processing-card{display:flex;grid-row:auto}#media-ai-user .mai-summary-stages{grid-template-columns:1fr}}

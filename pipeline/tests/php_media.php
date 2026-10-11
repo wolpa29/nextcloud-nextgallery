@@ -32,8 +32,8 @@ $c=new Config();$settings=new \OCA\Nextgallery\AI\Service\Settings($c,new Crypto
 check($files->byId('paul',12)===$file);
 $page=$inventory->page();check(count($page['items'])===1);check($page['items'][0]['mime']==='video/mp4');check(str_contains($db->sql,"video/%"));
 $response=$controller->image(12,'v1');check($response instanceof \OCP\AppFramework\Http\StreamResponse);check(is_resource($response->stream));check(stream_get_contents($response->stream)==='video bytes');fclose($response->stream);check($response->headers['ETag']==='"v1"');check($response->headers['Content-Type']==='video/mp4');
-try{$controller->image(12,'wrong');throw new \Exception('Stale version accepted');}catch(\OCP\AppFramework\OCS\OCSException $e){check(true);}
-$file->mime='image/jpeg';try{$controller->image(12,'v1');throw new \Exception('Image limit bypassed');}catch(\OCP\AppFramework\OCS\OCSException $e){check(true);}
+check($controller->image(12,'wrong')->status===409);
+$file->mime='image/jpeg';check($controller->image(12,'v1')->status===413);
 $file->mime='application/pdf';try{$files->byId('paul',12);throw new \Exception('Non-media accepted');}catch(\OCP\AppFramework\OCS\OCSException $e){check(true);}
 $v=$settings->defaults();check($v['video']['frame_count']===10);check($v['ocr']['max_batch_images']===20);check($v['ocr']['tile_overlap_percent']===10);
 foreach([['video','frame_count',0],['video','frame_count',21],['video','frame_count',10.0],['ocr','tile_overlap_percent',0],['ocr','max_batch_images',65]] as [$stage,$key,$value]){$bad=$v;$bad[$stage][$key]=$value;$before=$c->values;try{$settings->save($bad);throw new \Exception('Invalid value accepted');}catch(\OCP\AppFramework\OCS\OCSBadRequestException $e){check($before===$c->values);}}
