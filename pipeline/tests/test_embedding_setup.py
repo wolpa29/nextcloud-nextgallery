@@ -252,6 +252,17 @@ class SetupTests(unittest.TestCase):
                 self.assertEqual(api.call.call_count,1)
                 self.assertEqual(setup.read(directory/'control.json')['requested'],requested)
 
+    def test_manual_rebuild_waits_for_model_installation_without_second_start(self):
+        c=config();c.update(enabled=False,timezone='Europe/Vienna',log_days=30,schedule_time='00:00')
+        with tempfile.TemporaryDirectory() as temp:
+            directory=Path(temp);setup.atomic(directory/'bootstrap.json',{});setup.atomic(directory/'control.json',{'paused':False,'requested':True,'request_id':'synthetic-rebuild','run_kind':'embeddings'})
+            api=Mock();api.call.return_value=c;reporter=Mock();client=Mock();client.health.return_value={'space':'b'*64,'dimensions':768}
+            with patch.object(worker.sys,'argv',['worker','--bootstrap',str(directory/'bootstrap.json'),'--once']),patch.object(worker,'API',return_value=api),patch.object(worker,'Reporter',return_value=reporter),patch.object(worker,'maintain_embedding_service',return_value=False),patch.object(worker.embedding,'Client',return_value=client),patch.object(worker,'cycle',return_value={'embedding':{'state':'preparing'}}):
+                worker.main()
+            control=setup.read(directory/'control.json');schedule=setup.read(directory/'schedule.json')
+            self.assertFalse(control['paused']);self.assertFalse(control['requested']);self.assertTrue(schedule['embedding_pending'])
+            self.assertTrue(worker.is_due(c,control,schedule))
+
     def test_model_transition_lock_blocks_worker_start(self):
         import fcntl
         c=config();c.update(enabled=True,timezone='Europe/Vienna',log_days=30,schedule_time='00:00')

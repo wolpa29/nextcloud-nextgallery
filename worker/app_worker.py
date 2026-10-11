@@ -463,7 +463,7 @@ def main():
                                 result_date=datetime.now(ZoneInfo(config['timezone'])).strftime('%Y-%m-%d')
                                 result=cycle(scoped_api,config,account_directory,child,control)
                                 atomic(account_directory/'schedule.json',{'date':result_date,'embedding_pending':result['embedding']['state']=='preparing'})
-                                if not config['enabled']:
+                                if not config['enabled'] and result['embedding']['state']!='preparing':
                                     with (account_directory/'control.lock').open('a') as account_lock:
                                         fcntl.flock(account_lock,fcntl.LOCK_EX)
                                         current=read(account_directory/'control.json',{})
