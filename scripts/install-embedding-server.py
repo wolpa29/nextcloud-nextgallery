@@ -524,8 +524,8 @@ def interactive_wizard(repository: Path, directory: Path, language: str = 'ask')
 
         all_idx = len(gpus) + 1
         cpu_idx = len(gpus) + 2
-        print(f"  [{all_idx}] " + t('  [{idx}] Use all available GPUs', idx=all_idx).strip())
-        print(f"  [{cpu_idx}] " + t('  [{idx}] Use CPU (no GPU acceleration)', idx=cpu_idx).strip())
+        print(t('  [{idx}] Use all available GPUs', idx=all_idx))
+        print(t('  [{idx}] Use CPU (no GPU acceleration)', idx=cpu_idx))
         gpu_opts.extend(['all', 'cpu'])
 
         dev_choice = prompt_choice(t('Select hardware for computation'), gpu_opts, default=1)
