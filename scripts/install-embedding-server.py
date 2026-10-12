@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import re
 import secrets
+import shutil
 import socket
 import subprocess
 import sys
@@ -59,6 +60,75 @@ def check_docker_nvidia_support() -> bool:
             return 'nvidia' in data
     except Exception:
         pass
+    return False
+
+
+def setup_nvidia_container_toolkit_auto() -> bool:
+    """Attempt automatic configuration or installation of nvidia-container-toolkit."""
+    print('\nStarte automatische Einrichtung des NVIDIA Container Toolkits für Docker...')
+
+    # Step 1: If nvidia-ctk is already installed on host, just configure docker runtime and restart docker
+    if shutil.which('nvidia-ctk'):
+        print('-> nvidia-ctk bereits installiert. Konfiguriere Docker-Laufzeit...')
+        try:
+            subprocess.run(['sudo', 'nvidia-ctk', 'runtime', 'configure', '--runtime=docker'], check=True)
+            subprocess.run(['sudo', 'systemctl', 'restart', 'docker'], check=True)
+            if check_docker_nvidia_support():
+                return True
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            print('-> Direkte Konfiguration fehlgeschlagen, versuche Neuinstallation via Paketmanager...', file=sys.stderr)
+
+    # Step 2: Try installing via package manager
+    if shutil.which('apt-get'):
+        print('-> Installiere / Aktualisiere nvidia-container-toolkit via apt...')
+        try:
+            subprocess.run(['sudo', 'apt-get', 'update'], check=False)
+            res = subprocess.run(['sudo', 'apt-get', 'install', '-y', 'nvidia-container-toolkit'])
+            if res.returncode != 0:
+                print('-> Richte offizielles NVIDIA Container Toolkit Apt-Repository ein...')
+                keyring = '/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg'
+                subprocess.run(
+                    f'curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o {keyring}',
+                    shell=True, check=True
+                )
+                list_cmd = (
+                    f'curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | '
+                    f'sed "s#deb https://#deb [signed-by={keyring}] https://#g" | '
+                    f'sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list'
+                )
+                subprocess.run(list_cmd, shell=True, check=True)
+                subprocess.run(['sudo', 'apt-get', 'update'], check=True)
+                subprocess.run(['sudo', 'apt-get', 'install', '-y', 'nvidia-container-toolkit'], check=True)
+
+            subprocess.run(['sudo', 'nvidia-ctk', 'runtime', 'configure', '--runtime=docker'], check=True)
+            subprocess.run(['sudo', 'systemctl', 'restart', 'docker'], check=True)
+            return check_docker_nvidia_support()
+        except Exception as e:
+            print(f'-> Automatische Installation fehlgeschlagen: {e}', file=sys.stderr)
+            return False
+
+    elif shutil.which('dnf'):
+        print('-> Installiere nvidia-container-toolkit via dnf...')
+        try:
+            subprocess.run(['sudo', 'dnf', 'install', '-y', 'nvidia-container-toolkit'], check=True)
+            subprocess.run(['sudo', 'nvidia-ctk', 'runtime', 'configure', '--runtime=docker'], check=True)
+            subprocess.run(['sudo', 'systemctl', 'restart', 'docker'], check=True)
+            return check_docker_nvidia_support()
+        except Exception as e:
+            print(f'-> Automatische Installation fehlgeschlagen: {e}', file=sys.stderr)
+            return False
+
+    elif shutil.which('pacman'):
+        print('-> Installiere nvidia-container-toolkit via pacman...')
+        try:
+            subprocess.run(['sudo', 'pacman', '-S', '--noconfirm', 'nvidia-container-toolkit'], check=True)
+            subprocess.run(['sudo', 'nvidia-ctk', 'runtime', 'configure', '--runtime=docker'], check=True)
+            subprocess.run(['sudo', 'systemctl', 'restart', 'docker'], check=True)
+            return check_docker_nvidia_support()
+        except Exception as e:
+            print(f'-> Automatische Installation fehlgeschlagen: {e}', file=sys.stderr)
+            return False
+
     return False
 
 
@@ -392,29 +462,60 @@ def interactive_wizard(repository: Path, directory: Path) -> tuple[dict[str, obj
 
     if device.startswith('cuda'):
         # Proactively check if Docker daemon actually has nvidia runtime registered
-        if not check_docker_nvidia_support():
+        while not check_docker_nvidia_support():
             print('\n' + '!' * 80)
-            print('ACHTUNG: NVIDIA GPU(s) erkannt, aber Docker hat das NVIDIA Container Toolkit')
-            print('         noch nicht aktiviert (Error: could not select device driver "nvidia")!')
-            print('\nUm Grafikkarten in Docker nutzen zu können, führe bitte in einem zweiten')
-            print('Terminal folgende Befehle aus:')
-            print('  sudo nvidia-ctk runtime configure --runtime=docker')
-            print('  sudo systemctl restart docker')
-            print('\n(Falls das Toolkit noch nicht installiert ist: sudo apt-get install -y nvidia-container-toolkit)')
+            print('ACHTUNG: NVIDIA GPU(s) erkannt, aber Docker kann noch nicht auf die GPU zugreifen.')
+            print('         Das NVIDIA Container Toolkit fehlt oder ist in Docker noch nicht aktiviert.')
+            print('         (Docker-Fehler: could not select device driver "nvidia")')
             print('!' * 80 + '\n')
             action = prompt_choice(
-                'Wie möchtest du fortfahren?\n'
-                '  [1] Toolkit-Befehle ausführen und jetzt mit GPU fortfahren [Standard]\n'
-                '  [2] Stattdessen auf CPU ausweichen (funktioniert sofort ohne Toolkit)\n'
+                'Wie möchtest du das NVIDIA Container Toolkit einrichten?\n'
+                '  [1] Automatisch für Docker einrichten (benötigt sudo-Rechte) [Empfohlen]\n'
+                '  [2] Befehle anzeigen, um es selbst manuell in einem Terminal auszuführen\n'
+                '  [3] Stattdessen auf CPU ausweichen (funktioniert sofort ohne Toolkit)\n'
                 'Deine Wahl',
-                ['retry_gpu', 'fallback_cpu'],
+                ['auto_setup', 'manual_commands', 'fallback_cpu'],
                 default=1
             )
-            if action == 2:
+            if action == 1:
+                success = setup_nvidia_container_toolkit_auto()
+                if success:
+                    print('\n✅ NVIDIA Container Toolkit erfolgreich in Docker aktiviert!\n')
+                    break
+                else:
+                    print('\nAutomatische Einrichtung konnte nicht abgeschlossen werden.', file=sys.stderr)
+                    if not prompt_yes_no('Erneut versuchen oder manuell konfigurieren?', default_yes=True):
+                        device = 'cpu'
+                        gpu_id = None
+                        gpu_info_str = None
+                        print('\nHardware wurde auf CPU umgestellt.')
+                        break
+            elif action == 2:
+                print('\nFühre in einem zweiten Terminal folgende Befehle aus:')
+                print('  sudo nvidia-ctk runtime configure --runtime=docker')
+                print('  sudo systemctl restart docker')
+                print('\nFalls das Paket noch nicht installiert ist (Ubuntu/Debian):')
+                print('  sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit')
+                print('  sudo nvidia-ctk runtime configure --runtime=docker')
+                print('  sudo systemctl restart docker\n')
+                prompt_string('Drücke Enter, sobald du die Befehle ausgeführt hast (oder "c" für CPU)', '')
+                if check_docker_nvidia_support():
+                    print('\n✅ NVIDIA-Laufzeit in Docker erkannt! Fahre mit GPU fort...\n')
+                    break
+                else:
+                    print('\nNVIDIA-Laufzeit in Docker noch nicht aktiv.')
+                    if not prompt_yes_no('Erneut prüfen?', default_yes=True):
+                        device = 'cpu'
+                        gpu_id = None
+                        gpu_info_str = None
+                        print('\nHardware wurde auf CPU umgestellt.')
+                        break
+            elif action == 3:
                 device = 'cpu'
                 gpu_id = None
                 gpu_info_str = None
                 print('\nHardware wurde auf CPU umgestellt.')
+                break
 
         if device.startswith('cuda') and profile == 'lite':
             print('\nHinweis: Das sparsame Lite-Modell nutzt eine reine CPU-Laufzeit.')
