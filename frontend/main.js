@@ -21,7 +21,7 @@ async function start(){
  const on=(id,event,fn)=>$(id).addEventListener(event,e=>Promise.resolve(fn(e)).catch(handleError));
  async function api(path,options={}){
   const sep=path.includes('?')?'&':'?';path+=sep+'gallery='+encodeURIComponent(settings.activeGallery||'default');
-  const r=await fetch(base+'/api/'+path,{credentials:'same-origin',...options,headers:{'Content-Type':'application/json',requesttoken:window.OC?.requestToken||'',...options.headers}});
+  const r=await fetch(base+'/api/'+path,{credentials:'same-origin',...options,headers:{'Content-Type':'application/json',requesttoken:(window.NextGallerySession||window.OC)?.requestToken||'',...options.headers}});
   if(r.redirected||r.status===401||r.status===403)throw new Error(tr('Die Sitzung ist abgelaufen. Bitte Nextcloud erneut öffnen.'));
   let data;try{data=await r.json();}catch{throw new Error(tr('Keine Verbindung zu Nextcloud.'));}
   if(!r.ok){const error=new Error(data.error||tr`Anfrage fehlgeschlagen (${r.status}).`);error.retryable=r.status===409&&data.retryable===true;throw error;}return data;

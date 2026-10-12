@@ -32,7 +32,14 @@ class PageController extends Controller {
  }
  private function aiResponse(array $data,int $embedded):TemplateResponse {
   $data['embedded']=$embedded===1;
-  $response=new TemplateResponse('nextgallery','ai-index',$data);
+  if($embedded===1){
+   $data['assets']=$this->url->linkTo('nextgallery','');
+   $data['version']=$this->apps->getAppVersion('nextgallery');
+   $data['routeRoot']=rtrim($this->url->linkToRoute('nextgallery.page.index'),'/');
+  }
+  $response=$embedded===1
+   ?new StandaloneTemplateResponse('nextgallery','ai-standalone',$data,TemplateResponse::RENDER_AS_BLANK,200,['Cache-Control'=>'private, no-store'])
+   :new TemplateResponse('nextgallery','ai-index',$data);
   if($embedded===1){$policy=new ContentSecurityPolicy();$policy->addAllowedFrameAncestorDomain("'self'");$response->setContentSecurityPolicy($policy);}
   return $response;
  }
@@ -43,7 +50,11 @@ class PageController extends Controller {
  }
  #[NoAdminRequired] #[NoCSRFRequired]
  public function gallery():TemplateResponse {
-  $response=new TemplateResponse('nextgallery','index',$this->data(false));
+  $data=$this->data(false);
+  // The Android WebView has a client UA, which the core browser guard rejects.
+  $response=$data['context']['embedded']
+   ?new StandaloneTemplateResponse('nextgallery','gallery-standalone',$data,TemplateResponse::RENDER_AS_BLANK,200,['Cache-Control'=>'private, no-store'])
+   :new TemplateResponse('nextgallery','index',$data);
   $policy=new ContentSecurityPolicy();$policy->addAllowedWorkerSrcDomain("'self'");$policy->addAllowedFrameDomain("'self'");
   $response->setContentSecurityPolicy($policy);return $response;
  }
