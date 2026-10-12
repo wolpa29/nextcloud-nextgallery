@@ -13,6 +13,7 @@ async function start(){
  let settings=ctx.settings,cacheKey=ctx.cacheKey,db=null,offlineItems=[],offlineMeta=null,offlineMode=ctx.offline||!navigator.onLine;
  let summary=null,view='timeline',kind='',version=0,geometry=null,frame=0,blocks=new Map(),pending=[],inflight=0,rendered=new Map(),urls=new Map(),collectionIds=new Set(),localGroups=new Map();
  const positions=new Map(),mapViews=new Map();let switching=false,creatingGallery=false;
+ let aiFrame=null;
  let scanning=false,pinning=false,pinCancel=false,mapHandle=null,currentItem=null,viewerList=[],folderPath='/',draftRoots=[...settings.roots];
  const scroll=$('ch-scroll'),canvas=$('ch-canvas'),rail=$('ch-rail');
  function message(text){$('ch-message').textContent=text;$('ch-message').hidden=!text;}
@@ -98,7 +99,7 @@ async function start(){
   syncSegmented('ch-order',display.order);syncSegmented('ch-grouping',display.grouping);syncSegmented('ch-density',display.tile);syncSegmented('ch-appearance',display.appearance);syncSegmented('ch-language',display.language);
   $('ch-source-count').textContent=settings.roots.length===1?tr('Ein Ordner ausgewählt'):settings.roots.length?tr`${settings.roots.length} Ordner ausgewählt`:tr('Keine Ordner ausgewählt');
   draftRoots=[...settings.roots];renderRoots();$('ch-refresh').disabled=offlineMode;for(const id of ['ch-add-root','ch-reindex','ch-pin','ch-new-gallery','ch-save-gallery'])$(id).disabled=offlineMode;
-  root.querySelectorAll('[data-ai-entry]').forEach(entry=>entry.hidden=offlineMode);
+  root.querySelectorAll('[data-ai-entry]').forEach(entry=>entry.hidden=offlineMode||(entry.id==='ch-ai-view'&&view!=='ai'));
   for(const id of ['ch-appearance','ch-language','ch-date-mode','ch-timezone'])$(id).disabled=offlineMode;
   root.querySelectorAll('.ch-segmented[data-control=ch-language] button').forEach(button=>button.disabled=offlineMode);root.querySelectorAll('.ch-segmented[data-control=ch-appearance] button').forEach(button=>button.disabled=offlineMode);
   $('ch-connection').hidden=!offlineMode;$('ch-live').hidden=!offlineMode||ctx.offline;$('ch-open-offline').href=base+'/offline';
@@ -151,10 +152,35 @@ async function start(){
   const current=geometry.sections.find(s=>s.end>scroll.scrollTop+40);$('ch-floating-date').textContent=current?label(current.key):'';rail.querySelectorAll('button').forEach(b=>b.classList.toggle('active',b.dataset.period===current?.key));updateFastScroll(current);
  }
  scroll.addEventListener('scroll',schedule,{passive:true});new ResizeObserver(()=>{compute();rendered.clear();canvas.replaceChildren();schedule();}).observe(scroll);
- async function changeView(next){if(view==='search'&&next!=='search'){searchGeneration++;searchRunner.cancel();}view=next;for(const name of ['timeline','map','offline','settings','search'])$('ch-'+name+'-view').hidden=name!==view;root.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view));$('ch-title').textContent={search:tr('Suche'),timeline:tr('Galerie'),map:tr('Karte'),offline:tr('Offline'),settings:tr('Einstellungen')}[view];
-  const globalView=['settings','offline'].includes(view);$('ch-gallery-switch').hidden=globalView;$('ch-count').hidden=globalView;$('ch-refresh').hidden=globalView;$('ch-header-search').hidden=globalView||view==='search';if(view==='timeline'){compute();schedule();}if(view==='offline')offlineStatus();if(view==='map')await showMap();if(!ctx.embedded)location.hash=next;
+ async function changeView(next){if(view==='search'&&next!=='search'){searchGeneration++;searchRunner.cancel();}view=next;for(const name of ['timeline','map','offline','settings','search','ai']){const section=$('ch-'+name+'-view');if(section)section.hidden=name!==view;};root.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view));$('ch-title').textContent={search:tr('Suche'),timeline:tr('Galerie'),map:tr('Karte'),offline:tr('Offline'),settings:tr('Einstellungen'),ai:tr('KI-Verarbeitung')}[view];
+  const globalView=['settings','offline','ai'].includes(view);$('ch-gallery-switch').hidden=globalView;$('ch-count').hidden=globalView;$('ch-refresh').hidden=globalView;$('ch-header-search').hidden=globalView||view==='search';if(view==='timeline'){compute();schedule();}if(view==='offline')offlineStatus();if(view==='map')await showMap();if(view==='ai')showAi();if(!ctx.embedded)location.hash=next;
  }
- root.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>changeView(b.dataset.view).catch(handleError));
+ root.querySelectorAll('[data-view]').forEach(b=>b.onclick=e=>{e.preventDefault();changeView(b.dataset.view).catch(handleError);});
+ function showAi(url=ctx.aiUrl){
+  if(offlineMode||!ctx.aiUrl){changeView('timeline').catch(handleError);return;}
+  const target=new URL(url,location.href),allowed=new URL(ctx.aiUrl,location.href);
+  if(target.origin!==location.origin||![allowed.pathname,base+'/processing'].includes(target.pathname))return;
+  target.searchParams.set('embedded','1');
+  if(!aiFrame){
+   aiFrame=document.createElement('iframe');aiFrame.id='ch-ai-frame';aiFrame.title=tr('KI-Verarbeitung');
+   aiFrame.addEventListener('load',()=>{
+    try{const doc=aiFrame.contentDocument;if(!doc||doc.URL==='about:blank')return;const shell=doc.querySelector('.mai-shell');if(shell)shell.dataset.appearance=settings.appearance||'system';else message(tr('Die Sitzung ist abgelaufen. Bitte Nextcloud erneut öffnen.'));}catch{handleError(new Error(tr('Keine Verbindung zu Nextcloud.')));}
+   });
+   $('ch-ai-view').append(aiFrame);
+  }
+  if(aiFrame.src!==target.href)aiFrame.src=target.href;
+  try{const shell=aiFrame.contentDocument?.querySelector('.mai-shell');if(shell)shell.dataset.appearance=settings.appearance||'system';}catch{}
+ }
+ root.addEventListener('click',event=>{
+  const link=event.target.closest('a[href]');if(!link||!ctx.aiUrl||new URL(link.href).pathname!==new URL(ctx.aiUrl,location.href).pathname)return;
+  event.preventDefault();changeView('ai').catch(handleError);
+ });
+ window.addEventListener('message',event=>{
+  if(!aiFrame||event.origin!==location.origin||event.source!==aiFrame.contentWindow||event.data?.type!=='nextgallery-ai-navigation')return;
+  if(event.data.page==='gallery')changeView('timeline').catch(handleError);
+  else if(event.data.page==='account')showAi(base+'/processing');
+  else if(event.data.page==='admin')showAi(ctx.aiUrl);
+ });
  $('ch-display').onclick=()=>{$('ch-display-dialog').showModal();};
  $('ch-period').onclick=()=>{$('ch-period-dialog').showModal();};
  root.querySelector('.ch-brand').onclick=e=>{e.preventDefault();changeView('timeline').catch(handleError);};
@@ -349,10 +375,10 @@ async function start(){
   }finally{$('ch-export').disabled=false;}
  });
  document.addEventListener('click',async e=>{const link=e.target.closest('a[href]');if(link&&/\/logout(?:\?|$)/.test(link.href)){e.preventDefault();pinCancel=true;if(db)await clear(db);for(const key of registered()){indexedDB.deleteDatabase('nextgallery-'+key);await caches.delete('nextgallery-shell-'+key);}localStorage.removeItem(registryKey);location.href=link.href;}},true);
- window.addEventListener('offline',()=>{offlineMode=true;updateSettings();message(tr('Keine Verbindung. Gespeicherte Vorschauen werden angezeigt.'));load().catch(handleError);});
+ window.addEventListener('offline',()=>{offlineMode=true;if(view==='ai')changeView('timeline').catch(handleError);updateSettings();message(tr('Keine Verbindung. Gespeicherte Vorschauen werden angezeigt.'));load().catch(handleError);});
  window.addEventListener('online',()=>{if(ctx.offline){message(tr('Verbindung wieder verfügbar. Öffne NextGallery in Nextcloud für aktuelle Medien.'));return;}offlineMode=false;message('');load().catch(handleError);});
  if(!ctx.offline){try{const r=await api('settings');settings=r.settings;cacheKey=r.cacheKey;await clearOld();}catch(e){offlineMode=true;message(e.message+tr(' Gespeicherte Vorschauen werden geladen.'));}}
  await storage();if(ctx.offline&&offlineMeta)settings=offlineMeta.settings;updateSettings();await load();
- const initial=location.hash.slice(1);if(['timeline','map','offline','settings','search'].includes(initial))await changeView(initial);
+ const initial=location.hash.slice(1);if(['timeline','map','offline','settings','search','ai'].includes(initial))await changeView(initial);
  if(ctx.offline)message(tr('Offline-Sammlung · Zum Aktualisieren NextGallery in Nextcloud öffnen.'));
 }

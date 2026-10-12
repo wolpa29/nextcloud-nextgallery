@@ -1,5 +1,6 @@
 <?php
 $admin=!empty($_['admin']);
+if(!empty($_['embedded'])){script('nextgallery','ai-embedded');style('nextgallery','ai-embedded');}
 $areas = [
  ['mai-pipeline-status', 'Übersicht', '<path d="M4 19V9m6 10V5m6 14v-7"/>'],
  ['mai-library', 'Dateien', '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>'],
@@ -11,7 +12,7 @@ $areas = [
 if($admin)$areas=[$areas[4]];
 if(!$admin)$areas=array_values(array_filter($areas,fn($area)=>!in_array($area[0],['mai-settings','mai-pipeline-maintenance'],true)));
 ?>
-<div class="mai-shell" data-appearance="<?php p($_['appearance'] ?? 'system'); ?>" data-language="<?php p($_['language'] ?? 'de'); ?>">
+<div data-embedded="<?php p(!empty($_['embedded'])?'true':'false'); ?>" class="mai-shell" data-appearance="<?php p($_['appearance'] ?? 'system'); ?>" data-language="<?php p($_['language'] ?? 'de'); ?>">
  <nav id="app-navigation" class="mai-navigation" aria-label="NextGallery KI-Verarbeitung" data-collapsed="true">
   <div class="mai-nav-header"><a href="#mai-pipeline-status" class="mai-nav-brand"><span class="mai-brand-mark" style="width:30px;height:30px" aria-hidden="true"></span><span class="mai-brand-copy">NextGallery<small><?php p($admin?'Administration':'Meine KI-Daten'); ?></small></span></a><button type="button" id="mai-nav-toggle" aria-expanded="false" aria-controls="mai-navigation-list">Bereiche</button></div>
   <a class="mai-gallery-link" href="<?php p($_['galleryUrl']); ?>">← Galerie</a>

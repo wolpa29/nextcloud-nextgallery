@@ -21,24 +21,30 @@ class PageController extends Controller {
   return ['context'=>['base'=>$this->url->linkToRoute('nextgallery.page.index'),'aiUrl'=>!$offline && $this->canManageAi()?$this->url->linkToRoute('nextgallery.page.ai'):null,'assets'=>$this->url->linkTo('nextgallery',''),'sourceUrl'=>$this->config->getAppValue('nextgallery','source_url',''),'version'=>$this->apps->getAppVersion('nextgallery'),'language'=>$this->library->settings($uid)['language']==='system'?$this->languages->findLanguage():$this->library->settings($uid)['language'],'embedded'=>$this->request->isUserAgent([IRequest::USER_AGENT_CLIENT_ANDROID]),'accountKey'=>$this->library->cacheKey($uid,'default'),'cacheKey'=>$this->library->cacheKey($uid),'offline'=>$offline,'settings'=>$this->library->settings($uid)]];
  }
  #[NoAdminRequired] #[NoCSRFRequired]
- public function ai():Response {
+ public function ai(int $embedded=0):Response {
   if (!$this->canManageAi()) return new \OCP\AppFramework\Http\JSONResponse(['error'=>'KI-Verarbeitung ist für dieses Konto nicht freigegeben.'],403);
-  return new TemplateResponse('nextgallery','ai-index',['admin'=>$this->groups->isAdmin($this->session->getUser()->getUID()),'galleryUrl'=>$this->url->linkToRoute('nextgallery.page.gallery'),'accountUrl'=>$this->url->linkToRoute('nextgallery.page.processing'),'appearance'=>$this->library->settings($this->session->getUser()->getUID())['appearance'],'language'=>$this->library->settings($this->session->getUser()->getUID())['language']==='system'?$this->languages->findLanguage():$this->library->settings($this->session->getUser()->getUID())['language']]);
+  return $this->aiResponse(['admin'=>$this->groups->isAdmin($this->session->getUser()->getUID()),'galleryUrl'=>$this->url->linkToRoute('nextgallery.page.gallery'),'accountUrl'=>$this->url->linkToRoute('nextgallery.page.processing'),'appearance'=>$this->library->settings($this->session->getUser()->getUID())['appearance'],'language'=>$this->library->settings($this->session->getUser()->getUID())['language']==='system'?$this->languages->findLanguage():$this->library->settings($this->session->getUser()->getUID())['language']],$embedded);
  }
  #[NoAdminRequired] #[NoCSRFRequired]
- public function processing():Response {
+ public function processing(int $embedded=0):Response {
   $data=['galleryUrl'=>$this->url->linkToRoute('nextgallery.page.gallery'),'admin'=>false,'adminUrl'=>$this->groups->isAdmin($this->session->getUser()->getUID())?$this->url->linkToRoute('nextgallery.page.ai'):null,'appearance'=>$this->library->settings($this->session->getUser()->getUID())['appearance'],'language'=>$this->library->settings($this->session->getUser()->getUID())['language']==='system'?$this->languages->findLanguage():$this->library->settings($this->session->getUser()->getUID())['language']];
-  return new TemplateResponse('nextgallery','ai-index',$data);
+  return $this->aiResponse($data,$embedded);
+ }
+ private function aiResponse(array $data,int $embedded):TemplateResponse {
+  $data['embedded']=$embedded===1;
+  $response=new TemplateResponse('nextgallery','ai-index',$data);
+  if($embedded===1){$policy=new ContentSecurityPolicy();$policy->addAllowedFrameAncestorDomain("'self'");$response->setContentSecurityPolicy($policy);}
+  return $response;
  }
  #[NoAdminRequired] #[NoCSRFRequired]
  public function index():Response {
-  if($this->groups->isAdmin($this->session->getUser()->getUID()))return new RedirectResponse($this->url->linkToRoute('nextgallery.page.ai').'#settings');
+  if(!$this->request->isUserAgent([IRequest::USER_AGENT_CLIENT_ANDROID]) && $this->groups->isAdmin($this->session->getUser()->getUID()))return new RedirectResponse($this->url->linkToRoute('nextgallery.page.ai').'#settings');
   return $this->gallery();
  }
  #[NoAdminRequired] #[NoCSRFRequired]
  public function gallery():TemplateResponse {
   $response=new TemplateResponse('nextgallery','index',$this->data(false));
-  $policy=new ContentSecurityPolicy();$policy->addAllowedWorkerSrcDomain("'self'");
+  $policy=new ContentSecurityPolicy();$policy->addAllowedWorkerSrcDomain("'self'");$policy->addAllowedFrameDomain("'self'");
   $response->setContentSecurityPolicy($policy);return $response;
  }
  #[NoAdminRequired] #[NoCSRFRequired]

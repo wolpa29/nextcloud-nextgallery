@@ -1,0 +1,7 @@
+/* The gallery owns the surrounding Nextcloud header and navigation. */
+html,body{height:100%!important;min-height:0!important;margin:0!important;padding:0!important;overflow:hidden!important}
+body{--body-container-margin:0px;--body-container-radius:0px;--header-height:0px}
+body>header,body>#header,body>#skip-to-content,body>footer{display:none!important}
+#content,#content-vue{position:relative!important;inset:auto!important;width:100%!important;height:100%!important;min-height:0!important;margin:0!important;border-radius:0!important}
+.mai-shell{height:100%!important}
+.mai-shell .mai-nav-brand,.mai-shell .mai-nav-footer{display:none!important}
