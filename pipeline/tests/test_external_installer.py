@@ -66,7 +66,7 @@ class Installer(unittest.TestCase):
              patch.object(m,'prompt_choice',side_effect=[1,2]), \
              patch.object(m,'prompt_string',side_effect=['9379',tmp]), \
              patch.object(m,'prompt_yes_no',return_value=True),patch('builtins.print'):
-            params,action=m.interactive_wizard(Path(tmp),Path(tmp))
+            params,action=m.interactive_wizard(Path(tmp),Path(tmp),language='de')
         self.assertEqual(action,'install')
         self.assertEqual(params['device'],'cuda')
         self.assertEqual(params['gpu_id'],'1')
@@ -112,7 +112,7 @@ class Installer(unittest.TestCase):
             m.configure(directory,directory,'full',9381,7,device='cuda',gpu_id='1')
             with patch.object(m.subprocess,'run',side_effect=[unittest.mock.Mock(returncode=0),unittest.mock.Mock(returncode=1)]), \
                  patch.object(m.sys.stdin,'isatty',return_value=False),patch('builtins.print') as output:
-                self.assertEqual(m.main(['--directory',tmp,'--action','start']),1)
+                self.assertEqual(m.main(['--directory',tmp,'--action','start','--language','de']),1)
             self.assertTrue(any('NVIDIA-Grafikkarte' in str(call) for call in output.call_args_list))
 
     def test_start_cpu_fallback_preserves_saved_full_profile_port_threads_and_key(self):
@@ -163,5 +163,151 @@ class Installer(unittest.TestCase):
     def test_wait_for_docker_succeeds(self):
         with patch.object(m.subprocess,'run',return_value=unittest.mock.Mock(returncode=0)):
             self.assertTrue(m.wait_for_docker(timeout=2))
+
+    def test_language_flag_explicit_and_defaults(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.object(m.subprocess, 'run'):
+            # Non-interactive without explicit language defaults to English
+            self.assertEqual(m.main(['--directory', tmp, '--prepare-only']), 0)
+            self.assertEqual(m.get_language(), 'en')
+
+            # Explicit --language de
+            self.assertEqual(m.main(['--directory', tmp, '--prepare-only', '--language', 'de']), 0)
+            self.assertEqual(m.get_language(), 'de')
+
+            # Explicit --language en
+            self.assertEqual(m.main(['--directory', tmp, '--prepare-only', '--language', 'en']), 0)
+            self.assertEqual(m.get_language(), 'en')
+
+    def test_wizard_language_selection_interactive(self):
+        # When language='ask', wizard asks language first
+        with tempfile.TemporaryDirectory() as tmp, patch.object(m.subprocess, 'run'), \
+             patch.object(m, 'check_docker_nvidia_support', return_value=True), \
+             patch.object(m, 'prompt_choice', side_effect=[1, 1, 1]), \
+             patch.object(m, 'prompt_string', side_effect=['4', '9379', tmp]), \
+             patch.object(m, 'prompt_yes_no', return_value=True), patch('builtins.print'):
+            params, action = m.interactive_wizard(Path(tmp), Path(tmp), language='ask')
+            self.assertEqual(action, 'install')
+            self.assertEqual(m.get_language(), 'de')
+
+        # When language='ask' and user selects English (option 2)
+        with tempfile.TemporaryDirectory() as tmp, patch.object(m.subprocess, 'run'), \
+             patch.object(m, 'check_docker_nvidia_support', return_value=True), \
+             patch.object(m, 'prompt_choice', side_effect=[2, 1, 1]), \
+             patch.object(m, 'prompt_string', side_effect=['4', '9379', tmp]), \
+             patch.object(m, 'prompt_yes_no', return_value=True), patch('builtins.print'):
+            params, action = m.interactive_wizard(Path(tmp), Path(tmp), language='ask')
+            self.assertEqual(action, 'install')
+            self.assertEqual(m.get_language(), 'en')
+
+        # When language is explicitly provided, it does not prompt for language
+        with tempfile.TemporaryDirectory() as tmp, patch.object(m.subprocess, 'run'), \
+             patch.object(m, 'check_docker_nvidia_support', return_value=True), \
+             patch.object(m, 'prompt_choice', side_effect=[1, 1]), \
+             patch.object(m, 'prompt_string', side_effect=['4', '9379', tmp]), \
+             patch.object(m, 'prompt_yes_no', return_value=True), patch('builtins.print'):
+            params, action = m.interactive_wizard(Path(tmp), Path(tmp), language='en')
+            self.assertEqual(action, 'install')
+            self.assertEqual(m.get_language(), 'en')
+
+    def test_summary_output_german_and_english(self):
+        import io
+        from contextlib import redirect_stdout
+
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+
+            # German summary
+            m.set_language('de')
+            out_de = io.StringIO()
+            with redirect_stdout(out_de):
+                m.print_summary(directory, key='a' * 64, model='embeddinggemma-2', port=9379, profile='lite', device='cpu')
+            val_de = out_de.getvalue()
+            self.assertIn('NextGallery · Externer Embedding-Server eingerichtet', val_de)
+            self.assertIn('Feld in Nextcloud', val_de)
+            self.assertIn('Einzutragender Wert', val_de)
+            self.assertIn('--action check', val_de)
+            self.assertNotIn('erfolgreich eingerichtet', val_de)
+
+            # English summary
+            m.set_language('en')
+            out_en = io.StringIO()
+            with redirect_stdout(out_en):
+                m.print_summary(directory, key='a' * 64, model='embeddinggemma-2', port=9379, profile='lite', device='cpu')
+            val_en = out_en.getvalue()
+            self.assertIn('NextGallery · External Embedding Server Configured', val_en)
+            self.assertIn('Field in Nextcloud', val_en)
+            self.assertIn('Value to enter', val_en)
+            self.assertIn('--action check', val_en)
+            self.assertNotIn('successfully set up', val_en)
+            self.assertNotIn('erfolgreich', val_en)
+
+    def test_check_does_not_invoke_docker_or_change_configuration(self):
+        with tempfile.TemporaryDirectory() as tmp,patch.object(m.subprocess,'run') as docker, \
+             patch.object(m.service_check,'run_check',return_value=0) as probe:
+            self.assertEqual(m.main(['--action','check','--directory',tmp,'--language','de']),0)
+            probe.assert_called_once_with(Path(tmp).resolve(),'de',None,None,None)
+            docker.assert_not_called();self.assertEqual(list(Path(tmp).iterdir()),[])
+
+    def test_custom_setup_keeps_existing_key_and_docker_configuration(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory=Path(tmp);m.configure(directory,directory,'full',9379,4,device='cuda',gpu_id='1')
+            before={file.name:file.read_bytes() for file in directory.iterdir()}
+            key_file=directory/'external.key';key_file.write_text('synthetic-external-key\n')
+            with patch.object(m.subprocess,'run') as docker,patch.object(m.service_check,'custom_setup',return_value=0) as setup:
+                self.assertEqual(m.main(['--profile','custom','--directory',tmp,'--url','http://synthetic.invalid/v1','--model','operator/free-model','--api-key-file',str(key_file),'--language','en']),0)
+                setup.assert_called_once_with('en','http://synthetic.invalid/v1','operator/free-model','synthetic-external-key',interactive=False)
+                docker.assert_not_called()
+            self.assertTrue(all((directory/name).read_bytes()==wire for name,wire in before.items()))
+
+    def test_wizard_custom_does_not_require_docker(self):
+        with tempfile.TemporaryDirectory() as tmp,patch.object(m.subprocess,'run',side_effect=AssertionError('Docker called')), \
+             patch.object(m,'prompt_choice',return_value=3),patch('builtins.print'):
+            params,action=m.interactive_wizard(Path(tmp),Path(tmp),language='en')
+            self.assertEqual(action,'custom')
+            self.assertEqual(list(Path(tmp).iterdir()),[])
+
+    def test_language_flag_alone_still_opens_terminal_wizard(self):
+        with patch.object(m.sys,'argv',['install-embedding-server.py','--language','en']), \
+             patch.object(m.sys.stdin,'isatty',return_value=True), \
+             patch.object(m,'interactive_wizard',return_value=({},'custom')) as wizard, \
+             patch.object(m.service_check,'custom_setup',return_value=0):
+            self.assertEqual(m.main(),0)
+            self.assertEqual(wizard.call_args.kwargs['language'],'en')
+
+    def test_lite_cuda_is_rejected_before_creating_files(self):
+        with tempfile.TemporaryDirectory() as tmp,patch.object(m.subprocess,'run') as docker,patch('sys.stderr'):
+            with self.assertRaises(SystemExit):m.main(['--directory',tmp,'--profile','lite','--device','cuda','--prepare-only'])
+            docker.assert_not_called();self.assertEqual(list(Path(tmp).iterdir()),[])
+
+    def test_lite_gpu_wizard_falls_back_to_cpu_when_full_is_declined(self):
+        with tempfile.TemporaryDirectory() as tmp,patch.object(m.subprocess,'run'), \
+             patch.object(m,'detect_gpus',return_value=[{'index':'1','name':'synthetic GPU','memory_mb':'24576'}]), \
+             patch.object(m,'check_docker_nvidia_support',return_value=True), \
+             patch.object(m,'prompt_choice',side_effect=[2,1]), \
+             patch.object(m,'prompt_string',side_effect=['9379',tmp]), \
+             patch.object(m,'prompt_yes_no',side_effect=[False,True]),patch('builtins.print'):
+            params,action=m.interactive_wizard(Path(tmp),Path(tmp),language='en')
+            self.assertEqual(params['profile'],'lite');self.assertEqual(params['device'],'cpu');self.assertIsNone(params['gpu_id'])
+
+    def test_argparse_help_german_and_english(self):
+        import io
+        from contextlib import redirect_stdout
+
+        # English help
+        out_en = io.StringIO()
+        with redirect_stdout(out_en), self.assertRaises(SystemExit):
+            m.main(['--language', 'en', '--help'])
+        val_en = out_en.getvalue()
+        self.assertIn('Install and start the external NextGallery embedding service using Docker.', val_en)
+        self.assertIn('Model setup', val_en)
+
+        # German help
+        out_de = io.StringIO()
+        with redirect_stdout(out_de), self.assertRaises(SystemExit):
+            m.main(['--language', 'de', '--help'])
+        val_de = out_de.getvalue()
+        self.assertIn('Externen NextGallery Embedding-Dienst mit Docker installieren und starten.', val_de)
+        self.assertIn('Modellsetup', val_de)
+
 
 if __name__=='__main__':unittest.main()

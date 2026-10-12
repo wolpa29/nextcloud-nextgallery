@@ -50,6 +50,9 @@ $draft['embedding']['clear_api_key']=true;check($s->probeConfig($draft)['embeddi
 $draft['embedding']['api_key']='replacement-key';check($s->probeConfig($draft)['embedding']['api_key']==='replacement-key');
 check($c->values===$beforeProbe);$draft['embedding']['api_key']="bad\nkey";reject(fn()=>$s->probeConfig($draft));check($c->values===$beforeProbe);
 foreach(['enabled'=>'yes','local_auto_setup'=>'true','location'=>'remote','transport'=>'unknown','family'=>'qwen_text','max_edge'=>10,'video_frames'=>0,'local_model_path'=>'relative/path'] as $key=>$invalid){$bad=$emb;$bad['embedding'][$key]=$invalid;$before=$c->values;reject(fn()=>$s->save($bad));check($c->values===$before);}
+$custom=$s->get();$custom['embedding']['location']='external';$custom['embedding']['family']='custom';$custom['embedding']['model']='operator/another-vision-model';
+$customSaved=$s->save($custom);check($customSaved['embedding']['family']==='custom');check($customSaved['embedding']['model']==='operator/another-vision-model');
+$custom['embedding']['location']='local';$customBefore=$c->values;reject(fn()=>$s->save($custom));check($customBefore===$c->values);
 $automatic=$emb;$automatic['embedding']['local_model_path']='';$s->save($automatic);check($s->get()['embedding']['local_auto_setup']);check($s->get()['embedding']['model']==='embeddinggemma-2');
 $manual=$automatic;$manual['embedding']['local_auto_setup']=false;reject(fn()=>$s->save($manual));
 $legacy=$emb;unset($legacy['embedding']['local_auto_setup']);$legacy['embedding']['local_model_path']='/opt/custom/model.litertlm';$c->values['ai_settings']=json_encode($legacy);check(!$s->get()['embedding']['local_auto_setup']);

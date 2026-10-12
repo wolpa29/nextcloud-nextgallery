@@ -57,7 +57,9 @@ Bei einer installierten Variante erscheint direkt unter der Auswahl ein roter Pa
 
 ## Externer PC
 
-Derselbe Dienst kann unabhängig von LM Studio gestartet werden. Python-Laufzeit und Gemma-Modellpaket müssen dort vorhanden sein. Gemma nutzt derzeit die CPU; Qwen wählt bei verfügbarem CUDA die GPU.
+Die vollständige Einrichtung steht in der [deutschen](EXTERNAL_EMBEDDING_SERVER.md) und [englischen Anleitung](EXTERNAL_EMBEDDING_SERVER.en.md). Der Docker-Assistent unterstützt Gemma Lite auf CPU und Gemma Full auf CPU oder NVIDIA-GPU. Andere Modelle können über **Eigenes Modell** und den dokumentierten Bild-/Text-API-Vertrag verbunden werden; eine lokale Adaptervorlage ist ebenfalls vorhanden. Die externe Modell-ID ist frei wählbar. Die erforderliche Prüfung von Modalitäten, Dimension und Vektorraum bleibt erhalten.
+
+Derselbe Dienst kann unabhängig von LM Studio auch manuell gestartet werden. Python-Laufzeit und Modellpaket müssen dort vorhanden sein. Qwen wählt bei verfügbarem CUDA die GPU.
 
 ```sh
 # NEXTGALLERY_EMBEDDING_KEY vorher als private Umgebungsvariable setzen.

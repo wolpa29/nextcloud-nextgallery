@@ -9,7 +9,12 @@ if command -v python3 >/dev/null 2>&1; then
 elif command -v python >/dev/null 2>&1; then
     PYTHON_CMD="python"
 else
-    echo "FEHLER: Python 3 ist nicht installiert. Bitte Python 3 installieren." >&2
+    echo "Python 3.10+ is required. / Python 3.10 oder neuer wird benötigt." >&2
+    exit 1
+fi
+
+if ! "$PYTHON_CMD" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)'; then
+    echo "Python 3.10+ is required. / Python 3.10 oder neuer wird benötigt." >&2
     exit 1
 fi
 

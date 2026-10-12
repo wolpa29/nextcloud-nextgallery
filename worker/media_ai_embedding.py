@@ -30,7 +30,12 @@ class Client:
         if self.config.get('transport')=='lmstudio' and self.config['location']=='external':
             raise p.PipelineError('LM Studio: Bild-Embeddings über die Embedding-API nicht unterstützt. Multimodalen Dienst wählen.')
         info=self.call('info')
-        if info.get('model')!=self.config['model'] or info.get('family')!=self.config['family'] or not {'text','image'}<=set(info.get('modalities',[])):
+        custom=self.config['family']=='custom' and self.config['location']=='external'
+        family=info.get('family')
+        if (info.get('model')!=self.config['model'] or (not custom and family!=self.config['family'])
+            or not isinstance(family,str) or not family.strip() or len(family)>128
+            or any(ord(char)<32 or ord(char)==127 for char in family)
+            or not isinstance(info.get('modalities'),list) or not all(modality in info['modalities'] for modality in ('text','image'))):
             raise p.PipelineError('Embedding-Dienst oder Modell unterstützt die benötigten Eingaben nicht')
         if type(info.get('dimensions')) is not int or not 128 <= info['dimensions'] <=4096 or not isinstance(info.get('space'),str) or not re.fullmatch('[a-f0-9]{64}',info['space']):
             raise p.PipelineError('Invalid embedding service identity')

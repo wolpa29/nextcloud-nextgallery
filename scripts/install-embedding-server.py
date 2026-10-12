@@ -17,6 +17,45 @@ import socket
 import subprocess
 import sys
 import time
+import importlib.util
+import shlex
+
+_check_spec = importlib.util.spec_from_file_location('embedding_service_check', Path(__file__).with_name('embedding_service_check.py'))
+service_check = importlib.util.module_from_spec(_check_spec)
+_check_spec.loader.exec_module(service_check)
+
+
+def load_translations() -> dict[str, dict[str, str]]:
+    i18n_path = Path(__file__).resolve().parent / 'embedding-installer-i18n.json'
+    if i18n_path.is_file():
+        try:
+            return json.loads(i18n_path.read_text(encoding='utf-8'))
+        except Exception:
+            return {}
+    return {}
+
+
+TRANSLATIONS: dict[str, dict[str, str]] = load_translations()
+CURRENT_LANGUAGE = 'en'
+
+
+def set_language(lang: str) -> None:
+    global CURRENT_LANGUAGE
+    CURRENT_LANGUAGE = 'de' if lang == 'de' else 'en'
+
+
+def get_language() -> str:
+    return CURRENT_LANGUAGE
+
+
+def t(text: str, **kwargs: object) -> str:
+    translated = TRANSLATIONS.get(CURRENT_LANGUAGE, {}).get(text, text)
+    if kwargs:
+        try:
+            return translated.format(**kwargs)
+        except Exception:
+            return translated
+    return translated
 
 
 def private_write(path: Path, text: str) -> None:
@@ -102,29 +141,29 @@ def check_docker_nvidia_support() -> bool:
 
 def setup_nvidia_container_toolkit_auto() -> bool:
     """Attempt automatic configuration or installation of nvidia-container-toolkit."""
-    print('\nStarte automatische Einrichtung des NVIDIA Container Toolkits für Docker...')
+    print('\n' + t('Starting automatic setup of NVIDIA Container Toolkit for Docker...'))
 
     # Step 1: If nvidia-ctk is already installed on host, configure docker runtime and restart docker
     if shutil.which('nvidia-ctk'):
-        print('-> nvidia-ctk auf diesem System gefunden. Konfiguriere Docker-Laufzeit (/etc/docker/daemon.json)...')
+        print(t('-> nvidia-ctk found on this system. Configuring Docker runtime (/etc/docker/daemon.json)...'))
         try:
             subprocess.run(['sudo', 'nvidia-ctk', 'runtime', 'configure', '--runtime=docker'], check=True)
-            print('-> Starte Docker-Dienst neu...')
+            print(t('-> Restarting Docker service...'))
             subprocess.run(['sudo', 'systemctl', 'restart', 'docker'], check=True)
             wait_for_docker()
             if check_docker_nvidia_support():
                 return True
         except (subprocess.CalledProcessError, FileNotFoundError):
-            print('-> Konfiguration mit vorhandenem nvidia-ctk fehlgeschlagen, versuche Paketinstallation...', file=sys.stderr)
+            print(t('-> Configuration with existing nvidia-ctk failed, trying package installation...'), file=sys.stderr)
 
     # Step 2: Try installing via package manager
     if shutil.which('apt-get'):
-        print('-> Installiere / Aktualisiere nvidia-container-toolkit via apt...')
+        print(t('-> Installing / updating nvidia-container-toolkit via apt...'))
         try:
             subprocess.run(['sudo', 'apt-get', 'update'], check=False)
             res = subprocess.run(['sudo', 'apt-get', 'install', '-y', 'nvidia-container-toolkit'])
             if res.returncode != 0:
-                print('-> Richte offizielles NVIDIA Container Toolkit Apt-Repository ein...')
+                print(t('-> Setting up official NVIDIA Container Toolkit apt repository...'))
                 keyring = '/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg'
                 subprocess.run(
                     f'curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o {keyring}',
@@ -139,18 +178,18 @@ def setup_nvidia_container_toolkit_auto() -> bool:
                 subprocess.run(['sudo', 'apt-get', 'update'], check=True)
                 subprocess.run(['sudo', 'apt-get', 'install', '-y', 'nvidia-container-toolkit'], check=True)
 
-            print('-> Konfiguriere Docker-Laufzeit (nvidia-ctk)...')
+            print(t('-> Configuring Docker runtime (nvidia-ctk)...'))
             subprocess.run(['sudo', 'nvidia-ctk', 'runtime', 'configure', '--runtime=docker'], check=True)
-            print('-> Starte Docker-Dienst neu...')
+            print(t('-> Restarting Docker service...'))
             subprocess.run(['sudo', 'systemctl', 'restart', 'docker'], check=True)
             wait_for_docker()
             return check_docker_nvidia_support()
         except Exception as e:
-            print(f'-> Automatische Installation fehlgeschlagen: {e}', file=sys.stderr)
+            print(t('-> Automatic installation failed: {err}', err=e), file=sys.stderr)
             return False
 
     elif shutil.which('dnf'):
-        print('-> Installiere nvidia-container-toolkit via dnf...')
+        print(t('-> Installing nvidia-container-toolkit via dnf...'))
         try:
             subprocess.run(['sudo', 'dnf', 'install', '-y', 'nvidia-container-toolkit'], check=True)
             subprocess.run(['sudo', 'nvidia-ctk', 'runtime', 'configure', '--runtime=docker'], check=True)
@@ -158,11 +197,11 @@ def setup_nvidia_container_toolkit_auto() -> bool:
             wait_for_docker()
             return check_docker_nvidia_support()
         except Exception as e:
-            print(f'-> Automatische Installation fehlgeschlagen: {e}', file=sys.stderr)
+            print(t('-> Automatic installation failed: {err}', err=e), file=sys.stderr)
             return False
 
     elif shutil.which('pacman'):
-        print('-> Installiere nvidia-container-toolkit via pacman...')
+        print(t('-> Installing nvidia-container-toolkit via pacman...'))
         try:
             subprocess.run(['sudo', 'pacman', '-S', '--noconfirm', 'nvidia-container-toolkit'], check=True)
             subprocess.run(['sudo', 'nvidia-ctk', 'runtime', 'configure', '--runtime=docker'], check=True)
@@ -170,7 +209,7 @@ def setup_nvidia_container_toolkit_auto() -> bool:
             wait_for_docker()
             return check_docker_nvidia_support()
         except Exception as e:
-            print(f'-> Automatische Installation fehlgeschlagen: {e}', file=sys.stderr)
+            print(t('-> Automatic installation failed: {err}', err=e), file=sys.stderr)
             return False
 
     return False
@@ -200,6 +239,8 @@ def detect_lan_ips() -> list[str]:
 
 def configure(directory: Path, repository: Path, profile: str = 'lite', port: int = 9379,
               threads: int = 4, device: str = 'cpu', gpu_id: str | None = None) -> tuple[str, str]:
+    if profile not in ('lite', 'full'):
+        raise ValueError('Managed Docker setup supports lite/full only; use custom setup for another service')
     # Docker exposes the selected host GPU as CUDA device 0 inside the container.
     if device.startswith('cuda') and gpu_id is not None and str(gpu_id).lower() != 'all':
         device = 'cuda'
@@ -311,7 +352,7 @@ def repair_saved_gpu_device(directory: Path) -> bool:
     if connection is not None:
         connection['device'] = 'cuda'
         private_write(connection_file, json.dumps(connection, indent=2) + '\n')
-    print('GPU-Zuordnung korrigiert: Die ausgewählte Grafikkarte verwendet im Container CUDA-Gerät 0.')
+    print(t('GPU mapping corrected: The selected graphics card uses CUDA device 0 inside the container.'))
     return True
 
 
@@ -322,60 +363,69 @@ def print_summary(directory: Path, key: str, model: str, port: int, profile: str
     url = f'http://{primary_ip}:{port}/v1'
 
     print('\n' + '=' * 80)
-    print('  NextGallery · Externer Embedding-Server erfolgreich eingerichtet!')
+    print(f"  {t('NextGallery · External Embedding Server Configured')}")
     print('=' * 80)
-    print('\nTrage nun folgende Werte in deiner Nextcloud ein:')
-    print('  Pfad: NextGallery -> Einstellungen -> Visuelle Bildsuche · Embeddings\n')
+    print('\n' + t('Now enter the following values in your Nextcloud:\n  Path: NextGallery -> Settings -> Visual Image Search · Embeddings\n'))
 
     rows = [
-        ('Embedding-Dienst', 'Externer Embedding-Server'),
-        ('Modellfamilie', 'EmbeddingGemma 2'),
-        ('Modell-ID', model),
-        ('API-Adresse des externen Servers', url),
-        ('API-Key', key),
+        (t('Embedding Service'), t('External Embedding Server')),
+        (t('Model Family'), 'EmbeddingGemma 2'),
+        (t('Model ID'), model),
+        (t('API Address of external server'), url),
+        (t('API Key'), key),
     ]
 
     col1_w = max(len(r[0]) for r in rows)
     col2_w = max(len(r[1]) for r in rows)
     border = '+-' + '-' * col1_w + '-+-' + '-' * col2_w + '-+'
     print(border)
-    print(f"| {'Feld in Nextcloud':<{col1_w}} | {'Einzutragender Wert':<{col2_w}} |")
+    print(f"| {t('Field in Nextcloud'):<{col1_w}} | {t('Value to enter'):<{col2_w}} |")
     print(border)
     for k, v in rows:
         print(f"| {k:<{col1_w}} | {v:<{col2_w}} |")
     print(border)
 
     if lan_ips:
-        print('\nErkannte IP-Adressen dieses PCs:')
+        print('\n' + t('Detected IP addresses of this PC:'))
         for ip in lan_ips:
             print(f'  • http://{ip}:{port}/v1')
         if len(lan_ips) > 1:
-            print('  (Wähle die IP-Adresse, unter der dieser Rechner für Nextcloud im LAN erreichbar ist)')
+            print('  ' + t('(Select the IP address under which this computer is accessible to Nextcloud on the LAN)'))
 
-    print('\nHardware-Konfiguration:')
+    print('\n' + t('Hardware Configuration:'))
     if device.startswith('cuda'):
         desc = gpu_info or f'GPU {device}'
-        print(f'  • Grafikkarte (NVIDIA CUDA): {desc}')
+        print(f"  {t('  • Graphics card (NVIDIA CUDA): {desc}', desc=desc)}")
     else:
-        print(f'  • CPU-Modus')
+        print(f"  {t('  • CPU mode')}")
 
-    print('\nNächste Schritte in Nextcloud:')
-    print('  1. Die Werte oben genau so in den Einstellungen eintragen.')
-    print('  2. Unten auf „Speichern“ klicken.')
-    print('  3. Auf „Verbindung prüfen“ klicken.')
-    print('     (Hinweis: Der erste Modell-Download kann einige Minuten dauern; erst wenn')
-    print('      „Bereit für Bilder, Video-Standbilder und Suchanfragen“ gemeldet wird,')
-    print('      ist das Modell fertig geladen).')
-    print('  4. Die Checkbox „Für Benutzer aktivieren“ setzen und erneut „Speichern“!')
+    print('\n' + t('Readiness & Model Download:'))
+    check_cmd = f'python3 scripts/install-embedding-server.py --language {CURRENT_LANGUAGE} --directory {shlex.quote(str(directory))} --action check'
+    if CURRENT_LANGUAGE == 'de':
+        print('  Der erste Modell-Download erfolgt nach dem Start im Hintergrund.')
+        print('  Prüfe die Bereitschaft mit folgendem Befehl:')
+        print(f'    {check_cmd}')
+    else:
+        print('  The initial model download runs in the background after startup.')
+        print('  Check readiness with the following command:')
+        print(f'    {check_cmd}')
 
-    print('\nNützliche Befehle auf diesem Rechner:')
-    print(f'  • Fortschritt / Download-Logs verfolgen:')
-    print(f'    docker compose --env-file "{directory}/.env" -f "{directory}/compose.json" logs -f')
-    print(f'  • Dienst stoppen:')
-    print(f'    python3 scripts/install-embedding-server.py --directory "{directory}" --action stop')
-    print(f'  • Dienst starten:')
-    print(f'    python3 scripts/install-embedding-server.py --directory "{directory}" --action start')
-    print(f'  • Konfigurationsdatei:')
+    print('\n' + t('Next steps in Nextcloud:'))
+    print(t('  1. Enter the values above in settings exactly as shown.'))
+    print(t('  2. Click "Test connection" before saving and check vector compatibility.'))
+    print(t('  3. Pause affected embedding runs and wait for the current file to finish.'))
+    print(t('  4. Enable for users and save. Proven compatible vectors are kept.'))
+
+    print('\n' + t('Useful commands on this computer:'))
+    print(t('  • Check readiness:'))
+    print(f'    {check_cmd}')
+    print(t('  • Track progress / download logs:'))
+    print(f'    docker compose --env-file {shlex.quote(str(directory / ".env"))} -f {shlex.quote(str(directory / "compose.json"))} logs -f')
+    print(t('  • Stop service:'))
+    print(f'    python3 scripts/install-embedding-server.py --language {CURRENT_LANGUAGE} --directory {shlex.quote(str(directory))} --action stop')
+    print(t('  • Start service:'))
+    print(f'    python3 scripts/install-embedding-server.py --language {CURRENT_LANGUAGE} --directory {shlex.quote(str(directory))} --action start')
+    print(t('  • Configuration file:'))
     print(f'    {directory / "connection.json"}')
     print('=' * 80 + '\n')
 
@@ -385,31 +435,32 @@ def prompt_choice(prompt_text: str, options: list[str], default: int = 1) -> int
         try:
             val = input(f'{prompt_text} [{default}]: ').strip()
         except (EOFError, KeyboardInterrupt):
-            print('\nAbgebrochen.')
+            print(t('Cancelled.'))
             sys.exit(1)
         if not val:
             return default
         if val.isdigit() and 1 <= int(val) <= len(options):
             return int(val)
-        print(f'Bitte eine Zahl zwischen 1 und {len(options)} eingeben.')
+        print(t('Please enter a number between 1 and {count}.', count=len(options)))
 
 
 def prompt_string(prompt_text: str, default: str) -> str:
     try:
         val = input(f'{prompt_text} [{default}]: ').strip()
     except (EOFError, KeyboardInterrupt):
-        print('\nAbgebrochen.')
+        print(t('Cancelled.'))
         sys.exit(1)
     return val if val else default
 
 
 def prompt_yes_no(prompt_text: str, default_yes: bool = True) -> bool:
-    suffix = '[J/n]' if default_yes else '[j/N]'
+    is_de = CURRENT_LANGUAGE == 'de'
+    suffix = ('[J/n]' if default_yes else '[j/N]') if is_de else ('[Y/n]' if default_yes else '[y/N]')
     while True:
         try:
             val = input(f'{prompt_text} {suffix}: ').strip().lower()
         except (EOFError, KeyboardInterrupt):
-            print('\nAbgebrochen.')
+            print(t('Cancelled.'))
             sys.exit(1)
         if not val:
             return default_yes
@@ -417,37 +468,31 @@ def prompt_yes_no(prompt_text: str, default_yes: bool = True) -> bool:
             return True
         if val in ('n', 'nein', 'no'):
             return False
-        print('Bitte mit j (ja) oder n (nein) antworten.')
+        print(t('Please answer with y (yes) or n (no).'))
 
 
-def interactive_wizard(repository: Path, directory: Path) -> tuple[dict[str, object], str]:
+def interactive_wizard(repository: Path, directory: Path, language: str = 'ask') -> tuple[dict[str, object], str]:
+    if language == 'ask':
+        print('Language / Sprache:')
+        print('  [1] Deutsch')
+        print('  [2] English')
+        lang_choice = prompt_choice('Language / Sprache', ['Deutsch', 'English'], default=1)
+        selected_lang = 'de' if lang_choice == 1 else 'en'
+        set_language(selected_lang)
+    elif language in ('de', 'en'):
+        set_language(language)
+
     print('=' * 80)
-    print('  NextGallery · Externer Embedding-Server Einrichtungsassistent (Docker)')
+    print(f"  {t('NextGallery · External Embedding Server Setup Wizard (Docker)')}")
     print('=' * 80)
-    print('Dieser Assistent führt dich Schritt für Schritt durch die Installation des')
-    print('externen KI-Dienstes für NextGallery auf diesem Rechner.\n')
-
-    # Check Docker
-    try:
-        subprocess.run(['docker', 'info'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    except (FileNotFoundError, subprocess.CalledProcessError):
-        print('FEHLER: Docker ist nicht installiert oder läuft derzeit nicht.')
-        print('Bitte stelle sicher, dass Docker (oder Docker Desktop) gestartet ist.')
-        print('Siehe auch: https://docs.docker.com/get-started/get-docker/')
-        sys.exit(1)
+    print(t('This wizard guides you step by step through installing the\nexternal AI service for NextGallery on this machine.\n'))
 
     # Check if already installed
     if (directory / 'compose.json').is_file():
-        print(f'Vorhandene Installation gefunden in: {directory}')
+        print(t('Existing installation found in: {directory}', directory=str(directory)))
         choice = prompt_choice(
-            'Was möchtest du tun?\n'
-            '  [1] Neu einrichten / Konfiguration aktualisieren\n'
-            '  [2] Dienst starten\n'
-            '  [3] Dienst stoppen\n'
-            '  [4] Verbindungsdaten für Nextcloud anzeigen\n'
-            '  [5] Dienst deinstallieren\n'
-            'Deine Wahl',
-            ['reconfigure', 'start', 'stop', 'show_info', 'uninstall'],
+            t('What would you like to do?\n  [1] Set up again / update configuration\n  [2] Start service\n  [3] Stop service\n  [4] Show connection info for Nextcloud\n  [5] Uninstall service\n  [6] Check readiness (image and text)\n  [7] Custom model / check another service\nYour choice'),
+            ['reconfigure', 'start', 'stop', 'show_info', 'uninstall', 'check', 'custom'],
             default=1
         )
         if choice == 2:
@@ -457,30 +502,37 @@ def interactive_wizard(repository: Path, directory: Path) -> tuple[dict[str, obj
         elif choice == 4:
             return {'action': 'info'}, 'info'
         elif choice == 5:
-            delete_vol = prompt_yes_no('Auch heruntergeladene Modelle löschen?', default_yes=False)
+            delete_vol = prompt_yes_no(t('Also delete downloaded models?'), default_yes=False)
             return {'action': 'uninstall', 'delete_models': delete_vol}, 'uninstall'
+        elif choice == 6:
+            return {}, 'check'
+        elif choice == 7:
+            return {}, 'custom'
 
     # Step 1: Model Selection
     print('\n' + '-' * 80)
-    print('Schritt 1: Modell auswählen')
+    print(t('Step 1: Select Model'))
     print('-' * 80)
-    print('  [1] EmbeddingGemma 2 · Original (Full) [Empfohlen]')
-    print('      - Modell-ID: embeddinggemma-2-full')
-    print('      - Download: ~1.52 GB · Benötigt: ~4-6 GB RAM/VRAM')
-    print('      - Höchste semantische Suchgenauigkeit')
-    print('      - Unterstützt GPU-Beschleunigung (NVIDIA CUDA) und CPU\n')
-    print('  [2] EmbeddingGemma 2 · sparsam (Lite)')
-    print('      - Modell-ID: embeddinggemma-2')
-    print('      - Download: ~388 MB · Benötigt: ~2 GB RAM')
-    print('      - Sehr ressourcenschonend, schneller Download')
-    print('      - Reine CPU-Ausführung (LiteRT)')
+    print(t('  [1] EmbeddingGemma 2 · Original (Full) [Recommended]\n      - Model ID: embeddinggemma-2-full\n      - Download: ~1.52 GB · Requires: ~4-6 GB RAM/VRAM\n      - Original model weights\n      - Supports GPU acceleration (NVIDIA CUDA) and CPU\n'))
+    print(t('  [2] EmbeddingGemma 2 · Resource-saving (Lite)\n      - Model ID: embeddinggemma-2\n      - Download: ~388 MB · Requires: ~2 GB RAM\n      - Very resource-saving, fast download\n      - Pure CPU execution (LiteRT)'))
 
-    model_choice = prompt_choice('Wähle das gewünschte Modell', ['full', 'lite'], default=1)
+    print(t('  [3] Custom model / check an existing service (any image/text embedding model)'))
+    model_choice = prompt_choice(t('Select the desired model'), ['full', 'lite', 'custom'], default=1)
+    if model_choice == 3:
+        return {}, 'custom'
     profile = 'full' if model_choice == 1 else 'lite'
+
+    try:
+        subprocess.run(['docker', 'info'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        print(t('ERROR: Docker is not installed or currently not running.'))
+        print(t('Please make sure Docker (or Docker Desktop) is running.'))
+        print(t('See also: https://docs.docker.com/get-started/get-docker/'))
+        sys.exit(1)
 
     # Step 2: Hardware Acceleration (CPU / GPU)
     print('\n' + '-' * 80)
-    print('Schritt 2: Hardware-Beschleunigung (CPU oder GPU)')
+    print(t('Step 2: Hardware Acceleration (CPU or GPU)'))
     print('-' * 80)
 
     gpus = detect_gpus()
@@ -490,7 +542,7 @@ def interactive_wizard(repository: Path, directory: Path) -> tuple[dict[str, obj
     threads = 4
 
     if gpus:
-        print('Erkannte NVIDIA Grafikkarten auf diesem System:')
+        print(t('Detected NVIDIA graphics cards on this system:'))
         gpu_opts: list[str] = []
         for i, g in enumerate(gpus):
             desc = f"GPU {g['index']}: {g['name']} ({g['memory_mb']} MB VRAM)"
@@ -499,11 +551,11 @@ def interactive_wizard(repository: Path, directory: Path) -> tuple[dict[str, obj
 
         all_idx = len(gpus) + 1
         cpu_idx = len(gpus) + 2
-        print(f"  [{all_idx}] Alle verfügbaren GPUs verwenden")
-        print(f"  [{cpu_idx}] CPU verwenden (keine GPU-Beschleunigung)")
+        print(f"  [{all_idx}] " + t('  [{idx}] Use all available GPUs', idx=all_idx).strip())
+        print(f"  [{cpu_idx}] " + t('  [{idx}] Use CPU (no GPU acceleration)', idx=cpu_idx).strip())
         gpu_opts.extend(['all', 'cpu'])
 
-        dev_choice = prompt_choice('Wähle die Hardware für die Berechnung', gpu_opts, default=1)
+        dev_choice = prompt_choice(t('Select hardware for computation'), gpu_opts, default=1)
 
         if dev_choice <= len(gpus):
             selected_gpu = gpus[dev_choice - 1]
@@ -513,20 +565,18 @@ def interactive_wizard(repository: Path, directory: Path) -> tuple[dict[str, obj
         elif dev_choice == all_idx:
             device = 'cuda'
             gpu_id = 'all'
-            gpu_info_str = f"Alle {len(gpus)} GPUs"
+            gpu_info_str = t('All {count} GPUs', count=len(gpus))
         else:
             device = 'cpu'
             gpu_id = None
     else:
-        print('Keine NVIDIA-Grafikkarte automatisch via nvidia-smi erkannt.')
-        print('  [1] CPU verwenden [Standard]')
-        print('  [2] GPU manuell konfigurieren (z. B. NVIDIA Container Toolkit aktiv)')
-        no_gpu_choice = prompt_choice('Deine Wahl', ['cpu', 'manual_gpu'], default=1)
+        print(t('No NVIDIA graphics card automatically detected via nvidia-smi.\n  [1] Use CPU [Default]\n  [2] Configure GPU manually (e.g. NVIDIA Container Toolkit active)'))
+        no_gpu_choice = prompt_choice(t('Your choice'), ['cpu', 'manual_gpu'], default=1)
         if no_gpu_choice == 2:
             device = 'cuda'
-            manual_id = prompt_string('NVIDIA GPU-Index angeben (z. B. 0 oder "all")', '0')
+            manual_id = prompt_string(t('Specify NVIDIA GPU index (e.g. 0 or "all")'), '0')
             gpu_id = manual_id
-            gpu_info_str = f'Manuelle GPU {gpu_id}'
+            gpu_info_str = t('Manual GPU {gpu_id}', gpu_id=gpu_id)
         else:
             device = 'cpu'
             gpu_id = None
@@ -535,67 +585,58 @@ def interactive_wizard(repository: Path, directory: Path) -> tuple[dict[str, obj
         # Proactively check if Docker daemon actually has nvidia runtime registered
         while not check_docker_nvidia_support():
             print('\n' + '!' * 80)
-            print('ACHTUNG: NVIDIA GPU(s) erkannt, aber Docker kann noch nicht auf die GPU zugreifen.')
-            print('         Das NVIDIA Container Toolkit fehlt oder ist in Docker noch nicht aktiviert.')
-            print('         (Docker-Fehler: could not select device driver "nvidia")')
+            print(t('WARNING: NVIDIA GPU(s) detected, but Docker cannot access the GPU yet.\n         The NVIDIA Container Toolkit is missing or not yet activated in Docker.\n         (Docker error: could not select device driver "nvidia")'))
             print('!' * 80 + '\n')
             action = prompt_choice(
-                'Wie möchtest du das NVIDIA Container Toolkit einrichten?\n'
-                '  [1] Automatisch für Docker einrichten (benötigt sudo-Rechte) [Empfohlen]\n'
-                '  [2] Befehle anzeigen, um es selbst manuell in einem Terminal auszuführen\n'
-                '  [3] Stattdessen auf CPU ausweichen (funktioniert sofort ohne Toolkit)\n'
-                'Deine Wahl',
+                t('How would you like to set up the NVIDIA Container Toolkit?\n  [1] Set up automatically for Docker (requires sudo privileges) [Recommended]\n  [2] Show commands to run manually in another terminal\n  [3] Fall back to CPU instead (works immediately without toolkit)\nYour choice'),
                 ['auto_setup', 'manual_commands', 'fallback_cpu'],
                 default=1
             )
             if action == 1:
                 success = setup_nvidia_container_toolkit_auto()
                 if success:
-                    print('\n✅ NVIDIA Container Toolkit erfolgreich in Docker aktiviert!\n')
+                    print('\n' + t('✅ NVIDIA Container Toolkit successfully activated in Docker!') + '\n')
                     break
                 else:
-                    print('\nAutomatische Einrichtung konnte nicht abgeschlossen werden.', file=sys.stderr)
-                    if not prompt_yes_no('Erneut versuchen oder manuell konfigurieren?', default_yes=True):
+                    print('\n' + t('Automatic setup could not be completed.'), file=sys.stderr)
+                    if not prompt_yes_no(t('Try again or configure manually?'), default_yes=True):
                         device = 'cpu'
                         gpu_id = None
                         gpu_info_str = None
-                        print('\nHardware wurde auf CPU umgestellt.')
+                        print('\n' + t('Hardware switched to CPU.'))
                         break
             elif action == 2:
-                print('\nFühre in einem zweiten Terminal folgende Befehle aus:')
-                print('  sudo nvidia-ctk runtime configure --runtime=docker')
-                print('  sudo systemctl restart docker')
-                print('\nFalls das Paket noch nicht installiert ist (Ubuntu/Debian):')
-                print('  sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit')
-                print('  sudo nvidia-ctk runtime configure --runtime=docker')
-                print('  sudo systemctl restart docker\n')
-                prompt_string('Drücke Enter, sobald du die Befehle ausgeführt hast (oder "c" für CPU)', '')
+                print('\n' + t('Run the following commands in a second terminal:\n  sudo nvidia-ctk runtime configure --runtime=docker\n  sudo systemctl restart docker\n\nIf the package is not installed yet (Ubuntu/Debian):\n  sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit\n  sudo nvidia-ctk runtime configure --runtime=docker\n  sudo systemctl restart docker\n'))
+                prompt_string(t('Press Enter once you have executed the commands (or "c" for CPU)'), '')
                 wait_for_docker()
                 if check_docker_nvidia_support():
-                    print('\n✅ NVIDIA-Laufzeit in Docker erkannt! Fahre mit GPU fort...\n')
+                    print('\n' + t('✅ NVIDIA runtime detected in Docker! Proceeding with GPU...\n'))
                     break
                 else:
-                    print('\nNVIDIA-Laufzeit in Docker noch nicht aktiv.')
-                    if not prompt_yes_no('Erneut prüfen?', default_yes=True):
+                    print('\n' + t('NVIDIA runtime not yet active in Docker.'))
+                    if not prompt_yes_no(t('Check again?'), default_yes=True):
                         device = 'cpu'
                         gpu_id = None
                         gpu_info_str = None
-                        print('\nHardware wurde auf CPU umgestellt.')
+                        print('\n' + t('Hardware switched to CPU.'))
                         break
             elif action == 3:
                 device = 'cpu'
                 gpu_id = None
                 gpu_info_str = None
-                print('\nHardware wurde auf CPU umgestellt.')
+                print('\n' + t('Hardware switched to CPU.'))
                 break
 
         if device.startswith('cuda') and profile == 'lite':
-            print('\nHinweis: Das sparsame Lite-Modell nutzt eine reine CPU-Laufzeit.')
-            print('Für echte GPU-Beschleunigung mit CUDA wird das Originalmodell benötigt.')
-            if prompt_yes_no('Möchtest du zum Originalmodell (full) wechseln?', default_yes=True):
+            print('\n' + t('Note: The resource-saving Lite model uses pure CPU runtime.\nFor real GPU acceleration with CUDA, the original model is required.'))
+            if prompt_yes_no(t('Would you like to switch to the original model (full)?'), default_yes=True):
                 profile = 'full'
+            else:
+                device = 'cpu'
+                gpu_id = None
+                gpu_info_str = None
     else:
-        threads_str = prompt_string('Anzahl CPU-Threads für die Berechnung [1-64]', '4')
+        threads_str = prompt_string(t('Number of CPU threads for computation [1-64]'), '4')
         try:
             threads = max(1, min(64, int(threads_str)))
         except ValueError:
@@ -603,9 +644,9 @@ def interactive_wizard(repository: Path, directory: Path) -> tuple[dict[str, obj
 
     # Step 3: Port and directory
     print('\n' + '-' * 80)
-    print('Schritt 3: Netzwerk-Port und Verzeichnis')
+    print(t('Step 3: Network Port and Directory'))
     print('-' * 80)
-    port_str = prompt_string('Port für den Embedding-Dienst', '9379')
+    port_str = prompt_string(t('Port for the embedding service'), '9379')
     try:
         port = int(port_str)
         if not (1 <= port <= 65535):
@@ -613,22 +654,22 @@ def interactive_wizard(repository: Path, directory: Path) -> tuple[dict[str, obj
     except ValueError:
         port = 9379
 
-    dir_str = prompt_string('Konfigurationsverzeichnis', str(directory))
+    dir_str = prompt_string(t('Configuration directory'), str(directory))
     target_dir = Path(dir_str).expanduser().resolve()
 
     # Confirmation
     print('\n' + '-' * 80)
-    print('Zusammenfassung:')
+    print(t('Summary:'))
     print('-' * 80)
-    model_name = 'EmbeddingGemma 2 · Original (embeddinggemma-2-full)' if profile == 'full' else 'EmbeddingGemma 2 · sparsam (embeddinggemma-2)'
-    hw_name = gpu_info_str if device.startswith('cuda') else f'CPU ({threads} Threads)'
-    print(f'  • Modell:         {model_name}')
-    print(f'  • Hardware:       {hw_name}')
-    print(f'  • Port:           {port}')
-    print(f'  • Verzeichnis:    {target_dir}')
+    model_name = 'EmbeddingGemma 2 · Original (embeddinggemma-2-full)' if profile == 'full' else 'EmbeddingGemma 2 · sparsam (embeddinggemma-2)' if CURRENT_LANGUAGE == 'de' else 'EmbeddingGemma 2 · Resource-saving (embeddinggemma-2)'
+    hw_name = gpu_info_str if device.startswith('cuda') else f"CPU ({threads} Threads)" if CURRENT_LANGUAGE == 'de' else f"CPU ({threads} threads)"
+    print(f"  • {t('  • Model:         {model}', model=model_name).strip()}")
+    print(f"  • {t('  • Hardware:      {hw}', hw=hw_name).strip()}")
+    print(f"  • {t('  • Port:          {port}', port=port).strip()}")
+    print(f"  • {t('  • Directory:     {dir}', dir=target_dir).strip()}")
 
-    if not prompt_yes_no('\nJetzt einrichten und Dienst starten?', default_yes=True):
-        print('Einrichtung abgebrochen.')
+    if not prompt_yes_no('\n' + t('Set up now and start service?'), default_yes=True):
+        print(t('Setup cancelled.'))
         sys.exit(0)
 
     params: dict[str, object] = {
@@ -645,27 +686,44 @@ def interactive_wizard(repository: Path, directory: Path) -> tuple[dict[str, obj
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description='Install and start the external NextGallery embedding service using Docker.')
+    raw_args = argv if argv is not None else sys.argv[1:]
+    early_lang = 'en'
+    for i, a in enumerate(raw_args):
+        if a == '--language' and i + 1 < len(raw_args):
+            early_lang = raw_args[i + 1]
+        elif a.startswith('--language='):
+            early_lang = a.split('=', 1)[1]
+    if early_lang in ('de', 'en'):
+        set_language(early_lang)
+    else:
+        set_language('en')
+
+    parser = argparse.ArgumentParser(description=t('Install and start the external NextGallery embedding service using Docker.'))
     parser.add_argument('--directory', type=Path, default=Path.home() / '.nextgallery-embedding-server',
-                        help='Private configuration directory on this host.')
-    parser.add_argument('--profile', choices=['lite', 'full'], default='lite',
-                        help='Gemma model profile (lite: 440M LiteRT CPU, full: Original PyTorch float32/GPU).')
+                        help=t('Private configuration directory on this host.'))
+    parser.add_argument('--profile', choices=['lite', 'full', 'custom'], default='lite',
+                        help=t('Model setup (lite: Gemma LiteRT CPU, full: Gemma CPU/GPU, custom: existing image/text service).'))
     parser.add_argument('--port', type=int, default=9379,
-                        help='Port to expose the service on.')
+                        help=t('Port to expose the service on.'))
     parser.add_argument('--threads', type=int, default=4,
-                        help='CPU thread count when running on CPU.')
+                        help=t('CPU thread count when running on CPU.'))
     parser.add_argument('--device', choices=['cpu', 'cuda'], default='cpu',
-                        help='Compute device to run inference on.')
+                        help=t('Compute device to run inference on.'))
     parser.add_argument('--gpu-id', default=None,
-                        help='Specific GPU index to use (e.g. 0, 1) or "all".')
-    parser.add_argument('--action', choices=['install', 'start', 'stop', 'uninstall', 'info'], default='install',
-                        help='Action to perform.')
+                        help=t('Specific GPU index to use (e.g. 0, 1) or "all".'))
+    parser.add_argument('--action', choices=['install', 'start', 'stop', 'uninstall', 'info', 'check'], default='install',
+                        help=t('Action to perform.'))
     parser.add_argument('--delete-models', action='store_true',
-                        help='Also remove downloaded models when uninstalling.')
+                        help=t('Also remove downloaded models when uninstalling.'))
     parser.add_argument('--prepare-only', action='store_true',
-                        help='Write configuration only; do not run Docker or download models.')
+                        help=t('Write configuration only; do not run Docker or download models.'))
     parser.add_argument('--interactive', action='store_true',
-                        help='Run the interactive step-by-step setup wizard.')
+                        help=t('Run the interactive step-by-step setup wizard.'))
+    parser.add_argument('--language', choices=['de', 'en', 'ask'], default='ask',
+                        help=t('Installer language (de, en, ask).'))
+    parser.add_argument('--url', help=t('Existing service API address for custom setup or checking.'))
+    parser.add_argument('--model', help=t('Exact model ID of an existing service.'))
+    parser.add_argument('--api-key-file', type=Path, help=t('Private file containing the existing service API key; never put the key on the command line.'))
 
     args = parser.parse_args(argv)
     repository = Path(__file__).resolve().parents[1]
@@ -673,13 +731,26 @@ def main(argv: list[str] | None = None) -> int:
 
     # Determine if interactive wizard should run:
     # Triggered if explicitly requested, or if executed in terminal without CLI action/profile flags
-    is_interactive = args.interactive or (
-        argv is None and sys.stdin.isatty() and len(sys.argv) == 1
-    )
+    wizard_args=[]
+    index=0
+    while index<len(raw_args):
+        option=raw_args[index]
+        if option=='--language':index+=2
+        elif option.startswith('--language='):index+=1
+        else:wizard_args.append(option);index+=1
+    is_interactive = args.interactive or (argv is None and sys.stdin.isatty() and not wizard_args)
+
+    if not is_interactive:
+        if args.language=='ask' and args.profile=='custom' and args.url is None and sys.stdin.isatty():
+            print('Language / Sprache:\n  [1] Deutsch\n  [2] English')
+            args.language='de' if prompt_choice('Language / Sprache',['de','en'])==1 else 'en'
+        if args.language == 'ask':
+            args.language = 'en'
+        set_language(args.language)
 
     gpu_info_label: str | None = None
     if is_interactive:
-        wizard_params, selected_action = interactive_wizard(repository, directory)
+        wizard_params, selected_action = interactive_wizard(repository, directory, language=args.language)
         args.action = selected_action
         if selected_action == 'install':
             args.profile = wizard_params['profile']
@@ -691,18 +762,37 @@ def main(argv: list[str] | None = None) -> int:
             directory = wizard_params['directory']
         elif selected_action == 'uninstall':
             args.delete_models = wizard_params.get('delete_models', False)
+        elif selected_action == 'custom':
+            return service_check.custom_setup(get_language())
 
     if not 1 <= args.port <= 65535 or not 1 <= args.threads <= 64:
-        parser.error('Invalid port or CPU thread count')
+        parser.error(t('Invalid port or CPU thread count'))
 
     if directory.is_symlink():
-        parser.error('Use a real configuration directory')
+        parser.error(t('Use a real configuration directory'))
     directory = directory.resolve()
+
+    if args.delete_models and args.action != 'uninstall':
+        parser.error(t('--delete-models only applies to uninstall'))
+    secret=None
+    if args.api_key_file is not None:
+        try:secret=args.api_key_file.expanduser().read_text().strip()
+        except OSError:parser.error(t('Cannot read API key file.'))
+    if args.action=='check':
+        return service_check.run_check(directory,get_language(),args.url,args.model,secret)
+    if args.profile=='custom':
+        if args.action!='install' or args.prepare_only:
+            parser.error(t('Custom setup checks an existing service; use --action check or --profile custom.'))
+        return service_check.custom_setup(get_language(),args.url,args.model,secret,interactive=sys.stdin.isatty() and args.url is None)
+    if args.url is not None or args.model is not None or args.api_key_file is not None:
+        parser.error(t('Existing service options only apply to custom setup or --action check.'))
+    if args.action=='install' and args.profile=='lite' and args.device!='cpu':
+        parser.error(t('Lite runs on CPU only. Choose full for CUDA or --device cpu.'))
 
     if args.action == 'info':
         conn_file = directory / 'connection.json'
         if not conn_file.is_file():
-            print(f'Keine Konfiguration gefunden in: {directory}', file=sys.stderr)
+            print(t('No configuration found in: {directory}', directory=str(directory)), file=sys.stderr)
             return 1
         data = json.loads(conn_file.read_text())
         print_summary(
@@ -717,10 +807,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.action != 'install' and not (directory / 'compose.json').is_file():
-        parser.error('Service has not been configured yet')
+        parser.error(t('Service has not been configured yet'))
 
     if args.delete_models and args.action != 'uninstall':
-        parser.error('--delete-models only applies to uninstall')
+        parser.error(t('--delete-models only applies to uninstall'))
 
     key, model = '', ''
     if args.action == 'install':
@@ -746,14 +836,14 @@ def main(argv: list[str] | None = None) -> int:
             args.port = json.loads(connection_file.read_text()).get('port', args.port)
 
     if args.prepare_only:
-        print('Configuration prepared. No model downloaded.')
+        print(t('Configuration prepared. No model downloaded.'))
         return 0
 
     command = ['docker', 'compose', '--env-file', str(directory / '.env'), '-f', str(directory / 'compose.json')]
     try:
         subprocess.run(['docker', 'info'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except (FileNotFoundError, subprocess.CalledProcessError):
-        print('FEHLER: Docker ist nicht installiert oder der Docker-Dienst läuft nicht.', file=sys.stderr)
+        print(t('ERROR: Docker is not installed or Docker service is not running.'), file=sys.stderr)
         return 1
 
     action_args = (
@@ -770,18 +860,13 @@ def main(argv: list[str] | None = None) -> int:
             if args.device.startswith('cuda') and (args.action in ('install', 'start')):
                 if sys.stdin.isatty():
                     print('\n' + '!' * 80, file=sys.stderr)
-                    print('ACHTUNG: Docker konnte die NVIDIA-Grafikkarte nicht einbinden!', file=sys.stderr)
-                    print('Fehler: could not select device driver "nvidia" with capabilities: [[gpu]]', file=sys.stderr)
-                    print('Das NVIDIA Container Toolkit ist für Docker noch nicht registriert.', file=sys.stderr)
+                    print(t('WARNING: Docker could not bind the NVIDIA graphics card!'), file=sys.stderr)
+                    print(t('Error: could not select device driver "nvidia" with capabilities: [[gpu]]'), file=sys.stderr)
+                    print(t('The NVIDIA Container Toolkit is not yet registered for Docker.'), file=sys.stderr)
                     print('!' * 80 + '\n', file=sys.stderr)
 
                     fix_choice = prompt_choice(
-                        'Wie möchtest du das Problem beheben?\n'
-                        '  [1] NVIDIA Container Toolkit jetzt automatisch für Docker einrichten (benötigt sudo) und erneut versuchen [Empfohlen]\n'
-                        '  [2] Befehle anzeigen, um sie in einem zweiten Terminal auszuführen, und danach erneut versuchen\n'
-                        '  [3] Auf CPU-Berechnung umstellen und Dienst sofort starten\n'
-                        '  [4] Abbrechen\n'
-                        'Deine Wahl',
+                        t('How would you like to resolve the issue?\n  [1] Set up NVIDIA Container Toolkit automatically for Docker now (requires sudo) and retry [Recommended]\n  [2] Show commands to run in a second terminal, then retry\n  [3] Switch to CPU computation and start service immediately\n  [4] Cancel\nYour choice'),
                         ['auto_fix', 'manual_commands', 'switch_cpu', 'cancel'],
                         default=1
                     )
@@ -789,31 +874,25 @@ def main(argv: list[str] | None = None) -> int:
                     if fix_choice == 1:
                         success = setup_nvidia_container_toolkit_auto()
                         if success:
-                            print('\n✅ NVIDIA Container Toolkit erfolgreich eingerichtet!')
-                            print('Starte Dienst erneut mit GPU...\n')
+                            print('\n' + t('✅ NVIDIA Container Toolkit successfully set up!'))
+                            print(t('Restarting service with GPU...\n'))
                             continue
                         else:
-                            print('\nAutomatische Einrichtung nicht erfolgreich.', file=sys.stderr)
-                            if prompt_yes_no('Stattdessen auf CPU-Modus umstellen und starten?', default_yes=True):
+                            print('\n' + t('Automatic setup unsuccessful.'), file=sys.stderr)
+                            if prompt_yes_no(t('Switch to CPU mode instead and start?'), default_yes=True):
                                 fix_choice = 3
                             else:
                                 return code
 
                     if fix_choice == 2:
-                        print('\nFühre in einem zweiten Terminal folgende Befehle aus:')
-                        print('  sudo nvidia-ctk runtime configure --runtime=docker')
-                        print('  sudo systemctl restart docker')
-                        print('\nFalls das Paket noch nicht installiert ist (Ubuntu/Debian):')
-                        print('  sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit')
-                        print('  sudo nvidia-ctk runtime configure --runtime=docker')
-                        print('  sudo systemctl restart docker\n')
-                        prompt_string('Drücke Enter, sobald du die Befehle ausgeführt hast (oder "c" für Abbrechen)', '')
+                        print('\n' + t('Run the following commands in a second terminal:\n  sudo nvidia-ctk runtime configure --runtime=docker\n  sudo systemctl restart docker\n\nIf the package is not installed yet (Ubuntu/Debian):\n  sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit\n  sudo nvidia-ctk runtime configure --runtime=docker\n  sudo systemctl restart docker\n'))
+                        prompt_string(t('Press Enter once you have executed the commands (or "c" to cancel)'), '')
                         wait_for_docker()
-                        print('Starte Dienst erneut...\n')
+                        print(t('Restarting service...\n'))
                         continue
 
                     if fix_choice == 3:
-                        print('\nStelle Konfiguration auf CPU-Berechnung um...')
+                        print('\n' + t('Switching configuration to CPU computation...'))
                         args.device = 'cpu'
                         args.gpu_id = None
                         gpu_info_label = None
@@ -826,28 +905,26 @@ def main(argv: list[str] | None = None) -> int:
                             device='cpu',
                             gpu_id=None
                         )
-                        print('Starte Dienst im CPU-Modus...\n')
+                        print(t('Starting service in CPU mode...\n'))
                         continue
 
                     if fix_choice == 4:
-                        print('Einrichtung abgebrochen.')
+                        print(t('Setup cancelled.'))
                         return code
 
                 else:
                     print('\n' + '=' * 80, file=sys.stderr)
-                    print('HINWEIS ZUR DOCKER GPU-FEHLERMELDUNG:', file=sys.stderr)
-                    print('Docker konnte die NVIDIA-Grafikkarte nicht einbinden.', file=sys.stderr)
-                    print('Fehler: could not select device driver "nvidia" with capabilities: [[gpu]]', file=sys.stderr)
-                    print('\nUrsache: In Docker ist das nvidia-container-toolkit noch nicht registriert.', file=sys.stderr)
-                    print('\nSchnell-Lösung (auf Ubuntu/Debian):', file=sys.stderr)
-                    print('  1. Toolkit in Docker registrieren und Dienst neu starten:', file=sys.stderr)
-                    print('     sudo nvidia-ctk runtime configure --runtime=docker', file=sys.stderr)
-                    print('     sudo systemctl restart docker', file=sys.stderr)
-                    print('\n  2. Falls das Paket noch nicht auf dem System ist:', file=sys.stderr)
-                    print('     sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit', file=sys.stderr)
-                    print('     sudo nvidia-ctk runtime configure --runtime=docker', file=sys.stderr)
-                    print('     sudo systemctl restart docker', file=sys.stderr)
-                    print('\nDanach dieses Installationsskript einfach erneut ausführen:', file=sys.stderr)
+                    print(t('NOTE ON DOCKER GPU ERROR:'), file=sys.stderr)
+                    print(t('Docker could not bind the NVIDIA graphics card.'), file=sys.stderr)
+                    print(t('Error: could not select device driver "nvidia" with capabilities: [[gpu]]'), file=sys.stderr)
+                    print('\n' + t('Cause: The nvidia-container-toolkit is not yet registered in Docker.'), file=sys.stderr)
+                    print('\n' + t('Quick fix (on Ubuntu/Debian):'), file=sys.stderr)
+                    print('  1. sudo nvidia-ctk runtime configure --runtime=docker')
+                    print('     sudo systemctl restart docker')
+                    print('\n  2. sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit')
+                    print('     sudo nvidia-ctk runtime configure --runtime=docker')
+                    print('     sudo systemctl restart docker')
+                    print('\n' + t('Then run this installation script again:'), file=sys.stderr)
                     print('  ./scripts/install-embedding-server.sh', file=sys.stderr)
                     print('=' * 80 + '\n', file=sys.stderr)
             return code
@@ -877,9 +954,14 @@ def main(argv: list[str] | None = None) -> int:
                 gpu_info=f"GPU {data.get('gpu_id')}" if data.get('gpu_id') is not None else None
             )
         else:
-            print('Dienst gestartet.')
-    else:
-        print('Service ' + ('stopped.' if args.action == 'stop' else 'uninstalled.'))
+            print(t('Service started.'))
+    elif args.action == 'stop':
+        print(t('Service stopped.'))
+    elif args.action == 'uninstall':
+        print(t('Service uninstalled.'))
+    elif args.action == 'check':
+        # Reserved for Lead implementation of --action check
+        pass
     return 0
 
 

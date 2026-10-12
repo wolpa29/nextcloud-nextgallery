@@ -194,9 +194,10 @@ class Settings {
         if(!is_bool($result['analysis_enabled']))throw new OCSBadRequestException('Verarbeitungsauswahl ungültig');
         $embedding=$value['embedding']??$result['embedding'];
         if(!is_array($embedding))throw new OCSBadRequestException('Embedding-Einstellungen ungültig');
-        foreach(['enabled'=>[true,false],'local_auto_setup'=>[true,false],'local_profile'=>['lite','full'],'location'=>['local','external'],'transport'=>['multimodal','lmstudio'],'family'=>['gemma2','qwen3_vl']] as $key=>$allowed){
+        foreach(['enabled'=>[true,false],'local_auto_setup'=>[true,false],'local_profile'=>['lite','full'],'location'=>['local','external'],'transport'=>['multimodal','lmstudio'],'family'=>['gemma2','qwen3_vl','custom']] as $key=>$allowed){
             $setting=$embedding[$key]??$result['embedding'][$key];if(!in_array($setting,$allowed,true))throw new OCSBadRequestException('Embedding-Auswahl ungültig');$result['embedding'][$key]=$setting;
         }
+        if($result['embedding']['family']==='custom'&&$result['embedding']['location']!=='external')throw new OCSBadRequestException('Eigene Embedding-Modelle benötigen einen externen Dienst.');
         $embeddingUrl=$embedding['url']??$result['embedding']['url'];
         if($result['embedding']['location']==='local'&&$embeddingUrl==='')$embeddingUrl=$result['embedding']['url'];
         $result['embedding']['url']=self::endpoint($embeddingUrl);

@@ -15,5 +15,13 @@ class InfoFixture extends EmbeddingClient {public array $response=[];protected f
 $fixture=new InfoFixture();$candidate=['location'=>'external','transport'=>'multimodal','family'=>'gemma2','model'=>'embeddinggemma-2-full','max_edge'=>2048,'video_frames'=>10];
 $valid=['model'=>'embeddinggemma-2-full','family'=>'gemma2','dimensions'=>768,'space'=>str_repeat('b',64),'modalities'=>['image','text']];$fixture->response=$valid;check($fixture->inspect($candidate)['ready']);
 foreach(['model'=>'embeddinggemma-2','family'=>'qwen3_vl','space'=>[],'modalities'=>'text','dimensions'=>'768'] as $field=>$invalid){$fixture->response=array_replace($valid,[$field=>$invalid]);$probe=$fixture->inspect($candidate);check(!$probe['ready']);check(in_array($probe['message'],['Embedding-Modell passt nicht zur Konfiguration. Modell-ID und Modellfamilie prüfen.','Ungültige Embedding-Antwort'],true));}
+$custom=$candidate;$custom['family']='custom';$custom['model']='operator/example-vision-embedding';
+$fixture->response=array_replace($valid,['model'=>$custom['model'],'family'=>'example_backend','dimensions'=>512]);
+check($fixture->inspect($custom)['ready']);
+$fixture->response['family']='another_backend';check($fixture->inspect($custom)['ready']);
+$custom['location']='local';check(!$fixture->inspect($custom)['ready']);$custom['location']='external';
+foreach(['model'=>'wrong-model','family'=>'','modalities'=>['text'],'space'=>str_repeat('z',64),'dimensions'=>0] as $field=>$invalid){
+ $fixture->response=array_replace($valid,['model'=>$custom['model'],'family'=>'example_backend',$field=>$invalid]);check(!$fixture->inspect($custom)['ready']);
+}
 echo "$count embedding storage/ranking assertions passed\n";
 }

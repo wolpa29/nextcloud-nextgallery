@@ -1,113 +1,152 @@
-# Externer Embedding-Server (Docker)
+# Externen Embedding-Dienst einrichten
 
-Dieser Dienst berechnet Bild- und Suchtextvektoren auf einem externen Rechner (mit CPU oder NVIDIA-GPU) und entlastet den Nextcloud-Host.
+[English guide](EXTERNAL_EMBEDDING_SERVER.en.md)
 
----
+Der externe Dienst berechnet Bild- und Suchtextvektoren. Nextcloud speichert die veröffentlichten Vektoren und führt die Suche durch. Beschreibungen und OCR bleiben eigene Verarbeitungen.
 
-## Schnellstart
+Du kannst **Gemma automatisch installieren** oder **ein eigenes Modell verwenden**. Eigene Modelle werden nicht auf Gemma oder Qwen beschränkt. Entscheidend ist, dass Bild und Text in denselben Vektorraum eingebettet werden und der Dienst die unten beschriebene API anbietet.
 
-### 1. Repository klonen und Assistenten starten
+## 1. Gemma auf dem externen Rechner installieren
 
-Auf dem Rechner ausführen, auf dem der Embedding-Server laufen soll:
+Voraussetzungen: Python 3.10 oder neuer, Docker mit Compose, genügend Speicherplatz für Image, Modell und Laufzeit. Für GPU-Berechnung zusätzlich NVIDIA-Treiber und NVIDIA Container Toolkit. Nextcloud muss den gewählten Port erreichen können.
 
-```sh
+```bash
 git clone https://github.com/wolpa29/nextcloud-nextgallery.git
 cd nextcloud-nextgallery
-./scripts/install-embedding-server.sh
+./scripts/install-embedding-server.sh --language de
 ```
 
-*(Unter Windows: `py -3 scripts/install-embedding-server.py`)*
+Ohne Sprachparameter fragt der interaktive Assistent zuerst nach **Deutsch oder Englisch**. Unter Windows denselben Python-Assistenten verwenden:
 
----
+```powershell
+py -3 scripts/install-embedding-server.py --interactive --language de
+```
 
-### 2. Installationsschritte im Assistenten
+Der Assistent fragt nach Modell, Hardware und Port:
 
-Der Assistent führt dich interaktiv durch 3 Schritte:
+- **Original (Full):** CPU oder NVIDIA-GPU, ca. 1,5 GB Modell-Download plus Laufzeit. Die benötigte RAM-/VRAM-Menge hängt von Bildern und Laufzeit ab.
+- **Sparsam (Lite):** CPU, ca. 388 MB Modell-Download.
+- Bei mehreren GPUs kannst du eine bestimmte Karte wählen. Die Nummer bezeichnet die Karte auf dem Rechner; im Container erhält eine einzeln durchgereichte Karte CUDA-Nummer 0.
+- Der Standard-Port ist **9379**. Nur den Zugriff der benötigten Rechner erlauben. Für entfernte/netzübergreifende Verbindungen HTTPS über einen geeigneten Reverse Proxy verwenden.
 
-1. **Modell wählen:**
-   - **EmbeddingGemma 2 · Original (Full) [Empfohlen]:** Höchste Genauigkeit. Läuft auf CPU oder GPU (NVIDIA CUDA). ~1,5 GB Download.
-   - **EmbeddingGemma 2 · sparsam (Lite):** Geringer Speicherbedarf (~388 MB Download), reine CPU-Berechnung.
-2. **Hardware wählen (CPU oder GPU):**
-   - Erkennt automatisch vorhandene Grafikkarten (`nvidia-smi`).
-   - Bei mehreren Grafikkarten kannst du eine gezielte GPU (z. B. GPU 0, GPU 1), alle GPUs oder reine CPU-Berechnung wählen.
-3. **Port & Start:**
-   - Standard-Port: `9379` (einfach mit Enter bestätigen).
-   - Docker startet den Container im Hintergrund und lädt das Modell herunter.
+Das Skript legt private Verbindungsdaten unter `~/.nextgallery-embedding-server` an und verwendet bei erneuter Einrichtung denselben API-Key und dasselbe Modell-Volume. Der API-Key ist vertraulich; keine vollständige Verbindungszusammenfassung öffentlich teilen.
 
----
+## 2. Bereitschaft prüfen
 
-### 3. In Nextcloud eintragen
+Ein gestarteter Container kann noch Modelle herunterladen oder laden. Erst die Prüfung bestätigt, dass Bild- und Textanfragen funktionieren:
 
-Am Ende zeigt das Skript deine individuellen Verbindungsdaten an. Öffne in Nextcloud als Administrator:
-👉 **NextGallery → Einstellungen → Visuelle Bildsuche · Embeddings**
+```bash
+python3 scripts/install-embedding-server.py --language de --action check
+```
 
-| Einstellung in Nextcloud | Einzutragender Wert |
-| :--- | :--- |
-| **Embedding-Dienst** | `Externer Embedding-Server` |
-| **Modellfamilie** | `EmbeddingGemma 2` |
-| **Modell-ID** | `embeddinggemma-2-full` *(bzw. `embeddinggemma-2`)* |
-| **API-Adresse des externen Servers** | `http://<DEINE-PC-IP>:9379/v1` *(vom Skript ermittelte LAN-IP)* |
-| **API-Key** | `<Dein generierter 64-Zeichen-Schlüssel>` |
+Die Prüfung verwendet ausschließlich einen synthetischen Suchtext und ein kleines synthetisches Bild. Sie verändert keine Nextcloud-Einstellungen oder gespeicherten Vektoren. Sie bestätigt die API-Funktion, keine Trefferqualität und keine Kompatibilität mit bereits gespeicherten Vektoren.
 
-**Aktivierung abschließen:**
-1. Einstellungen und API-Key eintragen und **„Verbindung prüfen“** wählen. Die Prüfung verwendet die noch ungespeicherten Eingaben; sie verändert keine Einstellungen oder Vektoren. Erst nach abgeschlossenem Download meldet der Server *„Bereit“*.
-2. Bei einem Wechsel mit vorhandenen Vektoren auch die gemeldete Kompatibilität prüfen. Ein Verbindungsfehler bedeutet, dass der Vektorraum noch nicht geprüft werden konnte. Er beweist keinen Modellwechsel und verlangt kein Löschen.
-3. Die betroffenen Embedding-Läufe unter **„Benutzerläufe“** pausieren und den Abschluss der aktuellen Datei abwarten. Die Speichern-Hinweise zeigen, welche Verarbeitung noch läuft. Beschreibungen und OCR können bei einem reinen Embedding-Wechsel weiterlaufen.
-4. **„Für Benutzer aktivieren“** setzen und **„Speichern“** wählen. Bei nachgewiesen gleichem Vektorraum bleiben die Vektoren automatisch erhalten. Ein Zurücksetzen benötigt weiterhin eine ausdrückliche Bestätigung.
+Falls der Dienst noch nicht antwortet, den Download-/Ladefortschritt ansehen und die Prüfung nach Abschluss wiederholen:
 
-### Dasselbe Modell auf CPU und GPU
+```bash
+docker compose --env-file ~/.nextgallery-embedding-server/.env \
+  -f ~/.nextgallery-embedding-server/compose.json logs --tail=50
+```
 
-Der Modellname allein reicht für eine kompatible Bildsuche nicht aus. Die Vektorraum-ID berücksichtigt beim Originalmodell den Inhalt des Modellverzeichnisses und die Versionen von PyTorch, Transformers und Sentence Transformers. NextGallery ergänzt Bildauflösung und Video-Standbildanzahl. Unterschiede darin können bei gleichem Modellnamen eine andere ID ergeben.
+## 3. In NextGallery verbinden
 
-Die bisherige Full-Laufzeit nutzt FP32 auf CPU und FP16 auf CUDA; diese Präzisionswahl wird nicht separat in ihrer Vektorraum-ID abgebildet. Eine erfolgreiche ID-Prüfung ist deshalb keine Messung der numerischen Gleichheit von CPU- und GPU-Ergebnissen. Die neue Oberfläche setzt diese Schutzprüfung nicht außer Kraft. Bei abweichender ID zuerst Modellstand, Laufzeit und Verarbeitungseinstellungen abgleichen; vorhandene Vektoren nicht aufgrund eines Verbindungsfehlers löschen.
+In **NextGallery → Einstellungen → Visuelle Bildsuche · Embeddings**:
 
----
+| Einstellung | Wert |
+| --- | --- |
+| Embedding-Dienst | Externer Embedding-Server |
+| Modellfamilie | EmbeddingGemma 2, Qwen3-VL-Embedding oder Eigenes Modell |
+| Modell-ID | Exakte Modell-ID des Dienstes; bei Gemma Full `embeddinggemma-2-full`, bei Lite `embeddinggemma-2` |
+| API-Adresse | `http://SERVER-IP:9379/v1` oder die direkte HTTPS-Adresse |
+| API-Key | Schlüssel des Dienstes |
 
-## Nützliche Befehle
+1. Noch vor dem Speichern **Verbindung prüfen**. Diese Prüfung verwendet die aktuellen Eingaben und prüft auch den Vektorraum vorhandener Vektoren.
+2. Zum Speichern die betroffenen Embedding-Läufe unter **Benutzerläufe** pausieren und die aktuelle Datei fertigstellen lassen. Die Oberfläche zeigt den Grund einer Speichersperre. Beschreibungen und OCR können bei einem reinen Embedding-Wechsel weiterlaufen.
+3. **Für Benutzer aktivieren** und speichern. Nachgewiesen kompatible Vektoren bleiben erhalten. Bei einem anderen Vektorraum ist ein ausdrücklich bestätigter Neuaufbau nötig.
+
+Ein nicht erreichbarer Dienst beweist keinen Modellwechsel. Wegen eines Verbindungsfehlers keine Vektoren löschen.
+
+<a id="custom-models"></a>
+## Eigene Modelle
+
+Wähle im Assistenten **Eigenes Modell / vorhandenen Dienst prüfen** oder in NextGallery **Modellfamilie → Eigenes Modell**. Die Modell-ID ist frei wählbar und muss genau der vom Dienst gemeldeten ID entsprechen. Der Dienst darf seine eigene Modellfamilie melden; die Namen `gemma2` und `qwen3_vl` sind bei dieser Auswahl nicht vorgeschrieben.
+
+### Vorhandenen Modellserver anbinden
+
+Installiere und starte dein Modell mit seiner vorgesehenen Laufzeit. Der Dienst muss beide unten beschriebenen Endpunkte unterstützen. Falls seine API anders aussieht, ist ein Adapter nötig. Eine reine Text-Embedding-API oder Chat-/Bildbeschreibungs-API genügt für diese Bildsuche nicht.
+
+Der Installer kann deinen bestehenden Dienst mit Bild und Text prüfen. Er installiert dabei kein Gemma, ersetzt keine Docker-Konfiguration und speichert den eingegebenen Schlüssel nicht. Anschließend übernimmst du URL, Modell-ID und API-Key in NextGallery.
+
+### Eigenes Modell über den NextGallery-Adapter bereitstellen
+
+Für Modellanbieter und Betreiber mit einem eigenen Modell gibt es eine [Adaptervorlage](examples/custom_embedding_adapter.py). Ergänze `load_backend()` mit der Modellimplementierung und installiere deren Anforderungen in einer eigenen Python-Laufzeit, einschließlich Pillow. Das Modell muss Text und Bilder in denselben Raum einbetten.
+
+Die Vorlage startet erst, wenn ein echtes Modell angebunden ist. `backend.identity` muss Gewichte/Modellstand, Laufzeitversionen, Vorverarbeitung, Präzision und Aufgabenprompts reproduzierbar beschreiben. Bei Änderungen muss die Identität wechseln. Der Adaptercode fließt zusätzlich in die Raum-ID ein.
+
+```bash
+# NEXTGALLERY_EMBEDDING_KEY zuvor als private Umgebungsvariable setzen.
+/path/to/model-venv/bin/python worker/embedding_server.py \
+  --family custom --model 'anbieter/mein-bild-text-modell' \
+  --model-path /pfad/zum/modell --custom-adapter /pfad/adapter.py \
+  --device cuda --host 0.0.0.0 --port 9379
+```
+
+`--device cpu` verwendet die CPU, sofern dein Adapter das unterstützt. Der Adapter ist ausdrücklich ausgewählter lokaler Python-Code und wird beim Dienststart geladen. NextGallery lädt keine ausführbaren Modelladapter aus einer Web-Anfrage herunter. Die Installation der jeweiligen Modell-Laufzeit bleibt modellabhängig.
+
+### API-Vertrag
+
+Alle Anfragen verwenden bei konfiguriertem Schlüssel `Authorization: Bearer <API-Key>`. Keine Weiterleitungen. Der Dienst erhält Bildbytes oder Suchtext, keine Nextcloud-Dateipfade.
+
+**`GET /v1/info`** liefert beispielsweise:
+
+```json
+{
+  "model": "anbieter/mein-bild-text-modell",
+  "family": "meine_modellfamilie",
+  "dimensions": 512,
+  "space": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "modalities": ["text", "image"]
+}
+```
+
+Die Beispiel-Raum-ID muss durch einen tatsächlichen stabilen SHA-256-Fingerabdruck ersetzt werden. Unterstützt werden 128–4096 Dimensionen. `space` muss sich ändern, sobald Gewichte, Laufzeit, Präzision, Vorverarbeitung oder Aufgabenprompts den Vektorraum ändern; derselbe Modellname oder dieselbe Dimension genügt nicht.
+
+**`POST /v1/embed`** akzeptiert genau eine der beiden Eingaben:
+
+```json
+{"model":"anbieter/mein-bild-text-modell","text":"ein rotes Auto"}
+```
+
+```json
+{"model":"anbieter/mein-bild-text-modell","image":"BASE64_KODIERTE_BILDBYTES"}
+```
+
+Die Antwort enthält `{"space":"<derselbe Fingerabdruck>","embedding":[...]}` mit exakt der gemeldeten Anzahl endlicher Zahlen und einem von null verschiedenen Vektor. NextGallery normalisiert die Vektoren. Videos werden als einzelne Standbilder eingebettet.
+
+## Betrieb und Fehlerdiagnose
 
 | Aktion | Befehl |
-| :--- | :--- |
-| **Download-Fortschritt & Logs** | `docker compose --env-file ~/.nextgallery-embedding-server/.env -f ~/.nextgallery-embedding-server/compose.json logs -f` |
-| **Verbindungsdaten erneut anzeigen** | `python3 scripts/install-embedding-server.py --action info` |
-| **Dienst stoppen** | `python3 scripts/install-embedding-server.py --action stop` |
-| **Dienst starten** | `python3 scripts/install-embedding-server.py --action start` |
-| **Deinstallieren** | `python3 scripts/install-embedding-server.py --action uninstall` *(mit `--delete-models` auch Downloads löschen)* |
+| --- | --- |
+| Bereitschaft prüfen | `python3 scripts/install-embedding-server.py --language de --action check` |
+| Verbindungsdaten anzeigen | `python3 scripts/install-embedding-server.py --language de --action info` |
+| Starten / alte GPU-Zuordnung reparieren | `python3 scripts/install-embedding-server.py --language de --action start` |
+| Stoppen | `python3 scripts/install-embedding-server.py --language de --action stop` |
+| Deinstallieren, Modelle behalten | `python3 scripts/install-embedding-server.py --language de --action uninstall` |
+| Auch Modell-Downloads entfernen | Nur bei ausdrücklich gewünschtem Löschen: zusätzlich `--delete-models` |
 
-### Startfehler „invalid device ordinal“ bei GPU 1 oder höher
+**`invalid device ordinal`:** Repository mit `git pull --ff-only` aktualisieren, dann `--action start` ausführen. Damit wird die alte Host-/Container-GPU-Zuordnung korrigiert. Key, Profil und Modell-Volume bleiben erhalten.
 
-Ältere Installer-Versionen haben die GPU-Nummer des Rechners als CUDA-Nummer im Container übernommen. Wenn Docker nur die ausgewählte Karte durchreicht, ist diese im Container immer CUDA-Gerät 0. Beispielsweise bleibt die physische GPU 1 ausgewählt, während PyTorch `cuda` (Gerät 0) verwendet.
+**Docker kann NVIDIA nicht einbinden:** Der Assistent bietet die Einrichtung des NVIDIA Container Toolkit an. Auf unterstützten Ubuntu-/Debian-Systemen kann er es mit Administratorrechten einrichten. Eine Docker-Neustartaktion kann auch andere Container betreffen. Bei bereits installiertem Toolkit:
 
-Nach Aktualisierung des Repositorys repariert der Startbefehl diese gespeicherte Zuordnung automatisch:
-
-```sh
-git pull --ff-only
-python3 scripts/install-embedding-server.py --action start
+```bash
+sudo nvidia-ctk runtime configure --runtime=docker
+sudo systemctl restart docker
 ```
 
-API-Key, Modellprofil, ausgewählte Grafikkarte und Modell-Volume bleiben erhalten. Die Modelle müssen nicht erneut heruntergeladen werden. Anschließend die Logs prüfen: Der Container muss weiterlaufen und das Modell als bereit melden; ein erfolgreiches `docker compose up` allein bestätigt die Bereitschaft noch nicht.
+**401/403:** API-Key prüfen. **Verbindung abgelehnt:** Containerstatus und Logs prüfen. **Zeitüberschreitung:** Ladefortschritt, Adresse, freigegebenen Port und Firewall prüfen. Die lokale Prüfung bestätigt nicht, dass Nextcloud denselben Port über das Netzwerk erreicht; anschließend dort ebenfalls **Verbindung prüfen**.
 
----
+## Dasselbe Modell auf CPU und GPU
 
-## Automatisierte Optionen (ohne Assistent)
+Der Modellname allein beweist keinen gleichen Vektorraum. Beim Originalmodell fließen Modellverzeichnis und Versionen von PyTorch, Transformers und Sentence Transformers in die Raum-ID ein. NextGallery ergänzt Bildauflösung und Video-Standbildanzahl.
 
-Für automatisierte Setups kann der Assistent über Parameter übersprungen werden:
-
-```sh
-# Beispiel: Original-Modell mit GPU 0 auf Port 9379
-python3 scripts/install-embedding-server.py --profile full --device cuda --gpu-id 0
-
-# Beispiel: Sparsames Modell auf CPU mit 4 Threads
-python3 scripts/install-embedding-server.py --profile lite --device cpu --threads 4
-```
-
-Voraussetzungen:
-- Docker & Docker Compose installiert und aktiv.
-- **Für GPU-Beschleunigung:** NVIDIA-Treiber und registriertes `nvidia-container-toolkit`.
-  *Falls der Fehler `could not select device driver "nvidia"` auftritt:*
-  ```sh
-  # Toolkit in Docker registrieren und Docker neu starten:
-  sudo nvidia-ctk runtime configure --runtime=docker
-  sudo systemctl restart docker
-  # (Falls das Paket noch fehlt: sudo apt install -y nvidia-container-toolkit)
-  ```
-- Port 9379 im lokalen Netzwerk für den Nextcloud-Host freigegeben.
+Die Full-Laufzeit verwendet FP32 auf CPU und FP16 auf CUDA. Diese Präzisionswahl wird bisher nicht separat in ihrer Raum-ID abgebildet. Eine erfolgreiche ID-Prüfung ist keine Messung numerischer Gleichheit. Bei abweichender ID zuerst Modellstand, Laufzeit und Verarbeitungseinstellungen vergleichen; die Schutzprüfung nicht umgehen.

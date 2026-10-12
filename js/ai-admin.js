@@ -3,6 +3,8 @@
 async function init() {
  const root=document.getElementById('media-ai-admin'); if(!root || root.dataset.ready)return; root.dataset.ready='1';
  const i18n=window.MediaAIi18n;i18n.language=root.closest('.mai-shell')?.dataset.language||document.documentElement.lang;i18n.apply(root);root.lang=i18n.language;const tr=(key,values)=>i18n.t(key,values);
+ const guide='https://github.com/wolpa29/nextcloud-nextgallery/blob/main/docs/EXTERNAL_EMBEDDING_SERVER'+(i18n.language==='en'?'.en':'')+'.md';
+ root.querySelectorAll('[data-embedding-guide]').forEach(link=>{link.href=guide+(link.hasAttribute('data-custom-guide')?'#custom-models':'');link.hreflang=i18n.language;});
  root.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('keydown',event=>{if(event.key!=='Escape')return;event.preventDefault();event.stopPropagation();const cancel=new Event('cancel',{cancelable:true});dialog.dispatchEvent(cancel);if(!cancel.defaultPrevented)dialog.close();}));
  const $=id=>document.getElementById(id); let config=null,entries=[],cursor=null,logBusy=false,lastStatus=null,canManage=false,modelProbe=null,installBusy=false,processingState=null;
  const api=async(path,body)=>{const r=await fetch((window.NextGallerySession||window.OC).generateUrl('/apps/nextgallery/ai/admin/'+path),{method:body?'POST':'GET',credentials:'same-origin',headers:{'requesttoken':(window.NextGallerySession||window.OC).requestToken,'Content-Type':'application/json','Accept':'application/json'},body:body?JSON.stringify(body):undefined}); if(!r.ok){let detail;try{detail=(await r.json()).error;}catch{}const error=Error(detail?tr(detail):tr('Anfrage fehlgeschlagen (HTTP {code}).',{code:r.status}));error.status=r.status;throw error;}return r.json();};
@@ -33,6 +35,9 @@ async function init() {
  function processingExplanation(){
   const form=$('mai-form'),analysis=form.elements.analysis_enabled.checked,dense=form.elements['embedding.enabled'].checked,local=form.elements['embedding.location'].value==='local';
   const gemma=form.elements['embedding.family'].value==='gemma2',automatic=local&&gemma&&form.elements['embedding.local_auto_setup'].checked;
+  const custom=form.elements['embedding.family'].value==='custom';
+  form.elements['embedding.family'].querySelector('[value="custom"]').disabled=local;
+  root.querySelectorAll('[data-embedding-custom]').forEach(node=>node.hidden=local||!custom);
   const parts=['Dateinamen und Pfade'];if(analysis)parts.push('Beschreibungen, Tags und Objekte');if(form.elements.ocr_enabled.checked)parts.push('erkannter Text');if(dense)parts.push('ähnliche Bildinhalte');
    root.querySelectorAll('[data-embedding-local]').forEach(n=>n.hidden=!local);
   root.querySelectorAll('[data-embedding-auto]').forEach(n=>n.hidden=!local||!gemma);
@@ -54,7 +59,7 @@ async function init() {
   updateSaveState();if(lastStatus)embeddingSetupStatus(lastStatus);
  }));
  for(const name of ['analysis_enabled','ocr_enabled','embedding.enabled','embedding.location','embedding.family','embedding.local_auto_setup'])$('mai-form').elements[name].addEventListener('change',processingExplanation);
- $('mai-form').elements['embedding.family'].addEventListener('change',()=>{$('mai-form').elements['embedding.model'].value=$('mai-form').elements['embedding.family'].value==='gemma2'?(form.elements['embedding.local_profile'].value==='full'?'embeddinggemma-2-full':'embeddinggemma-2'):'Qwen/Qwen3-VL-Embedding-2B';updateSaveState();});
+ $('mai-form').elements['embedding.family'].addEventListener('change',()=>{const family=form.elements['embedding.family'].value;form.elements['embedding.model'].value=family==='gemma2'?(form.elements['embedding.local_profile'].value==='full'?'embeddinggemma-2-full':'embeddinggemma-2'):family==='qwen3_vl'?'Qwen/Qwen3-VL-Embedding-2B':config?.embedding.family==='custom'?config.embedding.model:'';updateSaveState();});
  $('mai-embedding-test').onclick=async()=>{
   if(!config||embeddingProbeBusy||saving||choosingModel||!form.reportValidity())return;
   const snapshot=formSnapshot(),target=$('mai-embedding-result');embeddingProbeBusy=true;embeddingProbeSnapshot=snapshot;target.textContent=tr('Embedding-Dienst wird geprüft …');target.classList.remove('mai-error');updateSaveState();

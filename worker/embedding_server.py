@@ -118,6 +118,37 @@ class Qwen:
         return vector(self.engine.process([item], normalize=True)[0].float().cpu().tolist())
 
 
+class Custom:
+    """Load an explicitly selected local adapter; never fetch executable model code."""
+    def __init__(self, args):
+        import importlib.util
+        import re
+        if not args.custom_adapter:
+            raise ValueError('Custom models require --custom-adapter /path/to/adapter.py')
+        path=Path(args.custom_adapter).resolve(strict=True)
+        spec=importlib.util.spec_from_file_location('nextgallery_custom_adapter',path)
+        if spec is None or spec.loader is None:
+            raise ValueError('Invalid custom adapter file')
+        adapter=importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(adapter)
+        self.engine=adapter.create_engine(args)
+        info=self.engine.info
+        family=info.get('family')
+        if (info.get('model')!=args.model or not isinstance(family,str) or not family.strip()
+            or len(family)>128 or any(ord(char)<32 or ord(char)==127 for char in family)
+            or type(info.get('dimensions')) is not int or not 128<=info['dimensions']<=4096
+            or not isinstance(info.get('space'),str) or not re.fullmatch('[a-f0-9]{64}',info['space'])
+            or not isinstance(info.get('modalities'),list) or not all(modality in info['modalities'] for modality in ('image','text'))):
+            raise ValueError('Custom adapter must declare its model, family, dimensions, vector space and image/text support')
+        self.info=dict(info)
+
+    def embed(self,text=None,image=None):
+        values=vector(self.engine.embed(text=text,image=image))
+        if len(values)!=self.info['dimensions']:
+            raise ValueError('Custom adapter returned a different dimension')
+        return values
+
+
 def handler(engine, token):
     class Handler(BaseHTTPRequestHandler):
         def setup(self):
@@ -162,7 +193,8 @@ def handler(engine, token):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--host',default='127.0.0.1'); parser.add_argument('--port',type=int,default=9379)
-    parser.add_argument('--family',choices=['gemma2','qwen3_vl'],default='gemma2')
+    parser.add_argument('--family',choices=['gemma2','qwen3_vl','custom'],default='gemma2')
+    parser.add_argument('--custom-adapter',help='Trusted local Python file exporting create_engine(args); custom family only')
     parser.add_argument('--profile',choices=['lite','full'],default='lite')
     parser.add_argument('--model',default='embeddinggemma-2'); parser.add_argument('--model-path',required=True)
     parser.add_argument('--model-revision',default=''); parser.add_argument('--qwen-source')
@@ -170,7 +202,7 @@ def main():
     parser.add_argument('--device',default=os.environ.get('NEXTGALLERY_EMBEDDING_DEVICE','cpu'))
     args=parser.parse_args(); token=os.environ.get('NEXTGALLERY_EMBEDDING_KEY','')
     if args.host not in ('127.0.0.1','::1','localhost') and not token: parser.error('External service requires NEXTGALLERY_EMBEDDING_KEY')
-    engine=(GemmaFull if args.family=='gemma2' and args.profile=='full' else Gemma if args.family=='gemma2' else Qwen)(args)
+    engine=(Custom if args.family=='custom' else GemmaFull if args.family=='gemma2' and args.profile=='full' else Gemma if args.family=='gemma2' else Qwen)(args)
     server=HTTPServer((args.host,args.port),handler(engine,token)); server.timeout=120
     print(json.dumps({'ready':True,**engine.info}),flush=True)
     try: server.serve_forever()
