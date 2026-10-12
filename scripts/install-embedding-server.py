@@ -385,49 +385,28 @@ def print_summary(directory: Path, key: str, model: str, port: int, profile: str
         print(f"| {k:<{col1_w}} | {v:<{col2_w}} |")
     print(border)
 
-    if lan_ips:
-        print('\n' + t('Detected IP addresses of this PC:'))
-        for ip in lan_ips:
-            print(f'  • http://{ip}:{port}/v1')
-        if len(lan_ips) > 1:
-            print('  ' + t('(Select the IP address under which this computer is accessible to Nextcloud on the LAN)'))
+    if len(lan_ips) > 1:
+        print('\n' + t('(Select the IP address under which this computer is accessible to Nextcloud on the LAN)'))
+        print('  ' + ', '.join(lan_ips))
 
-    print('\n' + t('Hardware Configuration:'))
-    if device.startswith('cuda'):
-        desc = gpu_info or f'GPU {device}'
-        print(f"  {t('  • Graphics card (NVIDIA CUDA): {desc}', desc=desc)}")
-    else:
-        print(f"  {t('  • CPU mode')}")
-
-    print('\n' + t('Readiness & Model Download:'))
-    check_cmd = f'python3 scripts/install-embedding-server.py --language {CURRENT_LANGUAGE} --directory {shlex.quote(str(directory))} --action check'
-    if CURRENT_LANGUAGE == 'de':
-        print('  Der erste Modell-Download erfolgt nach dem Start im Hintergrund.')
-        print('  Prüfe die Bereitschaft mit folgendem Befehl:')
-        print(f'    {check_cmd}')
-    else:
-        print('  The initial model download runs in the background after startup.')
-        print('  Check readiness with the following command:')
-        print(f'    {check_cmd}')
-
+    print('\n' + t('The model may still be downloading or loading. Check readiness:'))
+    check_cmd = 'python3 scripts/install-embedding-server.py'
+    if directory != Path.home() / '.nextgallery-embedding-server':
+        check_cmd += f' --directory {shlex.quote(str(directory))}'
+    print(f'  {check_cmd} --action check')
     print('\n' + t('Next steps in Nextcloud:'))
     print(t('  1. Enter the values above in settings exactly as shown.'))
     print(t('  2. Click "Test connection" before saving and check vector compatibility.'))
     print(t('  3. Pause affected embedding runs and wait for the current file to finish.'))
     print(t('  4. Enable for users and save. Proven compatible vectors are kept.'))
-
-    print('\n' + t('Useful commands on this computer:'))
-    print(t('  • Check readiness:'))
-    print(f'    {check_cmd}')
-    print(t('  • Track progress / download logs:'))
-    print(f'    docker compose --env-file {shlex.quote(str(directory / ".env"))} -f {shlex.quote(str(directory / "compose.json"))} logs -f')
-    print(t('  • Stop service:'))
-    print(f'    python3 scripts/install-embedding-server.py --language {CURRENT_LANGUAGE} --directory {shlex.quote(str(directory))} --action stop')
-    print(t('  • Start service:'))
-    print(f'    python3 scripts/install-embedding-server.py --language {CURRENT_LANGUAGE} --directory {shlex.quote(str(directory))} --action start')
-    print(t('  • Configuration file:'))
-    print(f'    {directory / "connection.json"}')
     print('=' * 80 + '\n')
+
+
+def choose_language() -> str:
+    print('Language / Sprache:')
+    print('  [1] English (default)')
+    print('  [2] Deutsch')
+    return 'en' if prompt_choice('Language / Sprache', ['English', 'Deutsch'], default=1) == 1 else 'de'
 
 
 def prompt_choice(prompt_text: str, options: list[str], default: int = 1) -> int:
@@ -473,12 +452,7 @@ def prompt_yes_no(prompt_text: str, default_yes: bool = True) -> bool:
 
 def interactive_wizard(repository: Path, directory: Path, language: str = 'ask') -> tuple[dict[str, object], str]:
     if language == 'ask':
-        print('Language / Sprache:')
-        print('  [1] Deutsch')
-        print('  [2] English')
-        lang_choice = prompt_choice('Language / Sprache', ['Deutsch', 'English'], default=1)
-        selected_lang = 'de' if lang_choice == 1 else 'en'
-        set_language(selected_lang)
+        set_language(choose_language())
     elif language in ('de', 'en'):
         set_language(language)
 
@@ -513,10 +487,9 @@ def interactive_wizard(repository: Path, directory: Path, language: str = 'ask')
     print('\n' + '-' * 80)
     print(t('Step 1: Select Model'))
     print('-' * 80)
-    print(t('  [1] EmbeddingGemma 2 · Original (Full) [Recommended]\n      - Model ID: embeddinggemma-2-full\n      - Download: ~1.52 GB · Requires: ~4-6 GB RAM/VRAM\n      - Original model weights\n      - Supports GPU acceleration (NVIDIA CUDA) and CPU\n'))
-    print(t('  [2] EmbeddingGemma 2 · Resource-saving (Lite)\n      - Model ID: embeddinggemma-2\n      - Download: ~388 MB · Requires: ~2 GB RAM\n      - Very resource-saving, fast download\n      - Pure CPU execution (LiteRT)'))
-
-    print(t('  [3] Custom model / check an existing service (any image/text embedding model)'))
+    print(t('  [1] Gemma 2 · Original (recommended) · CPU / NVIDIA GPU · 1.52 GB download'))
+    print(t('  [2] Gemma 2 · Lite · CPU · 388 MB download'))
+    print(t('  [3] Custom model / connect an existing service'))
     model_choice = prompt_choice(t('Select the desired model'), ['full', 'lite', 'custom'], default=1)
     if model_choice == 3:
         return {}, 'custom'
@@ -742,8 +715,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if not is_interactive:
         if args.language=='ask' and args.profile=='custom' and args.url is None and sys.stdin.isatty():
-            print('Language / Sprache:\n  [1] Deutsch\n  [2] English')
-            args.language='de' if prompt_choice('Language / Sprache',['de','en'])==1 else 'en'
+            args.language=choose_language()
         if args.language == 'ask':
             args.language = 'en'
         set_language(args.language)

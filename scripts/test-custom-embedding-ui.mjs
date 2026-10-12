@@ -41,6 +41,8 @@ try{
   check(await guide.getAttribute('hreflang')===language,'Missing guide language');
   await page.locator('select[name="embedding.family"]').selectOption('custom');
   check(await page.locator('[data-embedding-custom]').isVisible(),'Custom guidance missing');
+  check(!await page.locator('#mai-embedding-setup-settings').isVisible(),'Local installation status shown for external service');
+  check(!await page.locator('[data-embedding-requirements]').isVisible(),'Local requirements shown for external service');
   check((await page.locator('[data-custom-guide]').textContent()).trim()===(language==='en'?'Custom model guide':'Anleitung für eigene Modelle'),'Custom link untranslated');
   check(await page.locator('input[name="embedding.model"]').inputValue()==='','Custom choice invented a built-in model ID');
   await page.locator('input[name="embedding.model"]').fill(model);
@@ -57,6 +59,7 @@ try{
   check(await page.locator('input[name="embedding.model"]').inputValue()==='embeddinggemma-2-full','Local preset retained invalid custom ID');
   await page.locator('#mai-embedding-provider').selectOption('external');await page.locator('select[name="embedding.family"]').selectOption('custom');
   await page.locator('input[name="embedding.model"]').fill(model);
+  await page.locator('.mai-external-install').scrollIntoViewIfNeeded();
   await page.screenshot({path:`${out}/${language}.png`});
  }
  check(probes>=2,'No real custom service probes');check(errors.length===0,errors.join('; '));

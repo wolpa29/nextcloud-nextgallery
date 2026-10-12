@@ -117,7 +117,6 @@ def run_check(directory, language='en', url=None, model=None, key=None, family=N
         print(('Keine Einstellungen oder Vektoren geändert.','No settings or vectors changed.')[index])
         return 1
     print(('Bereit: {model} · {dimensions} Dimensionen · Bild und Text geprüft.','Ready: {model} · {dimensions} dimensions · image and text checked.')[index].format(**info))
-    print(('Vektorraum: ','Vector space: ')[index]+info['space'])
     print(('Kompatibilität mit vorhandenen Vektoren anschließend in NextGallery prüfen.','Next, check compatibility with existing vectors in NextGallery.')[index])
     return 0
 

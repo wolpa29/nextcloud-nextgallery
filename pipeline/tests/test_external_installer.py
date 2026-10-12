@@ -187,9 +187,9 @@ class Installer(unittest.TestCase):
              patch.object(m, 'prompt_yes_no', return_value=True), patch('builtins.print'):
             params, action = m.interactive_wizard(Path(tmp), Path(tmp), language='ask')
             self.assertEqual(action, 'install')
-            self.assertEqual(m.get_language(), 'de')
+            self.assertEqual(m.get_language(), 'en')
 
-        # When language='ask' and user selects English (option 2)
+        # When language='ask' and user selects German (option 2)
         with tempfile.TemporaryDirectory() as tmp, patch.object(m.subprocess, 'run'), \
              patch.object(m, 'check_docker_nvidia_support', return_value=True), \
              patch.object(m, 'prompt_choice', side_effect=[2, 1, 1]), \
@@ -197,7 +197,7 @@ class Installer(unittest.TestCase):
              patch.object(m, 'prompt_yes_no', return_value=True), patch('builtins.print'):
             params, action = m.interactive_wizard(Path(tmp), Path(tmp), language='ask')
             self.assertEqual(action, 'install')
-            self.assertEqual(m.get_language(), 'en')
+            self.assertEqual(m.get_language(), 'de')
 
         # When language is explicitly provided, it does not prompt for language
         with tempfile.TemporaryDirectory() as tmp, patch.object(m.subprocess, 'run'), \

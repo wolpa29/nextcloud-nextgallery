@@ -172,8 +172,8 @@ async function init() {
   ]:[
    'Empfohlen: 4 CPU-Kerne · 2 GB freier RAM · 2 GB freier Speicher.',
    'Sparsame LiteRT-Variante · ca. 388 MB Download plus Laufzeit.'
-  ]):['Der Dienst läuft auf deinem externen Rechner. Installation und Anforderungen stehen in der Anleitung.'];
-  for(const n of root.querySelectorAll('[data-embedding-requirements]')){n.replaceChildren(...lines.map(line=>el('p',line)));}
+  ]):[];
+  for(const n of root.querySelectorAll('[data-embedding-requirements]')){n.hidden=!automatic;n.replaceChildren(...lines.map(line=>el('p',line)));}
  }
  function selectedProfile(){return $('mai-embedding-provider').value==='full'?'full':'lite';}
  function selectedHealth(){const profile=selectedProfile(),health=lastStatus?.embedding_service;return (health?.profile||'lite')===profile?health:{profile,managed:true,installed:Boolean(lastStatus?.embedding_models?.[profile]?.installed),phase:lastStatus?.embedding_models?.[profile]?.installed?'installed':'not_installed'};}
@@ -260,7 +260,7 @@ async function init() {
   }
   if(s.embedding_remove?.requested&&s.embedding_remove.profile===profile)text=tr('Modell und Laufzeit werden entfernt …');
   if(s.embedding_remove?.phase==='error'&&s.embedding_remove.profile===profile)text=tr(s.embedding_remove.message);
-  for(const id of ['mai-embedding-setup-processing','mai-embedding-setup-settings']){const n=$(id);if(!n)continue;n.hidden=!local;n.textContent=text;n.classList.toggle('mai-error',Boolean(s.online&&health?.phase==='error'));}
+  for(const id of ['mai-embedding-setup-processing','mai-embedding-setup-settings']){const n=$(id);if(!n)continue;n.hidden=id==='mai-embedding-setup-settings'?!native:!local;n.textContent=text;n.classList.toggle('mai-error',Boolean(s.online&&health?.phase==='error'));}
   renderEmbeddingInstall();
  }
  async function status(){try{lastStatus=await api('status');await processing();embeddingSetupStatus(lastStatus);updateSaveState();workspace.status(lastStatus);}catch(e){message(e.message,true);}}
