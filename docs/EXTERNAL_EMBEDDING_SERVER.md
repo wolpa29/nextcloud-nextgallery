@@ -50,9 +50,16 @@ Am Ende zeigt das Skript deine individuellen Verbindungsdaten an. Öffne in Next
 | **API-Key** | `<Dein generierter 64-Zeichen-Schlüssel>` |
 
 **Aktivierung abschließen:**
-1. Einstellungen eintragen und unten auf **„Speichern“** klicken.
-2. Auf **„Verbindung prüfen“** klicken (erst nach abgeschlossenem Download meldet der Server *„Bereit“*).
-3. Haken bei **„Für Benutzer aktivieren“** setzen und erneut speichern.
+1. Einstellungen und API-Key eintragen und **„Verbindung prüfen“** wählen. Die Prüfung verwendet die noch ungespeicherten Eingaben; sie verändert keine Einstellungen oder Vektoren. Erst nach abgeschlossenem Download meldet der Server *„Bereit“*.
+2. Bei einem Wechsel mit vorhandenen Vektoren auch die gemeldete Kompatibilität prüfen. Ein Verbindungsfehler bedeutet, dass der Vektorraum noch nicht geprüft werden konnte. Er beweist keinen Modellwechsel und verlangt kein Löschen.
+3. Die betroffenen Embedding-Läufe unter **„Benutzerläufe“** pausieren und den Abschluss der aktuellen Datei abwarten. Die Speichern-Hinweise zeigen, welche Verarbeitung noch läuft. Beschreibungen und OCR können bei einem reinen Embedding-Wechsel weiterlaufen.
+4. **„Für Benutzer aktivieren“** setzen und **„Speichern“** wählen. Bei nachgewiesen gleichem Vektorraum bleiben die Vektoren automatisch erhalten. Ein Zurücksetzen benötigt weiterhin eine ausdrückliche Bestätigung.
+
+### Dasselbe Modell auf CPU und GPU
+
+Der Modellname allein reicht für eine kompatible Bildsuche nicht aus. Die Vektorraum-ID berücksichtigt beim Originalmodell den Inhalt des Modellverzeichnisses und die Versionen von PyTorch, Transformers und Sentence Transformers. NextGallery ergänzt Bildauflösung und Video-Standbildanzahl. Unterschiede darin können bei gleichem Modellnamen eine andere ID ergeben.
+
+Die bisherige Full-Laufzeit nutzt FP32 auf CPU und FP16 auf CUDA; diese Präzisionswahl wird nicht separat in ihrer Vektorraum-ID abgebildet. Eine erfolgreiche ID-Prüfung ist deshalb keine Messung der numerischen Gleichheit von CPU- und GPU-Ergebnissen. Die neue Oberfläche setzt diese Schutzprüfung nicht außer Kraft. Bei abweichender ID zuerst Modellstand, Laufzeit und Verarbeitungseinstellungen abgleichen; vorhandene Vektoren nicht aufgrund eines Verbindungsfehlers löschen.
 
 ---
 
@@ -65,6 +72,19 @@ Am Ende zeigt das Skript deine individuellen Verbindungsdaten an. Öffne in Next
 | **Dienst stoppen** | `python3 scripts/install-embedding-server.py --action stop` |
 | **Dienst starten** | `python3 scripts/install-embedding-server.py --action start` |
 | **Deinstallieren** | `python3 scripts/install-embedding-server.py --action uninstall` *(mit `--delete-models` auch Downloads löschen)* |
+
+### Startfehler „invalid device ordinal“ bei GPU 1 oder höher
+
+Ältere Installer-Versionen haben die GPU-Nummer des Rechners als CUDA-Nummer im Container übernommen. Wenn Docker nur die ausgewählte Karte durchreicht, ist diese im Container immer CUDA-Gerät 0. Beispielsweise bleibt die physische GPU 1 ausgewählt, während PyTorch `cuda` (Gerät 0) verwendet.
+
+Nach Aktualisierung des Repositorys repariert der Startbefehl diese gespeicherte Zuordnung automatisch:
+
+```sh
+git pull --ff-only
+python3 scripts/install-embedding-server.py --action start
+```
+
+API-Key, Modellprofil, ausgewählte Grafikkarte und Modell-Volume bleiben erhalten. Die Modelle müssen nicht erneut heruntergeladen werden. Anschließend die Logs prüfen: Der Container muss weiterlaufen und das Modell als bereit melden; ein erfolgreiches `docker compose up` allein bestätigt die Bereitschaft noch nicht.
 
 ---
 

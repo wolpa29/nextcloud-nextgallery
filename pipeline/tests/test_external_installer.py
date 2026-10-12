@@ -48,6 +48,64 @@ class Installer(unittest.TestCase):
             self.assertEqual(devs[0]['count'],'all')
             self.assertEqual(service['environment']['NVIDIA_VISIBLE_DEVICES'],'all')
 
+    def test_legacy_host_ordinal_does_not_become_container_ordinal(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory=Path(tmp)
+            m.configure(directory,directory,'full',9379,4,device='cuda:1',gpu_id='1')
+            service=json.loads((directory/'compose.json').read_text())['services']['embedding']
+            self.assertEqual(service['environment']['NEXTGALLERY_EMBEDDING_DEVICE'],'cuda')
+            self.assertEqual(service['environment']['NVIDIA_VISIBLE_DEVICES'],'1')
+            self.assertEqual(service['deploy']['resources']['reservations']['devices'][0]['device_ids'],['1'])
+
+    def test_wizard_selects_second_host_gpu_without_container_ordinal(self):
+        gpus=[{'index':'0','name':'RTX 3060','memory_mb':'12288'},
+              {'index':'1','name':'RTX 3090','memory_mb':'24576'}]
+        with tempfile.TemporaryDirectory() as tmp,patch.object(m.subprocess,'run'), \
+             patch.object(m,'detect_gpus',return_value=gpus), \
+             patch.object(m,'check_docker_nvidia_support',return_value=True), \
+             patch.object(m,'prompt_choice',side_effect=[1,2]), \
+             patch.object(m,'prompt_string',side_effect=['9379',tmp]), \
+             patch.object(m,'prompt_yes_no',return_value=True),patch('builtins.print'):
+            params,action=m.interactive_wizard(Path(tmp),Path(tmp))
+        self.assertEqual(action,'install')
+        self.assertEqual(params['device'],'cuda')
+        self.assertEqual(params['gpu_id'],'1')
+        self.assertIn('RTX 3090',params['gpu_info'])
+
+    def test_start_repairs_legacy_configuration_before_docker_and_preserves_data(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory=Path(tmp)
+            m.configure(directory,directory,'full',9381,7,device='cuda',gpu_id='1')
+            compose=json.loads((directory/'compose.json').read_text())
+            compose['services']['embedding']['environment']['NEXTGALLERY_EMBEDDING_DEVICE']='cuda:1'
+            (directory/'compose.json').write_text(json.dumps(compose))
+            connection=json.loads((directory/'connection.json').read_text());connection['device']='cuda:1'
+            (directory/'connection.json').write_text(json.dumps(connection))
+            preserved={name:(directory/name).read_bytes() for name in ['api-key.txt','.env']}
+            expected=json.loads(json.dumps(compose))
+            expected['services']['embedding']['environment']['NEXTGALLERY_EMBEDDING_DEVICE']='cuda'
+            def docker(cmd,**kwargs):
+                self.assertEqual(json.loads((directory/'compose.json').read_text()),expected)
+                return unittest.mock.Mock(returncode=0)
+            with patch.object(m.subprocess,'run',side_effect=docker) as run,patch.object(m,'print_summary'),patch('builtins.print'):
+                self.assertEqual(m.main(['--directory',tmp,'--action','start']),0)
+            self.assertEqual(run.call_args_list[-1].args[0][-2:],['up','-d'])
+            self.assertEqual(json.loads((directory/'connection.json').read_text()),connection|{'device':'cuda'})
+            for name,contents in preserved.items():self.assertEqual((directory/name).read_bytes(),contents)
+            self.assertEqual((directory/'compose.json').stat().st_mode&0o777,0o600)
+            self.assertFalse(m.repair_saved_gpu_device(directory))
+
+    def test_start_leaves_cpu_and_all_gpu_configurations_unchanged(self):
+        for device,gpu_id in [('cpu',None),('cuda:1','all'),('cuda','1')]:
+            with self.subTest(device=device,gpu_id=gpu_id),tempfile.TemporaryDirectory() as tmp:
+                directory=Path(tmp)
+                m.configure(directory,directory,'full',9379,4,device=device,gpu_id=gpu_id)
+                files={file.name:file.read_bytes() for file in directory.iterdir()}
+                with patch.object(m.subprocess,'run') as run,patch.object(m,'print_summary'):
+                    run.return_value.returncode=0
+                    self.assertEqual(m.main(['--directory',tmp,'--action','start']),0)
+                self.assertEqual({file.name:file.read_bytes() for file in directory.iterdir()},files)
+
     def test_detect_gpus_parses_nvidia_smi(self):
         fake_output='0, NVIDIA GeForce RTX 3080, 10240\n1, NVIDIA GeForce RTX 4090, 24576\n'
         fake_res=unittest.mock.Mock(returncode=0,stdout=fake_output)

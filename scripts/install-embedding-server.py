@@ -200,6 +200,9 @@ def detect_lan_ips() -> list[str]:
 
 def configure(directory: Path, repository: Path, profile: str = 'lite', port: int = 9379,
               threads: int = 4, device: str = 'cpu', gpu_id: str | None = None) -> tuple[str, str]:
+    # Docker exposes the selected host GPU as CUDA device 0 inside the container.
+    if device.startswith('cuda') and gpu_id is not None and str(gpu_id).lower() != 'all':
+        device = 'cuda'
     directory.mkdir(mode=0o700, parents=True, exist_ok=True)
     if directory.is_symlink():
         raise ValueError('Use a real configuration directory')
@@ -286,6 +289,30 @@ def configure(directory: Path, repository: Path, profile: str = 'lite', port: in
     }
     private_write(directory / 'connection.json', json.dumps(connection_data, indent=2) + '\n')
     return key, model
+
+
+def repair_saved_gpu_device(directory: Path) -> bool:
+    """Correct legacy host CUDA ordinals without replacing saved service settings."""
+    compose_file = directory / 'compose.json'
+    config = json.loads(compose_file.read_text())
+    service = config.get('services', {}).get('embedding', {})
+    environment = service.get('environment', {})
+    device = environment.get('NEXTGALLERY_EMBEDDING_DEVICE', '')
+    reservations = service.get('deploy', {}).get('resources', {}).get('reservations', {}).get('devices', [])
+    single_gpu = (len(reservations) == 1 and reservations[0].get('driver') == 'nvidia'
+                  and len(reservations[0].get('device_ids', [])) == 1)
+    if not single_gpu or not device.startswith('cuda:'):
+        return False
+
+    connection_file = directory / 'connection.json'
+    connection = json.loads(connection_file.read_text()) if connection_file.is_file() else None
+    environment['NEXTGALLERY_EMBEDDING_DEVICE'] = 'cuda'
+    private_write(compose_file, json.dumps(config, indent=2) + '\n')
+    if connection is not None:
+        connection['device'] = 'cuda'
+        private_write(connection_file, json.dumps(connection, indent=2) + '\n')
+    print('GPU-Zuordnung korrigiert: Die ausgewählte Grafikkarte verwendet im Container CUDA-Gerät 0.')
+    return True
 
 
 def print_summary(directory: Path, key: str, model: str, port: int, profile: str,
@@ -481,7 +508,7 @@ def interactive_wizard(repository: Path, directory: Path) -> tuple[dict[str, obj
         if dev_choice <= len(gpus):
             selected_gpu = gpus[dev_choice - 1]
             gpu_id = selected_gpu['index']
-            device = f'cuda:{gpu_id}'
+            device = 'cuda'
             gpu_info_str = f"GPU {selected_gpu['index']}: {selected_gpu['name']} ({selected_gpu['memory_mb']} MB VRAM)"
         elif dev_choice == all_idx:
             device = 'cuda'
@@ -706,6 +733,8 @@ def main(argv: list[str] | None = None) -> int:
             device=args.device,
             gpu_id=args.gpu_id
         )
+    elif args.action == 'start':
+        repair_saved_gpu_device(directory)
 
     if args.prepare_only:
         print('Configuration prepared. No model downloaded.')
