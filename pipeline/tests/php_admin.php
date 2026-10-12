@@ -34,6 +34,11 @@ $draft['vision']['api_key']='draft-secret';check($controller->test($draft)->stat
 $draft['vision']['url']='ftp://invalid';$calls=$probe->calls;check($controller->test($draft)->status===400);check($probe->calls===$calls);check($c->values===$before);
 $embeddingProbe=new EmbeddingProbe();$embeddingController=new \OCA\Nextgallery\Controller\AiAdminController(new Request(),$settings,new \OCA\Nextgallery\AI\Service\State($c),$session,new Groups(),new Root(),embeddingClient:$embeddingProbe);
 $draft=$settings->get();$draft['embedding']['location']='external';$draft['embedding']['url']='http://embedding-draft.invalid:9379';$draft['embedding']['api_key']='synthetic-candidate-key';check($embeddingController->embeddingTest($draft)->status===200);check($embeddingProbe->last['url']==='http://embedding-draft.invalid:9379/v1');check($embeddingProbe->last['api_key']==='synthetic-candidate-key');check($c->values===$before);
+// Only embedding fields are relevant to an unsaved embedding connection probe.
+$draft['vision']['url']='ftp://invalid-vision';$draft['ocr']['model']='';$draft['schedule_time']='invalid';$draft['timezone']='invalid';
+check($embeddingController->embeddingTest($draft)->status===200);check($embeddingProbe->last['api_key']==='synthetic-candidate-key');check($c->values===$before);
+$draft['embedding']['url']='ftp://invalid-embedding';$last=$embeddingProbe->last;check($embeddingController->embeddingTest($draft)->status===400);check($embeddingProbe->last===$last);check($c->values===$before);
+$draft['embedding']['url']='http://embedding-draft.invalid:9379';
 $draft['embedding']['api_key']="invalid\nkey";check($embeddingController->embeddingTest($draft)->status===400);check($c->values===$before);
 $state->atomic('status.json',['state'=>'running','heartbeat_at'=>time(),'stats'=>['pending'=>5,'error'=>1]]);
 $controlBefore=$state->control();foreach(['start','resume','retry'] as $action){check($controller->control($action,'','descriptions')->status===409);check($state->control()===$controlBefore);}

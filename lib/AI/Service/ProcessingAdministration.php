@@ -52,7 +52,7 @@ class ProcessingAdministration {
  }
  private function candidate(array $config):array {return $this->settings->save($config,null,false);}
  private function compatible(array $submitted):array {
-  $config=$this->settings->probeConfig($submitted)['embedding'];
+  $config=$this->settings->probeEmbedding($submitted);
   try{
    $info=$this->client->info($config);$space=EmbeddingClient::space($info,$config);
   }catch(\Throwable $error){return ['ready'=>false,'compatible'=>false,'compatibility'=>'unverified','reason'=>$error->getMessage()];}

@@ -52,6 +52,15 @@ try{
   await page.locator('#mai-embedding-test').click();const result=await(await response).json();
   check(result.ready&&result.model===model&&result.dimensions===512,'Real admin probe rejected arbitrary family/model');
   check(result.compatibility==='different','Custom vector space bypassed preservation checks');
+  // Real PHP probe must ignore invalid settings belonging to other stages.
+  const draft=structuredClone(original);draft.embedding={...draft.embedding,location:'external',family:'custom',model,url:endpoint,api_key:'synthetic-custom-key'};
+  draft.vision.url='invalid';draft.ocr.model='';draft.schedule_time='invalid';draft.timezone='invalid';
+  const isolatedResponse=await context.request.post(base+'/ai/admin/embedding-test',{headers,data:{config:draft}});
+  check(isolatedResponse.status()===200,'Unrelated invalid fields blocked the real embedding API');
+  check((await isolatedResponse.json()).ready,'Valid custom service could not be probed independently');
+  draft.embedding.url='ftp://invalid';
+  check((await context.request.post(base+'/ai/admin/embedding-test',{headers,data:{config:draft}})).status()===400,'Invalid embedding endpoint bypassed validation');
+
   check(JSON.stringify(await(await context.request.get(base+'/ai/admin/config',{headers})).json())===JSON.stringify(original),'Draft probe persisted settings or vectors');
   await page.locator('#mai-embedding-provider').selectOption('full');
   check(!await page.locator('[data-embedding-custom]').isVisible(),'Custom guidance shown for local Gemma');

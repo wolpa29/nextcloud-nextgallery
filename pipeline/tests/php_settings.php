@@ -48,7 +48,14 @@ check($s->probeConfig($draft)['embedding']['url']==='http://synthetic.invalid:93
 check($s->probeConfig($draft)['embedding']['api_key']==='synthetic-embedding-secret');
 $draft['embedding']['clear_api_key']=true;check($s->probeConfig($draft)['embedding']['api_key']==='');
 $draft['embedding']['api_key']='replacement-key';check($s->probeConfig($draft)['embedding']['api_key']==='replacement-key');
-check($c->values===$beforeProbe);$draft['embedding']['api_key']="bad\nkey";reject(fn()=>$s->probeConfig($draft));check($c->values===$beforeProbe);
+check($c->values===$beforeProbe);
+$draft['ocr']['url']='invalid';$draft['vision']['model']='';$draft['folders']=[];
+check($s->probeEmbedding($draft)['api_key']==='replacement-key');check($s->probeEmbedding($draft)['url']==='http://synthetic.invalid:9379/v1');check($c->values===$beforeProbe);
+$draft['embedding']['api_key']='';$draft['embedding']['clear_api_key']=false;check($s->probeEmbedding($draft)['api_key']==='synthetic-embedding-secret');
+$draft['embedding']['clear_api_key']=true;check($s->probeEmbedding($draft)['api_key']==='');check($c->values===$beforeProbe);
+$draft['embedding']['api_key']="bad\nkey";reject(fn()=>$s->probeEmbedding($draft));check($c->values===$beforeProbe);
+reject(fn()=>$s->probeEmbedding(['embedding'=>'invalid']));check($c->values===$beforeProbe);
+
 foreach(['enabled'=>'yes','local_auto_setup'=>'true','location'=>'remote','transport'=>'unknown','family'=>'qwen_text','max_edge'=>10,'video_frames'=>0,'local_model_path'=>'relative/path'] as $key=>$invalid){$bad=$emb;$bad['embedding'][$key]=$invalid;$before=$c->values;reject(fn()=>$s->save($bad));check($c->values===$before);}
 $custom=$s->get();$custom['embedding']['location']='external';$custom['embedding']['family']='custom';$custom['embedding']['model']='operator/another-vision-model';
 $customSaved=$s->save($custom);check($customSaved['embedding']['family']==='custom');check($customSaved['embedding']['model']==='operator/another-vision-model');

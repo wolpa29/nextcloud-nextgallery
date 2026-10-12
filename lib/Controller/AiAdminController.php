@@ -115,7 +115,7 @@ class AiAdminController extends Controller {
         if($denied=$this->denied())return $denied;
         try {
             if($this->embeddings)return new DataResponse($this->processing()->inspect($config?:$this->settings->get()));
-            return new DataResponse(($this->embeddingClient??new \OCA\Nextgallery\AI\Service\EmbeddingClient())->inspect($this->settings->probeConfig($config)['embedding']));
+            return new DataResponse(($this->embeddingClient??new \OCA\Nextgallery\AI\Service\EmbeddingClient())->inspect($this->settings->probeEmbedding($config)));
         }catch(\OCP\AppFramework\OCS\OCSBadRequestException $e){return new DataResponse(['error'=>$e->getMessage()],400);}
     }
     public function test(array $config=[]): DataResponse {

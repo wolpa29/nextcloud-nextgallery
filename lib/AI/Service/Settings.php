@@ -107,6 +107,38 @@ class Settings {
         }
         return $candidate;
     }
+    /** Validate only embedding fields; keep save and connection checks consistent. */
+    private function validatedEmbedding(mixed $embedding):array {
+        $result=['embedding'=>$this->defaults()['embedding']];
+        if(!is_array($embedding))throw new OCSBadRequestException('Embedding-Einstellungen ungültig');
+        foreach(['enabled'=>[true,false],'local_auto_setup'=>[true,false],'local_profile'=>['lite','full'],'location'=>['local','external'],'transport'=>['multimodal','lmstudio'],'family'=>['gemma2','qwen3_vl','custom']] as $key=>$allowed){
+            $setting=$embedding[$key]??$result['embedding'][$key];if(!in_array($setting,$allowed,true))throw new OCSBadRequestException('Embedding-Auswahl ungültig');$result['embedding'][$key]=$setting;
+        }
+        if($result['embedding']['family']==='custom'&&$result['embedding']['location']!=='external')throw new OCSBadRequestException('Eigene Embedding-Modelle benötigen einen externen Dienst.');
+        $embeddingUrl=$embedding['url']??$result['embedding']['url'];
+        if($result['embedding']['location']==='local'&&$embeddingUrl==='')$embeddingUrl=$result['embedding']['url'];
+        $result['embedding']['url']=self::endpoint($embeddingUrl);
+        foreach(['model','local_model_path','local_qwen_source','model_revision'] as $key){$text=$embedding[$key]??$result['embedding'][$key];if(!is_string($text)||strlen($text)>2000||str_contains($text,"\0")||str_contains($text,"\n")||str_contains($text,"\r")||($key==='model'&&trim($text)===''))throw new OCSBadRequestException('Embedding-Modellangabe ungültig');$result['embedding'][$key]=$text;}
+        if($result['embedding']['enabled']&&$result['embedding']['location']==='local'){
+            $automatic=$result['embedding']['family']==='gemma2'&&$result['embedding']['local_auto_setup'];
+            if(!$automatic||$result['embedding']['local_model_path']!=='')if(!str_starts_with($result['embedding']['local_model_path'],'/'))throw new OCSBadRequestException('Lokales Modellpaket benötigt einen absoluten Pfad');
+            if($automatic)$result['embedding']['model']=$result['embedding']['local_profile']==='full'?'embeddinggemma-2-full':'embeddinggemma-2';
+            if($result['embedding']['family']==='qwen3_vl'&&(!str_starts_with($result['embedding']['local_qwen_source'],'/')||trim($result['embedding']['model_revision'])===''))throw new OCSBadRequestException('Qwen benötigt einen absoluten Quellcode-Pfad und einen festgelegten Modellstand');
+        }
+        if($result['embedding']['location']==='local'&&$result['embedding']['family']==='gemma2'&&$result['embedding']['local_auto_setup'])$result['embedding']['model']=$result['embedding']['local_profile']==='full'?'embeddinggemma-2-full':'embeddinggemma-2';
+        foreach(['max_edge'=>[256,4096],'video_frames'=>[1,20],'timeout_seconds'=>[15,7200]] as $key=>[$min,$max])$result['embedding'][$key]=$this->integer($embedding[$key]??$result['embedding'][$key],$min,$max,'embedding/'.$key);
+        $secret=$embedding['api_key']??'';
+        if(!is_string($secret)||strlen($secret)>4096||str_contains($secret,"\n")||str_contains($secret,"\r"))throw new OCSBadRequestException('API-Key ungültig');
+        return $result['embedding']+['api_key'=>$secret];
+    }
+    /** Resolve an unsaved embedding connection without validating unrelated settings or writing data. */
+    public function probeEmbedding(array $value = []):array {
+        $saved=$this->workerConfig()['embedding'];
+        if(!$value)return $saved;
+        $candidate=$this->validatedEmbedding($value['embedding']??$saved);
+        if($candidate['api_key']===''&&empty($value['embedding']['clear_api_key']))$candidate['api_key']=$saved['api_key'];
+        return $candidate;
+    }
     private function paths($value): array {
         if (!is_array($value) || !array_is_list($value) || count($value) > 100) { throw new OCSBadRequestException('Ordnerliste ungültig'); }
         $result = [];
@@ -192,27 +224,9 @@ class Settings {
         if(!is_bool($result['ocr_enabled']))throw new OCSBadRequestException('Verarbeitungsauswahl ungültig');
         $result['analysis_enabled']=$value['analysis_enabled']??true;
         if(!is_bool($result['analysis_enabled']))throw new OCSBadRequestException('Verarbeitungsauswahl ungültig');
-        $embedding=$value['embedding']??$result['embedding'];
-        if(!is_array($embedding))throw new OCSBadRequestException('Embedding-Einstellungen ungültig');
-        foreach(['enabled'=>[true,false],'local_auto_setup'=>[true,false],'local_profile'=>['lite','full'],'location'=>['local','external'],'transport'=>['multimodal','lmstudio'],'family'=>['gemma2','qwen3_vl','custom']] as $key=>$allowed){
-            $setting=$embedding[$key]??$result['embedding'][$key];if(!in_array($setting,$allowed,true))throw new OCSBadRequestException('Embedding-Auswahl ungültig');$result['embedding'][$key]=$setting;
-        }
-        if($result['embedding']['family']==='custom'&&$result['embedding']['location']!=='external')throw new OCSBadRequestException('Eigene Embedding-Modelle benötigen einen externen Dienst.');
-        $embeddingUrl=$embedding['url']??$result['embedding']['url'];
-        if($result['embedding']['location']==='local'&&$embeddingUrl==='')$embeddingUrl=$result['embedding']['url'];
-        $result['embedding']['url']=self::endpoint($embeddingUrl);
-        foreach(['model','local_model_path','local_qwen_source','model_revision'] as $key){$text=$embedding[$key]??$result['embedding'][$key];if(!is_string($text)||strlen($text)>2000||str_contains($text,"\0")||str_contains($text,"\n")||str_contains($text,"\r")||($key==='model'&&trim($text)===''))throw new OCSBadRequestException('Embedding-Modellangabe ungültig');$result['embedding'][$key]=$text;}
-        if($result['embedding']['enabled']&&$result['embedding']['location']==='local'){
-            $automatic=$result['embedding']['family']==='gemma2'&&$result['embedding']['local_auto_setup'];
-            if(!$automatic||$result['embedding']['local_model_path']!=='')if(!str_starts_with($result['embedding']['local_model_path'],'/'))throw new OCSBadRequestException('Lokales Modellpaket benötigt einen absoluten Pfad');
-            if($automatic)$result['embedding']['model']=$result['embedding']['local_profile']==='full'?'embeddinggemma-2-full':'embeddinggemma-2';
-            if($result['embedding']['family']==='qwen3_vl'&&(!str_starts_with($result['embedding']['local_qwen_source'],'/')||trim($result['embedding']['model_revision'])===''))throw new OCSBadRequestException('Qwen benötigt einen absoluten Quellcode-Pfad und einen festgelegten Modellstand');
-        }
-        if($result['embedding']['location']==='local'&&$result['embedding']['family']==='gemma2'&&$result['embedding']['local_auto_setup'])$result['embedding']['model']=$result['embedding']['local_profile']==='full'?'embeddinggemma-2-full':'embeddinggemma-2';
-        foreach(['max_edge'=>[256,4096],'video_frames'=>[1,20],'timeout_seconds'=>[15,7200]] as $key=>[$min,$max])$result['embedding'][$key]=$this->integer($embedding[$key]??$result['embedding'][$key],$min,$max,'embedding/'.$key);
-        $secret=$embedding['api_key']??'';
-        if(!is_string($secret)||strlen($secret)>4096||str_contains($secret,"\n")||str_contains($secret,"\r"))throw new OCSBadRequestException('API-Key ungültig');
-        if($secret!==''||!empty($embedding['clear_api_key']))$secrets['embedding_api_key']=$secret;
+        $result['embedding']=$this->validatedEmbedding($value['embedding']??$result['embedding']);
+        $secret=$result['embedding']['api_key'];unset($result['embedding']['api_key']);
+        if($secret!==''||!empty($value['embedding']['clear_api_key']))$secrets['embedding_api_key']=$secret;
         // Validate the entire form before writing any value or encrypted secret.
         if ($validateFolders !== null) { $validateFolders($result); }
         if (!$persist) { return $result; }

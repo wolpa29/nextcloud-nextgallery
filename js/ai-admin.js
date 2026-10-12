@@ -60,20 +60,28 @@ async function init() {
  }));
  for(const name of ['analysis_enabled','ocr_enabled','embedding.enabled','embedding.location','embedding.family','embedding.local_auto_setup'])$('mai-form').elements[name].addEventListener('change',processingExplanation);
  $('mai-form').elements['embedding.family'].addEventListener('change',()=>{const family=form.elements['embedding.family'].value;form.elements['embedding.model'].value=family==='gemma2'?(form.elements['embedding.local_profile'].value==='full'?'embeddinggemma-2-full':'embeddinggemma-2'):family==='qwen3_vl'?'Qwen/Qwen3-VL-Embedding-2B':config?.embedding.family==='custom'?config.embedding.model:'';updateSaveState();});
+ function reportEmbeddingValidity(){
+  for(const input of $('mai-form').elements){
+   if(!input.name?.startsWith('embedding.')||input.disabled||input.checkValidity())continue;
+   for(let parent=input.parentElement;parent;parent=parent.parentElement)if(parent.tagName==='DETAILS')parent.open=true;
+   input.reportValidity();return false;
+  }
+  return true;
+ }
  $('mai-embedding-test').onclick=async()=>{
-  if(!config||embeddingProbeBusy||saving||choosingModel||!form.reportValidity())return;
-  const snapshot=formSnapshot(),target=$('mai-embedding-result');embeddingProbeBusy=true;embeddingProbeSnapshot=snapshot;target.textContent=tr('Embedding-Dienst wird geprüft …');target.classList.remove('mai-error');updateSaveState();
-  try{const info=await api('embedding-test',{config:formConfig()});if(formSnapshot()!==snapshot)return;
+  if(!config||embeddingProbeBusy||saving||choosingModel||!reportEmbeddingValidity())return;
+  const snapshot=formSnapshot('embedding'),target=$('mai-embedding-result');embeddingProbeBusy=true;embeddingProbeSnapshot=snapshot;target.textContent=tr('Embedding-Dienst wird geprüft …');target.classList.remove('mai-error');updateSaveState();
+  try{const info=await api('embedding-test',{config:formConfig()});if(formSnapshot('embedding')!==snapshot)return;
    target.classList.toggle('mai-error',!info.ready||info.compatibility==='different');
    target.textContent=info.ready?tr('Bereit für Bilder, Video-Standbilder und Suchanfragen.')+' '+info.model+' · '+info.dimensions+(info.reason?'\n'+tr(info.reason):''):tr(info.message||info.reason);
-  }catch(e){if(formSnapshot()===snapshot){target.classList.add('mai-error');target.textContent=e.message;}}
+  }catch(e){if(formSnapshot('embedding')===snapshot){target.classList.add('mai-error');target.textContent=e.message;}}
   finally{embeddingProbeBusy=false;updateSaveState();}
  };
  const workspace=window.MediaAIWorkspace.create({root,api,tr,el,configuration:()=>config});
  const form=$('mai-form');
  let savedSnapshot=null,saving=false,saveError=false,choosingModel=false,embeddingProbeBusy=false,modelProbeBusy=false,embeddingProbeSnapshot=null,modelProbeSnapshot=null;
  window.addEventListener('beforeunload',event=>{if(savedSnapshot!==null&&formSnapshot()!==savedSnapshot){event.preventDefault();event.returnValue='';}});
- const formSnapshot=()=>JSON.stringify([...form.elements].filter(i=>i.name&&!i.disabled&&!i.readOnly).map(i=>[i.name,i.type==='checkbox'?i.checked:i.value]));
+ const formSnapshot=(group='')=>JSON.stringify([...form.elements].filter(i=>i.name&&(!group||i.name.startsWith(group+'.'))&&!i.disabled&&!i.readOnly).map(i=>[i.name,i.type==='checkbox'?i.checked:i.value]));
  function pipelineRunning(kind){return processingState?.pipelines?.[kind]?.running??lastStatus?.pipelines?.[kind]?.state==='running';}
  function blockedPipelines(){
   const blocked=new Set();if(!config)return [];
@@ -98,7 +106,7 @@ async function init() {
  }
  function updateSaveState(){
   const snapshot=formSnapshot(),dirty=savedSnapshot!==null&&snapshot!==savedSnapshot,blocked=dirty?blockedPipelines():[];
-  for(const [last,id] of [[embeddingProbeSnapshot,'mai-embedding-result'],[modelProbeSnapshot,'mai-model-result']])if(last!==null&&last!==snapshot)$(id).textContent=tr('Eingaben geändert. Verbindung erneut prüfen.');
+  for(const [last,current,id] of [[embeddingProbeSnapshot,formSnapshot('embedding'),'mai-embedding-result'],[modelProbeSnapshot,snapshot,'mai-model-result']])if(last!==null&&last!==current)$(id).textContent=tr('Eingaben geändert. Verbindung erneut prüfen.');
   if(modelProbeSnapshot!==null&&modelProbeSnapshot!==snapshot)modelProbe=null;
   root.querySelectorAll('[data-save-blocked]').forEach(node=>{node.hidden=!blocked.length;node.querySelector('[data-save-blocked-text]').textContent=tr('Zum Speichern zuerst {pipelines} pausieren und den Abschluss der aktuellen Datei abwarten.',{pipelines:blocked.map(kind=>tr({descriptions:'Beschreibungen',ocr:'Texterkennung (OCR)',embeddings:'Visuelle Bildsuche · Embeddings'}[kind])).join(', ')});});
   if(!dirty)saveError=false;
