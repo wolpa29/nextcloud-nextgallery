@@ -65,4 +65,20 @@ class Installer(unittest.TestCase):
                 self.assertEqual(m.main(['--directory',tmp,'--action','info']),0)
             mock_print.assert_called()
 
+    def test_check_docker_nvidia_support_when_probe_fails(self):
+        fake_images=unittest.mock.Mock(returncode=0,stdout='abc1234\n')
+        fake_probe=unittest.mock.Mock(returncode=1,stderr='could not select device driver "nvidia" with capabilities: [[gpu]]',stdout='')
+        with patch.object(m.subprocess,'run',side_effect=[fake_images,fake_probe]):
+            self.assertFalse(m.check_docker_nvidia_support())
+
+    def test_check_docker_nvidia_support_when_probe_succeeds(self):
+        fake_images=unittest.mock.Mock(returncode=0,stdout='abc1234\n')
+        fake_probe=unittest.mock.Mock(returncode=0,stderr='',stdout='')
+        with patch.object(m.subprocess,'run',side_effect=[fake_images,fake_probe]):
+            self.assertTrue(m.check_docker_nvidia_support())
+
+    def test_wait_for_docker_succeeds(self):
+        with patch.object(m.subprocess,'run',return_value=unittest.mock.Mock(returncode=0)):
+            self.assertTrue(m.wait_for_docker(timeout=2))
+
 if __name__=='__main__':unittest.main()

@@ -16,6 +16,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import time
 
 
 def private_write(path: Path, text: str) -> None:
@@ -48,35 +49,73 @@ def detect_gpus() -> list[dict[str, str]]:
     return gpus
 
 
+def wait_for_docker(timeout: int = 15) -> bool:
+    """Wait until Docker daemon responds to docker info."""
+    start = time.time()
+    while time.time() - start < timeout:
+        try:
+            res = subprocess.run(['docker', 'info'], capture_output=True, timeout=3)
+            if res.returncode == 0:
+                return True
+        except Exception:
+            pass
+        time.sleep(0.5)
+    return False
+
+
 def check_docker_nvidia_support() -> bool:
-    """Check if Docker daemon has nvidia container runtime configured."""
+    """Check if Docker daemon can actually run containers with the NVIDIA GPU driver."""
+    # 1. Quick probe with any locally available image if Docker is running
     try:
-        res = subprocess.run(
-            ['docker', 'info', '--format', '{{json .Runtimes}}'],
+        img_res = subprocess.run(
+            ['docker', 'images', '-q'],
             capture_output=True, text=True, timeout=5
         )
-        if res.returncode == 0 and res.stdout:
-            data = json.loads(res.stdout)
-            return 'nvidia' in data
+        if img_res.returncode == 0:
+            images = [line.strip() for line in img_res.stdout.splitlines() if line.strip()]
+            if images:
+                probe = subprocess.run(
+                    ['docker', 'run', '--rm', '--gpus', 'all', '--entrypoint', 'true', images[0]],
+                    capture_output=True, text=True, timeout=10
+                )
+                if probe.returncode == 0:
+                    return True
+                err = (probe.stderr or '') + (probe.stdout or '')
+                # If docker specifically failed due to missing nvidia driver/toolkit:
+                if 'could not select device driver' in err or 'nvidia-container-cli' in err:
+                    return False
     except Exception:
         pass
-    return False
+
+    # 2. Check /etc/docker/daemon.json or CDI configuration
+    daemon_file = Path('/etc/docker/daemon.json')
+    if daemon_file.is_file():
+        try:
+            data = json.loads(daemon_file.read_text())
+            if 'nvidia' in data.get('runtimes', {}):
+                return True
+        except Exception:
+            pass
+
+    return Path('/etc/cdi/nvidia.yaml').is_file() or Path('/var/run/cdi/nvidia.yaml').is_file()
 
 
 def setup_nvidia_container_toolkit_auto() -> bool:
     """Attempt automatic configuration or installation of nvidia-container-toolkit."""
     print('\nStarte automatische Einrichtung des NVIDIA Container Toolkits für Docker...')
 
-    # Step 1: If nvidia-ctk is already installed on host, just configure docker runtime and restart docker
+    # Step 1: If nvidia-ctk is already installed on host, configure docker runtime and restart docker
     if shutil.which('nvidia-ctk'):
-        print('-> nvidia-ctk bereits installiert. Konfiguriere Docker-Laufzeit...')
+        print('-> nvidia-ctk auf diesem System gefunden. Konfiguriere Docker-Laufzeit (/etc/docker/daemon.json)...')
         try:
             subprocess.run(['sudo', 'nvidia-ctk', 'runtime', 'configure', '--runtime=docker'], check=True)
+            print('-> Starte Docker-Dienst neu...')
             subprocess.run(['sudo', 'systemctl', 'restart', 'docker'], check=True)
+            wait_for_docker()
             if check_docker_nvidia_support():
                 return True
         except (subprocess.CalledProcessError, FileNotFoundError):
-            print('-> Direkte Konfiguration fehlgeschlagen, versuche Neuinstallation via Paketmanager...', file=sys.stderr)
+            print('-> Konfiguration mit vorhandenem nvidia-ctk fehlgeschlagen, versuche Paketinstallation...', file=sys.stderr)
 
     # Step 2: Try installing via package manager
     if shutil.which('apt-get'):
@@ -100,8 +139,11 @@ def setup_nvidia_container_toolkit_auto() -> bool:
                 subprocess.run(['sudo', 'apt-get', 'update'], check=True)
                 subprocess.run(['sudo', 'apt-get', 'install', '-y', 'nvidia-container-toolkit'], check=True)
 
+            print('-> Konfiguriere Docker-Laufzeit (nvidia-ctk)...')
             subprocess.run(['sudo', 'nvidia-ctk', 'runtime', 'configure', '--runtime=docker'], check=True)
+            print('-> Starte Docker-Dienst neu...')
             subprocess.run(['sudo', 'systemctl', 'restart', 'docker'], check=True)
+            wait_for_docker()
             return check_docker_nvidia_support()
         except Exception as e:
             print(f'-> Automatische Installation fehlgeschlagen: {e}', file=sys.stderr)
@@ -113,6 +155,7 @@ def setup_nvidia_container_toolkit_auto() -> bool:
             subprocess.run(['sudo', 'dnf', 'install', '-y', 'nvidia-container-toolkit'], check=True)
             subprocess.run(['sudo', 'nvidia-ctk', 'runtime', 'configure', '--runtime=docker'], check=True)
             subprocess.run(['sudo', 'systemctl', 'restart', 'docker'], check=True)
+            wait_for_docker()
             return check_docker_nvidia_support()
         except Exception as e:
             print(f'-> Automatische Installation fehlgeschlagen: {e}', file=sys.stderr)
@@ -124,6 +167,7 @@ def setup_nvidia_container_toolkit_auto() -> bool:
             subprocess.run(['sudo', 'pacman', '-S', '--noconfirm', 'nvidia-container-toolkit'], check=True)
             subprocess.run(['sudo', 'nvidia-ctk', 'runtime', 'configure', '--runtime=docker'], check=True)
             subprocess.run(['sudo', 'systemctl', 'restart', 'docker'], check=True)
+            wait_for_docker()
             return check_docker_nvidia_support()
         except Exception as e:
             print(f'-> Automatische Installation fehlgeschlagen: {e}', file=sys.stderr)
@@ -499,6 +543,7 @@ def interactive_wizard(repository: Path, directory: Path) -> tuple[dict[str, obj
                 print('  sudo nvidia-ctk runtime configure --runtime=docker')
                 print('  sudo systemctl restart docker\n')
                 prompt_string('Drücke Enter, sobald du die Befehle ausgeführt hast (oder "c" für CPU)', '')
+                wait_for_docker()
                 if check_docker_nvidia_support():
                     print('\n✅ NVIDIA-Laufzeit in Docker erkannt! Fahre mit GPU fort...\n')
                     break
@@ -566,6 +611,7 @@ def interactive_wizard(repository: Path, directory: Path) -> tuple[dict[str, obj
         'threads': threads,
         'device': device,
         'gpu_id': gpu_id,
+        'gpu_info': gpu_info_str,
         'action': 'install'
     }
     return params, 'install'
@@ -614,6 +660,7 @@ def main(argv: list[str] | None = None) -> int:
             args.threads = wizard_params['threads']
             args.device = wizard_params['device']
             args.gpu_id = wizard_params['gpu_id']
+            gpu_info_label = wizard_params.get('gpu_info')
             directory = wizard_params['directory']
         elif selected_action == 'uninstall':
             args.delete_models = wizard_params.get('delete_models', False)
@@ -677,27 +724,96 @@ def main(argv: list[str] | None = None) -> int:
         else ['stop'] if args.action == 'stop'
         else ['down'] + (['--volumes'] if args.delete_models else [])
     )
-    result = subprocess.run(command + action_args)
-    code = getattr(result, 'returncode', 0)
-    if isinstance(code, int) and code != 0:
-        if args.device.startswith('cuda'):
-            print('\n' + '=' * 80, file=sys.stderr)
-            print('HINWEIS ZUR DOCKER GPU-FEHLERMELDUNG:', file=sys.stderr)
-            print('Docker konnte die NVIDIA-Grafikkarte nicht einbinden.', file=sys.stderr)
-            print('Fehler: could not select device driver "nvidia" with capabilities: [[gpu]]', file=sys.stderr)
-            print('\nUrsache: In Docker ist das nvidia-container-toolkit noch nicht registriert.', file=sys.stderr)
-            print('\nSchnell-Lösung (auf Ubuntu/Debian):', file=sys.stderr)
-            print('  1. Toolkit in Docker registrieren und Dienst neu starten:', file=sys.stderr)
-            print('     sudo nvidia-ctk runtime configure --runtime=docker', file=sys.stderr)
-            print('     sudo systemctl restart docker', file=sys.stderr)
-            print('\n  2. Falls das Paket noch nicht auf dem System ist:', file=sys.stderr)
-            print('     sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit', file=sys.stderr)
-            print('     sudo nvidia-ctk runtime configure --runtime=docker', file=sys.stderr)
-            print('     sudo systemctl restart docker', file=sys.stderr)
-            print('\nDanach dieses Installationsskript einfach erneut ausführen:', file=sys.stderr)
-            print('  ./scripts/install-embedding-server.sh', file=sys.stderr)
-            print('=' * 80 + '\n', file=sys.stderr)
-        return result.returncode
+
+    while True:
+        result = subprocess.run(command + action_args)
+        code = getattr(result, 'returncode', 0)
+        if isinstance(code, int) and code != 0:
+            if args.device.startswith('cuda') and (args.action in ('install', 'start')):
+                if sys.stdin.isatty():
+                    print('\n' + '!' * 80, file=sys.stderr)
+                    print('ACHTUNG: Docker konnte die NVIDIA-Grafikkarte nicht einbinden!', file=sys.stderr)
+                    print('Fehler: could not select device driver "nvidia" with capabilities: [[gpu]]', file=sys.stderr)
+                    print('Das NVIDIA Container Toolkit ist für Docker noch nicht registriert.', file=sys.stderr)
+                    print('!' * 80 + '\n', file=sys.stderr)
+
+                    fix_choice = prompt_choice(
+                        'Wie möchtest du das Problem beheben?\n'
+                        '  [1] NVIDIA Container Toolkit jetzt automatisch für Docker einrichten (benötigt sudo) und erneut versuchen [Empfohlen]\n'
+                        '  [2] Befehle anzeigen, um sie in einem zweiten Terminal auszuführen, und danach erneut versuchen\n'
+                        '  [3] Auf CPU-Berechnung umstellen und Dienst sofort starten\n'
+                        '  [4] Abbrechen\n'
+                        'Deine Wahl',
+                        ['auto_fix', 'manual_commands', 'switch_cpu', 'cancel'],
+                        default=1
+                    )
+
+                    if fix_choice == 1:
+                        success = setup_nvidia_container_toolkit_auto()
+                        if success:
+                            print('\n✅ NVIDIA Container Toolkit erfolgreich eingerichtet!')
+                            print('Starte Dienst erneut mit GPU...\n')
+                            continue
+                        else:
+                            print('\nAutomatische Einrichtung nicht erfolgreich.', file=sys.stderr)
+                            if prompt_yes_no('Stattdessen auf CPU-Modus umstellen und starten?', default_yes=True):
+                                fix_choice = 3
+                            else:
+                                return code
+
+                    if fix_choice == 2:
+                        print('\nFühre in einem zweiten Terminal folgende Befehle aus:')
+                        print('  sudo nvidia-ctk runtime configure --runtime=docker')
+                        print('  sudo systemctl restart docker')
+                        print('\nFalls das Paket noch nicht installiert ist (Ubuntu/Debian):')
+                        print('  sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit')
+                        print('  sudo nvidia-ctk runtime configure --runtime=docker')
+                        print('  sudo systemctl restart docker\n')
+                        prompt_string('Drücke Enter, sobald du die Befehle ausgeführt hast (oder "c" für Abbrechen)', '')
+                        wait_for_docker()
+                        print('Starte Dienst erneut...\n')
+                        continue
+
+                    if fix_choice == 3:
+                        print('\nStelle Konfiguration auf CPU-Berechnung um...')
+                        args.device = 'cpu'
+                        args.gpu_id = None
+                        gpu_info_label = None
+                        key, model = configure(
+                            directory=directory,
+                            repository=repository,
+                            profile=args.profile,
+                            port=args.port,
+                            threads=args.threads,
+                            device='cpu',
+                            gpu_id=None
+                        )
+                        print('Starte Dienst im CPU-Modus...\n')
+                        continue
+
+                    if fix_choice == 4:
+                        print('Einrichtung abgebrochen.')
+                        return code
+
+                else:
+                    print('\n' + '=' * 80, file=sys.stderr)
+                    print('HINWEIS ZUR DOCKER GPU-FEHLERMELDUNG:', file=sys.stderr)
+                    print('Docker konnte die NVIDIA-Grafikkarte nicht einbinden.', file=sys.stderr)
+                    print('Fehler: could not select device driver "nvidia" with capabilities: [[gpu]]', file=sys.stderr)
+                    print('\nUrsache: In Docker ist das nvidia-container-toolkit noch nicht registriert.', file=sys.stderr)
+                    print('\nSchnell-Lösung (auf Ubuntu/Debian):', file=sys.stderr)
+                    print('  1. Toolkit in Docker registrieren und Dienst neu starten:', file=sys.stderr)
+                    print('     sudo nvidia-ctk runtime configure --runtime=docker', file=sys.stderr)
+                    print('     sudo systemctl restart docker', file=sys.stderr)
+                    print('\n  2. Falls das Paket noch nicht auf dem System ist:', file=sys.stderr)
+                    print('     sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit', file=sys.stderr)
+                    print('     sudo nvidia-ctk runtime configure --runtime=docker', file=sys.stderr)
+                    print('     sudo systemctl restart docker', file=sys.stderr)
+                    print('\nDanach dieses Installationsskript einfach erneut ausführen:', file=sys.stderr)
+                    print('  ./scripts/install-embedding-server.sh', file=sys.stderr)
+                    print('=' * 80 + '\n', file=sys.stderr)
+            return code
+        break
 
     if args.action == 'install':
         print_summary(
