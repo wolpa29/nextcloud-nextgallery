@@ -1,0 +1,89 @@
+name: Release & Nextcloud App Store
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring,pdo_sqlite
+
+      - name: Build frontend assets
+        run: |
+          npm ci --ignore-scripts
+          npm run build
+
+      - name: Install worker dependencies
+        run: |
+          npm ci --ignore-scripts --prefix worker/lmstudio
+
+      - name: Package app archive
+        run: |
+          mkdir -p dist
+          python3 scripts/package-app.py dist
+          VERSION=$(node -p "JSON.parse(require('fs').readFileSync('package.json')).version")
+          python3 scripts/verify-worker-package.py "dist/nextgallery-${VERSION}.tar.gz"
+          cp "dist/nextgallery-${VERSION}.tar.gz" dist/nextgallery.tar.gz
+
+      - name: Package corresponding source archive
+        run: |
+          VERSION=$(node -p "JSON.parse(require('fs').readFileSync('package.json')).version")
+          python3 scripts/source-archive.py "dist/nextgallery-source-${VERSION}.tar.gz"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nextgallery-release
+          path: dist/
+
+      - name: Upload archives to GitHub Release
+        if: github.event_name == 'release'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(node -p "JSON.parse(require('fs').readFileSync('package.json')).version")
+          gh release upload "${{ github.event.release.tag_name }}" \
+            "dist/nextgallery-${VERSION}.tar.gz" \
+            "dist/nextgallery.tar.gz" \
+            "dist/nextgallery-source-${VERSION}.tar.gz" \
+            dist/manifest.json \
+            --clobber
+
+      - name: Publish to Nextcloud App Store
+        if: github.event_name == 'release' && env.APPSTORE_TOKEN != '' && env.APP_PRIVATE_KEY != ''
+        uses: R0Wi/nextcloud-appstore-push-action@v1
+        with:
+          app_name: nextgallery
+          appstore_token: ${{ secrets.APPSTORE_TOKEN }}
+          download_url: https://github.com/${{ github.repository }}/releases/download/${{ github.event.release.tag_name }}/nextgallery.tar.gz
+          app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
+          nightly: ${{ github.event.release.prerelease }}
+        env:
+          APPSTORE_TOKEN: ${{ secrets.APPSTORE_TOKEN }}
+          APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
