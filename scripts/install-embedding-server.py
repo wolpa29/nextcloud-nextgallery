@@ -636,10 +636,10 @@ def interactive_wizard(repository: Path, directory: Path, language: str = 'ask')
     print('-' * 80)
     model_name = 'EmbeddingGemma 2 · Original (embeddinggemma-2-full)' if profile == 'full' else 'EmbeddingGemma 2 · sparsam (embeddinggemma-2)' if CURRENT_LANGUAGE == 'de' else 'EmbeddingGemma 2 · Resource-saving (embeddinggemma-2)'
     hw_name = gpu_info_str if device.startswith('cuda') else f"CPU ({threads} Threads)" if CURRENT_LANGUAGE == 'de' else f"CPU ({threads} threads)"
-    print(f"  • {t('  • Model:         {model}', model=model_name).strip()}")
-    print(f"  • {t('  • Hardware:      {hw}', hw=hw_name).strip()}")
-    print(f"  • {t('  • Port:          {port}', port=port).strip()}")
-    print(f"  • {t('  • Directory:     {dir}', dir=target_dir).strip()}")
+    print(t('  • Model:         {model}', model=model_name))
+    print(t('  • Hardware:      {hw}', hw=hw_name))
+    print(t('  • Port:          {port}', port=port))
+    print(t('  • Directory:     {dir}', dir=target_dir))
 
     if not prompt_yes_no('\n' + t('Set up now and start service?'), default_yes=True):
         print(t('Setup cancelled.'))
