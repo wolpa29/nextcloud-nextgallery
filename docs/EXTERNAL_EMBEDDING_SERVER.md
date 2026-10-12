@@ -82,5 +82,12 @@ python3 scripts/install-embedding-server.py --profile lite --device cpu --thread
 
 Voraussetzungen:
 - Docker & Docker Compose installiert und aktiv.
-- Für GPU-Beschleunigung: NVIDIA-Treiber und [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html).
+- **Für GPU-Beschleunigung:** NVIDIA-Treiber und registriertes `nvidia-container-toolkit`.
+  *Falls der Fehler `could not select device driver "nvidia"` auftritt:*
+  ```sh
+  # Toolkit in Docker registrieren und Docker neu starten:
+  sudo nvidia-ctk runtime configure --runtime=docker
+  sudo systemctl restart docker
+  # (Falls das Paket noch fehlt: sudo apt install -y nvidia-container-toolkit)
+  ```
 - Port 9379 im lokalen Netzwerk für den Nextcloud-Host freigegeben.

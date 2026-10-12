@@ -47,6 +47,21 @@ def detect_gpus() -> list[dict[str, str]]:
     return gpus
 
 
+def check_docker_nvidia_support() -> bool:
+    """Check if Docker daemon has nvidia container runtime configured."""
+    try:
+        res = subprocess.run(
+            ['docker', 'info', '--format', '{{json .Runtimes}}'],
+            capture_output=True, text=True, timeout=5
+        )
+        if res.returncode == 0 and res.stdout:
+            data = json.loads(res.stdout)
+            return 'nvidia' in data
+    except Exception:
+        pass
+    return False
+
+
 def detect_lan_ips() -> list[str]:
     """Detect IPv4 addresses on this PC suitable for LAN communication."""
     ips: list[str] = []
@@ -376,7 +391,32 @@ def interactive_wizard(repository: Path, directory: Path) -> tuple[dict[str, obj
             gpu_id = None
 
     if device.startswith('cuda'):
-        if profile == 'lite':
+        # Proactively check if Docker daemon actually has nvidia runtime registered
+        if not check_docker_nvidia_support():
+            print('\n' + '!' * 80)
+            print('ACHTUNG: NVIDIA GPU(s) erkannt, aber Docker hat das NVIDIA Container Toolkit')
+            print('         noch nicht aktiviert (Error: could not select device driver "nvidia")!')
+            print('\nUm Grafikkarten in Docker nutzen zu können, führe bitte in einem zweiten')
+            print('Terminal folgende Befehle aus:')
+            print('  sudo nvidia-ctk runtime configure --runtime=docker')
+            print('  sudo systemctl restart docker')
+            print('\n(Falls das Toolkit noch nicht installiert ist: sudo apt-get install -y nvidia-container-toolkit)')
+            print('!' * 80 + '\n')
+            action = prompt_choice(
+                'Wie möchtest du fortfahren?\n'
+                '  [1] Toolkit-Befehle ausführen und jetzt mit GPU fortfahren [Standard]\n'
+                '  [2] Stattdessen auf CPU ausweichen (funktioniert sofort ohne Toolkit)\n'
+                'Deine Wahl',
+                ['retry_gpu', 'fallback_cpu'],
+                default=1
+            )
+            if action == 2:
+                device = 'cpu'
+                gpu_id = None
+                gpu_info_str = None
+                print('\nHardware wurde auf CPU umgestellt.')
+
+        if device.startswith('cuda') and profile == 'lite':
             print('\nHinweis: Das sparsame Lite-Modell nutzt eine reine CPU-Laufzeit.')
             print('Für echte GPU-Beschleunigung mit CUDA wird das Originalmodell benötigt.')
             if prompt_yes_no('Möchtest du zum Originalmodell (full) wechseln?', default_yes=True):
@@ -526,45 +566,66 @@ def main(argv: list[str] | None = None) -> int:
     command = ['docker', 'compose', '--env-file', str(directory / '.env'), '-f', str(directory / 'compose.json')]
     try:
         subprocess.run(['docker', 'info'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        action_args = (
-            ['up', '-d', '--build'] if args.action == 'install'
-            else ['up', '-d'] if args.action == 'start'
-            else ['stop'] if args.action == 'stop'
-            else ['down'] + (['--volumes'] if args.delete_models else [])
-        )
-        subprocess.run(command + action_args, check=True)
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        print('FEHLER: Docker ist nicht installiert oder der Docker-Dienst läuft nicht.', file=sys.stderr)
+        return 1
 
-        if args.action == 'install':
+    action_args = (
+        ['up', '-d', '--build'] if args.action == 'install'
+        else ['up', '-d'] if args.action == 'start'
+        else ['stop'] if args.action == 'stop'
+        else ['down'] + (['--volumes'] if args.delete_models else [])
+    )
+    result = subprocess.run(command + action_args)
+    code = getattr(result, 'returncode', 0)
+    if isinstance(code, int) and code != 0:
+        if args.device.startswith('cuda'):
+            print('\n' + '=' * 80, file=sys.stderr)
+            print('HINWEIS ZUR DOCKER GPU-FEHLERMELDUNG:', file=sys.stderr)
+            print('Docker konnte die NVIDIA-Grafikkarte nicht einbinden.', file=sys.stderr)
+            print('Fehler: could not select device driver "nvidia" with capabilities: [[gpu]]', file=sys.stderr)
+            print('\nUrsache: In Docker ist das nvidia-container-toolkit noch nicht registriert.', file=sys.stderr)
+            print('\nSchnell-Lösung (auf Ubuntu/Debian):', file=sys.stderr)
+            print('  1. Toolkit in Docker registrieren und Dienst neu starten:', file=sys.stderr)
+            print('     sudo nvidia-ctk runtime configure --runtime=docker', file=sys.stderr)
+            print('     sudo systemctl restart docker', file=sys.stderr)
+            print('\n  2. Falls das Paket noch nicht auf dem System ist:', file=sys.stderr)
+            print('     sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit', file=sys.stderr)
+            print('     sudo nvidia-ctk runtime configure --runtime=docker', file=sys.stderr)
+            print('     sudo systemctl restart docker', file=sys.stderr)
+            print('\nDanach dieses Installationsskript einfach erneut ausführen:', file=sys.stderr)
+            print('  ./scripts/install-embedding-server.sh', file=sys.stderr)
+            print('=' * 80 + '\n', file=sys.stderr)
+        return result.returncode
+
+    if args.action == 'install':
+        print_summary(
+            directory=directory,
+            key=key,
+            model=model,
+            port=args.port,
+            profile=args.profile,
+            device=args.device,
+            gpu_info=gpu_info_label or (f"GPU {args.gpu_id}" if args.gpu_id is not None else None)
+        )
+    elif args.action == 'start':
+        conn_file = directory / 'connection.json'
+        if conn_file.is_file():
+            data = json.loads(conn_file.read_text())
             print_summary(
                 directory=directory,
-                key=key,
-                model=model,
-                port=args.port,
-                profile=args.profile,
-                device=args.device,
-                gpu_info=gpu_info_label or (f"GPU {args.gpu_id}" if args.gpu_id is not None else None)
+                key=data.get('api_key', ''),
+                model=data.get('model', ''),
+                port=data.get('port', args.port),
+                profile=data.get('profile', 'lite'),
+                device=data.get('device', 'cpu'),
+                gpu_info=f"GPU {data.get('gpu_id')}" if data.get('gpu_id') is not None else None
             )
-        elif args.action == 'start':
-            conn_file = directory / 'connection.json'
-            if conn_file.is_file():
-                data = json.loads(conn_file.read_text())
-                print_summary(
-                    directory=directory,
-                    key=data.get('api_key', ''),
-                    model=data.get('model', ''),
-                    port=data.get('port', args.port),
-                    profile=data.get('profile', 'lite'),
-                    device=data.get('device', 'cpu'),
-                    gpu_info=f"GPU {data.get('gpu_id')}" if data.get('gpu_id') is not None else None
-                )
-            else:
-                print('Dienst gestartet.')
         else:
-            print('Service ' + ('stopped.' if args.action == 'stop' else 'uninstalled.'))
-        return 0
-    except (FileNotFoundError, subprocess.CalledProcessError):
-        print('Docker must be installed and running. See docs/EXTERNAL_EMBEDDING_SERVER.md.', file=sys.stderr)
-        return 1
+            print('Dienst gestartet.')
+    else:
+        print('Service ' + ('stopped.' if args.action == 'stop' else 'uninstalled.'))
+    return 0
 
 
 if __name__ == '__main__':
