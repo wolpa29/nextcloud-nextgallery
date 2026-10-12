@@ -155,6 +155,8 @@ You can optionally append `--language de` or `--language en` to any command.
 
 Identical model names do not guarantee identical vector spaces:
 - In the standard profile, the files in the model directory and installed versions of PyTorch, Transformers, and Sentence Transformers are incorporated into the vector-space ID (`space`).
-- The Full model runtime uses FP32 on CPU and FP16 on NVIDIA CUDA. This precision difference is currently not separately encoded in the space ID.
+- The Full model uses FP32 on CPU and NVIDIA CUDA. FP16 is unsuitable for EmbeddingGemma 2. TF32 is disabled on CUDA so computation also uses FP32.
+- Official PyTorch CPU and CUDA packages of the same release share a space ID. The existing FP32 CPU identity is retained; different library versions, model files and processing settings remain distinct. `/v1/info` reports the installed library versions in `runtime`.
+- Rebuild and restart older GPU services using the updated code, then check the connection in NextGallery. Existing CPU vectors can be retained when compatibility is confirmed.
 - Space ID matching is a safeguard, not a guarantee of bit-exact numerical equality.
 - If space IDs differ, never bypass the compatibility safeguard or prematurely delete vectors. First check model versions, library runtimes, and preprocessing settings. An unreachable server does not imply a model change.

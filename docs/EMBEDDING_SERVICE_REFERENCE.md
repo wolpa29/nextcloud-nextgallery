@@ -155,6 +155,8 @@ Optional kann jedem Befehl `--language de` oder `--language en` mitgegeben werde
 
 Ein übereinstimmender Modellname garantiert noch keine Identität der resultierenden Vektoren:
 - Im Standard-Profil fließen die Dateien im Modellverzeichnis sowie die installierten Versionen von PyTorch, Transformers und Sentence Transformers in die Raum-ID (`space`) ein.
-- Das Originalmodell verwendet auf der CPU FP32 und auf NVIDIA CUDA FP16. Diese Präzisionsdifferenz wird derzeit nicht separat in der Raum-ID kodiert.
+- Das Originalmodell verwendet auf CPU und NVIDIA CUDA FP32. FP16 ist für EmbeddingGemma 2 ungeeignet. Auf CUDA ist TF32 ausgeschaltet, damit die Berechnung ebenfalls mit FP32 erfolgt.
+- Offizielle PyTorch-CPU- und CUDA-Pakete derselben Version erhalten dieselbe Raum-ID. Die bisherige FP32-CPU-Kennung bleibt erhalten; andere Paketversionen, Modellstände und Verarbeitungseinstellungen bleiben unterscheidbar. `/v1/info` nennt die tatsächlich installierten Bibliotheksversionen unter `runtime`.
+- Ältere GPU-Dienste müssen mit dem aktualisierten Code neu gebaut und gestartet werden. Erst danach in NextGallery die Verbindung prüfen. Vorhandene CPU-Vektoren können bei bestätigter Übereinstimmung behalten werden.
 - Eine Übereinstimmung der Raum-ID ist eine Schutzprüfung, keine Garantie für bitgenaue numerische Gleichheit.
 - Bei abweichender Raum-ID niemals die Schutzprüfung umgehen oder voreilig Vektoren löschen. Prüfe zuerst Modellstand, Software-Revisionen und Vorverarbeitungseinstellungen. Ein nicht erreichbarer Server deutet nicht auf einen Modellwechsel hin.

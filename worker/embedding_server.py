@@ -11,6 +11,7 @@ import io
 import json
 import math
 import os
+import re
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
@@ -49,7 +50,7 @@ class Gemma:
 
 
 class GemmaFull:
-    """Original checkpoint, float32 on CPU or float16/float32 on GPU, standard 280-token image budget."""
+    """Original checkpoint, float32 on CPU and GPU, standard 280-token image budget."""
     def __init__(self,args):
         import torch
         import importlib.metadata
@@ -59,12 +60,18 @@ class GemmaFull:
         self.torch=torch
         self.device=device
         weights=checkpoint_digest(args.model_path)
-        dtype=torch.float16 if (device.startswith('cuda') and torch.cuda.is_available()) else torch.float32
+        # EmbeddingGemma 2 does not support float16. Keep the same precision as
+        # existing CPU vectors when moving the original model to a CUDA host.
+        dtype=torch.float32
+        if device.startswith('cuda'):
+            torch.backends.cuda.matmul.allow_tf32=False
+            torch.backends.cudnn.allow_tf32=False
         self.engine=SentenceTransformer(args.model_path,device=device,local_files_only=True,trust_remote_code=False,
             model_kwargs={'torch_dtype':dtype,'attn_implementation':'sdpa'},config_kwargs={'audio_config':None})
-        runtime='|'.join(importlib.metadata.version(n) for n in ('torch','transformers','sentence-transformers'))
+        versions={n:importlib.metadata.version(n) for n in ('torch','transformers','sentence-transformers')}
+        runtime=gemma_full_runtime(versions)
         self.info={'model':args.model,'family':'gemma2','dimensions':768,'modalities':['text','image'],
-            'video':'sampled_frames','profile':'full','precision':'float16' if dtype==torch.float16 else 'float32','vision_tokens':280,'model_sha256':weights,
+            'video':'sampled_frames','profile':'full','precision':'float32','vision_tokens':280,'model_sha256':weights,'runtime':versions,
             'space':hashlib.sha256((weights+'|'+runtime+'|fp32-cpu-vision280-search-v1').encode()).hexdigest()}
     def embed(self,text=None,image=None):
         from PIL import Image
@@ -75,6 +82,17 @@ class GemmaFull:
         if hasattr(result,'cpu'):result=result.cpu()
         values=result[0].tolist() if hasattr(result[0],'tolist') else list(result[0])
         return vector(values)
+
+
+def gemma_full_runtime(versions):
+    # Official CPU/CUDA wheels of the same PyTorch release describe the same
+    # FP32 model space. Retain the established +cpu spelling so existing CPU
+    # vectors keep their identity. Other build tags and release changes remain
+    # distinct; model files, preprocessing and prompts are still fingerprinted.
+    torch_version=versions['torch']
+    if '+' not in torch_version:torch_version+='+cpu'
+    elif re.fullmatch(r'.+\+cu[0-9]+',torch_version):torch_version=torch_version.split('+',1)[0]+'+cpu'
+    return '|'.join((torch_version,versions['transformers'],versions['sentence-transformers']))
 
 
 def checkpoint_digest(directory):

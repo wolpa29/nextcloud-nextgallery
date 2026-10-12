@@ -3,6 +3,8 @@ import io
 import json
 from pathlib import Path
 import tempfile
+import hashlib
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 import sys
@@ -10,7 +12,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'worker'))
 import media_pipeline as p
 import media_ai_embedding as e
 import app_worker as w
-from embedding_server import vector,checkpoint_digest
+from embedding_server import vector,checkpoint_digest,GemmaFull,gemma_full_runtime
 
 class Reporter:
     def __init__(self):self.value={};self.events=[]
@@ -44,6 +46,33 @@ def config():return {'analysis_enabled':False,'user_id':'synthetic','folders':['
 
 class EmbeddingTests(unittest.TestCase):
     def setUp(self):FakeClient.calls=0
+    def test_full_cpu_and_cuda_builds_share_the_fp32_space_without_changing_cpu_identity(self):
+        versions={'torch':'2.14.1+cpu','transformers':'5.19.0','sentence-transformers':'6.1.0'}
+        original='2.14.1+cpu|5.19.0|6.1.0'
+        self.assertEqual(gemma_full_runtime(versions),original)
+        for build in ('2.14.1','2.14.1+cu124','2.14.1+cu130'):
+            self.assertEqual(gemma_full_runtime(dict(versions,torch=build)),original)
+        for package,version in (('torch','2.14.2+cpu'),('torch','2.14.1+custom'),('transformers','5.20.0'),('sentence-transformers','6.2.0')):
+            self.assertNotEqual(gemma_full_runtime(dict(versions,**{package:version})),original)
+
+    def test_full_gpu_uses_fp32_and_preserves_the_existing_cpu_fingerprint(self):
+        from unittest.mock import Mock
+        versions={'torch':'2.14.1','transformers':'5.19.0','sentence-transformers':'6.1.0'}
+        weights='a'*64
+        torch=SimpleNamespace(float32=object(),backends=SimpleNamespace(cuda=SimpleNamespace(matmul=SimpleNamespace(allow_tf32=True)),cudnn=SimpleNamespace(allow_tf32=True)))
+        loader=Mock()
+        args=SimpleNamespace(device='cuda:0',model_path='/synthetic',model='embeddinggemma-2-full',threads=4)
+        with patch.dict(sys.modules,{'torch':torch,'sentence_transformers':SimpleNamespace(SentenceTransformer=loader)}),patch('embedding_server.checkpoint_digest',return_value=weights),patch('importlib.metadata.version',side_effect=versions.__getitem__):
+            engine=GemmaFull(args)
+        self.assertIs(loader.call_args.kwargs['model_kwargs']['torch_dtype'],torch.float32)
+        self.assertEqual(loader.call_args.kwargs['device'],'cuda:0')
+        self.assertFalse(torch.backends.cuda.matmul.allow_tf32)
+        self.assertFalse(torch.backends.cudnn.allow_tf32)
+        self.assertEqual(engine.info['precision'],'float32')
+        self.assertEqual(engine.info['runtime'],versions)
+        original=hashlib.sha256((weights+'|2.14.1+cpu|5.19.0|6.1.0|fp32-cpu-vision280-search-v1').encode()).hexdigest()
+        self.assertEqual(engine.info['space'],original)
+
     def test_independent_embedding_only_no_caption_model_and_no_duplicate_indexing(self):
         with tempfile.TemporaryDirectory() as temp,patch.object(e,'Client',FakeClient),patch.object(w,'NativeSource',return_value=Source()),patch.object(p,'Model',side_effect=AssertionError('Caption model constructed')):
             d=Path(temp);api=API();reporter=Reporter();w.atomic(d/'control.json',{'paused':False})
