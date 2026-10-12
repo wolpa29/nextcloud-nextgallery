@@ -11,5 +11,9 @@ $info=['space'=>str_repeat('a',64)];$config=['max_edge'=>2048,'video_frames'=>10
 $vector=Embeddings::normalize(array_merge([2.],array_fill(0,127,0.)));check($vector[0]===1.);check(strlen(pack('g*',...$vector))===512);
 foreach([array_fill(0,128,0.),array_fill(0,128,NAN),array_fill(0,128,INF),array_fill(0,128,'1'),[1.,2.]] as $bad){try{Embeddings::normalize($bad);throw new \Exception('Invalid vector accepted');}catch(\OCP\AppFramework\OCS\OCSBadRequestException){$count++;}}
 $client=new EmbeddingClient();try{$client->info(['location'=>'external','transport'=>'lmstudio']);throw new \Exception('LM Studio image support invented');}catch(\RuntimeException $e){check($e->getMessage()===EmbeddingClient::LMSTUDIO_MESSAGE);}
+class InfoFixture extends EmbeddingClient {public array $response=[];protected function request(array $config,string $endpoint,?array $body=null,int $timeout=10):array{return $this->response;}}
+$fixture=new InfoFixture();$candidate=['location'=>'external','transport'=>'multimodal','family'=>'gemma2','model'=>'embeddinggemma-2-full','max_edge'=>2048,'video_frames'=>10];
+$valid=['model'=>'embeddinggemma-2-full','family'=>'gemma2','dimensions'=>768,'space'=>str_repeat('b',64),'modalities'=>['image','text']];$fixture->response=$valid;check($fixture->inspect($candidate)['ready']);
+foreach(['model'=>'embeddinggemma-2','family'=>'qwen3_vl','space'=>[],'modalities'=>'text','dimensions'=>'768'] as $field=>$invalid){$fixture->response=array_replace($valid,[$field=>$invalid]);$probe=$fixture->inspect($candidate);check(!$probe['ready']);check(in_array($probe['message'],['Embedding-Modell passt nicht zur Konfiguration. Modell-ID und Modellfamilie prüfen.','Ungültige Embedding-Antwort'],true));}
 echo "$count embedding storage/ranking assertions passed\n";
 }

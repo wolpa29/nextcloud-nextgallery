@@ -111,15 +111,19 @@ class AiAdminController extends Controller {
         if($expected_count!==$this->metadata->count($this->settings->get()['user_id']))return new DataResponse(['error'=>'Die Anzahl der Analysen hat sich geändert. Bitte die Löschbestätigung erneut öffnen.'],409);
         $this->state->setControl('reset');return new DataResponse(['requested'=>true]);
     }
-    public function embeddingTest():DataResponse {
+    public function embeddingTest(array $config=[]):DataResponse {
         if($denied=$this->denied())return $denied;
-        return new DataResponse(($this->embeddingClient??new \OCA\Nextgallery\AI\Service\EmbeddingClient())->inspect($this->settings->workerConfig()['embedding']));
+        try {
+            if($this->embeddings)return new DataResponse($this->processing()->inspect($config?:$this->settings->get()));
+            return new DataResponse(($this->embeddingClient??new \OCA\Nextgallery\AI\Service\EmbeddingClient())->inspect($this->settings->probeConfig($config)['embedding']));
+        }catch(\OCP\AppFramework\OCS\OCSBadRequestException $e){return new DataResponse(['error'=>$e->getMessage()],400);}
     }
-    public function test(): DataResponse {
+    public function test(array $config=[]): DataResponse {
         if ($this->session->getUser() === null) { return new DataResponse(['error'=>'Anmeldung erforderlich'],401); }
         if($denied=$this->denied())return $denied;
         $connection = $this->modelConnection ?? new \OCA\Nextgallery\AI\Service\ModelConnection();
-        return new DataResponse($connection->inspect($this->settings->workerConfig()));
+        try{return new DataResponse($connection->inspect($this->settings->probeConfig($config)));}
+        catch(\OCP\AppFramework\OCS\OCSBadRequestException $e){return new DataResponse(['error'=>$e->getMessage()],400);}
     }
     public function accounts(string $query=''):DataResponse {
         if($denied=$this->denied())return $denied;

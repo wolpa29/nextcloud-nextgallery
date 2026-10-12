@@ -44,7 +44,7 @@ async function init() {
   root.querySelectorAll('[data-embedding-qwen]').forEach(n=>n.hidden=!local||form.elements['embedding.family'].value!=='qwen3_vl');
   renderRequirements(automatic,local);
   const vectorFields=['location','family','model','local_auto_setup','local_profile','local_model_path','local_qwen_source','model_revision','url','max_edge','video_frames'];const changed=config&&vectorFields.some(key=>{const input=form.elements['embedding.'+key];return input&&(input.type==='checkbox'?input.checked:input.type==='number'?Number(input.value):input.value)!==config.embedding[key];});
-  root.querySelectorAll('[data-embedding-rebuild-notice]').forEach(n=>{n.hidden=!(dense&&(lastStatus?.embedding_rebuild?.required||changed&&Number(config?.embedding_total_count)>0));n.textContent=tr('Modellwechsel gilt für alle Benutzer. Beim Speichern bestätigst du den Reset oder behältst nachweislich kompatible Bildvektoren. Die Textsuche bleibt verfügbar.');});
+  root.querySelectorAll('[data-embedding-rebuild-notice]').forEach(n=>{n.hidden=!(dense&&(lastStatus?.embedding_rebuild?.required||changed&&Number(config?.embedding_total_count)>0));n.textContent=tr('Vor dem Speichern kannst du den neuen Dienst prüfen. Bei gleichem Vektorraum bleiben vorhandene Bildvektoren automatisch erhalten.');});
   const provider=!local?'external':(form.elements['embedding.local_profile'].value==='full'?'full':'native');root.querySelectorAll('[data-embedding-provider]').forEach(n=>n.value=provider);
  }
  root.querySelectorAll('[data-embedding-provider]').forEach(select=>select.addEventListener('change',()=>{
@@ -54,16 +54,24 @@ async function init() {
   updateSaveState();if(lastStatus)embeddingSetupStatus(lastStatus);
  }));
  for(const name of ['analysis_enabled','ocr_enabled','embedding.enabled','embedding.location','embedding.family','embedding.local_auto_setup'])$('mai-form').elements[name].addEventListener('change',processingExplanation);
- $('mai-form').elements['embedding.family'].addEventListener('change',()=>{$('mai-form').elements['embedding.model'].value=$('mai-form').elements['embedding.family'].value==='gemma2'?'embeddinggemma-2':'Qwen/Qwen3-VL-Embedding-2B';updateSaveState();});
- $('mai-embedding-test').onclick=async()=>{const button=$('mai-embedding-test');button.disabled=true;const target=$('mai-embedding-result');target.textContent=tr('Embedding-Dienst wird geprüft …');try{const info=await api('embedding-test',{});target.classList.toggle('mai-error',!info.ready);target.textContent=info.ready?tr('Bereit für Bilder, Video-Standbilder und Suchanfragen.')+' '+info.model+' · '+info.dimensions:tr(info.message);}catch(e){target.classList.add('mai-error');target.textContent=e.message;}finally{button.disabled=false;updateSaveState();}};
+ $('mai-form').elements['embedding.family'].addEventListener('change',()=>{$('mai-form').elements['embedding.model'].value=$('mai-form').elements['embedding.family'].value==='gemma2'?(form.elements['embedding.local_profile'].value==='full'?'embeddinggemma-2-full':'embeddinggemma-2'):'Qwen/Qwen3-VL-Embedding-2B';updateSaveState();});
+ $('mai-embedding-test').onclick=async()=>{
+  if(!config||embeddingProbeBusy||saving||choosingModel||!form.reportValidity())return;
+  const snapshot=formSnapshot(),target=$('mai-embedding-result');embeddingProbeBusy=true;embeddingProbeSnapshot=snapshot;target.textContent=tr('Embedding-Dienst wird geprüft …');target.classList.remove('mai-error');updateSaveState();
+  try{const info=await api('embedding-test',{config:formConfig()});if(formSnapshot()!==snapshot)return;
+   target.classList.toggle('mai-error',!info.ready||info.compatibility==='different');
+   target.textContent=info.ready?tr('Bereit für Bilder, Video-Standbilder und Suchanfragen.')+' '+info.model+' · '+info.dimensions+(info.reason?'\n'+tr(info.reason):''):tr(info.message||info.reason);
+  }catch(e){if(formSnapshot()===snapshot){target.classList.add('mai-error');target.textContent=e.message;}}
+  finally{embeddingProbeBusy=false;updateSaveState();}
+ };
  const workspace=window.MediaAIWorkspace.create({root,api,tr,el,configuration:()=>config});
  const form=$('mai-form');
- let savedSnapshot=null,saving=false,saveError=false,choosingModel=false;
+ let savedSnapshot=null,saving=false,saveError=false,choosingModel=false,embeddingProbeBusy=false,modelProbeBusy=false,embeddingProbeSnapshot=null,modelProbeSnapshot=null;
  window.addEventListener('beforeunload',event=>{if(savedSnapshot!==null&&formSnapshot()!==savedSnapshot){event.preventDefault();event.returnValue='';}});
  const formSnapshot=()=>JSON.stringify([...form.elements].filter(i=>i.name&&!i.disabled&&!i.readOnly).map(i=>[i.name,i.type==='checkbox'?i.checked:i.value]));
  function pipelineRunning(kind){return processingState?.pipelines?.[kind]?.running??lastStatus?.pipelines?.[kind]?.state==='running';}
- function settingsBlocked(){
-  if(!config)return false;
+ function blockedPipelines(){
+  const blocked=new Set();if(!config)return [];
   for(const input of form.elements){
    if(!input.name||input.disabled||input.readOnly)continue;
    const [group,key]=input.name.split('.');let previous=key?config[group]?.[key]:config[group];
@@ -73,36 +81,46 @@ async function init() {
    if(Array.isArray(previous))previous=previous.join('\n');
    if(value===(previous??''))continue;
    const kinds=group==='embedding'?['embeddings']:['ocr','ocr_enabled'].includes(group)?['ocr']:['vision','video','analysis_enabled'].includes(group)?['descriptions']:['descriptions','ocr','embeddings'];
-   if(kinds.some(pipelineRunning))return true;
+   for(const kind of kinds)if(pipelineRunning(kind))blocked.add(kind);
   }
-  return false;
+  return [...blocked];
+ }
+ function settingsBlocked(){return blockedPipelines().length>0;}
+ function formConfig(){
+  const value=structuredClone(config);
+  for(const input of form.elements){if(!input.name)continue;let x=input.type==='checkbox'?input.checked:input.type==='number'?Number(input.value):input.value;const parts=input.name.split('.');if(['folders','exclude_folders'].includes(input.name))x=input.value.split('\n').map(x=>x.trim()).filter(Boolean);if(input.dataset.defaultPrompt&&x===config[parts[0]]['default_'+parts[1]])x='';if(parts.length===2)value[parts[0]][parts[1]]=x;else value[parts[0]]=x;}
+  return value;
  }
  function updateSaveState(){
-  const dirty=savedSnapshot!==null&&formSnapshot()!==savedSnapshot;
+  const snapshot=formSnapshot(),dirty=savedSnapshot!==null&&snapshot!==savedSnapshot,blocked=dirty?blockedPipelines():[];
+  for(const [last,id] of [[embeddingProbeSnapshot,'mai-embedding-result'],[modelProbeSnapshot,'mai-model-result']])if(last!==null&&last!==snapshot)$(id).textContent=tr('Eingaben geändert. Verbindung erneut prüfen.');
+  if(modelProbeSnapshot!==null&&modelProbeSnapshot!==snapshot)modelProbe=null;
+  root.querySelectorAll('[data-save-blocked]').forEach(node=>{node.hidden=!blocked.length;node.querySelector('[data-save-blocked-text]').textContent=tr('Zum Speichern zuerst {pipelines} pausieren und den Abschluss der aktuellen Datei abwarten.',{pipelines:blocked.map(kind=>tr({descriptions:'Beschreibungen',ocr:'Texterkennung (OCR)',embeddings:'Visuelle Bildsuche · Embeddings'}[kind])).join(', ')});});
   if(!dirty)saveError=false;
-  const state=savedSnapshot===null?'loading':saving?'saving':dirty?(saveError?'error':'dirty'):'saved';
-  const labels={loading:'Einstellungen werden geladen …',saving:'Wird gespeichert …',dirty:'Ungespeicherte Änderungen',error:'Nicht gespeichert · erneut versuchen',saved:'Gespeichert'};
+  const state=savedSnapshot===null?'loading':saving?'saving':dirty?(saveError?'error':blocked.length?'blocked':'dirty'):'saved';
+  const labels={loading:'Einstellungen werden geladen …',saving:'Wird gespeichert …',dirty:'Ungespeicherte Änderungen',blocked:'Speichern erst nach dem Pausieren möglich',error:'Nicht gespeichert · erneut versuchen',saved:'Gespeichert'};
   root.querySelectorAll('[data-save-status]').forEach(n=>{n.textContent=tr(labels[state]);n.dataset.state=state;});
-  root.querySelectorAll('button[type="submit"][form="mai-form"],#mai-form button[type="submit"]').forEach(b=>b.disabled=!dirty||saving||settingsBlocked());
+  root.querySelectorAll('button[type="submit"][form="mai-form"],#mai-form button[type="submit"]').forEach(b=>b.disabled=!dirty||saving||choosingModel||settingsBlocked());
   $('mai-savebar').hidden=!dirty&&!saving;
-  const setupBusy=lastStatus?.online&&config?.embedding?.enabled&&config.embedding.location==='local'&&['preparing','runtime','downloading','verifying'].includes(lastStatus.embedding_service?.phase);
-  $('mai-embedding-test').disabled=savedSnapshot===null||dirty||saving||setupBusy||(['native','full'].includes($('mai-embedding-provider').value)&&(!lastStatus?.embedding_service?.ready||(lastStatus.embedding_service.profile||'lite')!==selectedProfile()));
-  $('mai-embedding-test').textContent=tr(setupBusy?'Einrichtung läuft …':'Verbindung prüfen');
+  $('mai-embedding-test').disabled=savedSnapshot===null||embeddingProbeBusy||saving||choosingModel;
+  $('mai-test').disabled=savedSnapshot===null||modelProbeBusy||saving||choosingModel;
+  $('mai-embedding-test').textContent=tr(embeddingProbeBusy?'Verbindung wird geprüft …':'Verbindung prüfen');
   processingExplanation();
   renderEmbeddingInstall();
  }
+ root.querySelectorAll('[data-show-processing]').forEach(button=>button.onclick=()=>{workspace.show('settings');$('mai-processing-admin').open=true;$('mai-processing-admin').scrollIntoView({behavior:'smooth',block:'start'});});
  for(const event of ['input','change'])form.addEventListener(event,e=>{if(e.target.name)updateSaveState();});
  function loadForm(){for(const input of form.elements){if(!input.name)continue;const parts=input.name.split('.');let v=parts.length===2?config[parts[0]][parts[1]]:config[parts[0]];if(input.dataset.defaultPrompt)v=v||config[parts[0]]['default_'+parts[1]];if(input.type==='checkbox')input.checked=Boolean(v);else if(Array.isArray(v))input.value=v.join('\n');else input.value=v??'';} form.querySelectorAll('[data-image-edge]').forEach(i=>i.dispatchEvent(new Event('input')));const allowed=config.can_configure_models;form.elements.user_id.readOnly=true; $('mai-model-settings').querySelectorAll('input,select,button').forEach(i=>i.disabled=!allowed);$('mai-model-settings').querySelectorAll('textarea').forEach(i=>{i.readOnly=!allowed;i.dispatchEvent(new Event('input'));});root.querySelectorAll('#mai-embedding-settings input,#mai-embedding-settings select,[data-model-admin]').forEach(i=>i.disabled=!allowed);processingExplanation(); savedSnapshot=formSnapshot();saveError=false;updateSaveState(); }
  async function saveForm(){
   if(!config||saving||choosingModel)return false;if(savedSnapshot===formSnapshot())return true;if(settingsBlocked()||!form.reportValidity())return false;
-  const submittedSnapshot=formSnapshot(),v=structuredClone(config);
-  for(const i of form.elements){if(!i.name)continue;let x=i.type==='checkbox'?i.checked:i.type==='number'?Number(i.value):i.value;const parts=i.name.split('.');if(['folders','exclude_folders'].includes(i.name))x=i.value.split('\n').map(x=>x.trim()).filter(Boolean);if(i.dataset.defaultPrompt&&x===config[parts[0]]['default_'+parts[1]])x='';if(parts.length===2)v[parts[0]][parts[1]]=x;else v[parts[0]]=x;}
+  const submittedSnapshot=formSnapshot(),v=formConfig();
   let embeddingChangeId='',embeddingChangeMode='',embeddingAutoRebuild=false;
   const keys=['location','family','model','local_auto_setup','local_profile','local_model_path','local_qwen_source','model_revision','url','max_edge','video_frames'];
   if(keys.some(key=>v.embedding[key]!==config.embedding[key])){
-   choosingModel=true;try{const preview=await api('embedding-change-preview',{config:v});
-   const choice=await chooseEmbeddingChange(preview);if(!choice||formSnapshot()!==submittedSnapshot)return false;
-   embeddingChangeId=preview.config_id;embeddingChangeMode=choice.mode;embeddingAutoRebuild=choice.rebuild;}finally{choosingModel=false;}
+   choosingModel=true;updateSaveState();try{const preview=await api('embedding-change-preview',{config:v});
+   if(formSnapshot()!==submittedSnapshot)return false;
+   const choice=preview.compatible?{mode:'keep',rebuild:false}:await chooseEmbeddingChange(preview);if(!choice||formSnapshot()!==submittedSnapshot)return false;
+   embeddingChangeId=preview.config_id;embeddingChangeMode=choice.mode;embeddingAutoRebuild=choice.rebuild;}finally{choosingModel=false;updateSaveState();}
   }
   saving=true;saveError=false;updateSaveState();
   try{config=await api('config',{config:v,embedding_change_id:embeddingChangeId,embedding_change_mode:embeddingChangeMode,embedding_auto_rebuild:embeddingAutoRebuild});if(formSnapshot()===submittedSnapshot)loadForm();else savedSnapshot=submittedSnapshot;message('');return true;}
@@ -111,10 +129,13 @@ async function init() {
  }
  form.addEventListener('submit',async e=>{e.preventDefault();try{await saveForm();}catch(error){message(error.message,true);}});
  function chooseEmbeddingChange(preview){
-  const dialog=$('mai-embedding-change');$('mai-embedding-change-text').textContent=tr('Zurücksetzen löscht sofort alle Bildvektoren aller Benutzer und den lokalen Vektor-Verarbeitungsspeicher. Betroffene Dateien: {files} · Konten: {accounts}. Die Bildsuche füllt sich beim Neuaufbau wieder.',{files:Number(preview.files).toLocaleString(i18n.language),accounts:preview.accounts});
+  const dialog=$('mai-embedding-change');$('mai-embedding-change-title').textContent=tr(preview.compatibility==='unverified'?'Embedding-Dienst prüfen':'Embedding-Modell wechseln');$('mai-embedding-change-text').textContent=preview.compatibility==='unverified'?tr('Der Vektorraum konnte noch nicht geprüft werden. Das beweist keinen Modellwechsel. Prüfe die Verbindung; vorhandene Vektoren bleiben beim Abbrechen erhalten.'):tr('Zurücksetzen löscht sofort alle Bildvektoren aller Benutzer und den lokalen Vektor-Verarbeitungsspeicher. Betroffene Dateien: {files} · Konten: {accounts}. Die Bildsuche füllt sich beim Neuaufbau wieder.',{files:Number(preview.files).toLocaleString(i18n.language),accounts:preview.accounts});
   $('mai-embedding-change-keep').disabled=!preview.compatible;
   $('mai-embedding-keep-reason').textContent=tr(preview.compatible?'Gleicher Vektorraum nachgewiesen. Vorhandene Vektoren können weiterverwendet werden.':preview.reason);
   $('mai-embedding-auto-rebuild').checked=true;
+  $('mai-embedding-change-reset').disabled=preview.compatibility==='unverified';
+  $('mai-embedding-auto-rebuild').closest('label').hidden=preview.compatibility==='unverified';
+  $('mai-embedding-auto-rebuild').closest('label').nextElementSibling.hidden=preview.compatibility==='unverified';
   return new Promise(resolve=>{const finish=mode=>{dialog.close();resolve(mode?{mode,rebuild:mode==='reset'&&$('mai-embedding-auto-rebuild').checked}:null);};$('mai-embedding-change-cancel').onclick=()=>finish(null);$('mai-embedding-change-reset').onclick=()=>finish('reset');$('mai-embedding-change-keep').onclick=()=>finish('keep');dialog.oncancel=e=>{e.preventDefault();finish(null);};dialog.showModal();$('mai-embedding-change-cancel').focus();});
  }
  async function processing(){
@@ -124,6 +145,7 @@ async function init() {
    section.querySelector('[data-processing-status]').textContent=tr(value.paused?(value.running?'Läufe gesperrt. Die aktuelle Datei wird noch abgeschlossen.':'Diese Verarbeitung ist durch den Administrator pausiert.'):'Benutzerläufe sind erlaubt.');
    const allow=section.querySelector('[data-processing-action="allow_runs"]'),pause=section.querySelector('[data-processing-action="pause_all"]');
    allow.hidden=!value.paused;allow.disabled=value.running;pause.disabled=value.paused&&!value.running;
+   section.querySelector('[data-processing-accounts-summary]').textContent=tr('{count} Benutzer · {active} aktiv',{count:value.accounts.length,active:value.accounts.filter(row=>row.state==='running'||row.requested).length});
    section.querySelector('[data-processing-accounts]').replaceChildren(...value.accounts.map(row=>el('li',row.user_id+' · '+tr(row.state==='running'?'Läuft':row.requested?'Vorgemerkt':row.paused?'Pausiert':'Bereit'),true)));
   }
  }
@@ -214,7 +236,13 @@ async function init() {
   }
   result.append(cards);
  }
- $('mai-test').addEventListener('click',async()=>{const button=$('mai-test');button.disabled=true;$('mai-model-result').textContent=tr('Verbindung und Modellstatus werden geprüft …');try{modelProbe=await api('test',{});renderModels();}catch(e){modelProbe=null;$('mai-model-result').textContent=e.message;}finally{button.disabled=false;}});
+ $('mai-test').addEventListener('click',async()=>{
+  if(!config||modelProbeBusy||saving||choosingModel||!form.reportValidity())return;
+  const snapshot=formSnapshot();modelProbeBusy=true;modelProbeSnapshot=snapshot;modelProbe=null;$('mai-model-result').textContent=tr('Verbindung und Modellstatus werden geprüft …');updateSaveState();
+  try{const result=await api('test',{config:formConfig()});if(formSnapshot()!==snapshot)return;modelProbe=result;renderModels();}
+  catch(e){if(formSnapshot()===snapshot)$('mai-model-result').textContent=e.message;}
+  finally{modelProbeBusy=false;updateSaveState();}
+ });
  for(const name of ['video.frame_count','vision.model_max_pixels','ocr.model_max_pixels','ocr.max_batch_images'])form.elements[name].addEventListener('input',renderModels);
  const stageName=s=>tr({vision:'Bildanalyse',ocr:'Texterkennung'}[s]||s);
  function embeddingSetupStatus(s){

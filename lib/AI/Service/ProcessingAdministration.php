@@ -7,11 +7,11 @@ use OCP\AppFramework\OCS\OCSBadRequestException;
 class ProcessingAdministration {
  public function __construct(private Settings $settings,private State $state,private Embeddings $vectors,private EmbeddingClient $client){}
  private function ids():array {return array_values(array_unique(array_merge($this->state->accountIds(),$this->vectors->accounts())));}
- private function cache(string $uid):?\SQLite3 {
+ private function cache(string $uid,bool $readOnly=false):?\SQLite3 {
   $file=$this->state->forUser($uid)->directory().'/embeddings.sqlite3';
   if(!is_file($file))return null;
   if(is_link($file))throw new OCSBadRequestException('Embedding-Speicher ist nicht verfügbar.');
-  $db=new \SQLite3($file);$db->enableExceptions(true);$db->busyTimeout(1000);return $db;
+  $db=new \SQLite3($file,$readOnly?SQLITE3_OPEN_READONLY:SQLITE3_OPEN_READWRITE);$db->enableExceptions(true);$db->busyTimeout(1000);return $db;
  }
  public function overview():array {
   $pipelines=[];
@@ -51,24 +51,30 @@ class ProcessingAdministration {
   return array_values(array_intersect(['descriptions','ocr','embeddings'],array_unique($kinds)));
  }
  private function candidate(array $config):array {return $this->settings->save($config,null,false);}
- private function compatible(array $candidate,array $submitted):array {
-  $config=$candidate['embedding'];$config['api_key']=$this->settings->workerConfig()['embedding']['api_key']??'';
-  if(!empty($submitted['embedding']['clear_api_key']))$config['api_key']='';
-  if(($submitted['embedding']['api_key']??'')!=='')$config['api_key']=$submitted['embedding']['api_key'];
+ private function compatible(array $submitted):array {
+  $config=$this->settings->probeConfig($submitted)['embedding'];
   try{
    $info=$this->client->info($config);$space=EmbeddingClient::space($info,$config);
-   foreach($this->vectors->spaces() as $row)if($row['space']!==$space||(int)$row['dimensions']!==$info['dimensions'])return ['compatible'=>false,'reason'=>'Das neue Modell benötigt andere Bildvektoren.'];
-   foreach($this->ids() as $uid){$db=$this->cache($uid);if(!$db)continue;try{$rows=$db->query('SELECT DISTINCT space FROM embeddings');while($row=$rows->fetchArray(SQLITE3_ASSOC))if($row['space']!==$space)return ['compatible'=>false,'reason'=>'Der lokale Verarbeitungsspeicher enthält andere Bildvektoren.'];}finally{$db->close();}}
-   return ['compatible'=>true,'space'=>$space,'dimensions'=>$info['dimensions']];
-  }catch(\Throwable){return ['compatible'=>false,'reason'=>'Der neue Dienst muss erreichbar sein und denselben Vektorraum nachweisen.'];}
+  }catch(\Throwable $error){return ['ready'=>false,'compatible'=>false,'compatibility'=>'unverified','reason'=>$error->getMessage()];}
+  $result=['ready'=>true,'location'=>$config['location'],'model'=>$info['model'],'space'=>$space,'dimensions'=>$info['dimensions'],'video'=>'sampled_frames'];
+  try{
+   foreach($this->vectors->spaces() as $row)if($row['space']!==$space||(int)$row['dimensions']!==$info['dimensions'])return $result+['compatible'=>false,'compatibility'=>'different','reason'=>'Der Dienst ist erreichbar, liefert aber einen anderen Vektorraum. Modellstand, Laufzeit und Bildverarbeitung prüfen.'];
+   foreach($this->ids() as $uid){$db=$this->cache($uid,true);if(!$db)continue;try{$rows=$db->query('SELECT DISTINCT space FROM embeddings');while($row=$rows->fetchArray(SQLITE3_ASSOC))if($row['space']!==$space)return $result+['compatible'=>false,'compatibility'=>'different','reason'=>'Der lokale Verarbeitungsspeicher enthält andere Bildvektoren.'];}finally{$db->close();}}
+   return $result+['compatible'=>true,'compatibility'=>'matching','reason'=>'Gleicher Vektorraum nachgewiesen. Vorhandene Vektoren können weiterverwendet werden.'];
+  }catch(\Throwable){return $result+['compatible'=>false,'compatibility'=>'unverified','reason'=>'Gespeicherte Vektorräume konnten nicht geprüft werden. Es wurden keine Vektoren gelöscht.'];}
+ }
+ public function inspect(array $config):array {
+  $result=$this->compatible($config);
+  if(empty($result['ready']))$result['message']=$result['reason'];
+  return $result;
  }
  private function changeId():string {
   $counts=[];foreach($this->ids() as $uid){$n=0;$db=$this->cache($uid);if($db){try{$n=$db->querySingle('SELECT COUNT(*) FROM embeddings');}finally{$db->close();}}$counts[$uid]=[$this->vectors->count($uid),$n];}ksort($counts);
   return hash('sha256',Settings::embeddingSignature($this->settings->get()).json_encode($counts,JSON_THROW_ON_ERROR));
  }
  public function preview(array $config):array {
-  $candidate=$this->candidate($config);$files=0;foreach($this->vectors->accounts() as $uid)$files+=$this->vectors->count($uid);
-  return ['config_id'=>$this->changeId(),'files'=>$files,'accounts'=>count($this->vectors->accounts())]+$this->compatible($candidate,$config);
+  $match=$this->compatible($config);$files=0;foreach($this->vectors->accounts() as $uid)$files+=$this->vectors->count($uid);
+  return ['config_id'=>$this->changeId(),'files'=>$files,'accounts'=>count($this->vectors->accounts())]+$match;
  }
  public function save(array $config,string $confirmation,string $mode,bool $rebuild):array {
   $settingsLock=fopen($this->state->rootDirectory().'/settings.lock','c');
@@ -86,7 +92,7 @@ class ProcessingAdministration {
    $affected=array_values(array_unique($affected));
    if($changed&&($affected||$cached)){
     if(!hash_equals($this->changeId(),$confirmation)||!in_array($mode,['reset','keep'],true))throw new OCSBadRequestException('Modellwechsel bitte erneut bestätigen.');
-    $match=$mode==='keep'?$this->compatible($candidate,$config):[];
+    $match=$mode==='keep'?$this->compatible($config):[];
     if($mode==='keep'&&empty($match['compatible']))throw new OCSBadRequestException($match['reason']);
     // No worker or HTTP start can pass the global gate during cache/DB/config changes.
     if($mode==='reset'){

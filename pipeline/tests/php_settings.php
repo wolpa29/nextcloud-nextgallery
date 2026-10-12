@@ -43,6 +43,12 @@ check(!str_contains(json_encode($s->publicConfig()),'secret-test'));
 check($s->defaults()['analysis_enabled']===true);check($s->defaults()['embedding']['enabled']===false);check($s->defaults()['embedding']['local_auto_setup']===true);
 $emb=$s->get();$emb['analysis_enabled']=false;$emb['embedding']['enabled']=true;$emb['embedding']['api_key']='synthetic-embedding-secret';$s->save($emb);check($s->workerConfig()['embedding']['api_key']==='synthetic-embedding-secret');check(!str_contains(json_encode($s->publicConfig()),'synthetic-embedding-secret'));check($s->publicConfig()['embedding']['has_api_key']);
 $emb['embedding']['api_key']='';$s->save($emb);check($s->workerConfig()['embedding']['api_key']==='synthetic-embedding-secret');
+$beforeProbe=$c->values;$draft=$s->get();$draft['embedding']['location']='external';$draft['embedding']['url']='http://synthetic.invalid:9379';
+check($s->probeConfig($draft)['embedding']['url']==='http://synthetic.invalid:9379/v1');
+check($s->probeConfig($draft)['embedding']['api_key']==='synthetic-embedding-secret');
+$draft['embedding']['clear_api_key']=true;check($s->probeConfig($draft)['embedding']['api_key']==='');
+$draft['embedding']['api_key']='replacement-key';check($s->probeConfig($draft)['embedding']['api_key']==='replacement-key');
+check($c->values===$beforeProbe);$draft['embedding']['api_key']="bad\nkey";reject(fn()=>$s->probeConfig($draft));check($c->values===$beforeProbe);
 foreach(['enabled'=>'yes','local_auto_setup'=>'true','location'=>'remote','transport'=>'unknown','family'=>'qwen_text','max_edge'=>10,'video_frames'=>0,'local_model_path'=>'relative/path'] as $key=>$invalid){$bad=$emb;$bad['embedding'][$key]=$invalid;$before=$c->values;reject(fn()=>$s->save($bad));check($c->values===$before);}
 $automatic=$emb;$automatic['embedding']['local_model_path']='';$s->save($automatic);check($s->get()['embedding']['local_auto_setup']);check($s->get()['embedding']['model']==='embeddinggemma-2');
 $manual=$automatic;$manual['embedding']['local_auto_setup']=false;reject(fn()=>$s->save($manual));

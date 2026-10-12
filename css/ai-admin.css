@@ -325,3 +325,15 @@
 #media-ai-user .mai-processing-card>p{overflow-wrap:anywhere}
 #media-ai-user .mai-summary-stages{grid-template-columns:repeat(3,minmax(0,1fr))}
 @media(max-width:1050px){#media-ai-user .mai-processing-options{grid-template-columns:1fr;gap:16px}#media-ai-user .mai-processing-card{display:flex;grid-row:auto}#media-ai-user .mai-summary-stages{grid-template-columns:1fr}}
+
+/* Explain quiescence requirements beside each save action and bound account lists. */
+.mai .mai-savebar,.mai .mai-form-footer{flex-wrap:wrap}
+.mai .mai-save-blocked{flex-basis:100%;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-top:8px;font-size:13px;line-height:1.6}
+.mai .mai-save-blocked>span{flex:1;min-width:200px;overflow-wrap:anywhere}
+.mai .mai-processing-accounts{margin-top:16px}
+.mai .mai-processing-accounts>summary{cursor:pointer;min-height:44px;display:flex;align-items:center;gap:10px}
+.mai .mai-processing-accounts>summary::before{content:'›';font-size:20px}
+.mai .mai-processing-accounts[open]>summary::before{transform:rotate(90deg)}
+.mai [data-processing-accounts]{max-height:320px;overflow:auto;padding-left:20px;scrollbar-gutter:stable}
+.mai [data-processing-accounts]>li{padding:6px 0;overflow-wrap:anywhere}
+.mai #mai-embedding-result{white-space:pre-line;line-height:1.6}

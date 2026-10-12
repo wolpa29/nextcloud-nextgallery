@@ -94,6 +94,19 @@ class Settings {
         $value['embedding_config_id']=self::embeddingSignature($value);
         return $value;
     }
+    /** Validate an unsaved form and resolve its keys without persisting anything. */
+    public function probeConfig(array $value = []): array {
+        $saved = $this->workerConfig();
+        if (!$value) { return $saved; }
+        $candidate = $this->save($value, null, false);
+        foreach (['vision', 'ocr', 'embedding'] as $stage) {
+            $candidate[$stage]['api_key'] = $value[$stage]['api_key'] ?? '';
+            if ($candidate[$stage]['api_key'] === '' && empty($value[$stage]['clear_api_key'])) {
+                $candidate[$stage]['api_key'] = $saved[$stage]['api_key'];
+            }
+        }
+        return $candidate;
+    }
     private function paths($value): array {
         if (!is_array($value) || !array_is_list($value) || count($value) > 100) { throw new OCSBadRequestException('Ordnerliste ungültig'); }
         $result = [];
