@@ -106,6 +106,31 @@ class Installer(unittest.TestCase):
                     self.assertEqual(m.main(['--directory',tmp,'--action','start']),0)
                 self.assertEqual({file.name:file.read_bytes() for file in directory.iterdir()},files)
 
+    def test_start_uses_saved_gpu_device_for_nvidia_error_guidance(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory=Path(tmp)
+            m.configure(directory,directory,'full',9381,7,device='cuda',gpu_id='1')
+            with patch.object(m.subprocess,'run',side_effect=[unittest.mock.Mock(returncode=0),unittest.mock.Mock(returncode=1)]), \
+                 patch.object(m.sys.stdin,'isatty',return_value=False),patch('builtins.print') as output:
+                self.assertEqual(m.main(['--directory',tmp,'--action','start']),1)
+            self.assertTrue(any('NVIDIA-Grafikkarte' in str(call) for call in output.call_args_list))
+
+    def test_start_cpu_fallback_preserves_saved_full_profile_port_threads_and_key(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory=Path(tmp)
+            m.configure(directory,directory,'full',9381,7,device='cuda',gpu_id='1')
+            key=(directory/'api-key.txt').read_bytes()
+            with patch.object(m.subprocess,'run',side_effect=[unittest.mock.Mock(returncode=0),unittest.mock.Mock(returncode=1),unittest.mock.Mock(returncode=0)]), \
+                 patch.object(m.sys.stdin,'isatty',return_value=True),patch.object(m,'prompt_choice',return_value=3), \
+                 patch.object(m,'print_summary'),patch('builtins.print'):
+                self.assertEqual(m.main(['--directory',tmp,'--action','start']),0)
+            service=json.loads((directory/'compose.json').read_text())['services']['embedding']
+            self.assertEqual(service['environment']['NEXTGALLERY_EMBEDDING_PROFILE'],'full')
+            self.assertEqual(service['environment']['NEXTGALLERY_EMBEDDING_THREADS'],'7')
+            self.assertEqual(service['environment']['NEXTGALLERY_EMBEDDING_DEVICE'],'cpu')
+            self.assertEqual(service['ports'],['9381:9379'])
+            self.assertEqual((directory/'api-key.txt').read_bytes(),key)
+
     def test_detect_gpus_parses_nvidia_smi(self):
         fake_output='0, NVIDIA GeForce RTX 3080, 10240\n1, NVIDIA GeForce RTX 4090, 24576\n'
         fake_res=unittest.mock.Mock(returncode=0,stdout=fake_output)

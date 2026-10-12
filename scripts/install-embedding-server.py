@@ -735,6 +735,15 @@ def main(argv: list[str] | None = None) -> int:
         )
     elif args.action == 'start':
         repair_saved_gpu_device(directory)
+        saved = json.loads((directory / 'compose.json').read_text())['services']['embedding']
+        environment = saved['environment']
+        args.device = environment.get('NEXTGALLERY_EMBEDDING_DEVICE', 'cpu')
+        args.profile = environment.get('NEXTGALLERY_EMBEDDING_PROFILE', 'lite')
+        args.threads = int(environment.get('NEXTGALLERY_EMBEDDING_THREADS', '4'))
+        args.gpu_id = environment.get('NVIDIA_VISIBLE_DEVICES') if args.device.startswith('cuda') else None
+        connection_file = directory / 'connection.json'
+        if connection_file.is_file():
+            args.port = json.loads(connection_file.read_text()).get('port', args.port)
 
     if args.prepare_only:
         print('Configuration prepared. No model downloaded.')
