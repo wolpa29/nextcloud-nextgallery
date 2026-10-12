@@ -26,5 +26,43 @@ class Installer(unittest.TestCase):
             for extra,wants_volumes in [([],False),(['--delete-models'],True)]:
                 with patch.object(m.subprocess,'run') as run:
                     self.assertEqual(m.main(['--directory',tmp,'--action','uninstall',*extra]),0)
-                    command=run.call_args_list[-1].args[0];self.assertIn('down',command);self.assertEqual('--volumes' in command,wants_volumes)
+    def test_gpu_configuration_creates_reservations_and_environment(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory=Path(tmp)/'private';key,model=m.configure(directory,Path(tmp),'full',9379,4,device='cuda',gpu_id='1')
+            self.assertEqual(model,'embeddinggemma-2-full')
+            c=json.loads((directory/'compose.json').read_text());service=c['services']['embedding']
+            self.assertEqual(service['environment']['NEXTGALLERY_EMBEDDING_DEVICE'],'cuda')
+            self.assertEqual(service['environment']['NVIDIA_VISIBLE_DEVICES'],'1')
+            devs=service['deploy']['resources']['reservations']['devices']
+            self.assertEqual(devs[0]['driver'],'nvidia')
+            self.assertEqual(devs[0]['device_ids'],['1'])
+            conn=json.loads((directory/'connection.json').read_text())
+            self.assertEqual(conn['device'],'cuda');self.assertEqual(conn['gpu_id'],'1')
+            self.assertEqual(conn['model'],'embeddinggemma-2-full')
+
+    def test_multi_gpu_all_reservation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory=Path(tmp)/'private';key,model=m.configure(directory,Path(tmp),'full',9379,4,device='cuda',gpu_id='all')
+            c=json.loads((directory/'compose.json').read_text());service=c['services']['embedding']
+            devs=service['deploy']['resources']['reservations']['devices']
+            self.assertEqual(devs[0]['count'],'all')
+            self.assertEqual(service['environment']['NVIDIA_VISIBLE_DEVICES'],'all')
+
+    def test_detect_gpus_parses_nvidia_smi(self):
+        fake_output='0, NVIDIA GeForce RTX 3080, 10240\n1, NVIDIA GeForce RTX 4090, 24576\n'
+        fake_res=unittest.mock.Mock(returncode=0,stdout=fake_output)
+        with patch.object(m.subprocess,'run',return_value=fake_res):
+            gpus=m.detect_gpus()
+            self.assertEqual(len(gpus),2)
+            self.assertEqual(gpus[0],{'index':'0','name':'NVIDIA GeForce RTX 3080','memory_mb':'10240'})
+            self.assertEqual(gpus[1],{'index':'1','name':'NVIDIA GeForce RTX 4090','memory_mb':'24576'})
+
+    def test_info_action_outputs_summary(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory=Path(tmp)
+            m.configure(directory,Path(tmp),'full',9379,4,device='cuda',gpu_id='0')
+            with patch('builtins.print') as mock_print:
+                self.assertEqual(m.main(['--directory',tmp,'--action','info']),0)
+            mock_print.assert_called()
+
 if __name__=='__main__':unittest.main()

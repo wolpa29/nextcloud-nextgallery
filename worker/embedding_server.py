@@ -49,19 +49,22 @@ class Gemma:
 
 
 class GemmaFull:
-    """Original checkpoint, float32 on CPU, standard 280-token image budget."""
+    """Original checkpoint, float32 on CPU or float16/float32 on GPU, standard 280-token image budget."""
     def __init__(self,args):
         import torch
         import importlib.metadata
         from sentence_transformers import SentenceTransformer
-        torch.set_num_threads(args.threads)
+        device=getattr(args,'device',None) or os.environ.get('NEXTGALLERY_EMBEDDING_DEVICE','cpu')
+        if device=='cpu':torch.set_num_threads(args.threads)
         self.torch=torch
+        self.device=device
         weights=checkpoint_digest(args.model_path)
-        self.engine=SentenceTransformer(args.model_path,device='cpu',local_files_only=True,trust_remote_code=False,
-            model_kwargs={'torch_dtype':torch.float32,'attn_implementation':'sdpa'},config_kwargs={'audio_config':None})
+        dtype=torch.float16 if (device.startswith('cuda') and torch.cuda.is_available()) else torch.float32
+        self.engine=SentenceTransformer(args.model_path,device=device,local_files_only=True,trust_remote_code=False,
+            model_kwargs={'torch_dtype':dtype,'attn_implementation':'sdpa'},config_kwargs={'audio_config':None})
         runtime='|'.join(importlib.metadata.version(n) for n in ('torch','transformers','sentence-transformers'))
         self.info={'model':args.model,'family':'gemma2','dimensions':768,'modalities':['text','image'],
-            'video':'sampled_frames','profile':'full','precision':'float32','vision_tokens':280,'model_sha256':weights,
+            'video':'sampled_frames','profile':'full','precision':'float16' if dtype==torch.float16 else 'float32','vision_tokens':280,'model_sha256':weights,
             'space':hashlib.sha256((weights+'|'+runtime+'|fp32-cpu-vision280-search-v1').encode()).hexdigest()}
     def embed(self,text=None,image=None):
         from PIL import Image
@@ -69,7 +72,9 @@ class GemmaFull:
         kwargs={} if image is not None else {'prompt_name':'SearchQuery'}
         with self.torch.inference_mode():
             result=self.engine.encode([item],normalize_embeddings=True,show_progress_bar=False,**kwargs)
-        return vector(result[0].tolist())
+        if hasattr(result,'cpu'):result=result.cpu()
+        values=result[0].tolist() if hasattr(result[0],'tolist') else list(result[0])
+        return vector(values)
 
 
 def checkpoint_digest(directory):
@@ -162,6 +167,7 @@ def main():
     parser.add_argument('--model',default='embeddinggemma-2'); parser.add_argument('--model-path',required=True)
     parser.add_argument('--model-revision',default=''); parser.add_argument('--qwen-source')
     parser.add_argument('--threads',type=int,default=4); parser.add_argument('--image-tokens',type=int,default=140)
+    parser.add_argument('--device',default=os.environ.get('NEXTGALLERY_EMBEDDING_DEVICE','cpu'))
     args=parser.parse_args(); token=os.environ.get('NEXTGALLERY_EMBEDDING_KEY','')
     if args.host not in ('127.0.0.1','::1','localhost') and not token: parser.error('External service requires NEXTGALLERY_EMBEDDING_KEY')
     engine=(GemmaFull if args.family=='gemma2' and args.profile=='full' else Gemma if args.family=='gemma2' else Qwen)(args)

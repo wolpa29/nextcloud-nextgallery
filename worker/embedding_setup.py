@@ -106,9 +106,10 @@ def read(path):
     except (OSError, ValueError): return {}
 
 
-def identity(profile='lite'):
+def identity(profile='lite',accelerator='cpu'):
     if profile=='full':
-        return hashlib.sha256(FULL_REQUIREMENTS.read_bytes()+FULL_MANIFEST.read_bytes()+REQUIREMENTS.with_name('requirements.txt').read_bytes()+f'{sys.version_info.major}.{sys.version_info.minor}|full-fp32-vision280-v1'.encode()).hexdigest()
+        suffix='|cuda' if accelerator=='cuda' else ''
+        return hashlib.sha256(FULL_REQUIREMENTS.read_bytes()+FULL_MANIFEST.read_bytes()+REQUIREMENTS.with_name('requirements.txt').read_bytes()+f'{sys.version_info.major}.{sys.version_info.minor}|full-fp32-vision280-v1{suffix}'.encode()).hexdigest()
     digest = hashlib.sha256(REQUIREMENTS.read_bytes() + REQUIREMENTS.with_name('requirements.txt').read_bytes()).hexdigest()
     return f'{sys.version_info.major}.{sys.version_info.minor}|{digest}|{MODEL_SHA256}'
 
@@ -260,14 +261,14 @@ def download_full(root, update):
         finally:temp.unlink(missing_ok=True)
     return model
 
-def install(root, profile='lite'):
+def install(root, profile='lite', accelerator='cpu'):
     root.mkdir(mode=0o700, exist_ok=True)
     update = lambda **fields: atomic(root/'setup.json', {**fields, 'updated_at':time.time()})
     with (root/'setup.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         step = 'Python-Umgebung'
         try:
-            expected = identity(profile)
+            expected = identity(profile, accelerator)
             update(phase='runtime', message='Python-Laufzeit wird eingerichtet …')
             runtime = root/'runtime'; python = runtime/'bin/python'
             if read(root/'runtime.json').get('identity') != expected or not python.is_file():
@@ -281,9 +282,14 @@ def install(root, profile='lite'):
                            '--no-input', '--no-cache-dir', '--timeout', '30', '--retries', '2',
                            f'pip=={PIP_VERSION}'], timeout=300)
                 if profile=='full':
-                    step = 'PyTorch-CPU-Pakete installieren'
-                    update(phase='runtime', message='PyTorch-CPU-Pakete werden installiert …')
-                    run_setup([str(python),'-m','pip','install','--only-binary=:all:','--index-url','https://download.pytorch.org/whl/cpu','--disable-pip-version-check','--no-input','--no-cache-dir','--timeout','30','--retries','2','torch==2.14.1','torchvision==0.29.1'],timeout=900)
+                    if accelerator=='cuda':
+                        step = 'PyTorch-CUDA-Pakete installieren'
+                        update(phase='runtime', message='PyTorch-CUDA-Pakete werden installiert …')
+                        run_setup([str(python),'-m','pip','install','--only-binary=:all:','--index-url','https://download.pytorch.org/whl/cu124','--disable-pip-version-check','--no-input','--no-cache-dir','--timeout','60','--retries','2','torch','torchvision'],timeout=1800)
+                    else:
+                        step = 'PyTorch-CPU-Pakete installieren'
+                        update(phase='runtime', message='PyTorch-CPU-Pakete werden installiert …')
+                        run_setup([str(python),'-m','pip','install','--only-binary=:all:','--index-url','https://download.pytorch.org/whl/cpu','--disable-pip-version-check','--no-input','--no-cache-dir','--timeout','30','--retries','2','torch==2.14.1','torchvision==0.29.1'],timeout=900)
                 step = 'Modell-Laufzeit installieren'
                 update(phase='runtime', message='Modell-Laufzeit wird installiert …')
                 run_setup([str(python), '-m', 'pip', 'install', '--only-binary=:all:', '--index-url', 'https://pypi.org/simple',
@@ -304,5 +310,5 @@ def install(root, profile='lite'):
 
 if __name__ == '__main__':
     os.umask(0o077)
-    parser = argparse.ArgumentParser(); parser.add_argument('--directory', type=Path, required=True);parser.add_argument('--profile',choices=['lite','full'],default='lite')
-    args=parser.parse_args();install(args.directory,args.profile)
+    parser = argparse.ArgumentParser(); parser.add_argument('--directory', type=Path, required=True);parser.add_argument('--profile',choices=['lite','full'],default='lite');parser.add_argument('--accelerator',choices=['cpu','cuda'],default='cpu')
+    args=parser.parse_args();install(args.directory,args.profile,args.accelerator)

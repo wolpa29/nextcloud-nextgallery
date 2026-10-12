@@ -1,78 +1,86 @@
-# Externer Embedding-Server
+# Externer Embedding-Server (Docker)
 
-Der Dienst berechnet Bildvektoren und Suchtextvektoren auf einem anderen PC. Nextcloud speichert die Vektoren und kombiniert sie mit der Textsuche. Videos werden über ausgewählte Standbilder verarbeitet. LM Studio kann daneben die Beschreibungen liefern.
+Dieser Dienst berechnet Bild- und Suchtextvektoren auf einem externen Rechner (mit CPU oder NVIDIA-GPU) und entlastet den Nextcloud-Host.
 
-## Voraussetzungen
+---
 
-- Linux mit Docker und Compose, oder Windows/macOS mit [Docker Desktop](https://docs.docker.com/get-started/get-docker/).
-- Python 3 auf dem PC, um das Installationsskript auszuführen.
-- Internet für den einmaligen Modell- und Laufzeitdownload; anschließend bleibt das Modell gespeichert.
-- **Gemma sparsam:** empfohlen 4 CPU-Kerne, 2 GB freier RAM, 2 GB freier Speicher, zusätzlich zum Docker-Image.
-- **Gemma Original:** empfohlen 4 CPU-Kerne, 6 GB freier RAM, 5 GB freier Speicher, zusätzlich zum Docker-Image. Docker Desktop muss genügend RAM zugewiesen bekommen.
-- Keine GPU nötig. Beide Varianten verwenden die CPU. Die Angaben sind Empfehlungen mit Reserve, keine garantierten Mindestwerte.
+## Schnellstart
 
-Die Docker-Lösung verwendet denselben Linux-Dienst auf allen Hostsystemen. Eine echte Windows-/macOS-Installation ist noch nicht separat nachgewiesen.
+### 1. Repository klonen und Assistenten starten
 
-## Installation
-
-Das private Repository einmal auf dem externen PC klonen. Bei GitHub anmelden, wenn der Zugriff danach fragt:
+Auf dem Rechner ausführen, auf dem der Embedding-Server laufen soll:
 
 ```sh
 git clone https://github.com/wolpa29/nextcloud-nextgallery.git
 cd nextcloud-nextgallery
-python3 scripts/install-embedding-server.py
+./scripts/install-embedding-server.sh
 ```
 
-Unter Windows in PowerShell den letzten Befehl als `py -3 scripts/install-embedding-server.py` ausführen. Docker Desktop muss laufen und Linux-Container verwenden.
+*(Unter Windows: `py -3 scripts/install-embedding-server.py`)*
 
-Der Standard installiert **Gemma sparsam**. Für das Originalmodell:
+---
+
+### 2. Installationsschritte im Assistenten
+
+Der Assistent führt dich interaktiv durch 3 Schritte:
+
+1. **Modell wählen:**
+   - **EmbeddingGemma 2 · Original (Full) [Empfohlen]:** Höchste Genauigkeit. Läuft auf CPU oder GPU (NVIDIA CUDA). ~1,5 GB Download.
+   - **EmbeddingGemma 2 · sparsam (Lite):** Geringer Speicherbedarf (~388 MB Download), reine CPU-Berechnung.
+2. **Hardware wählen (CPU oder GPU):**
+   - Erkennt automatisch vorhandene Grafikkarten (`nvidia-smi`).
+   - Bei mehreren Grafikkarten kannst du eine gezielte GPU (z. B. GPU 0, GPU 1), alle GPUs oder reine CPU-Berechnung wählen.
+3. **Port & Start:**
+   - Standard-Port: `9379` (einfach mit Enter bestätigen).
+   - Docker startet den Container im Hintergrund und lädt das Modell herunter.
+
+---
+
+### 3. In Nextcloud eintragen
+
+Am Ende zeigt das Skript deine individuellen Verbindungsdaten an. Öffne in Nextcloud als Administrator:
+👉 **NextGallery → Einstellungen → Visuelle Bildsuche · Embeddings**
+
+| Einstellung in Nextcloud | Einzutragender Wert |
+| :--- | :--- |
+| **Embedding-Dienst** | `Externer Embedding-Server` |
+| **Modellfamilie** | `EmbeddingGemma 2` |
+| **Modell-ID** | `embeddinggemma-2-full` *(bzw. `embeddinggemma-2`)* |
+| **API-Adresse des externen Servers** | `http://<DEINE-PC-IP>:9379/v1` *(vom Skript ermittelte LAN-IP)* |
+| **API-Key** | `<Dein generierter 64-Zeichen-Schlüssel>` |
+
+**Aktivierung abschließen:**
+1. Einstellungen eintragen und unten auf **„Speichern“** klicken.
+2. Auf **„Verbindung prüfen“** klicken (erst nach abgeschlossenem Download meldet der Server *„Bereit“*).
+3. Haken bei **„Für Benutzer aktivieren“** setzen und erneut speichern.
+
+---
+
+## Nützliche Befehle
+
+| Aktion | Befehl |
+| :--- | :--- |
+| **Download-Fortschritt & Logs** | `docker compose --env-file ~/.nextgallery-embedding-server/.env -f ~/.nextgallery-embedding-server/compose.json logs -f` |
+| **Verbindungsdaten erneut anzeigen** | `python3 scripts/install-embedding-server.py --action info` |
+| **Dienst stoppen** | `python3 scripts/install-embedding-server.py --action stop` |
+| **Dienst starten** | `python3 scripts/install-embedding-server.py --action start` |
+| **Deinstallieren** | `python3 scripts/install-embedding-server.py --action uninstall` *(mit `--delete-models` auch Downloads löschen)* |
+
+---
+
+## Automatisierte Optionen (ohne Assistent)
+
+Für automatisierte Setups kann der Assistent über Parameter übersprungen werden:
 
 ```sh
-python3 scripts/install-embedding-server.py --profile full
+# Beispiel: Original-Modell mit GPU 0 auf Port 9379
+python3 scripts/install-embedding-server.py --profile full --device cuda --gpu-id 0
+
+# Beispiel: Sparsames Modell auf CPU mit 4 Threads
+python3 scripts/install-embedding-server.py --profile lite --device cpu --threads 4
 ```
 
-Das Skript erstellt eine eigene Docker-Compose-Einrichtung und einen API-Schlüssel. Es startet den Dienst und den einmaligen Download. Die Modelle liegen in einem eigenen Docker-Volume; Nextcloud-Zugangsdaten werden nicht benötigt. Wiederholtes Ausführen verwendet denselben Schlüssel und vorhandene Downloads. Beide Gemma-Varianten können im Volume gespeichert bleiben.
-
-Fortschritt auf Linux:
-
-```sh
-docker compose --env-file "$HOME/.nextgallery-embedding-server/.env" -f "$HOME/.nextgallery-embedding-server/compose.json" logs -f
-```
-
-Die Nextcloud-Verbindungsdaten stehen in **`.nextgallery-embedding-server/connection.json`** in deinem Benutzerordner. Die Datei enthält einen Schlüssel und bleibt privat. Öffne sie in einem Texteditor.
-
-## In Nextcloud verbinden
-
-Als Administrator **NextGallery → Einstellungen → Visuelle Bildsuche · Embeddings** öffnen:
-
-1. **Externer Embedding-Server** auswählen.
-2. Modellfamilie **EmbeddingGemma 2** wählen.
-3. Modell-ID aus `connection.json` übernehmen: `embeddinggemma-2` für sparsam, `embeddinggemma-2-full` für Original.
-4. Adresse **`http://PC-IP:9379/v1`** eintragen; `PC-IP` durch die LAN-Adresse des PCs ersetzen.
-5. API-Schlüssel aus `connection.json` eintragen.
-6. Speichern und **Verbindung prüfen** drücken. Erst „bereit“ bestätigt, dass der Download abgeschlossen ist und der Dienst antwortet.
-7. Die visuelle Bildsuche aktivieren und speichern. Benutzer starten anschließend ihre eigenen Bildsuch-Läufe.
-
-Der PC muss für die Verarbeitung **und für semantische Suchanfragen** erreichbar sein. Bei einem Ausfall bleibt die Textsuche verfügbar. Der Dienst startet nach einem PC-Neustart mit Docker wieder; unter Docker Desktop muss auch Docker Desktop gestartet sein. Bei Bedarf Port 9379 in der PC-Firewall für den Nextcloud-Host freigeben. Außerhalb des vertrauenswürdigen LANs HTTPS über einen Reverse Proxy verwenden.
-
-## Stoppen, erneut starten, entfernen
-
-```sh
-python3 scripts/install-embedding-server.py --action stop
-python3 scripts/install-embedding-server.py --action start
-python3 scripts/install-embedding-server.py --action uninstall
-```
-
-`uninstall` entfernt den Dienst, bewahrt die Downloads im Docker-Volume. Downloads ebenfalls entfernen:
-
-```sh
-python3 scripts/install-embedding-server.py --action uninstall --delete-models
-```
-
-Diese Aktion betrifft nur das Volume dieses Embedding-Dienstes. Originaldateien, Nextcloud-Daten und andere Docker-Volumes bleiben erhalten. Die Verbindungsdateien im Benutzerordner können anschließend selbst gelöscht werden. Die Download-/Papierkorb-Buttons in Nextcloud verwalten ausschließlich Modelle auf dem Nextcloud-Host.
-
-## Weitere Optionen
-
-Mit `--port 9380`, `--threads 4` oder `--directory PFAD` lassen sich Port, CPU-Threads und das private Einrichtungsverzeichnis wählen. `--prepare-only` erstellt lediglich die Konfiguration und lädt kein Modell herunter.
-
-Qwen3-VL-Embedding bleibt ein eigener Dienst mit der offiziellen Qwen-Laufzeit; dieses einfache Installationsskript richtet derzeit die beiden Gemma-Varianten ein. Reines Qwen3-Text-Embedding und LM Studios Text-Embedding-Endpunkt liefern keine Bildvektoren für diese Pipeline.
+Voraussetzungen:
+- Docker & Docker Compose installiert und aktiv.
+- Für GPU-Beschleunigung: NVIDIA-Treiber und [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html).
+- Port 9379 im lokalen Netzwerk für den Nextcloud-Host freigegeben.
