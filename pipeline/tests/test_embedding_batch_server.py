@@ -1,5 +1,6 @@
 import base64
 import io
+import importlib.metadata
 import json
 from pathlib import Path
 import sys
