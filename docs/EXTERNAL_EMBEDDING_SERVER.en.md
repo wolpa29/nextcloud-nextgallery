@@ -56,3 +56,19 @@ Open **NextGallery → Settings → Visual image search · Embeddings**:
 Choose **Custom model** in the wizard and **Model family → Custom model** in NextGallery. Install your chosen model using its own runtime. The service must embed both image and text requests into the same vector space.
 
 For adapters, API details and troubleshooting, see the [technical reference](EMBEDDING_SERVICE_REFERENCE.en.md).
+
+## Batching and lossless images
+
+Under **External embedding server**, **Images/frames per batch** (1–64) controls how many independent images are computed together. For example, `10` groups ten photos or video frames; every image receives its own vector. The default `1` retains individual requests. Gemma Original and Qwen support real model batching; older services and Gemma Lite still receive individual requests. The final partial batch is processed too. Large PNG requests are split below the existing 24 MiB HTTP limit; GPU out-of-memory retries reduce the computation batch without changing image quality.
+
+Photos and video frames are sent as lossless PNG after downscaling. **Max. image edge (pixels)** still applies; originals are unchanged. PNG cannot restore details already lost in an original JPEG. The updated preparation uses a new vector space (`image-v2-png`); existing vectors are not silently deleted. NextGallery may require the existing rebuild confirmation before the next embedding run. Changing the batch size alone does not require rebuilding.
+
+For an existing installation, after updating the repository:
+
+```bash
+git pull --ff-only
+python3 scripts/install-embedding-server.py --action update
+python3 scripts/install-embedding-server.py --action check
+```
+
+`update` rebuilds the service and replaces its container while keeping the saved model/GPU selection, port, API key and model volume. A plain `start` does not rebuild the container. On Windows, use `py -3` instead of `python3`.

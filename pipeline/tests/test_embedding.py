@@ -22,6 +22,8 @@ class FakeClient:
     calls=0
     def __init__(self,config):self.info={'dimensions':128,'space':'a'*64};self.space=e.space_id(self.info,config)
     def health(self):return self.info
+    def batch_size(self):return 1
+    def images(self,wires,should_stop=lambda:False):return [self.image(wire) for wire in wires]
     def image(self,wire):FakeClient.calls+=1;return [1.]+[0.]*127
 class Source:
     scope='synthetic'

@@ -81,6 +81,12 @@ Liefert Metadaten zum Modell und zum Vektorraum:
 - **`space`**: Stabiler 64-stelliger SHA-256-Fingerabdruck. Sobald Gewichte, Laufzeit, Präzision, Vorverarbeitung oder Prompts den Vektorraum verändern, muss dieser Fingerabdruck wechseln. Übereinstimmende Modellnamen oder Dimensionen allein reichen nicht aus.
 - **`modalities`**: Muss zwingend `["text", "image"]` enthalten.
 
+### Optionale Bild-Batches
+
+Dienste mit echtem Modell-Batching melden zusätzlich `"image_batch": true` und `"max_batch_size": 64` in `/v1/info`. NextGallery verwendet diese Fähigkeit nur für externe Dienste. Fehlt sie, bleiben Einzelanfragen erhalten.
+
+Ein Batch sendet `{ "model": "...", "images": ["BASE64_PNG_1", "BASE64_PNG_2"] }` an `/v1/embed`. Die Antwort enthält `{ "space": "...", "embeddings": [[...], [...]] }`: genau ein normalisierter Vektor pro Eingabe, in gleicher Reihenfolge. `text`, `image` und `images` sind alternative Eingabeformen. Die bestehende Authentifizierung und das 24-MiB-Limit gelten weiterhin. Eine Liste unabhängiger Bilder ist kein einzelner gemeinsamer multimodaler Inhalt.
+
 ### `POST /v1/embed`
 
 Nimmt genau eine Eingabe entgegen (entweder Text oder Bild):

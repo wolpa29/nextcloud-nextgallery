@@ -324,7 +324,7 @@ def prepare_image(data, max_edge, max_pixels, stage, report=None, model_max_pixe
         else:
             image.thumbnail((max_edge, max_edge), Image.Resampling.LANCZOS)
         buffer = io.BytesIO()
-        if stage == "ocr" or model_max_pixels:
+        if stage in ("ocr", "embedding") or model_max_pixels:
             image.save(buffer, format="PNG")
             mime = "image/png"
         else:

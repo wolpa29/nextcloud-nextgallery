@@ -684,7 +684,7 @@ def main(argv: list[str] | None = None) -> int:
                         help=t('Compute device to run inference on.'))
     parser.add_argument('--gpu-id', default=None,
                         help=t('Specific GPU index to use (e.g. 0, 1) or "all".'))
-    parser.add_argument('--action', choices=['install', 'start', 'stop', 'uninstall', 'info', 'check'], default='install',
+    parser.add_argument('--action', choices=['install', 'update', 'start', 'stop', 'uninstall', 'info', 'check'], default='install',
                         help=t('Action to perform.'))
     parser.add_argument('--delete-models', action='store_true',
                         help=t('Also remove downloaded models when uninstalling.'))
@@ -795,7 +795,7 @@ def main(argv: list[str] | None = None) -> int:
             device=args.device,
             gpu_id=args.gpu_id
         )
-    elif args.action == 'start':
+    elif args.action in ('start', 'update'):
         repair_saved_gpu_device(directory)
         saved = json.loads((directory / 'compose.json').read_text())['services']['embedding']
         environment = saved['environment']
@@ -819,7 +819,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     action_args = (
-        ['up', '-d', '--build'] if args.action == 'install'
+        ['up', '-d', '--build', '--force-recreate'] if args.action == 'update'
+        else ['up', '-d', '--build'] if args.action == 'install'
         else ['up', '-d'] if args.action == 'start'
         else ['stop'] if args.action == 'stop'
         else ['down'] + (['--volumes'] if args.delete_models else [])
@@ -829,7 +830,7 @@ def main(argv: list[str] | None = None) -> int:
         result = subprocess.run(command + action_args)
         code = getattr(result, 'returncode', 0)
         if isinstance(code, int) and code != 0:
-            if args.device.startswith('cuda') and (args.action in ('install', 'start')):
+            if args.device.startswith('cuda') and (args.action in ('install', 'start', 'update')):
                 if sys.stdin.isatty():
                     print('\n' + '!' * 80, file=sys.stderr)
                     print(t('WARNING: Docker could not bind the NVIDIA graphics card!'), file=sys.stderr)
@@ -912,7 +913,7 @@ def main(argv: list[str] | None = None) -> int:
             device=args.device,
             gpu_info=gpu_info_label or (f"GPU {args.gpu_id}" if args.gpu_id is not None else None)
         )
-    elif args.action == 'start':
+    elif args.action in ('start', 'update'):
         conn_file = directory / 'connection.json'
         if conn_file.is_file():
             data = json.loads(conn_file.read_text())

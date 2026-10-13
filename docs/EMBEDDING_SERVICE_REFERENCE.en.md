@@ -81,9 +81,15 @@ Returns metadata about the model and its vector space:
 - **`space`**: Stable 64-character SHA-256 fingerprint. Whenever weights, runtime, precision, preprocessing, or task prompts alter the vector space, this fingerprint must change. Matching model names or dimensions alone are not sufficient.
 - **`modalities`**: Must include `["text", "image"]`.
 
+### Optional image batches
+
+Services with real model batching additionally advertise `"image_batch": true` and `"max_batch_size": 64` in `/v1/info`. NextGallery uses this capability for external services only. Without it, individual requests remain in use.
+
+A batch sends `{ "model": "...", "images": ["BASE64_PNG_1", "BASE64_PNG_2"] }` to `/v1/embed`. The response contains `{ "space": "...", "embeddings": [[...], [...]] }`: exactly one normalized vector per input, in the same order. `text`, `image` and `images` are alternative input forms. Existing authentication and the 24 MiB limit still apply. Independent batched images are not a single combined multimodal input.
+
 ### `POST /v1/embed`
 
-Accepts exactly one input payload (either text or image):
+Accepts exactly one input payload (`text`, `image`, or the optional `images` batch):
 
 **Search text:**
 ```json

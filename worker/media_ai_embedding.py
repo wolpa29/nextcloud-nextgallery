@@ -13,7 +13,7 @@ from embedding_server import vector
 
 
 def space_id(info, config):
-    return p.hashlib.sha256((info['space']+'|image-v1|edge='+str(config['max_edge'])+'|frames='+str(config['video_frames'])).encode()).hexdigest()
+    return p.hashlib.sha256((info['space']+'|image-v2-png|edge='+str(config['max_edge'])+'|frames='+str(config['video_frames'])).encode()).hexdigest()
 
 
 class Client:
@@ -22,9 +22,9 @@ class Client:
         self.url=('http://127.0.0.1:9379/v1' if config['location']=='local' else config['url']).rstrip('/')
         self.headers={'Content-Type':'application/json'}
         if config.get('api_key'): self.headers['Authorization']='Bearer '+config['api_key']
-    def call(self, endpoint, body=None):
+    def call(self, endpoint, body=None, maximum=1024*1024):
         wire,_=p.request(self.url+'/'+endpoint,'POST' if body is not None else 'GET',json.dumps(body).encode() if body is not None else None,
-                         self.headers,timeout=self.config['timeout_seconds'],maximum=1024*1024)
+                         self.headers,timeout=self.config['timeout_seconds'],maximum=maximum)
         return json.loads(wire)
     def health(self):
         if self.config.get('transport')=='lmstudio' and self.config['location']=='external':
@@ -50,6 +50,42 @@ class Client:
         values=vector(result['embedding'])
         if result['space']!=self.info['space'] or len(values)!=self.info['dimensions']: raise p.PipelineError('Embedding model changed during run')
         return values
+
+    def batch_size(self):
+        if self.config['location']!='external' or self.info.get('image_batch') is not True:
+            return 1
+        limit=self.info.get('max_batch_size',1)
+        if type(limit) is not int or not 1<=limit<=64:
+            return 1
+        return min(max(1,self.config.get('batch_size',1)),limit)
+
+    def images(self, wires, should_stop=lambda:False):
+        """Keep one output per input, including on older single-image services."""
+        results=[]; batch=[]; size=0
+        def send():
+            if should_stop():raise InferenceCancelled()
+            with hold(self.config.get('_inference_directory'),self.url,should_stop):
+                if len(batch)==1:
+                    return [self._image(base64.b64decode(batch[0]))]
+                response=self.call('embed',{'model':self.config['model'],'images':batch},
+                    maximum=1024+len(batch)*self.info['dimensions']*32)
+                values=response.get('embeddings')
+                if response.get('space')!=self.info['space'] or not isinstance(values,list) or len(values)!=len(batch):
+                    raise p.PipelineError('Invalid embedding batch response')
+                vectors=[vector(value) for value in values]
+                if any(len(value)!=self.info['dimensions'] for value in vectors):
+                    raise p.PipelineError('Embedding model changed during run')
+                return vectors
+        for wire in wires:
+            encoded=base64.b64encode(wire).decode()
+            # Leave room for JSON/model metadata under the existing 24 MiB limit.
+            if batch and (len(batch)>=self.batch_size() or size+len(encoded)>24*1024*1024-4096):
+                results.extend(send());batch=[];size=0
+            if len(encoded)>24*1024*1024-4096:
+                raise p.PipelineError('Embedding image exceeds request limit')
+            batch.append(encoded);size+=len(encoded)+4
+        if batch:results.extend(send())
+        return results
 
 
 class Store:
@@ -78,6 +114,57 @@ def run(config, source, api, directory, observe, should_stop, retry_errors=False
                 store.db.execute('UPDATE embeddings SET active=1,path=? WHERE id=? AND space=?',(item.path,item.key,space))
                 if retry_errors:store.db.execute("UPDATE embeddings SET status='pending' WHERE id=? AND space=? AND status='error'",(item.key,space))
         observe('embedding_inventory_finished',embedding_stats=store.stats(space),embedding_space=space)
+        pending=[]; pending_bytes=0
+        def fail(item,error):
+            nonlocal errors
+            with store.db:store.db.execute("UPDATE embeddings SET status='error',error=? WHERE id=? AND space=?",(str(error)[:300],item.key,space))
+            errors+=1;observe('embedding_error',path=item.path,file_id=item.locator,stage='embedding',error=str(error)[:300],level='error',embedding_stats=store.stats(space))
+        def stage(item,vectors):
+            if not source.unchanged(item):raise p.PipelineError('Media changed during embedding')
+            with store.db:store.db.execute('UPDATE embeddings SET vectors=? WHERE id=? AND space=?',(json.dumps(vectors),item.key,space))
+        def publish(item,vectors):
+            nonlocal processed
+            if not source.unchanged(item):raise p.PipelineError('Media changed during embedding')
+            api.call('publish-embedding',{'file_id':int(item.locator),'etag':item.etag,'space':space,'vectors':vectors})
+            with store.db:
+                store.db.execute("UPDATE embeddings SET status='done',error=NULL WHERE id=? AND space=?",(item.key,space))
+                store.db.execute('DELETE FROM embeddings WHERE id=? AND space<>?',(item.key,space))
+            processed+=1;observe('embedding_finished',path=item.path,file_id=item.locator,stage='embedding',frames=len(vectors),embedding_stats=store.stats(space))
+        def flush():
+            nonlocal pending,pending_bytes
+            if not pending:return
+            if should_stop():raise InferenceCancelled()
+            entries=pending;pending=[];pending_bytes=0
+            started_batch=time.monotonic()
+            try:
+                with hold(config['embedding'].get('_inference_directory'),getattr(client,'url',config['embedding']['url']),should_stop), p.ImageBudget(config.get('image_timeout_seconds',0)):
+                    values=client.images([wire for item,wire in entries],should_stop)
+            except (InferenceCancelled,p.ServiceUnavailable):raise
+            except (p.PipelineError,ValueError,KeyError,TypeError,OSError):
+                # Isolate a bad entry instead of failing all its healthy neighbours.
+                values=[]
+                for item,wire in entries:
+                    if should_stop():raise InferenceCancelled()
+                    try:
+                        with hold(config['embedding'].get('_inference_directory'),getattr(client,'url',config['embedding']['url']),should_stop), p.ImageBudget(config.get('image_timeout_seconds',0)):
+                            values.append(client.image(wire))
+                    except (InferenceCancelled,p.ServiceUnavailable):raise
+                    except (p.PipelineError,ValueError,KeyError,TypeError,OSError) as error:
+                        fail(item,error);values.append(None)
+            staged=[]
+            for (item,wire),value in zip(entries,values):
+                if value is None:continue
+                vectors=[{'frame':0,'seconds':0,'values':value}]
+                try:stage(item,vectors);staged.append((item,vectors))
+                except (p.PipelineError,ValueError,KeyError,TypeError,OSError) as error:fail(item,error)
+            # Persist the entire successful batch before publishing any item.
+            # A publication outage can then resume without recomputing its peers.
+            observe('embedding_batch_finished',images=len(entries),seconds=round(time.monotonic()-started_batch,3))
+            for item,vectors in staged:
+                if should_stop():raise InferenceCancelled()
+                try:publish(item,vectors)
+                except p.ServiceUnavailable:raise
+                except (p.PipelineError,ValueError,KeyError,TypeError,OSError) as error:fail(item,error)
         for item in items:
             if should_stop():break
             row=store.db.execute('SELECT * FROM embeddings WHERE id=? AND space=?',(item.key,space)).fetchone()
@@ -85,32 +172,36 @@ def run(config, source, api, directory, observe, should_stop, retry_errors=False
             observe('stage_start',path=item.path,file_id=item.locator,stage='embedding')
             try:
                 vectors=json.loads(row['vectors']) if row['vectors'] else None
-                if vectors is None:
-                    with hold(config['embedding'].get('_inference_directory'),getattr(client,'url',config['embedding']['url']),should_stop), p.ImageBudget(config.get('image_timeout_seconds',0)), tempfile.TemporaryDirectory(prefix='nextgallery-embedding-') as temp:
-                        if p.is_video(item):
-                            path=Path(temp)/('source'+Path(item.path).suffix)
-                            maximum=config['max_video_download_bytes']
-                            if item.size>maximum:raise p.PipelineError('Video exceeds download limit')
-                            source.download_to(item,path,maximum)
-                            report={}; batch,_,_=p.prepare_video(path,{'frame_count':config['embedding']['video_frames'],'max_edge':config['embedding']['max_edge']},config['max_image_pixels'],report)
-                            vectors=[{'frame':i,'seconds':report['frames'][i]['sample_seconds'],'values':client.image(image[0])} for i,image in enumerate(batch.images)]
-                        else:
-                            if item.size>config['max_download_bytes']:raise p.PipelineError('Image exceeds download limit')
-                            wire,_,_=p.prepare_image(source.read(item,config['max_download_bytes']),config['embedding']['max_edge'],config['max_image_pixels'],'embedding')
-                            vectors=[{'frame':0,'seconds':0,'values':client.image(wire)}]
-                    if not source.unchanged(item):raise p.PipelineError('Media changed during embedding')
-                    with store.db:store.db.execute('UPDATE embeddings SET vectors=? WHERE id=? AND space=?',(json.dumps(vectors),item.key,space))
-                api.call('publish-embedding',{'file_id':int(item.locator),'etag':item.etag,'space':space,'vectors':vectors})
-                with store.db:
-                    store.db.execute("UPDATE embeddings SET status='done',error=NULL WHERE id=? AND space=?",(item.key,space))
-                    store.db.execute('DELETE FROM embeddings WHERE id=? AND space<>?',(item.key,space))
-                processed+=1;observe('embedding_finished',path=item.path,file_id=item.locator,stage='embedding',frames=len(vectors),embedding_stats=store.stats(space))
+                if vectors is not None:
+                    flush();publish(item,vectors);continue
+                if p.is_video(item):
+                    flush()
+                    with p.ImageBudget(config.get('image_timeout_seconds',0)), tempfile.TemporaryDirectory(prefix='nextgallery-embedding-') as temp:
+                        path=Path(temp)/('source'+Path(item.path).suffix)
+                        maximum=config['max_video_download_bytes']
+                        if item.size>maximum:raise p.PipelineError('Video exceeds download limit')
+                        source.download_to(item,path,maximum)
+                        report={}; batch,_,_=p.prepare_video(path,{'frame_count':config['embedding']['video_frames'],'max_edge':config['embedding']['max_edge']},config['max_image_pixels'],report)
+                    with hold(config['embedding'].get('_inference_directory'),getattr(client,'url',config['embedding']['url']),should_stop), p.ImageBudget(config.get('image_timeout_seconds',0)):
+                        values=client.images([image[0] for image in batch.images],should_stop)
+                    vectors=[{'frame':i,'seconds':report['frames'][i]['sample_seconds'],'values':value} for i,value in enumerate(values)]
+                    stage(item,vectors);publish(item,vectors)
+                else:
+                    with p.ImageBudget(config.get('image_timeout_seconds',0)):
+                        if item.size>config['max_download_bytes']:raise p.PipelineError('Image exceeds download limit')
+                        wire,_,_=p.prepare_image(source.read(item,config['max_download_bytes']),config['embedding']['max_edge'],config['max_image_pixels'],'embedding')
+                    wire_size=4*((len(wire)+2)//3)+4
+                    if wire_size>24*1024*1024-4096:raise p.PipelineError('Embedding image exceeds request limit')
+                    if pending and pending_bytes+wire_size>24*1024*1024-4096:flush()
+                    pending.append((item,wire));pending_bytes+=wire_size
+                if len(pending)>=client.batch_size():flush()
             except InferenceCancelled:break
             except p.ServiceUnavailable:raise
-            except (p.PipelineError,ValueError,KeyError,TypeError,OSError) as error:
-                with store.db:store.db.execute("UPDATE embeddings SET status='error',error=? WHERE id=? AND space=?",(str(error)[:300],item.key,space))
-                errors+=1;observe('embedding_error',path=item.path,file_id=item.locator,stage='embedding',error=str(error)[:300],level='error',embedding_stats=store.stats(space))
+            except (p.PipelineError,ValueError,KeyError,TypeError,OSError) as error:fail(item,error)
+        if not should_stop():flush()
         return {'state':'paused' if should_stop() else 'finished','processed':processed,'errors':errors,'stats':store.stats(space),'space':space,'seconds':round(time.monotonic()-started,3)}
+    except InferenceCancelled:
+        return {'state':'paused','processed':processed,'errors':errors,'stats':store.stats(space) if space else {},'space':space,'seconds':round(time.monotonic()-started,3)}
     except (p.PipelineError,ValueError,KeyError,TypeError,OSError) as error:
         return {'state':'deferred','reason':str(error)[:300],'processed':processed,'errors':errors,'stats':store.stats(space) if space else {'pending':0,'error':0,'done':0}}
     finally:store.db.close()

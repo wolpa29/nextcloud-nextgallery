@@ -8,6 +8,19 @@ from unittest.mock import patch
 spec=importlib.util.spec_from_file_location('external_installer',Path(__file__).resolve().parents[2]/'scripts/install-embedding-server.py')
 m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
 class Installer(unittest.TestCase):
+    def test_update_rebuilds_service_with_saved_settings_key_and_model_volume(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory=Path(tmp);m.configure(directory,directory,'full',9381,7,device='cuda',gpu_id='1')
+            preserved={name:(directory/name).read_bytes() for name in ['api-key.txt','.env','compose.json','connection.json']}
+            with patch.object(m.subprocess,'run',return_value=unittest.mock.Mock(returncode=0)) as run,patch.object(m,'print_summary') as summary,patch('builtins.print'):
+                self.assertEqual(m.main(['--directory',tmp,'--action','update']),0)
+            self.assertEqual(run.call_args_list[-1].args[0][-4:],['up','-d','--build','--force-recreate'])
+            self.assertEqual(summary.call_args.kwargs['profile'],'full')
+            self.assertEqual(summary.call_args.kwargs['device'],'cuda')
+            self.assertEqual(summary.call_args.kwargs['port'],9381)
+            self.assertEqual(summary.call_args.kwargs['gpu_info'],'GPU 1')
+            for name,content in preserved.items():self.assertEqual((directory/name).read_bytes(),content)
+
     def test_key_is_reused_with_private_files_and_minimal_container_privileges(self):
         with tempfile.TemporaryDirectory() as tmp:
             directory=Path(tmp)/'private';first=m.configure(directory,Path(tmp),'lite',9379,4)

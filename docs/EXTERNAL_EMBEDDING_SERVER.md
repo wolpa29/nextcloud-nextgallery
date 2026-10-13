@@ -56,3 +56,19 @@ Wenn das Modell noch lädt: [Fortschritt anzeigen](EMBEDDING_SERVICE_REFERENCE.m
 Wähle im Assistenten **Eigenes Modell** und in NextGallery **Modellfamilie → Eigenes Modell**. Installiere dein gewähltes Modell mit seiner eigenen Laufzeit. Der Dienst muss Bild- und Textanfragen in denselben Vektorraum einbetten.
 
 Adapter, API-Details und Fehlerhilfe findest du in der [technischen Referenz](EMBEDDING_SERVICE_REFERENCE.md).
+
+## Batch-Verarbeitung und verlustfreie Bilder
+
+Unter **Externer Embedding-Server** bestimmt **Bilder/Frames pro Batch** (1–64), wie viele unabhängige Bilder gemeinsam gerechnet werden. Beispielsweise `10` sendet zehn Fotos oder Video-Frames pro Batch; jedes Bild erhält seinen eigenen Vektor. Der Standard `1` behält Einzelanfragen bei. Gemma Original und Qwen unterstützen echtes Modell-Batching; ältere Dienste und Gemma Lite werden weiter einzeln angesprochen. Ein unvollständiger letzter Batch wird ebenfalls verarbeitet. Große PNG-Anfragen werden bei Bedarf unter dem bestehenden 24-MiB-HTTP-Limit aufgeteilt; bei GPU-Speichermangel verkleinert der Server den Rechenbatch ohne Qualitätsänderung.
+
+Fotos und Video-Frames werden nach dem Verkleinern verlustfrei als PNG übertragen. **Max. Bildkante (Pixel)** bleibt wirksam; Originaldateien bleiben unverändert. PNG stellt keine bereits im Original-JPEG verlorenen Details wieder her. Die geänderte Bildvorbereitung verwendet einen neuen Vektorraum (`image-v2-png`); vorhandene Vektoren werden nicht stillschweigend gelöscht. Vor dem nächsten Embedding-Lauf kann NextGallery die bestehende Bestätigung für einen Neuaufbau verlangen. Änderungen der Batch-Größe allein erfordern keinen Neuaufbau.
+
+Für eine vorhandene Installation nach dem Aktualisieren des Repositorys:
+
+```bash
+git pull --ff-only
+python3 scripts/install-embedding-server.py --action update
+python3 scripts/install-embedding-server.py --action check
+```
+
+`update` baut den Dienst neu und ersetzt seinen Container. Gespeicherte Modell-/GPU-Auswahl, Port, API-Key und Modellvolume bleiben erhalten. Ein einfaches `start` baut den Container nicht neu. Unter Windows entsprechend `py -3` statt `python3` verwenden.

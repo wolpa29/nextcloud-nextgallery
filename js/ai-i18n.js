@@ -50,6 +50,10 @@ Object.assign(english,{
  'Anleitung für eigene Modelle':'Custom model guide',
  'Eigene Embedding-Modelle benötigen einen externen Dienst.':'Custom embedding models require an external service.'
 });
+Object.assign(english,{
+ 'Bilder/Frames pro Batch':'Images/frames per batch',
+ '1 = einzeln; größere Werte verarbeiten mehrere Bilder gemeinsam. Ältere Dienste werden weiterhin einzeln angesprochen.':'1 = individually; larger values process multiple images together. Older services still receive individual requests.'
+});
 window.MediaAIi18n={
  keywords,
  get language(){return language;},

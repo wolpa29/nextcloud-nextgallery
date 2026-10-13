@@ -26,6 +26,17 @@ def vector(values):
     return [float(x/norm) for x in values]
 
 
+def is_oom(err, torch_mod=None):
+    if torch_mod is not None:
+        oom_cls = getattr(getattr(torch_mod, 'cuda', None), 'OutOfMemoryError', None)
+        if oom_cls and isinstance(err, oom_cls):
+            return True
+    if type(err).__name__ == 'OutOfMemoryError':
+        return True
+    msg = str(err).lower()
+    return 'out of memory' in msg
+
+
 class Gemma:
     def __init__(self, args):
         import litert_lm as lm
@@ -46,6 +57,8 @@ class Gemma:
     def embed(self, text=None, image=None):
         content = self.lm.Content.ImageBytes(image) if image is not None else 'task: search query | text: '+text
         return vector(list(self.engine.compute_embedding(content, options=self.options).embedding))
+    def embed_images(self, images):
+        return [self.embed(image=img) for img in images]
 
 
 
@@ -72,7 +85,31 @@ class GemmaFull:
         runtime=gemma_full_runtime(versions)
         self.info={'model':args.model,'family':'gemma2','dimensions':768,'modalities':['text','image'],
             'video':'sampled_frames','profile':'full','precision':'float32','vision_tokens':280,'model_sha256':weights,'runtime':versions,
+            'image_batch':True,'max_batch_size':64,
             'space':hashlib.sha256((weights+'|'+runtime+'|fp32-cpu-vision280-search-v1').encode()).hexdigest()}
+
+    def _encode_items(self, items):
+        if not items: return []
+        try:
+            with self.torch.inference_mode():
+                result=self.engine.encode(items,batch_size=len(items),normalize_embeddings=True,show_progress_bar=False)
+            if hasattr(result,'cpu'): result=result.cpu()
+            rows=result.tolist() if hasattr(result,'tolist') else list(result)
+            return [vector(r.tolist() if hasattr(r,'tolist') else list(r)) for r in rows]
+        except Exception as e:
+            if len(items)<=1 or not is_oom(e,self.torch):raise
+        # Leave the exception scope first: its traceback may retain GPU tensors.
+        result=None;rows=None
+        if hasattr(self.torch,'cuda') and hasattr(self.torch.cuda,'empty_cache'):
+            self.torch.cuda.empty_cache()
+        mid=len(items)//2
+        return self._encode_items(items[:mid]) + self._encode_items(items[mid:])
+
+    def embed_images(self, images):
+        from PIL import Image
+        items=[{'image':Image.open(io.BytesIO(img)).convert('RGB') if isinstance(img,(bytes,bytearray)) else img.convert('RGB')} for img in images]
+        return self._encode_items(items)
+
     def embed(self,text=None,image=None):
         from PIL import Image
         item={'image':Image.open(io.BytesIO(image)).convert('RGB')} if image is not None else text
@@ -124,12 +161,36 @@ class Qwen:
         weights=checkpoint_digest(args.model_path)
         dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32
         runtime='|'.join(importlib.metadata.version(name) for name in ('transformers','torch','qwen-vl-utils'))+'|'+str(dtype)
+        self.torch = torch
         self.engine = Qwen3VLEmbedder(model_name_or_path=args.model_path, revision=args.model_revision,
             torch_dtype=dtype, attn_implementation='sdpa', max_length=8192)
         dimensions = int(self.engine.model.config.hidden_size)
         self.info = {'model': args.model, 'family': 'qwen3_vl', 'dimensions': dimensions,
                      'modalities': ['text', 'image'], 'video': 'sampled_frames', 'model_revision':args.model_revision, 'model_sha256':weights,
+                     'image_batch': True, 'max_batch_size': 64,
                      'space': hashlib.sha256((args.model+'|'+args.model_revision+'|'+weights+'|'+implementation+'|'+runtime+'|qwen-v1').encode()).hexdigest()}
+
+    def _process_items(self, items):
+        if not items: return []
+        try:
+            with self.torch.inference_mode():
+                results = self.engine.process(items, normalize=True)
+            if hasattr(results, 'cpu'): results = results.cpu()
+            rows = [r.float().cpu().tolist() if hasattr(r, 'float') else (r.tolist() if hasattr(r, 'tolist') else list(r)) for r in results]
+            return [vector(row) for row in rows]
+        except Exception as e:
+            if len(items)<=1 or not is_oom(e,self.torch):raise
+        results=None;rows=None
+        if hasattr(self.torch,'cuda') and hasattr(self.torch.cuda,'empty_cache'):
+            self.torch.cuda.empty_cache()
+        mid=len(items)//2
+        return self._process_items(items[:mid]) + self._process_items(items[mid:])
+
+    def embed_images(self, images):
+        from PIL import Image
+        items = [{'image': Image.open(io.BytesIO(img)).convert('RGB') if isinstance(img,(bytes,bytearray)) else img.convert('RGB')} for img in images]
+        return self._process_items(items)
+
     def embed(self, text=None, image=None):
         from PIL import Image
         item = {'image': Image.open(io.BytesIO(image)).convert('RGB')} if image is not None else {'text':text}
@@ -160,6 +221,15 @@ class Custom:
             raise ValueError('Custom adapter must declare its model, family, dimensions, vector space and image/text support')
         self.info=dict(info)
 
+    def embed_images(self, images):
+        raw = self.engine.embed_images(images) if hasattr(self.engine, 'embed_images') else [self.engine.embed(image=img) for img in images]
+        values = [vector(v) for v in raw]
+        if len(values) != len(images):
+            raise ValueError('Custom adapter returned incorrect count of embeddings')
+        if any(len(v) != self.info['dimensions'] for v in values):
+            raise ValueError('Custom adapter returned a different dimension')
+        return values
+
     def embed(self,text=None,image=None):
         values=vector(self.engine.embed(text=text,image=image))
         if len(values)!=self.info['dimensions']:
@@ -188,21 +258,44 @@ def handler(engine, token):
                 size=int(self.headers.get('Content-Length','0'))
                 if not 0 < size <= 24*1024*1024: return self.send(413,{'error':'Request exceeds limit'})
                 body=json.loads(self.rfile.read(size))
+                if not isinstance(body,dict): raise ValueError('Invalid request body')
                 if body.get('model') != engine.info['model']: raise ValueError('Model mismatch')
-                text=body.get('text'); wire=body.get('image')
-                if (text is None) == (wire is None): raise ValueError('Supply exactly one image or query text')
-                image=None
-                if wire is not None:
+                text=body.get('text'); wire=body.get('image'); wires=body.get('images')
+                if sum(x is not None for x in (text, wire, wires)) != 1:
+                    raise ValueError('Supply exactly one of text, image or images')
+                if text is not None:
+                    if not isinstance(text,str) or not text.strip() or len(text)>200: raise ValueError('Invalid query')
+                    embedding=engine.embed(text=text)
+                    if len(embedding)!=engine.info['dimensions']: raise ValueError('Dimension mismatch')
+                    self.send(200,{'space':engine.info['space'],'embedding':embedding})
+                elif wire is not None:
                     if not isinstance(wire,str): raise ValueError('Invalid image')
                     image=base64.b64decode(wire,validate=True)
                     from PIL import Image
                     with Image.open(io.BytesIO(image)) as im:
                         if im.width*im.height > 16_777_216: raise ValueError('Image exceeds decode limit')
                         im.verify()
-                elif not isinstance(text,str) or not text.strip() or len(text)>200: raise ValueError('Invalid query')
-                embedding=engine.embed(text=text, image=image)
-                if len(embedding)!=engine.info['dimensions']: raise ValueError('Dimension mismatch')
-                self.send(200,{'space':engine.info['space'],'embedding':embedding})
+                    embedding=engine.embed(image=image)
+                    if len(embedding)!=engine.info['dimensions']: raise ValueError('Dimension mismatch')
+                    self.send(200,{'space':engine.info['space'],'embedding':embedding})
+                else:
+                    if not isinstance(wires,list) or not 1 <= len(wires) <= 64:
+                        raise ValueError('Invalid images batch')
+                    from PIL import Image
+                    images=[]
+                    for w in wires:
+                        if not isinstance(w,str): raise ValueError('Invalid image')
+                        img_bytes=base64.b64decode(w,validate=True)
+                        with Image.open(io.BytesIO(img_bytes)) as im:
+                            if im.width*im.height > 16_777_216: raise ValueError('Image exceeds decode limit')
+                            im.verify()
+                        images.append(img_bytes)
+                    embeddings=engine.embed_images(images) if hasattr(engine,'embed_images') else [engine.embed(image=img) for img in images]
+                    if not isinstance(embeddings,list) or len(embeddings)!=len(images):
+                        raise ValueError('Batch count mismatch')
+                    embeddings=[vector(emb) for emb in embeddings]
+                    if any(len(emb)!=engine.info['dimensions'] for emb in embeddings):raise ValueError('Dimension mismatch')
+                    self.send(200,{'space':engine.info['space'],'embeddings':embeddings})
             except (ValueError,KeyError,TypeError, OSError): self.send(400,{'error':'Invalid embedding request'})
             except Exception: self.send(503,{'error':'Embedding inference unavailable'})
     return Handler

@@ -18,7 +18,7 @@ class EmbeddingClient {
   if(!is_array($value))throw new \RuntimeException('Ungültige Embedding-Antwort');return $value;
  }
  public static function space(array $info,array $config):string {
-  return hash('sha256',$info['space'].'|image-v1|edge='.$config['max_edge'].'|frames='.$config['video_frames']);
+  return hash('sha256',$info['space'].'|image-v2-png|edge='.$config['max_edge'].'|frames='.$config['video_frames']);
  }
  public function info(array $config):array {
   if($config['location']==='external' && $config['transport']==='lmstudio')throw new \RuntimeException(self::LMSTUDIO_MESSAGE);

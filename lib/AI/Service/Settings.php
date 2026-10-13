@@ -14,7 +14,7 @@ class Settings {
         return $this->config->getAppValue('nextgallery', 'ai_' . $key, $default);
     }
     public function defaults(): array {
-        return ['enabled' => false, 'analysis_enabled' => true, 'ocr_enabled'=>true, 'embedding' => ['enabled'=>false, 'location'=>'local', 'local_auto_setup'=>true, 'local_profile'=>'lite', 'transport'=>'multimodal', 'family'=>'gemma2', 'model'=>'embeddinggemma-2', 'url'=>'http://10.1.10.78:9379/v1', 'local_model_path'=>'/opt/nextgallery-ai-models/embeddinggemma-2-text-vision-440m.litertlm', 'local_qwen_source'=>'', 'model_revision'=>'', 'max_edge'=>2048, 'video_frames'=>10, 'timeout_seconds'=>120], 'user_id' => 'paul', 'folders' => ['/'], 'exclude_folders' => [],
+        return ['enabled' => false, 'analysis_enabled' => true, 'ocr_enabled'=>true, 'embedding' => ['enabled'=>false, 'location'=>'local', 'local_auto_setup'=>true, 'local_profile'=>'lite', 'transport'=>'multimodal', 'family'=>'gemma2', 'model'=>'embeddinggemma-2', 'url'=>'http://10.1.10.78:9379/v1', 'local_model_path'=>'/opt/nextgallery-ai-models/embeddinggemma-2-text-vision-440m.litertlm', 'local_qwen_source'=>'', 'model_revision'=>'', 'max_edge'=>2048, 'video_frames'=>10, 'batch_size'=>1, 'timeout_seconds'=>120], 'user_id' => 'paul', 'folders' => ['/'], 'exclude_folders' => [],
             'schedule_time' => '03:00', 'timezone' => 'Europe/Vienna', 'image_timeout_seconds' => 600, 'log_days' => 30, 'max_download_bytes' => 67108864,
             'max_image_pixels' => 80000000, 'max_video_download_bytes' => 536870912, 'video' => ['frame_count' => 10],
             'vision' => ['url' => 'http://10.1.10.78:1234/v1', 'model' => 'qwen/qwen3.8-27b',
@@ -126,7 +126,7 @@ class Settings {
             if($result['embedding']['family']==='qwen3_vl'&&(!str_starts_with($result['embedding']['local_qwen_source'],'/')||trim($result['embedding']['model_revision'])===''))throw new OCSBadRequestException('Qwen benötigt einen absoluten Quellcode-Pfad und einen festgelegten Modellstand');
         }
         if($result['embedding']['location']==='local'&&$result['embedding']['family']==='gemma2'&&$result['embedding']['local_auto_setup'])$result['embedding']['model']=$result['embedding']['local_profile']==='full'?'embeddinggemma-2-full':'embeddinggemma-2';
-        foreach(['max_edge'=>[256,4096],'video_frames'=>[1,20],'timeout_seconds'=>[15,7200]] as $key=>[$min,$max])$result['embedding'][$key]=$this->integer($embedding[$key]??$result['embedding'][$key],$min,$max,'embedding/'.$key);
+        foreach(['max_edge'=>[256,4096],'video_frames'=>[1,20],'batch_size'=>[1,64],'timeout_seconds'=>[15,7200]] as $key=>[$min,$max])$result['embedding'][$key]=$this->integer($embedding[$key]??$result['embedding'][$key],$min,$max,'embedding/'.$key);
         $secret=$embedding['api_key']??'';
         if(!is_string($secret)||strlen($secret)>4096||str_contains($secret,"\n")||str_contains($secret,"\r"))throw new OCSBadRequestException('API-Key ungültig');
         return $result['embedding']+['api_key'=>$secret];
