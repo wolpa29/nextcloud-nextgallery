@@ -29,9 +29,31 @@ class AiWorkerController extends Controller {
     #[PublicPage] #[NoCSRFRequired]
     public function inventory(int $cursor = 0,string $kind='descriptions'): DataResponse { if ($denied = $this->denied()) { return $denied; } return new DataResponse($this->inventory->page($cursor,$kind)); }
     #[PublicPage] #[NoCSRFRequired]
-    public function resolve(int $file_id): DataResponse {
+    public function resolve(int $file_id, string $etag = '', bool $local_media = false): DataResponse {
         if ($denied = $this->denied()) { return $denied; } $file = $this->sourceFile($file_id);if($file instanceof DataResponse)return $file;
-        return new DataResponse(['file_id'=>$file->getId(), 'etag'=>$file->getEtag(), 'size'=>$file->getSize()]);
+        if ($etag !== '' && !hash_equals($file->getEtag(), $etag)) { return new DataResponse(['error'=>'Media changed'],409); }
+        $data = ['file_id'=>$file->getId(), 'etag'=>$file->getEtag(), 'size'=>$file->getSize()];
+        if ($local_media) {
+            // Only authenticated embedding workers may read an allowed, current
+            // local video directly. Do not materialize remote/encrypted storage.
+            $data['local_path'] = null;
+            if ($etag === '' || !$this->settings->get()['embedding']['enabled'] || !str_starts_with($file->getMimeType(), 'video/')) {
+                return new DataResponse(['error'=>'Current embedding video required'],400);
+            }
+            $storage = $file->getStorage();
+            if ($storage->isLocal() && !$file->isEncrypted()) {
+                // A jailed node's internal path may omit its underlying folder.
+                $entry = $storage->getCache()->get($file->getId());
+                if ($entry && empty($entry['encrypted'])) {
+                    $path = $storage->getLocalFile($entry->getPath());
+                    $path = is_string($path) ? realpath($path) : false;
+                    if ($path !== false && is_file($path) && is_readable($path) && filesize($path) === $file->getSize()) {
+                        $data['local_path'] = $path;
+                    }
+                }
+            }
+        }
+        $response = new DataResponse($data);$response->addHeader('Cache-Control','no-store');return $response;
     }
     #[PublicPage] #[NoCSRFRequired]
     public function image(int $file_id, string $etag): StreamResponse|DataResponse {

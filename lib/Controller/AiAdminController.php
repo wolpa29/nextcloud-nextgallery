@@ -9,7 +9,7 @@ use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\DataResponse;
 use OCA\Nextgallery\AI\Service\{Settings,State};
 class AiAdminController extends Controller {
-    public function __construct(IRequest $request, private Settings $settings, private State $state, private IUserSession $session, private IGroupManager $groups, private IRootFolder $root, private ?\OCA\Nextgallery\AI\Service\Metadata $metadata = null, private ?\OCA\Nextgallery\AI\Service\Files $files = null, private ?\OCA\Nextgallery\AI\Service\ModelConnection $modelConnection = null, private ?\OCA\Nextgallery\AI\Service\Library $library = null, private ?\OCA\Nextgallery\AI\Service\Embeddings $embeddings = null, private ?\OCA\Nextgallery\AI\Service\EmbeddingClient $embeddingClient = null) { parent::__construct('nextgallery',$request); }
+    public function __construct(IRequest $request, private Settings $settings, private State $state, private IUserSession $session, private IGroupManager $groups, private IRootFolder $root, private ?\OCA\Nextgallery\AI\Service\Metadata $metadata = null, private ?\OCA\Nextgallery\AI\Service\Files $files = null, private ?\OCA\Nextgallery\AI\Service\ModelConnection $modelConnection = null, private ?\OCA\Nextgallery\AI\Service\Library $library = null, private ?\OCA\Nextgallery\AI\Service\Embeddings $embeddings = null, private ?\OCA\Nextgallery\AI\Service\EmbeddingClient $embeddingClient = null,private ?\OCA\Nextgallery\Service\SearchIndex $searchIndex=null) { parent::__construct('nextgallery',$request); }
     private function admin(): bool { $uid=$this->session->getUser()?->getUID(); return $uid!==null && $this->groups->isAdmin($uid); }
     private function denied(): ?DataResponse {
         $uid=$this->session->getUser()?->getUID();
@@ -18,7 +18,7 @@ class AiAdminController extends Controller {
     private function publicConfig(): array {
         $accounts=$this->embeddings?->accounts()??[];$total=0;
         foreach($accounts as $uid)$total+=$this->embeddings->count($uid);
-        return $this->settings->publicConfig()+['can_configure_models'=>$this->admin(),'embedding_count'=>$this->embeddings?->count($this->settings->get()['user_id'])??0,'embedding_total_count'=>$total,'embedding_accounts_count'=>count($accounts),'metadata_count'=>$this->metadata?->count($this->settings->get()['user_id'])??0];
+        return $this->settings->publicConfig()+['can_configure_models'=>$this->admin(),'embedding_count'=>$this->embeddings?->count($this->settings->get()['user_id'])??0,'embedding_total_count'=>$total,'embedding_accounts_count'=>count($accounts),'metadata_count'=>$this->metadata?->count($this->settings->get()['user_id'])??0,'search_index'=>$this->searchIndex?->status($this->session->getUser()->getUID())];
     }
     public function config(): DataResponse { if($denied=$this->denied())return $denied; return new DataResponse($this->publicConfig()); }
     public function save(array $config,string $embedding_change_id='',string $embedding_change_mode='',bool $embedding_auto_rebuild=false): DataResponse {

@@ -5,6 +5,11 @@ from pathlib import Path
 root=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser();p.add_argument('output',type=Path);args=p.parse_args();args.output.mkdir(parents=True,exist_ok=True)
 version=json.loads((root/'package.json').read_text())['version']
+vendor=root/'worker/vendor'
+manifest=json.loads((vendor/'sqlite-vec-manifest.json').read_text())
+assert manifest['version']=='0.1.9'
+for name,digest in manifest['files'].items():
+ assert hashlib.sha256((vendor/name).read_bytes()).hexdigest()==digest, 'Search runtime hash differs: '+name
 sdk=root/'worker/lmstudio'
 if not (sdk/'node_modules/@lmstudio/sdk/package.json').is_file():
  p.error('Missing worker runtime. Run npm ci --ignore-scripts --prefix worker/lmstudio before packaging.')
@@ -22,5 +27,5 @@ def package(name,source,parts,version):
     for file in sorted(path.rglob('*')):
      if file.is_file() and not excluded(file.relative_to(source)):archive.add(file,arcname=name+'/'+str(file.relative_to(source)),recursive=False)
  manifest={'file':target.name,'bytes':target.stat().st_size,'sha256':hashlib.sha256(target.read_bytes()).hexdigest()};print(json.dumps(manifest));return manifest
-main=package('nextgallery',root,['appinfo','lib','templates','css','js','img','worker','LICENSE','NOTICE','docs/licenses','docs/EMBEDDINGS.md','docs/EXTERNAL_EMBEDDING_SERVER.md','docs/EXTERNAL_EMBEDDING_SERVER.en.md','docs/EMBEDDING_SERVICE_REFERENCE.md','docs/EMBEDDING_SERVICE_REFERENCE.en.md','docs/examples'],version)
+main=package('nextgallery',root,['appinfo','lib','templates','css','js','img','worker','LICENSE','NOTICE','docs/licenses','docs/EMBEDDINGS.md','docs/EXTERNAL_EMBEDDING_SERVER.md','docs/EXTERNAL_EMBEDDING_SERVER.en.md','docs/EMBEDDING_SERVICE_REFERENCE.md','docs/EMBEDDING_SERVICE_REFERENCE.en.md','docs/SQL_SEARCH.md','docs/examples'],version)
 (args.output/'manifest.json').write_text(json.dumps([main],indent=2)+'\n')

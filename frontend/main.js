@@ -81,7 +81,7 @@ async function start(){
   let stored=false;const token=Symbol(key);pendingPreferences.set(key,{value,token});updateSettings();
   $('ch-settings-status').textContent=tr('Wird gespeichert …');
   const task=preferenceWork.catch(()=>{}).then(async()=>{
-   try{await persist({[key]:value});stored=true;if(refresh)await load();}
+   try{await persist({[key]:value});stored=true;if(refresh){searchGeneration++;searchRunner.cancel();searchToken=null;searchHistory=[];await load();}}
    finally{if(pendingPreferences.get(key)?.token===token)pendingPreferences.delete(key);updateSettings();}
   });
   preferenceWork=task;
@@ -184,7 +184,7 @@ async function start(){
  $('ch-display').onclick=()=>{$('ch-display-dialog').showModal();};
  $('ch-period').onclick=()=>{$('ch-period-dialog').showModal();};
  root.querySelector('.ch-brand').onclick=e=>{e.preventDefault();changeView('timeline').catch(handleError);};
- root.querySelectorAll('[data-kind]').forEach(b=>b.onclick=()=>{kind=b.dataset.kind;root.querySelectorAll('[data-kind]').forEach(n=>n.classList.toggle('active',n===b));load().catch(handleError);});
+ root.querySelectorAll('[data-kind]').forEach(b=>b.onclick=()=>{kind=b.dataset.kind;searchGeneration++;searchRunner.cancel();searchToken=null;searchHistory=[];if(view==='search'){$('ch-search-status').textContent=tr('Wird geladen …');$('ch-search-prev').disabled=true;$('ch-search-next').disabled=true;}root.querySelectorAll('[data-kind]').forEach(n=>n.classList.toggle('active',n.dataset.kind===kind));load().then(()=>{if(view==='search'&&$('ch-search-query').value.trim())return runSearch();}).catch(handleError);});
  on('ch-grouping','change',()=>changePreference('grouping',$('ch-grouping').value,{refresh:true}));
  on('ch-order','change',()=>changePreference('order',$('ch-order').value,{refresh:true}));
  on('ch-density','change',()=>changePreference('tile',Number($('ch-density').value),{refresh:true}));
@@ -199,7 +199,7 @@ async function start(){
  function galleryName(){const g=settings.galleries?.find(g=>g.id===settings.activeGallery);return g?.name==='Galerie'?tr('Galerie'):g?.name||tr('Galerie');}
  async function switchGallery(id){
   if(switching||pinning)return;if(id===settings.activeGallery){$('ch-galleries-dialog').close();return;}
-  switching=true;positions.set(settings.activeGallery,scroll.scrollTop);version++;searchGeneration++;searchRunner.cancel();
+  searchToken=null;switching=true;positions.set(settings.activeGallery,scroll.scrollTop);version++;searchGeneration++;searchRunner.cancel();
   if(mapHandle){mapViews.set(settings.activeGallery,mapHandle.position());mapHandle.remove();mapHandle=null;}
   closeViewer();$('ch-galleries-dialog').close();message('');
   try{if(offlineMode){const g=settings.galleries.find(g=>g.id===id);if(!g)return;settings={...settings,activeGallery:id,roots:g.roots};if(db)db.close();db=null;releaseUrls();cacheKey=g.cacheKey;await storage();}else await persist({activeGallery:id});await load();$('ch-search-results').replaceChildren();$('ch-search-status').textContent='';}
@@ -246,18 +246,20 @@ async function start(){
  on('ch-live','click',async()=>{offlineMode=false;try{await load();message('');}catch(e){offlineMode=true;await load();throw e;}});
  let searchOffset=0,searchMore=false,searchGeneration=0,searchHistory=[];
  const searchRunner=progressiveSearch({
-  request:(params,signal)=>api('search?'+new URLSearchParams(params),{signal}),
+  request:(params,signal)=>api('search?'+new URLSearchParams({...params,kind}),{signal}),
   show:showSearch
  });
+ let searchToken=null,searchTokenPhase='text';
  async function showSearch(result,{stage,current}){
   if(!current())return;
+  if(stage!=='fallback'){searchToken=result.search_token??null;searchTokenPhase=stage==='hybrid'?'hybrid':'text';}
   const host=$('ch-search-results');
   // Keep existing buttons, focus and open viewers through background enrichment.
   if(stage!=='fallback'){
    const existing=new Map([...host.children].map(tile=>[Number(tile.dataset.id),tile])),tiles=[];
    for(const item of result.items){
     let tile=existing.get(item.id);
-    if(!tile){tile=document.createElement('button');tile.className='ch-search-tile';tile.dataset.id=String(item.id);tile.setAttribute('aria-label',item.name);const image=document.createElement('img');image.alt='';image.loading='lazy';const url=await imageURL(item);if(!current())return;if(url)image.src=url;const name=document.createElement('span');name.textContent=item.name;tile.append(image,name);}
+    if(!tile){tile=document.createElement('button');tile.className='ch-search-tile';tile.dataset.id=String(item.id);tile.setAttribute('aria-label',item.name);const image=document.createElement('img');image.alt='';image.loading='lazy';const unavailable=()=>{const placeholder=document.createElement('span');placeholder.className='ch-unavailable';placeholder.textContent=tr(item.kind==='video'?'Video · keine Vorschau':'Keine Vorschau');image.replaceWith(placeholder);};image.onerror=unavailable;const url=await imageURL(item);if(!current())return;if(url)image.src=url;const name=document.createElement('span');name.textContent=item.name;tile.append(image,name);if(!url)unavailable();}
     tile.onclick=()=>openViewer(item,result.items);tiles.push(tile);
    }
    if(!current())return;
@@ -281,9 +283,10 @@ async function start(){
   const generation=++searchGeneration,query=$('ch-search-query').value.trim();searchOffset=offset;
   searchRunner.cancel();$('ch-search-status').textContent=tr('Wird geladen …');$('ch-search-prev').disabled=true;$('ch-search-next').disabled=true;
   if(offlineMode){const words=query.toLocaleLowerCase().match(/[\p{L}\p{N}_]+/gu)||[];const found=words.length?offlineItems.filter(i=>words.some(w=>(i.name+' '+i.path).toLocaleLowerCase().includes(w))):[];await showSearch({items:found.slice(offset,offset+60),more:found.length>offset+60,next:offset+60},{stage:'text',current:()=>generation===searchGeneration});}
-  else {const job=await searchRunner.run({query,offset,limit:60});job?.finished.catch(handleError);}
+  else if(searchToken){const result=await api('search?'+new URLSearchParams({query,kind,offset,limit:60,phase:searchTokenPhase,search_token:searchToken}));await showSearch(result,{stage:searchTokenPhase,current:()=>generation===searchGeneration});}
+  else {searchToken=null;const job=await searchRunner.run({query,offset,limit:60});job?.finished.catch(handleError);}
  }
- on('ch-search-form','submit',async e=>{e.preventDefault();searchHistory=[];await runSearch();});
+ on('ch-search-form','submit',async e=>{e.preventDefault();searchHistory=[];searchToken=null;await runSearch();});
  on('ch-search-next','click',async()=>{searchHistory.push(searchOffset);await runSearch(Number($('ch-search-next').dataset.offset));});
  on('ch-search-prev','click',()=>runSearch(searchHistory.pop()??0));
  let analysisGeneration=0;

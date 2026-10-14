@@ -9,7 +9,7 @@ use OCA\Nextgallery\AI\Service\{Settings,EmbeddingClient};
 
 /** Read-only mobile search, scoped to readable Android folders, independent of web galleries. */
 class NativeSearch {
- public function __construct(private IDBConnection $db,private IRootFolder $root,private IFilesMetadataManager $metadata,private Settings $settings,private EmbeddingClient $client) {}
+ public function __construct(private IDBConnection $db,private IRootFolder $root,private IFilesMetadataManager $metadata,private Settings $settings,private EmbeddingClient $client,private ?SearchIndex $index=null) {}
 
  private function folders(string $uid,array $roots):array {
   if(!array_is_list($roots)||count($roots)>32)throw new \InvalidArgumentException('Maximal 32 Ordner auswählen.');
@@ -25,80 +25,60 @@ class NativeSearch {
   foreach($folders as $path=>$folder)if(!array_filter(array_keys($selected),fn($parent)=>$parent==='/'||str_starts_with($path,$parent.'/')))$selected[$path]=$folder;
   return [$home,$selected];
  }
- private function mediaMetadata(File $file):array {
-  $out=[];
-  try{
-   $meta=$this->metadata->getMetadata($file->getId());
-   foreach(['photos-exif'=>'exif','photos-ifd0'=>'ifd0','photos-gps'=>'gps'] as $key=>$name)if($meta->hasKey($key))$out[$name]=$meta->getArray($key);
-   if($meta->hasKey('photos-original_datetime'))$out['capture']=$meta->getString('photos-original_datetime');
-   $exif=$out['exif']??[];$out['capture']??=$exif['DateTimeOriginal']??$exif['EXIF']['DateTimeOriginal']??null;
-   if(isset($out['gps']['latitude'],$out['gps']['longitude']))$out['gps']=[(float)$out['gps']['latitude'],(float)$out['gps']['longitude']];
-  }catch(\Throwable){} // Optional cached metadata; never open original media during a search.
-  return $out;
- }
- public function search(string $uid,string $query,array $roots,string $kind='',int $offset=0,int $limit=60,string $phase='hybrid',string $period='',string $mode='folder',string $timezone='UTC'):array {
+ private function engine():SearchIndex {return $this->index??=\OCP\Server::get(SearchIndex::class);}
+ public function search(string $uid,string $query,array $roots,string $kind='',int $offset=0,int $limit=60,string $phase='hybrid',string $period='',string $mode='folder',string $timezone='UTC',string $search_token='',bool $vectorOnly=false):array {
   if(!in_array($phase,['text','hybrid'],true)||!in_array($kind,['','image','video'],true)||$offset<0||$limit<1||$limit>200||mb_strlen($query)>200||($period!==''&&!preg_match('/^\d{4}(?:-\d{2})?(?:-\d{2})?$/D',$period)))throw new \InvalidArgumentException('Suchanfrage ungültig.');
   if(!in_array($mode,['folder','metadata','filename'],true)||!in_array($timezone,\DateTimeZone::listIdentifiers(),true))throw new \InvalidArgumentException('Datumseinstellung ungültig.');
-  [$home,$folders]=$this->folders($uid,$roots);
-  preg_match_all('/[\p{L}\p{N}_]+/u',mb_strtolower(trim($query)),$matches);$words=array_slice(array_values(array_unique($matches[0])),0,16);
-  if(!$words||!$folders)return ['items'=>[],'next'=>null,'more'=>false,'mode'=>'lexical','embedding_state'=>'not_indexed'];
-  $files=[];$paths=[];$etags=[];$metas=[];$lexical=[];$sources=[];
-  foreach($folders as $rootPath=>$folder){
-   for($start=0;;$start+=count($nodes)){
-    $nodes=$folder->search(Search::query($start,500));if(!$nodes)break;
-    foreach($nodes as $file){
-     if(!$file instanceof File||!$file->isReadable()||isset($files[$file->getId()]))continue;
-     $mime=$file->getMimeType();$type=str_starts_with($mime,'image/')?'image':(str_starts_with($mime,'video/')?'video':'');
-     if(!$type||($kind!==''&&$type!==$kind))continue;
-     $path='/'.ltrim($home->getRelativePath($file->getPath()),'/');
-     if($rootPath!=='/'&&!str_starts_with($path,$rootPath.'/'))continue;
-     $meta=$this->mediaMetadata($file);$date=Dates::resolve($path,$meta['capture']??null,$file->getMTime(),$mode,$timezone);
-     if($period!==''&&!str_starts_with($date['date'],$period))continue;
-     $id=$file->getId();$files[$id]=$file;$paths[$id]=$path;$etags[$id]=$file->getEtag();$metas[$id]=$meta;
-     $score=0;foreach($words as $word)foreach([[mb_strtolower($file->getName()),8,'name'],[mb_strtolower($path),2,'path'],[mb_strtolower(json_encode($meta,JSON_INVALID_UTF8_SUBSTITUTE|JSON_UNESCAPED_UNICODE)),1,'metadata']] as [$text,$weight,$src])if(str_contains($text,$word)){$score+=$weight;$sources[$id][$src]=true;}
-     if($score)$lexical[$id]=$score;
-    }
+  if($search_token!==''&&!preg_match('/^[a-f0-9]{32}$/D',$search_token))throw new \InvalidArgumentException('Suchseite ungültig.');
+  [$home,$folders]=$this->folders($uid,$roots);$roots=array_keys($folders);
+  if(!trim($query)||!$roots)return ['items'=>[],'next'=>null,'more'=>false,'mode'=>'lexical','embedding_state'=>'not_indexed','search_backend'=>'sqlite','index_state'=>'ready'];
+  $config=$this->settings->workerConfig()['embedding'];$request=['query'=>trim($query),'roots'=>$roots,'kind'=>$kind,'offset'=>$offset,'limit'=>$limit,'phase'=>'text','period'=>$period,'mode'=>$mode,'timezone'=>$timezone,'embedding_enabled'=>$config['enabled'],'vector_only'=>$vectorOnly,'context'=>Settings::embeddingSignature(['user_id'=>$uid,'embedding'=>$config])];
+  if($search_token!==''){$request['search_token']=$search_token;$request['phase']=$phase;}
+  $index=$this->engine();
+  try{$result=$index->query($uid,$request);}catch(\InvalidArgumentException $e){throw $e;}catch(\Throwable $e){if($search_token!=='')throw $e;$result=$index->fallback($uid,$request);}
+  if($phase==='hybrid'&&$result['embedding_state']==='pending'){
+   $request['phase']='hybrid';
+   try{$info=$this->client->info($config);$request['vector']=$this->client->query($config,trim($query),$info);$request['space']=EmbeddingClient::space($info,$config);}
+   catch(\Throwable){$request['embedding_error']=true;}
+   try{$result=$index->query($uid,$request);}catch(\Throwable){$result=$index->fallback($uid,$request);}
+  }
+  $request['search_token']=$result['search_token']??'';
+  $items=[];$cursor=$offset;$bytes=0;$total=(int)($result['total']??0);$page=$result;
+  do{
+   foreach($page['items'] as $hit){
+    $position=$cursor;$cursor++;
+    try{$file=$home->get($hit['path']);}catch(\OCP\Files\NotFoundException|\OCP\Files\NotPermittedException){continue;}
+    if(!$file instanceof File||!$file->isReadable()||$file->getId()!==(int)$hit['file_id']||!hash_equals($file->getEtag(),$hit['etag']))continue;
+    $path='/'.ltrim($home->getRelativePath($file->getPath()),'/');
+    if($path!==$hit['path']||!array_filter($roots,fn($root)=>$root==='/'||str_starts_with($path,$root.'/')))continue;
+    $meta=$index->metadata($file);$date=Dates::resolve($path,$meta['capture']??null,$file->getMTime(),$mode,$timezone);
+    if($period!==''&&!str_starts_with($date['date'],$period))continue;
+    $row=$this->db->executeQuery('SELECT etag,metadata_json,updated_at,description,tags_text,objects_text,ocr_text FROM *PREFIX*nextgallery_ai_meta WHERE user_id=? AND file_id=?',[$uid,$file->getId()]);
+    try{$ai=$row->fetch();}finally{$row->closeCursor();}
+    $analysis=$ai?json_decode($ai['metadata_json'],true,64,JSON_THROW_ON_ERROR)['analysis']??[]:[];
+    if($ai&&hash_equals($file->getEtag(),$ai['etag'])){$meta['mediaAi']=json_decode($ai['metadata_json'],true,64,JSON_THROW_ON_ERROR);$meta['aiUpdatedAt']=(int)$ai['updated_at'];$meta['aiEtag']=$ai['etag'];}
+    // Cached ranks survive indexing changes, but deleted/stale content never explains a hit.
+    preg_match_all('/[\p{L}\p{N}_]+/u',mb_strtolower(trim($query)),$wordMatches);$words=array_slice(array_unique($wordMatches[0]),0,16);
+    $metadataText=[];$walk=function($value)use(&$walk,&$metadataText){if(is_array($value))foreach($value as $part)$walk($part);elseif(is_string($value)||is_int($value)||is_float($value))$metadataText[]=(string)$value;};$walk($index->metadata($file));
+    $descCurrent=$ai&&hash_equals($file->getEtag(),$analysis['stage_etags']['descriptions']??$ai['etag']);$ocrCurrent=$ai&&hash_equals($file->getEtag(),$analysis['stage_etags']['ocr']??$ai['etag']);
+    $values=['name'=>$file->getName(),'path'=>$path,'metadata'=>implode(' ',$metadataText),'description'=>$descCurrent?$ai['description']:'','tags'=>$descCurrent?$ai['tags_text']:'','objects'=>$descCurrent?$ai['objects_text']:'','ocr'=>$ocrCurrent?$ai['ocr_text']:''];
+    $hit['search_match']['sources']=array_values(array_filter($hit['search_match']['sources'],function($source)use($values,$words,$uid,$file,$result){
+     if($source==='embedding'){
+      $space=$result['embedding_space']??null;if(!is_string($space))return false;
+      $r=$this->db->executeQuery('SELECT file_id FROM *PREFIX*nextgallery_ai_vectors WHERE user_id=? AND file_id=? AND etag=? AND space=? LIMIT 1',[$uid,$file->getId(),$file->getEtag(),$space]);try{return (bool)$r->fetchOne();}finally{$r->closeCursor();}
+     }
+     return isset($values[$source])&&array_filter($words,fn($word)=>str_contains(mb_strtolower($values[$source]),$word));
+    }));
+    if(!$hit['search_match']['sources'])continue;
+    $hit['search_match']['sources']=array_values(array_filter(['name','path','metadata','description','tags','objects','ocr','embedding'],fn($source)=>in_array($source,$hit['search_match']['sources'],true)));
+    $item=['id'=>$file->getId(),'name'=>$file->getName(),'path'=>$path,'kind'=>str_starts_with($file->getMimeType(),'image/')?'image':'video','etag'=>$file->getEtag(),'mtime'=>$file->getMTime(),'size'=>$file->getSize(),'metadata'=>$meta,'search_match'=>$hit['search_match']];
+    $size=strlen(json_encode($item,JSON_THROW_ON_ERROR|JSON_INVALID_UTF8_SUBSTITUTE));
+    if($items&&$bytes+$size>2*1024*1024){$cursor=$position;break 2;}
+    $items[]=$item;$bytes+=$size;if(count($items)>=$limit)break 2;
    }
-  }
-  $config=$this->settings->workerConfig()['embedding'];$vectorRows=[];
-  foreach(array_chunk(array_keys($files),500) as $ids){
-   $q=$this->db->getQueryBuilder();$q->select('file_id','etag','description','tags_text','objects_text','ocr_text','metadata_json','updated_at')->from('nextgallery_ai_meta')->where($q->expr()->eq('user_id',$q->createNamedParameter($uid)))->andWhere($q->expr()->in('file_id',$q->createNamedParameter($ids,\OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT_ARRAY)));
-   $rows=$q->executeQuery();try{while($row=$rows->fetch()){
-    $id=(int)$row['file_id'];if(!hash_equals($etags[$id],$row['etag']))continue;
-    $score=$lexical[$id]??0;foreach($words as $word)foreach(['description'=>['description',1],'tags_text'=>['tags',3],'objects_text'=>['objects',3],'ocr_text'=>['ocr',2]] as $column=>[$src,$weight])if(str_contains(mb_strtolower($row[$column]),$word)){$score+=$weight;$sources[$id][$src]=true;}
-    if($score)$lexical[$id]=$score;
-    $metas[$id]['mediaAi']=json_decode($row['metadata_json'],true,64,JSON_THROW_ON_ERROR);$metas[$id]['aiUpdatedAt']=(int)$row['updated_at'];$metas[$id]['aiEtag']=$row['etag'];
-   }}finally{$rows->closeCursor();}
-   if(!$config['enabled'])continue;
-   $q=$this->db->getQueryBuilder();$q->select('file_id','etag','space','dimensions');
-   if($phase==='hybrid')$q->addSelect('vector_data');
-   $q->from('nextgallery_ai_vectors')->where($q->expr()->eq('user_id',$q->createNamedParameter($uid)))->andWhere($q->expr()->in('file_id',$q->createNamedParameter($ids,\OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT_ARRAY)));
-   $rows=$q->executeQuery();try{while($row=$rows->fetch())if(hash_equals($etags[(int)$row['file_id']],$row['etag']))$vectorRows[]=$row;}finally{$rows->closeCursor();}
-  }
-  uksort($lexical,fn($a,$b)=>($lexical[$b]<=>$lexical[$a])?:($a<=>$b));$ids=array_keys($lexical);$state=!$config['enabled']?'disabled':($vectorRows?'pending':'not_indexed');$mode='lexical';
-  if($phase==='hybrid'&&$vectorRows){
-   try{
-    $info=$this->client->info($config);$vector=$this->client->query($config,trim($query),$info);$space=EmbeddingClient::space($info,$config);$scores=[];
-    foreach($vectorRows as $row){
-     if($row['space']!==$space||(int)$row['dimensions']!==count($vector))continue;
-     $wire=base64_decode($row['vector_data'],true);if($wire===false||strlen($wire)!==4*count($vector))continue;
-     $values=array_values(unpack('g*',$wire));$score=0.;foreach($vector as $i=>$value)$score+=$value*$values[$i];if(!is_finite($score))continue;
-     $id=(int)$row['file_id'];$scores[$id]=isset($scores[$id])?max($scores[$id],$score):$score;
-    }
-    uksort($scores,fn($a,$b)=>($scores[$b]<=>$scores[$a])?:($a<=>$b));$state=$scores?'ready':'model_changed';
-    if($scores){$ids=EmbeddingSearch::merge($ids,array_keys($scores));$mode='hybrid';foreach(array_keys($scores) as $id)$sources[$id]['embedding']=true;}
-   }catch(\Throwable){$state='unavailable';}
-  }
-  $page=array_slice($ids,$offset,$limit);$items=[];$next=$offset;$bytes=0;
-  foreach($page as $id){
-   try{$file=$home->get($paths[$id]);}catch(\OCP\Files\NotFoundException|\OCP\Files\NotPermittedException){$next++;continue;}
-   if(!$file instanceof File||!$file->isReadable()||$file->getId()!==$id||!hash_equals($etags[$id],$file->getEtag())){$next++;continue;}$path='/'.ltrim($home->getRelativePath($file->getPath()),'/');if($path!==$paths[$id]){$next++;continue;}
-   $item=['id'=>$id,'name'=>$file->getName(),'path'=>$path,'kind'=>str_starts_with($file->getMimeType(),'image/')?'image':'video','etag'=>$file->getEtag(),'mtime'=>$file->getMTime(),'size'=>$file->getSize(),'metadata'=>$metas[$id],'search_match'=>['query'=>trim($query),'sources'=>array_values(array_keys($sources[$id]??[]))]];
-   // Full OCR/video metadata can be large. Keep complete records and continue on the next page.
-   $size=strlen(json_encode($item,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_INVALID_UTF8_SUBSTITUTE));
-   if($items&&$bytes+$size>2*1024*1024)break;
-   $items[]=$item;$bytes+=$size;$next++;
-  }
-  return ['items'=>$items,'next'=>$next,'more'=>$next<count($ids),'mode'=>$mode,'embedding_state'=>$state];
+   if($cursor>=$total||!$page['items'])break;
+   $request['offset']=$cursor;$request['limit']=$limit-count($items);$page=($result['index_state']??'ready')==='unavailable'?$index->fallback($uid,$request):$index->query($uid,$request);$total=(int)$page['total'];
+  }while(count($items)<$limit);
+  return ['items'=>$items,'next'=>$cursor<$total?$cursor:null,'more'=>$cursor<$total,'mode'=>$result['mode'],'embedding_state'=>$result['embedding_state'],'search_backend'=>$result['search_backend']??'sqlite','index_state'=>$result['index_state']??'ready','search_token'=>$result['search_token']??null];
  }
 }

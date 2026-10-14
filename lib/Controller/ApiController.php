@@ -28,8 +28,8 @@ class ApiController extends Controller {
  #[NoAdminRequired] #[NoCSRFRequired]
  public function map(int $offset=0,string $gallery=''):JSONResponse {return $this->response($this->library->items($this->uid(),'','',$offset,200,true,$gallery));}
  #[NoAdminRequired] #[NoCSRFRequired]
- public function search(string $query='',string $kind='',int $offset=0,int $limit=60,string $gallery='',string $phase='hybrid'):JSONResponse {
-  try {return $this->response($this->searchService->search($this->uid(),$query,$kind,$offset,$limit,$gallery,$phase));}
+ public function search(string $query='',string $kind='',int $offset=0,int $limit=60,string $gallery='',string $phase='hybrid',string $search_token=''):JSONResponse {
+  try {return $this->response($this->searchService->search($this->uid(),$query,$kind,$offset,$limit,$gallery,$phase,$search_token));}
   catch (\InvalidArgumentException $e) {return new JSONResponse(['error'=>$e->getMessage()],400);}
  }
  #[NoAdminRequired] #[NoCSRFRequired]

@@ -8,6 +8,8 @@ import math
 from pathlib import Path
 import subprocess
 import tempfile
+import time
+from inference_gate import InferenceCancelled
 
 from media_ai_budget import check_budget, network_timeout
 
@@ -69,12 +71,30 @@ def prepare_ocr(data, config, max_pixels, prepare_image, report):
         'Text in Ueberlappungen und Gesamtansicht nicht mehrfach ausgeben; tatsaechlich an verschiedenen Stellen wiederholten Text erhalten. Keine Bereichslabels im Ergebnis.'), 'image/png', exif
 
 
-def command(args, timeout=120, output=None):
+def command(args, timeout=120, output=None, should_stop=None):
     from media_pipeline import PipelineError
     check_budget()
     try:
-        result = subprocess.run(args, stdin=subprocess.DEVNULL, stdout=output if output is not None else subprocess.PIPE,
-                                stderr=subprocess.PIPE, timeout=network_timeout(timeout), check=True)
+        if should_stop is None:
+            result = subprocess.run(args, stdin=subprocess.DEVNULL, stdout=output if output is not None else subprocess.PIPE,
+                                    stderr=subprocess.PIPE, timeout=network_timeout(timeout), check=True)
+        else:
+            if should_stop():raise InferenceCancelled()
+            deadline=time.monotonic()+network_timeout(timeout)
+            process=subprocess.Popen(args,stdin=subprocess.DEVNULL,stdout=output if output is not None else subprocess.PIPE,stderr=subprocess.PIPE)
+            try:
+                while True:
+                    if should_stop():raise InferenceCancelled()
+                    remaining=min(deadline-time.monotonic(),network_timeout(timeout))
+                    if remaining<=0:raise subprocess.TimeoutExpired(args,timeout)
+                    try:wire,errors=process.communicate(timeout=min(.25,remaining))
+                    except subprocess.TimeoutExpired:continue
+                    if process.returncode:raise subprocess.CalledProcessError(process.returncode,args,output=wire,stderr=errors)
+                    result=subprocess.CompletedProcess(args,0,wire,errors)
+                    break
+            finally:
+                if process.poll() is None:
+                    process.kill();process.communicate()
     except subprocess.TimeoutExpired:
         check_budget()
         raise PipelineError('Video decoder timed out') from None
@@ -92,16 +112,16 @@ INPUT_OPTIONS = ['-protocol_whitelist', 'file,pipe', '-format_whitelist', 'mov,m
 VIDEO_SAMPLING_REVISION = 'video-endpoints-nearest-v2'
 
 
-def video_timeline(path, max_pixels):
+def video_timeline(path, max_pixels, timeout=120, should_stop=None, decoder_threads=1):
     """Decode frame timestamps, without retaining frames or a large JSON tree."""
     from media_pipeline import PipelineError
     timestamps = array('d')
     last_duration = None
     with tempfile.TemporaryFile() as output:
-        command(['ffprobe', '-v', 'error', '-threads', '1', *INPUT_OPTIONS,
+        command(['ffprobe', '-v', 'error', '-threads', str(decoder_threads), *INPUT_OPTIONS,
             '-select_streams', 'v:0', '-show_frames', '-show_entries',
             'frame=best_effort_timestamp_time,width,height,duration_time,pkt_duration_time:frame_side_data=',
-            '-of', 'compact=p=1:nk=0', str(path)], output=output)
+            '-of', 'compact=p=1:nk=0', str(path)], timeout=timeout, output=output,should_stop=should_stop)
         output.seek(0)
         for line in output:
             check_budget()
@@ -156,8 +176,15 @@ def video_samples(timestamps, count):
 def prepare_video(path, config, max_pixels, report):
     from PIL import Image
     from media_pipeline import PipelineError
+    timeout = config.get('decoder_timeout_seconds',120)
+    should_stop = config.get('_should_stop')
+    decoder_threads = config.get('decoder_threads',1)
+    if type(decoder_threads) is not int or not 1 <= decoder_threads <= 4:
+        raise PipelineError('Invalid video decoder thread limit (1-4)')
+    if type(timeout) not in (int,float) or not math.isfinite(timeout) or timeout <= 0:
+        raise PipelineError('Invalid video decoder time limit')
     probe = json.loads(command(['ffprobe', '-v', 'error', *INPUT_OPTIONS, '-select_streams', 'v:0',
-        '-show_entries', 'stream=width,height,duration,nb_frames:format=duration', '-of', 'json', str(path)]))
+        '-show_entries', 'stream=width,height,duration,nb_frames:format=duration', '-of', 'json', str(path)],timeout=timeout,should_stop=should_stop))
     streams = probe.get('streams', [])
     if not streams:
         raise PipelineError('Video has no decodable video stream')
@@ -168,7 +195,10 @@ def prepare_video(path, config, max_pixels, report):
     count = config.get('frame_count', 10)
     if type(count) is not int or not 1 <= count <= 20:
         raise PipelineError('Invalid video frame count (1-20)')
-    timestamps, last_duration = video_timeline(path, max_pixels)
+    # Bound extra frame buffers for unusually large frames; normal phone/4K
+    # videos can use up to four decoder threads without changing sampling.
+    if width * height > 3840 * 2160:decoder_threads=1
+    timestamps, last_duration = video_timeline(path, max_pixels,timeout,should_stop,decoder_threads)
     samples = video_samples(timestamps, count)
     # Container duration/count can be absent, rounded or include trailing audio.
     # Sampling is based exclusively on actual decoded frame timestamps.
@@ -187,10 +217,10 @@ def prepare_video(path, config, max_pixels, report):
     with tempfile.TemporaryDirectory(prefix='media-ai-frames-') as temporary:
         # Select by decoded index in a single pass. Seeking to a rounded time
         # could return the next frame or skip the very last one again.
-        command(['ffmpeg', '-nostdin', '-v', 'error', '-threads', '1', *INPUT_OPTIONS,
+        command(['ffmpeg', '-nostdin', '-v', 'error', '-threads', str(decoder_threads), *INPUT_OPTIONS,
             '-i', str(path), '-map', '0:v:0', '-frames:v', str(count),
             '-vf', f'select={selection},{scaling}', '-fps_mode', 'passthrough',
-            '-threads', '1', '-c:v', 'png', '-f', 'image2', str(Path(temporary) / '%02d.png')])
+            '-threads', '1', '-c:v', 'png', '-f', 'image2', str(Path(temporary) / '%02d.png')],timeout=timeout,should_stop=should_stop)
         for slot, (index, target) in enumerate(samples):
             check_budget()
             frame_path = Path(temporary) / f'{slot+1:02d}.png'

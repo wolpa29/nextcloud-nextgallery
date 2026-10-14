@@ -28,7 +28,7 @@ For an external PC, see the [step-by-step installation guide](EXTERNAL_EMBEDDING
 
 ## Build and install
 
-Requires Nextcloud 32–35, PHP 8.2+ and its supported PHP version, its configured image/video preview providers, and a working Nextcloud cron. Optional local FFprobe enriches video metadata.
+Requires Nextcloud 32–35, PHP 8.2+ and its supported PHP version, its configured image/video preview providers, and a working Nextcloud cron. Server search also needs Python 3 with SQLite FTS5 trigram support and subprocess execution. The app bundles sqlite-vec 0.1.9 for Linux x86_64 and aarch64; it creates and updates each account’s search index automatically. See [SQL search setup and data preservation](SQL_SEARCH.md). Optional local FFprobe enriches video metadata.
 
 ```sh
 npm ci --ignore-scripts

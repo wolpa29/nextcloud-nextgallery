@@ -4,7 +4,7 @@ namespace OCA\Nextgallery\AI\Service;
 use OCP\IDBConnection;
 use OCP\AppFramework\OCS\OCSBadRequestException;
 class Metadata {
-    public function __construct(private IDBConnection $db) {}
+    public function __construct(private IDBConnection $db,private ?\OCA\Nextgallery\Service\SearchIndexChanges $searchChanges=null) {}
     public static function validate(int $fileId, string $etag, string $sha256, string $revision, array $metadata, array $exif,string $stage=''): array {
         if(!in_array($stage,['','descriptions','ocr'],true))throw new OCSBadRequestException('Invalid metadata stage');
         $vision = $metadata['vision'] ?? ['type'=>'unklar','description'=>'','tags'=>[],'objects'=>[],'uncertain_details'=>[]];
@@ -46,7 +46,7 @@ class Metadata {
             $values=['user_id'=>$uid]+$data;
             try{$this->db->executeStatement('INSERT INTO *PREFIX*nextgallery_ai_meta ('.implode(',',array_keys($values)).') VALUES ('.implode(',',array_fill(0,count($values),'?')).')',array_values($values));}
             catch(\Throwable $error){if(!$this->get($uid,(int)$data['file_id']))throw $error;}
-            return;
+            $this->searchChanges?->file($uid,(int)$data['file_id']);return;
         }
         // Caller holds the per-account publication gate. Inference stays independent.
         $previous=$this->getStored($uid,(int)$data['file_id']);$completed=$previous?self::stages($previous):[];
@@ -63,11 +63,27 @@ class Metadata {
         $merged=self::validate((int)$data['file_id'],$data['etag'],$data['sha256'],$data['revision'],$analysis,array_replace($old['source_exif']??[],$incoming['source_exif']??[]),$stage);
         if(!$previous){$this->upsert($uid,$merged);return;}
         $fields=array_keys($merged);$this->db->executeStatement('UPDATE *PREFIX*nextgallery_ai_meta SET '.implode(',',array_map(fn($key)=>$key.'=?',$fields)).' WHERE user_id=? AND file_id=?',array_merge(array_values($merged),[$uid,(int)$data['file_id']]));
+        $this->searchChanges?->file($uid,(int)$data['file_id']);
     }
     public function count(string $uid,?string $stage=null): int {
-        if($stage!==null){$r=$this->db->executeQuery('SELECT etag,metadata_json FROM *PREFIX*nextgallery_ai_meta WHERE user_id=?',[$uid]);$n=0;try{while($row=$r->fetch())if(isset(self::stages($row)[$stage]))$n++;}finally{$r->closeCursor();}return $n;}
+        if($stage!==null)return $this->counts($uid)[$stage]??0;
         $result=$this->db->executeQuery('SELECT COUNT(*) FROM *PREFIX*nextgallery_ai_meta WHERE user_id=?',[$uid]);
         try { return (int)$result->fetchOne(); } finally { $result->closeCursor(); }
+    }
+    /** Bounded keyset reads also protect buffered MariaDB drivers from large OCR payloads. */
+    private function storedRows(string $uid,string $columns):\Generator {
+        $cursor=0;
+        do{
+            $r=$this->db->executeQuery('SELECT file_id,'.$columns.' FROM *PREFIX*nextgallery_ai_meta WHERE user_id=? AND file_id>? ORDER BY file_id LIMIT 20',[$uid,$cursor]);
+            try{$rows=$r->fetchAll();}finally{$r->closeCursor();}
+            foreach($rows as $row){$cursor=(int)$row['file_id'];yield $row;}
+        }while(count($rows)===20);
+    }
+    /** Count both independent stages in bounded reads for the live account overview. */
+    public function counts(string $uid):array {
+        $counts=['metadata'=>0,'descriptions'=>0,'ocr'=>0];
+        foreach($this->storedRows($uid,'etag,metadata_json') as $row){$counts['metadata']++;foreach(self::stages($row) as $stage=>$etag)$counts[$stage]++;}
+        return $counts;
     }
     public function normalizeIndex(): void {
         // Nextcloud tables use binary collation. Normalize indexed copies;
@@ -75,9 +91,9 @@ class Metadata {
         $this->db->executeStatement('UPDATE *PREFIX*nextgallery_ai_meta SET description=LOWER(description),ocr_text=LOWER(ocr_text),tags_text=LOWER(tags_text),objects_text=LOWER(objects_text)',[]);
     }
     public function reset(string $uid,?string $stage=null): void {
+        $this->searchChanges?->account($uid);
         if($stage!==null){
-            $r=$this->db->executeQuery('SELECT file_id,etag,sha256,revision,metadata_json FROM *PREFIX*nextgallery_ai_meta WHERE user_id=?',[$uid]);try{$rows=$r->fetchAll();}finally{$r->closeCursor();}
-            foreach($rows as $row){$completed=self::stages($row);if(!isset($completed[$stage]))continue;unset($completed[$stage]);if(!$completed){$this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_ai_meta WHERE user_id=? AND file_id=?',[$uid,(int)$row['file_id']]);continue;}
+            foreach($this->storedRows($uid,'etag,sha256,revision,metadata_json') as $row){$completed=self::stages($row);if(!isset($completed[$stage]))continue;unset($completed[$stage]);if(!$completed){$this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_ai_meta WHERE user_id=? AND file_id=?',[$uid,(int)$row['file_id']]);continue;}
                 $wire=json_decode($row['metadata_json'],true);$analysis=$wire['analysis'];unset($analysis[$stage==='descriptions'?'vision':'ocr'],$analysis['stage_provenance'][$stage],$analysis['stage_sources'][$stage]);
                 $model=$stage==='descriptions'?'vision':'ocr';foreach(['models','images','inference_attempts','output_channels'] as $field)unset($analysis['provenance'][$field][$model]);
                 $analysis['completed_stages']=array_fill_keys(array_keys($completed),true);$analysis['stage_etags']=$completed;$remaining=isset($completed['descriptions'])?'descriptions':'ocr';

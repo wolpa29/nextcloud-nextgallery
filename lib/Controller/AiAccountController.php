@@ -10,15 +10,20 @@ use OCA\Nextgallery\AI\Service\{Settings,State,Library,Metadata,Embeddings,Files
 
 /** Account identity always comes from the authenticated session, never a form. */
 class AiAccountController extends Controller {
-    public function __construct(IRequest $request,private IUserSession $session,private Settings $settings,private State $state,private Library $library,private Metadata $metadata,private Embeddings $embeddings,private Files $files,private IRootFolder $root){parent::__construct('nextgallery',$request);}
+    public function __construct(IRequest $request,private IUserSession $session,private Settings $settings,private State $state,private Library $library,private Metadata $metadata,private Embeddings $embeddings,private Files $files,private IRootFolder $root,private ?\OCA\Nextgallery\Service\SearchIndex $searchIndex=null){parent::__construct('nextgallery',$request);}
     private function uid():string { $user=$this->session->getUser();if(!$user)throw new \OCP\AppFramework\OCS\OCSException('Anmeldung erforderlich',401);return $user->getUID(); }
     private function account():State {$state=$this->state->forUser($this->uid());$state->registerAccount();return $state;}
     #[NoAdminRequired]
     public function config():DataResponse {
-        $uid=$this->uid();$config=$this->settings->forUser($uid)->get();$this->account();
+        $uid=$this->uid();$config=$this->settings->forUser($uid)->get();$own=$this->account();$counts=$this->metadata->counts($uid);
+        $lane=$own->forPipeline('embeddings')->status();$rebuild=$lane['embedding_rebuild']??[];
+        $space=$rebuild['target_space']??$rebuild['approved_space']??$lane['embedding_space']??$lane['last_run']['embedding']['space']??null;
+        $embeddingTotal=$this->embeddings->count($uid);
         return new DataResponse(['user_id'=>$uid,'folders'=>$config['folders'],'exclude_folders'=>$config['exclude_folders'],
             'analysis_enabled'=>$config['analysis_enabled'],'ocr_enabled'=>$config['ocr_enabled'],'embedding_enabled'=>$config['embedding']['enabled'],
-            'metadata_count'=>$this->metadata->count($uid),'description_count'=>$this->metadata->count($uid,'descriptions'),'ocr_count'=>$this->metadata->count($uid,'ocr'),'embedding_count'=>$this->embeddings->count($uid),
+            'search_index'=>$this->searchIndex?->status($uid),
+            'metadata_count'=>$counts['metadata'],'description_count'=>$counts['descriptions'],'ocr_count'=>$counts['ocr'],'embedding_count'=>$embeddingTotal,
+            'embedding_current_count'=>is_string($space)&&preg_match('/^[a-f0-9]{64}$/D',$space)?$this->embeddings->count($uid,$space):null,
             'schedule'=>['enabled'=>$config['enabled'],'time'=>$config['schedule_time'],'timezone'=>$config['timezone']]]);
     }
     /** Only personal selection and schedule are writable; model options remain admin-only. */
@@ -56,6 +61,7 @@ class AiAccountController extends Controller {
             return $value;
         };
         $status=$clean($status);foreach($status['pipelines']??[] as $kind=>$lane)$status['pipelines'][$kind]=$clean($lane);
+        $status['server_time']=microtime(true);
         return new DataResponse($status);
     }
     #[NoAdminRequired]
@@ -64,7 +70,10 @@ class AiAccountController extends Controller {
         }catch(\OCP\AppFramework\OCS\OCSBadRequestException $e){return new DataResponse(['error'=>$e->getMessage()],400);}
     }
     #[NoAdminRequired]
-    public function logs(string $date,int $cursor=0):DataResponse {return new DataResponse($this->account()->logs($date,$cursor));}
+    public function logs(string $date,int $cursor=0,string $level='all',string $kind='all'):DataResponse {
+        try{return new DataResponse($this->account()->logs($date,$cursor,$level,$kind));}
+        catch(\OCP\AppFramework\OCS\OCSBadRequestException $e){return new DataResponse(['error'=>$e->getMessage()],400);}
+    }
     #[NoAdminRequired]
     public function control(string $action,string $kind='both',string $embedding_rebuild_id=''):DataResponse {
         if(!in_array($action,['start','pause','resume','retry'],true))return new DataResponse(['error'=>'Unbekannte Aktion'],400);

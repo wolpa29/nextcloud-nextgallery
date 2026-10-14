@@ -1,7 +1,9 @@
 """Bundled daemon. Native Nextcloud API, private state, per-image time budgets."""
 from __future__ import annotations
 import argparse
+from contextlib import contextmanager
 import signal
+import stat
 from datetime import datetime, timedelta
 import fcntl
 import json
@@ -133,6 +135,7 @@ class NativeSource:
         wire,headers=self.api.wire('image?'+urllib.parse.urlencode({'file_id':item.locator,'etag':item.etag}),maximum=maximum)
         returned=p.etag(next((v for k,v in headers.items() if k.lower()=='etag'),''))
         if returned != item.etag: raise p.PipelineError('Image changed while downloading')
+        if self.kind == 'embeddings' and len(wire) != item.size: raise p.PipelineError('Incomplete source image download; retry this file')
         return wire
     def download_to(self,item,destination,maximum):
         url=self.api.url+'image?'+urllib.parse.urlencode({'file_id':item.locator,'etag':item.etag})
@@ -140,6 +143,32 @@ class NativeSource:
             if p.etag(stream.headers.get('ETag','')) != item.etag: raise p.PipelineError('Media changed while downloading')
             return p.copy_media(stream,destination,maximum)
     def unchanged(self,item): return self.api.call('resolve?file_id='+item.locator)['etag']==item.etag
+
+    @contextmanager
+    def embedding_video(self, item, destination, maximum):
+        """Use the server-authorized local video without copying a large original."""
+        target = self.api.call('resolve?'+urllib.parse.urlencode({
+            'file_id':item.locator, 'etag':item.etag, 'local_media':'true'}))
+        if target.get('etag') != item.etag or target.get('file_id') != int(item.locator) or target.get('size') != item.size:
+            raise p.PipelineError('Media changed before frame extraction')
+        local = target.get('local_path')
+        if isinstance(local,str) and Path(local).is_absolute():
+            try:
+                original = Path(local).stat()
+            except FileNotFoundError:
+                original = None  # Worker on another host: use the bounded stream.
+            if original is not None:
+                if not stat.S_ISREG(original.st_mode) or original.st_size != item.size:
+                    raise p.PipelineError('Local media is not the authorized current file')
+                fingerprint = lambda value:(value.st_dev,value.st_ino,value.st_size,value.st_mtime_ns,value.st_ctime_ns)
+                yield Path(local)
+                if fingerprint(Path(local).stat()) != fingerprint(original) or not self.unchanged(item):
+                    raise p.PipelineError('Media changed during frame extraction')
+                return
+        if item.size > maximum:
+            raise p.PipelineError('Large video requires a worker on the Nextcloud server with readable local storage; remote download limit exceeded')
+        self.download_to(item,destination,maximum)
+        yield destination
 
 
 class NativePublisher:
@@ -186,7 +215,10 @@ class Reporter:
             if self.service:atomic(lane_file(self.directory,'service.json',self.kind),{'heartbeat_at':self.value['heartbeat_at'],'active_user_id':self.value.get('active_user_id')})
     def event(self,event,**fields):
         if event == 'inference_progress':
-            self.update(current={k:fields[k] for k in ['path','file_id','stage','attempt','total_attempts','reasoning_chars','content_chars']})
+            with self.lock:
+                current=dict(self.value.get('current') or {})
+                current.update({k:fields[k] for k in ['path','file_id','stage','attempt','total_attempts','reasoning_chars','content_chars'] if k in fields})
+                self.update(current=current)
             return  # Live progress is status, not an additional activity-log row.
         now=datetime.now(ZoneInfo(self.timezone))
         row={'time':now.isoformat(timespec='seconds'),'run_id':self.run_id,'event':event,'kind':self.kind,'level':fields.pop('level','info'),**fields}
@@ -199,11 +231,16 @@ class Reporter:
             if self.kind=='ocr':changes['ocr_stats']=fields['stats']
         if 'embedding_stats' in fields:
             changes['embedding_stats']=fields['embedding_stats']
-            changes['stats']={key:self.value.get('analysis_stats',{}).get(key,0)+fields['embedding_stats'].get(key,0) for key in ('done','pending','error')}
+            changes['stats']=dict(fields['embedding_stats']) if self.kind=='embeddings' else {key:self.value.get('analysis_stats',{}).get(key,0)+fields['embedding_stats'].get(key,0) for key in ('done','pending','error')}
         if 'embedding_space' in fields: changes['embedding_space']=fields['embedding_space']
-        if event in {'file_start','stage_start'}: changes['current']={k:fields[k] for k in ['path','file_id','stage']}; changes['stage_started_at']=time.time()
-        if event == 'inference_attempt_start': changes['current']={k:fields[k] for k in ['path','file_id','stage','attempt','total_attempts']}
-        if event in {'file_finished','file_error','embedding_finished','embedding_error'}: changes['current']=None
+        if event in {'file_start','stage_start','embedding_batch_start'}:
+            changes['stage_started_at']=time.time()
+            changes['current']={k:fields[k] for k in ['path','file_id','stage','files'] if k in fields}
+            changes['current']['started_at']=changes['stage_started_at']
+        if event == 'inference_attempt_start':
+            changes['current']=dict(self.value.get('current') or {})
+            changes['current'].update({k:fields[k] for k in ['path','file_id','stage','attempt','total_attempts'] if k in fields})
+        if event in {'file_finished','file_error','embedding_finished','embedding_error','file_deferred','service_unavailable','embedding_deferred','run_finished','embedding_batch_finished'}: changes['current']=None
         if changes: self.update(**changes)
     def close(self,preserve=False):
         self.stop.set(); self.thread.join()

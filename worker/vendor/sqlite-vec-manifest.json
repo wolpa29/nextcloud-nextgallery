@@ -1,0 +1,14 @@
+{
+  "package": "sqlite-vec",
+  "version": "0.1.9",
+  "files": {
+    "aarch64/sqlite_vec/__init__.py": "fe41981daa9515dd5d07a0376223da47bf758b6f2bb907cd3578c21ad4680a89",
+    "aarch64/sqlite_vec/vec0.so": "0b84cbd06418ca3040827deddd650539be05be0f657952426b926c8606217437",
+    "x86_64/sqlite_vec/__init__.py": "fe41981daa9515dd5d07a0376223da47bf758b6f2bb907cd3578c21ad4680a89",
+    "x86_64/sqlite_vec/vec0.so": "5923730861b86c707cca5602b5f91092f9e52a46706dbc6e269fd4bb9c4498e8"
+  },
+  "wheels": {
+    "sqlite_vec-0.1.9-py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.whl": "4e921e592f24a5f9a18f590b6ddd530eb637e2d474e3b1972f9bbeb773aa3cb9",
+    "sqlite_vec-0.1.9-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.manylinux1_x86_64.whl": "1515727990b49e79bcaf75fdee2ffc7d461f8b66905013231251f1c8938e7786"
+  }
+}

@@ -238,6 +238,8 @@
 #nextgallery #ch-ai-frame{display:block;width:100%;height:100%;border:0;background:var(--ng-bg)}
 #nextgallery #ch-ai-link.active{background:var(--ng-selected);color:var(--ng-on-selected)}
 
+#nextgallery .ch-search-tile .ch-unavailable{aspect-ratio:1;height:auto;border-radius:12px;background:var(--ch-soft);white-space:normal;padding:12px;box-sizing:border-box}
+
 /* LEAFLET STYLES */
 /* required styles */
 

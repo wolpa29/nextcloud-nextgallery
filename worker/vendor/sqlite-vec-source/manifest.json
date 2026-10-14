@@ -1,0 +1,28 @@
+{
+  "package": "sqlite-vec",
+  "version": "0.1.9",
+  "upstream": {
+    "repository": "https://github.com/asg017/sqlite-vec",
+    "release": "https://github.com/asg017/sqlite-vec/releases/tag/v0.1.9",
+    "tag": "v0.1.9",
+    "commit": "e9f598abfa0c06b328d8fe5da9c3760cce74be10",
+    "amalgamation_archive": "https://github.com/asg017/sqlite-vec/releases/download/v0.1.9/sqlite-vec-0.1.9-amalgamation.tar.gz",
+    "pypi": "https://pypi.org/project/sqlite-vec/0.1.9/"
+  },
+  "author": "Alex Garcia",
+  "licenses": [
+    "MIT",
+    "Apache-2.0"
+  ],
+  "source_files": {
+    "sqlite-vec.c": "ba081a47fa02eadc3cf6b16c314b695b84081269349aac722b4efa338fe8fd85",
+    "sqlite-vec.h": "8e4d7bfcd779c89bd19a6b2959fce24ee391b2eaf79a85a979377a36627cb060",
+    "LICENSE-MIT": "6ce72bbe12d975bd5286e5ab0a064c069693300c47bccbc57bec18485f1621ea",
+    "LICENSE-APACHE": "a38070a94d4afd9cd710e3ce67bd1de78097cfe1784c1f0109ac95d3c196bfdc",
+    "VERSION": "e358d84552808a5c0bd6679d690c283b938ebe15c2bd843c898681d093213107"
+  },
+  "corresponding_binaries": {
+    "aarch64/sqlite_vec/vec0.so": "0b84cbd06418ca3040827deddd650539be05be0f657952426b926c8606217437",
+    "x86_64/sqlite_vec/vec0.so": "5923730861b86c707cca5602b5f91092f9e52a46706dbc6e269fd4bb9c4498e8"
+  }
+}

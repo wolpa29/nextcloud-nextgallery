@@ -55,6 +55,9 @@ try:
   except Exception:pass
   time.sleep(1)
  assert ready,docker('logs',name)[-3000:]
+ # Python is a backend prerequisite, not a package downloaded during a web search.
+ # sqlite-vec is shipped in the tested archive for both supported Linux architectures.
+ print(docker('exec',name,'sh','-c','apt-get update -qq && apt-get install -y -qq --no-install-recommends python3'),flush=True)
  if case!='fresh35':
   print(occ('app:enable','chronicle'),flush=True);print(occ('app:enable','media_ai'),flush=True)
  else: print(occ('app:enable','nextgallery'),flush=True)
@@ -94,6 +97,7 @@ try:
  print(docker('exec','-u','www-data',name,'php','/test-scripts/gallery-contract.php'),flush=True)
  print(docker('exec','-u','www-data',name,'php','/test-scripts/embedding-contract.php'),flush=True)
  print(docker('exec','-u','www-data',name,'php','/test-scripts/native-search-contract.php'),flush=True)
+ print(docker('exec','-u','www-data',name,'php','-d','memory_limit=512M','/test-scripts/sql-search-contract.php'),flush=True)
  native='/ocs/v2.php/apps/nextgallery/api/v1/search?format=json'
  status,body=request(native,{'query':'native','roots':['/NativeOnly'],'phase':'text','limit':60});assert status==200,(status,body[-1000:]);page=json.loads(body)['ocs']['data'];assert len(page['items'])==60 and page['more'];http.append('native-search-independent-folders')
  status,body=request(native,{'query':'native','roots':['/NativeOnly'],'phase':'text','offset':page['next']});assert status==200 and len(json.loads(body)['ocs']['data']['items'])==5,(status,body[-1000:]);http.append('native-search-pagination')
@@ -118,6 +122,7 @@ try:
  print(docker('exec','-u','www-data',name,'php','/test-scripts/admin-processing-contract.php'),flush=True)
  print(docker('exec','-u','www-data',name,'php','/test-scripts/three-pipelines-contract.php'),flush=True)
  if case=='fresh35':print(run('python3',str(root/'scripts/test-stage-publication.py')),flush=True)
+ print(run('python3',str(root/'scripts/test-sql-shares.py'),'--case',case),flush=True)
  result={'case':case,'http_checks':len(http),'routes':http,'nextcloud':data['versionstring'],'url':base,'cli':json.loads((out/'verified.json').read_text())};(out/'result.json').write_text(json.dumps(result,indent=2));print(json.dumps(result),flush=True)
  if a.keep:print('Disposable containers retained for UI verification:',name,flush=True)
 finally:

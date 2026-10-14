@@ -1,6 +1,7 @@
 """Independent image/frame embedding queue; captions and OCR are never required."""
 from __future__ import annotations
 import base64
+from contextlib import contextmanager
 import json
 import re
 import sqlite3
@@ -10,6 +11,17 @@ from pathlib import Path
 import media_pipeline as p
 from inference_gate import hold,InferenceCancelled
 from embedding_server import vector
+
+
+@contextmanager
+def video_source(source, item, path, maximum):
+    if hasattr(source,'embedding_video'):
+        with source.embedding_video(item,path,maximum) as current:
+            yield current
+    else:
+        if item.size>maximum:raise p.PipelineError('Video exceeds download limit')
+        source.download_to(item,path,maximum)
+        yield path
 
 
 def space_id(info, config):
@@ -105,14 +117,19 @@ def run(config, source, api, directory, observe, should_stop, retry_errors=False
     try:
         client.health(); space=client.space
         items=source.inventory()
+        retry_ids={}
         with store.db:
             store.db.execute('UPDATE embeddings SET active=0')
             for item in items:
-                old=store.db.execute('SELECT etag FROM embeddings WHERE id=? AND space=?',(item.key,space)).fetchone()
+                old=store.db.execute('SELECT etag,status,error FROM embeddings WHERE id=? AND space=?',(item.key,space)).fetchone()
+                if old and old['etag']==item.etag and (old['status']=='pending' and old['error'] or retry_errors and old['status']=='error'):
+                    retry_ids[item.key]=(1 if p.is_video(item) else 0,item.size)
                 if old and old['etag']!=item.etag:store.db.execute('DELETE FROM embeddings WHERE id=? AND space=?',(item.key,space))
                 store.db.execute('INSERT OR IGNORE INTO embeddings(id,space,etag,path,status) VALUES (?,?,?,?,?)',(item.key,space,item.etag,item.path,'pending'))
                 store.db.execute('UPDATE embeddings SET active=1,path=? WHERE id=? AND space=?',(item.path,item.key,space))
                 if retry_errors:store.db.execute("UPDATE embeddings SET status='pending' WHERE id=? AND space=? AND status='error'",(item.key,space))
+        if retry_ids:
+            items.sort(key=lambda item:retry_ids.get(item.key,(2,0)))
         observe('embedding_inventory_finished',embedding_stats=store.stats(space),embedding_space=space)
         pending=[]; pending_bytes=0
         def fail(item,error):
@@ -138,18 +155,20 @@ def run(config, source, api, directory, observe, should_stop, retry_errors=False
             started_batch=time.monotonic()
             try:
                 with hold(config['embedding'].get('_inference_directory'),getattr(client,'url',config['embedding']['url']),should_stop), p.ImageBudget(config.get('image_timeout_seconds',0)):
+                    observe('embedding_batch_start',stage='embedding',files=[{'file_id':item.locator,'path':item.path} for item,wire in entries])
                     values=client.images([wire for item,wire in entries],should_stop)
             except (InferenceCancelled,p.ServiceUnavailable):raise
-            except (p.PipelineError,ValueError,KeyError,TypeError,OSError):
+            except (p.PipelineError,p.ImageTimeout,ValueError,KeyError,TypeError,OSError):
                 # Isolate a bad entry instead of failing all its healthy neighbours.
                 values=[]
                 for item,wire in entries:
                     if should_stop():raise InferenceCancelled()
                     try:
                         with hold(config['embedding'].get('_inference_directory'),getattr(client,'url',config['embedding']['url']),should_stop), p.ImageBudget(config.get('image_timeout_seconds',0)):
+                            observe('stage_start',path=item.path,file_id=item.locator,stage='embedding')
                             values.append(client.image(wire))
                     except (InferenceCancelled,p.ServiceUnavailable):raise
-                    except (p.PipelineError,ValueError,KeyError,TypeError,OSError) as error:
+                    except (p.PipelineError,p.ImageTimeout,ValueError,KeyError,TypeError,OSError) as error:
                         fail(item,error);values.append(None)
             staged=[]
             for (item,wire),value in zip(entries,values):
@@ -162,6 +181,7 @@ def run(config, source, api, directory, observe, should_stop, retry_errors=False
             observe('embedding_batch_finished',images=len(entries),seconds=round(time.monotonic()-started_batch,3))
             for item,vectors in staged:
                 if should_stop():raise InferenceCancelled()
+                observe('stage_start',path=item.path,file_id=item.locator,stage='publishing')
                 try:publish(item,vectors)
                 except p.ServiceUnavailable:raise
                 except (p.PipelineError,ValueError,KeyError,TypeError,OSError) as error:fail(item,error)
@@ -173,23 +193,26 @@ def run(config, source, api, directory, observe, should_stop, retry_errors=False
             try:
                 vectors=json.loads(row['vectors']) if row['vectors'] else None
                 if vectors is not None:
-                    flush();publish(item,vectors);continue
+                    flush();observe('stage_start',path=item.path,file_id=item.locator,stage='publishing');publish(item,vectors);continue
                 if p.is_video(item):
                     flush()
                     with p.ImageBudget(config.get('image_timeout_seconds',0)), tempfile.TemporaryDirectory(prefix='nextgallery-embedding-') as temp:
                         path=Path(temp)/('source'+Path(item.path).suffix)
                         maximum=config['max_video_download_bytes']
-                        if item.size>maximum:raise p.PipelineError('Video exceeds download limit')
-                        source.download_to(item,path,maximum)
-                        report={}; batch,_,_=p.prepare_video(path,{'frame_count':config['embedding']['video_frames'],'max_edge':config['embedding']['max_edge']},config['max_image_pixels'],report)
+                        with video_source(source,item,path,maximum) as current:
+                            report={}; batch,_,_=p.prepare_video(current,{'frame_count':config['embedding']['video_frames'],'max_edge':config['embedding']['max_edge'],
+                                'decoder_timeout_seconds':max(120,config.get('image_timeout_seconds',0) or 600),
+                                '_should_stop':should_stop,'decoder_threads':4},config['max_image_pixels'],report)
                     with hold(config['embedding'].get('_inference_directory'),getattr(client,'url',config['embedding']['url']),should_stop), p.ImageBudget(config.get('image_timeout_seconds',0)):
+                        observe('stage_start',path=item.path,file_id=item.locator,stage='embedding')
                         values=client.images([image[0] for image in batch.images],should_stop)
                     vectors=[{'frame':i,'seconds':report['frames'][i]['sample_seconds'],'values':value} for i,value in enumerate(values)]
                     stage(item,vectors);publish(item,vectors)
                 else:
                     with p.ImageBudget(config.get('image_timeout_seconds',0)):
                         if item.size>config['max_download_bytes']:raise p.PipelineError('Image exceeds download limit')
-                        wire,_,_=p.prepare_image(source.read(item,config['max_download_bytes']),config['embedding']['max_edge'],config['max_image_pixels'],'embedding')
+                        from embedding_image import prepare_image
+                        wire,_,_=prepare_image(source.read(item,config['max_download_bytes']),config['embedding']['max_edge'],config['max_image_pixels'])
                     wire_size=4*((len(wire)+2)//3)+4
                     if wire_size>24*1024*1024-4096:raise p.PipelineError('Embedding image exceeds request limit')
                     if pending and pending_bytes+wire_size>24*1024*1024-4096:flush()
@@ -197,7 +220,7 @@ def run(config, source, api, directory, observe, should_stop, retry_errors=False
                 if len(pending)>=client.batch_size():flush()
             except InferenceCancelled:break
             except p.ServiceUnavailable:raise
-            except (p.PipelineError,ValueError,KeyError,TypeError,OSError) as error:fail(item,error)
+            except (p.PipelineError,p.ImageTimeout,ValueError,KeyError,TypeError,OSError) as error:fail(item,error)
         if not should_stop():flush()
         return {'state':'paused' if should_stop() else 'finished','processed':processed,'errors':errors,'stats':store.stats(space),'space':space,'seconds':round(time.monotonic()-started,3)}
     except InferenceCancelled:

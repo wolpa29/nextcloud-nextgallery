@@ -13,7 +13,9 @@ class Config implements \OCP\IConfig {public array $values=[];public function ge
 class Crypto implements \OCP\Security\ICrypto {public function encrypt($s){return $s;}public function decrypt($s){return $s;}}
 class File implements \OCP\Files\File {
  public string $mime='video/mp4';public bool $readable=true;
- public function getId(){return 12;}public function getEtag(){return 'v1';}public function getSize(){return 100000000;}
+ public int $size=100000000;public bool $encrypted=false;public object $storage;
+ public function getId(){return 12;}public function getEtag(){return 'v1';}public function getSize(){return $this->size;}
+ public function isEncrypted(){return $this->encrypted;}public function getStorage(){return $this->storage;}
  public function getMimeType(){return $this->mime;}public function isReadable(){return $this->readable;}
  public function getPath(){return '/paul/files/Camera/video.mp4';}
  public function fopen($mode){$s=fopen('php://temp','w+b');fwrite($s,'video bytes');rewind($s);return $s;}
@@ -33,6 +35,26 @@ check($files->byId('paul',12)===$file);
 $page=$inventory->page();check(count($page['items'])===1);check($page['items'][0]['mime']==='video/mp4');check(str_contains($db->sql,"video/%"));
 $response=$controller->image(12,'v1');check($response instanceof \OCP\AppFramework\Http\StreamResponse);check(is_resource($response->stream));check(stream_get_contents($response->stream)==='video bytes');fclose($response->stream);check($response->headers['ETag']==='"v1"');check($response->headers['Content-Type']==='video/mp4');
 check($controller->image(12,'wrong')->status===409);
+$local=tempnam(sys_get_temp_dir(),'synthetic-embedding-video-');file_put_contents($local,'synthetic video');
+$file->size=filesize($local);
+$file->storage=new class($local) {
+ public bool $local=true;public bool $encrypted=false;public string $received='';
+ public function __construct(public string $path){}public function isLocal(){return $this->local;}
+ public function getCache(){return new class($this->encrypted){public function __construct(public bool $encrypted){}public function get($id){return new class($this->encrypted) implements \ArrayAccess{public function __construct(public bool $encrypted){}public function getPath(){return 'files/Camera/video.mp4';}public function offsetExists(mixed $k):bool{return $k==='encrypted';}public function offsetGet(mixed $k):mixed{return $this->encrypted;}public function offsetSet(mixed $k,mixed $v):void{}public function offsetUnset(mixed $k):void{}};}};}
+ public function getLocalFile($path){$this->received=$path;return $this->path;}
+};
+$c->values['ai_settings']=json_encode(['embedding'=>['enabled'=>true]]);
+check($controller->resolve(12,'wrong',true)->status===409);
+check($controller->resolve(12,'',true)->status===400);
+$resolved=$controller->resolve(12,'v1',true);check($resolved->data['local_path']===realpath($local));check($file->storage->received==='files/Camera/video.mp4');
+check(!array_key_exists('local_path',$controller->resolve(12)->data));
+$file->encrypted=true;check($controller->resolve(12,'v1',true)->data['local_path']===null);$file->encrypted=false;
+$file->storage->local=false;check($controller->resolve(12,'v1',true)->data['local_path']===null);$file->storage->local=true;
+$file->storage->encrypted=true;check($controller->resolve(12,'v1',true)->data['local_path']===null);$file->storage->encrypted=false;
+$file->size++;check($controller->resolve(12,'v1',true)->data['local_path']===null);
+$file->mime='image/jpeg';check($controller->resolve(12,'v1',true)->status===400);$file->mime='video/mp4';
+$c->values['ai_settings']='{}';check($controller->resolve(12,'v1',true)->status===400);
+unlink($local);$file->size=100000000;
 $file->mime='image/jpeg';check($controller->image(12,'v1')->status===413);
 $file->mime='application/pdf';try{$files->byId('paul',12);throw new \Exception('Non-media accepted');}catch(\OCP\AppFramework\OCS\OCSException $e){check(true);}
 $v=$settings->defaults();check($v['video']['frame_count']===10);check($v['ocr']['max_batch_images']===20);check($v['ocr']['tile_overlap_percent']===10);

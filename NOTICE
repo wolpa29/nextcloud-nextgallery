@@ -8,3 +8,5 @@ Media AI worker and integration: Paul Wolfmajer, AGPL-3.0-or-later (imported his
 @nextcloud/files 3.12.2 and 4.1.0: Nextcloud GmbH and contributors, AGPL-3.0-or-later.
 LM Studio SDK @lmstudio/sdk: MIT; locked dependencies are recorded in worker/lmstudio/package-lock.json.
 The corresponding-source archive includes installed npm package sources, source maps, manifests and license files under third-party/.
+
+sqlite-vec 0.1.9: Copyright (c) 2024 Alex Garcia and contributors. Dual-licensed under MIT and Apache-2.0. Upstream source: https://github.com/asg017/sqlite-vec (tag v0.1.9, commit e9f598abfa0c06b328d8fe5da9c3760cce74be10). Bundled precompiled manylinux shared libraries for x86_64 and aarch64; corresponding amalgamation C sources, licenses, and manifests are recorded in worker/vendor/sqlite-vec-source/ and docs/licenses/sqlite-vec*.

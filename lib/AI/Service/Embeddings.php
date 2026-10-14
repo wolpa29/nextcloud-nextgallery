@@ -19,7 +19,7 @@ class Embeddings {
   }
   return $result;
  }
- public function __construct(private IDBConnection $db){}
+ public function __construct(private IDBConnection $db,private ?\OCA\Nextgallery\Service\SearchIndexChanges $searchChanges=null){}
  public static function normalize(array $values):array {
   if(!array_is_list($values) || count($values)<128 || count($values)>4096)throw new OCSBadRequestException('Ungültiger Vektor');
   $norm=0.;foreach($values as $v){if((!is_float($v)&&!is_int($v))||!is_finite((float)$v))throw new OCSBadRequestException('Ungültiger Vektor');$norm+=$v*$v;}
@@ -41,14 +41,17 @@ class Embeddings {
    foreach($values as $row)$this->db->executeStatement('INSERT INTO *PREFIX*nextgallery_ai_vectors ('.implode(',',array_keys($row)).') VALUES ('.implode(',',array_fill(0,count($row),'?')).')',array_values($row));
    $this->db->commit();
   }catch(\Throwable $e){$this->db->rollBack();throw $e;}
+  $this->searchChanges?->file($uid,$fileId);
  }
- public function reset(string $uid):void {$this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_ai_vectors WHERE user_id=?',[$uid]);}
- public function resetAll():void {$this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_ai_vectors');}
+ public function reset(string $uid):void {$this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_ai_vectors WHERE user_id=?',[$uid]);$this->searchChanges?->account($uid);}
+ public function resetAll():void {$this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_ai_vectors');$this->searchChanges?->catalog();}
  public function spaces():array {
   $result=$this->db->executeQuery('SELECT DISTINCT space,dimensions FROM *PREFIX*nextgallery_ai_vectors');
   try{return $result->fetchAll();}finally{$result->closeCursor();}
  }
- public function count(string $uid):int {
-  $r=$this->db->executeQuery('SELECT COUNT(DISTINCT file_id) FROM *PREFIX*nextgallery_ai_vectors WHERE user_id=?',[$uid]);try{return (int)$r->fetchOne();}finally{$r->closeCursor();}
+ public function count(string $uid,?string $space=null):int {
+  $sql='SELECT COUNT(DISTINCT file_id) FROM *PREFIX*nextgallery_ai_vectors WHERE user_id=?';$args=[$uid];
+  if($space!==null){$sql.=' AND space=?';$args[]=$space;}
+  $r=$this->db->executeQuery($sql,$args);try{return (int)$r->fetchOne();}finally{$r->closeCursor();}
  }
 }

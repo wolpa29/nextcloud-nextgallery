@@ -337,3 +337,11 @@
 .mai [data-processing-accounts]{max-height:320px;overflow:auto;padding-left:20px;scrollbar-gutter:stable}
 .mai [data-processing-accounts]>li{padding:6px 0;overflow-wrap:anywhere}
 .mai #mai-embedding-result{white-space:pre-line;line-height:1.6}
+
+/* Activity errors and complete current batches. */
+#media-ai-user .mai-activity-error>strong,#media-ai-user .mai-activity-error .mai-error-detail,#media-ai-user button.mai-error{color:var(--color-error-text,var(--color-error,#b91c1c))}
+#media-ai-user .mai-activity-error{border-left:3px solid var(--color-error,#b91c1c);padding-left:14px}
+#media-ai-user .mai-error-detail{white-space:pre-wrap;overflow-wrap:anywhere}
+#media-ai-user .mai-run-surface [role=status]{display:flex;flex-direction:column;gap:6px}
+#media-ai-user .mai-run-surface .mai-current-elapsed{font-size:12px;font-variant-numeric:tabular-nums}
+#media-ai-user #mai-pipeline-logs>.mai-actions{flex-wrap:wrap}

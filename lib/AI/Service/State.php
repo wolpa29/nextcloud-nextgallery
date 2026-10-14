@@ -265,8 +265,8 @@ class State {
         foreach(glob($this->directory().'/logs/????-??-??.jsonl') ?: [] as $path) { if(is_file($path) && !is_link($path) && unlink($path))$count++; }
         return $count;
     }
-    public function logs(string $date, int $cursor = 0): array {
-        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/D', $date) || $cursor < 0) { throw new OCSBadRequestException('Log-Auswahl ungültig'); }
+    public function logs(string $date, int $cursor = 0, string $level = 'all', string $kind = 'all'): array {
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/D', $date) || $cursor < 0 || !in_array($level,['all','error'],true) || !in_array($kind,['all','descriptions','ocr','embeddings','both'],true)) { throw new OCSBadRequestException('Log-Auswahl ungültig'); }
         $path = $this->directory() . '/logs/' . $date . '.jsonl';
         if (!is_file($path)) { return ['entries' => [], 'cursor' => null]; }
         $stream = fopen($path, 'rb');
@@ -274,16 +274,29 @@ class State {
         try {
             $size = fstat($stream)['size'];
             $end = $cursor === 0 ? $size : min($cursor, $size);
-            $start = max(0, $end - 262144);
-            fseek($stream, $start);
-            $bytes = (string)fread($stream, $end - $start);
-            if ($start > 0) {
-                $newline = strpos($bytes, "\n");
-                if ($newline !== false) { $start += $newline + 1; $bytes = substr($bytes, $newline + 1); }
-            }
             $rows = [];
-            foreach (explode("\n", $bytes) as $line) { $row = json_decode($line, true); if (is_array($row)) { $rows[] = $row; } }
-            return ['entries' => array_reverse($rows), 'cursor' => $start > 0 ? $start : null];
+            // Filter before pagination. Read backwards with a bounded budget so older
+            // errors remain reachable even after many successful files.
+            for($block=0;$end>0&&$block<8;$block++){
+                $start = max(0, $end - 262144);
+                fseek($stream, $start);$bytes = (string)fread($stream, $end - $start);
+                if ($start > 0) {
+                    $newline = strpos($bytes, "\n");
+                    if ($newline === false) { $end=$start;continue; }
+                    $start += $newline + 1;$bytes = substr($bytes, $newline + 1);
+                }
+                $offset=$start;$lines=[];
+                foreach(explode("\n",$bytes) as $line){$lines[]=[$offset,$line];$offset+=strlen($line)+1;}
+                foreach(array_reverse($lines) as [$position,$line]){
+                    $row=json_decode($line,true);if(!is_array($row))continue;
+                    $error=($row['level']??'')==='error'||str_ends_with($row['event']??'','_error')||!empty($row['error'])||!empty($row['reason']);
+                    if(($level==='error'&&!$error)||($kind!=='all'&&($row['kind']??'')!==$kind))continue;
+                    $rows[]=$row;
+                    if(count($rows)>=200)return ['entries'=>$rows,'cursor'=>$position>0?$position:null];
+                }
+                $end=$start;
+            }
+            return ['entries' => $rows, 'cursor' => $end > 0 ? $end : null];
         } finally { fclose($stream); }
     }
 }
