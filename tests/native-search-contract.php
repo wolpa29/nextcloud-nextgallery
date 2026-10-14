@@ -27,15 +27,31 @@ try{
  $vectors->publish($uid,$files[0]->getId(),$files[0]->getEtag(),$space,[['frame'=>0,'seconds'=>0,'values'=>$negative],['frame'=>1,'seconds'=>5,'values'=>$positive]]);
  $vectors->publish($uid,$files[1]->getId(),'old-etag',$space,[['frame'=>0,'seconds'=>0,'values'=>$positive]]);
  $calls=$client->calls;
- foreach(['Segelboot','Urlaub','Boot','ZX314','native-000','NativeOnly'] as $query){$r=$service->search($uid,$query,['/NativeOnly'],'',0,60,'text');nativeCheck(count($r['items'])>0,'Mobile text field missing: '.$query);}
+ foreach(['Segelboot'=>['description'],'Urlaub'=>['tags'],'Boot'=>['description','objects'],'ZX314'=>['ocr'],'native-000'=>['name','path'],'NativeOnly'=>['path']] as $query=>$expectedSources){
+  $r=$service->search($uid,$query,['/NativeOnly'],'',0,60,'text');
+  nativeCheck(count($r['items'])>0&&$r['items'][0]['search_match']===['query'=>$query,'sources'=>$expectedSources],'Single/combined source mismatch for '.$query);
+ }
  nativeCheck($client->calls===$calls,'Text phase invoked embedding service');
- nativeCheck(count($service->search($uid,'Müller',['/NativeOnly'],'',0,60,'text')['items'])===1,'Unicode cached metadata missing');
+ $rM=$service->search($uid,'Müller',['/NativeOnly'],'',0,60,'text');
+ nativeCheck(count($rM['items'])===1&&$rM['items'][0]['search_match']===['query'=>'Müller','sources'=>['metadata']],'Unicode cached metadata match source missing');
+ $rTrim=$service->search($uid,'  Urlaub  ',['/NativeOnly'],'',0,60,'text');
+ nativeCheck(count($rTrim['items'])===1&&$rTrim['items'][0]['search_match']===['query'=>'Urlaub','sources'=>['tags']],'Query trimming in search_match failed');
+ $rComb=$service->search($uid,'native Urlaub',['/NativeOnly'],'',0,60,'text');
+ $f0=array_values(array_filter($rComb['items'],fn($it)=>$it['id']===$files[0]->getId()))[0]??null;
+ nativeCheck($f0&&$f0['search_match']===['query'=>'native Urlaub','sources'=>['name','path','tags']],'Multi-word combination sources mismatch');
  nativeCheck(count($service->search($uid,'native',['/NativeOnly'],'',0,60,'text','2023-07','metadata','Europe/Vienna')['items'])===1,'Metadata date/timezone filter missing');
  nativeCheck(!$service->search($uid,'native',['/NativeOnly'],'',0,60,'text','2023-07','metadata','UTC')['items'],'UTC filter ignored capture timestamp offset');
- $r=$service->search($uid,'ZX314',['/NativeOnly'],'',0,60,'text');nativeCheck(count($r['items'])===1&&$r['items'][0]['metadata']['mediaAi']['analysis']['vision']['description']==='Segelboot am See','Current AI metadata missing in response');
- $r=$service->search($uid,'unrelated semantic query',['/NativeOnly']);nativeCheck($r['mode']==='hybrid'&&array_column($r['items'],'id')===[$files[0]->getId()],'Vector-only/current etag/frame maximum failed');
- $client->fail=true;$r=$service->search($uid,'ZX314',['/NativeOnly']);nativeCheck($r['embedding_state']==='unavailable'&&count($r['items'])===1,'Model outage lost text results');$client->fail=false;
- $changed=$config;$changed['embedding']['max_edge']=1024;$settings->save($changed);$r=$service->search($uid,'ZX314',['/NativeOnly']);nativeCheck($r['embedding_state']==='model_changed'&&count($r['items'])===1,'Incompatible vector space was used');$settings->save($config);
+ $r=$service->search($uid,'ZX314',['/NativeOnly'],'',0,60,'text');nativeCheck(count($r['items'])===1&&$r['items'][0]['metadata']['mediaAi']['analysis']['vision']['description']==='Segelboot am See'&&$r['items'][0]['search_match']===['query'=>'ZX314','sources'=>['ocr']],'Current AI metadata missing in response');
+ $rSem=$service->search($uid,'unrelated semantic query',['/NativeOnly']);
+ nativeCheck($rSem['mode']==='hybrid'&&array_column($rSem['items'],'id')===[$files[0]->getId()]&&$rSem['items'][0]['search_match']===['query'=>'unrelated semantic query','sources'=>['embedding']],'Vector-only/current etag/frame maximum failed');
+ $rHybText=$service->search($uid,'ZX314',['/NativeOnly'],'',0,60,'hybrid');
+ nativeCheck(count($rHybText['items'])===1&&$rHybText['items'][0]['search_match']===['query'=>'ZX314','sources'=>['ocr','embedding']],'Hybrid ocr+embedding combination mismatch');
+ $client->fail=true;$r=$service->search($uid,'ZX314',['/NativeOnly']);nativeCheck($r['embedding_state']==='unavailable'&&count($r['items'])===1&&$r['items'][0]['search_match']===['query'=>'ZX314','sources'=>['ocr']],'Model outage lost text results');$client->fail=false;
+ $changed=$config;$changed['embedding']['max_edge']=1024;$settings->save($changed);$r=$service->search($uid,'ZX314',['/NativeOnly']);nativeCheck($r['embedding_state']==='model_changed'&&count($r['items'])===1&&$r['items'][0]['search_match']===['query'=>'ZX314','sources'=>['ocr']],'Incompatible vector space was used');$settings->save($config);
+ $rOldEtag=$service->search($uid,'native-001',['/NativeOnly']);
+ $oldEtagItem=array_values(array_filter($rOldEtag['items'],fn($it)=>$it['id']===$files[1]->getId()))[0]??null;
+ nativeCheck($oldEtagItem&&$oldEtagItem['search_match']===['query'=>'native-001','sources'=>['name','path']],'Old etag leaked embedding source');
+ foreach([$rHybText,$rComb,$rM,$rSem] as $sample){foreach($sample['items'] as $it){$s=$it['search_match']['sources'];nativeCheck($s===array_values(array_unique($s)),'search_match sources contained duplicates');}}
  $r=$service->search($uid,'native',['/NativeOnly'],'',0,60,'text');$second=$service->search($uid,'native',['/NativeOnly'],'',$r['next'],60,'text');
  nativeCheck(count($r['items'])===60&&$r['more']&&count($second['items'])===5&&!$second['more'],'Mobile pagination incomplete');
  nativeCheck(count(array_unique(array_merge(array_column($r['items'],'id'),array_column($second['items'],'id'))))===65,'Mobile pagination duplicated a result');

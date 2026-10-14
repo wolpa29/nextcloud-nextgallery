@@ -42,7 +42,7 @@ class NativeSearch {
   [$home,$folders]=$this->folders($uid,$roots);
   preg_match_all('/[\p{L}\p{N}_]+/u',mb_strtolower(trim($query)),$matches);$words=array_slice(array_values(array_unique($matches[0])),0,16);
   if(!$words||!$folders)return ['items'=>[],'next'=>null,'more'=>false,'mode'=>'lexical','embedding_state'=>'not_indexed'];
-  $files=[];$paths=[];$etags=[];$metas=[];$lexical=[];
+  $files=[];$paths=[];$etags=[];$metas=[];$lexical=[];$sources=[];
   foreach($folders as $rootPath=>$folder){
    for($start=0;;$start+=count($nodes)){
     $nodes=$folder->search(Search::query($start,500));if(!$nodes)break;
@@ -55,7 +55,7 @@ class NativeSearch {
      $meta=$this->mediaMetadata($file);$date=Dates::resolve($path,$meta['capture']??null,$file->getMTime(),$mode,$timezone);
      if($period!==''&&!str_starts_with($date['date'],$period))continue;
      $id=$file->getId();$files[$id]=$file;$paths[$id]=$path;$etags[$id]=$file->getEtag();$metas[$id]=$meta;
-     $score=0;foreach($words as $word)foreach([[mb_strtolower($file->getName()),8],[mb_strtolower($path),2],[mb_strtolower(json_encode($meta,JSON_INVALID_UTF8_SUBSTITUTE|JSON_UNESCAPED_UNICODE)),1]] as [$text,$weight])if(str_contains($text,$word))$score+=$weight;
+     $score=0;foreach($words as $word)foreach([[mb_strtolower($file->getName()),8,'name'],[mb_strtolower($path),2,'path'],[mb_strtolower(json_encode($meta,JSON_INVALID_UTF8_SUBSTITUTE|JSON_UNESCAPED_UNICODE)),1,'metadata']] as [$text,$weight,$src])if(str_contains($text,$word)){$score+=$weight;$sources[$id][$src]=true;}
      if($score)$lexical[$id]=$score;
     }
    }
@@ -65,7 +65,7 @@ class NativeSearch {
    $q=$this->db->getQueryBuilder();$q->select('file_id','etag','description','tags_text','objects_text','ocr_text','metadata_json','updated_at')->from('nextgallery_ai_meta')->where($q->expr()->eq('user_id',$q->createNamedParameter($uid)))->andWhere($q->expr()->in('file_id',$q->createNamedParameter($ids,\OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT_ARRAY)));
    $rows=$q->executeQuery();try{while($row=$rows->fetch()){
     $id=(int)$row['file_id'];if(!hash_equals($etags[$id],$row['etag']))continue;
-    $score=$lexical[$id]??0;foreach($words as $word)foreach(['description'=>1,'tags_text'=>3,'objects_text'=>3,'ocr_text'=>2] as $column=>$weight)if(str_contains(mb_strtolower($row[$column]),$word))$score+=$weight;
+    $score=$lexical[$id]??0;foreach($words as $word)foreach(['description'=>['description',1],'tags_text'=>['tags',3],'objects_text'=>['objects',3],'ocr_text'=>['ocr',2]] as $column=>[$src,$weight])if(str_contains(mb_strtolower($row[$column]),$word)){$score+=$weight;$sources[$id][$src]=true;}
     if($score)$lexical[$id]=$score;
     $metas[$id]['mediaAi']=json_decode($row['metadata_json'],true,64,JSON_THROW_ON_ERROR);$metas[$id]['aiUpdatedAt']=(int)$row['updated_at'];$metas[$id]['aiEtag']=$row['etag'];
    }}finally{$rows->closeCursor();}
@@ -86,14 +86,14 @@ class NativeSearch {
      $id=(int)$row['file_id'];$scores[$id]=isset($scores[$id])?max($scores[$id],$score):$score;
     }
     uksort($scores,fn($a,$b)=>($scores[$b]<=>$scores[$a])?:($a<=>$b));$state=$scores?'ready':'model_changed';
-    if($scores){$ids=EmbeddingSearch::merge($ids,array_keys($scores));$mode='hybrid';}
+    if($scores){$ids=EmbeddingSearch::merge($ids,array_keys($scores));$mode='hybrid';foreach(array_keys($scores) as $id)$sources[$id]['embedding']=true;}
    }catch(\Throwable){$state='unavailable';}
   }
   $page=array_slice($ids,$offset,$limit);$items=[];$next=$offset;$bytes=0;
   foreach($page as $id){
    try{$file=$home->get($paths[$id]);}catch(\OCP\Files\NotFoundException|\OCP\Files\NotPermittedException){$next++;continue;}
    if(!$file instanceof File||!$file->isReadable()||$file->getId()!==$id||!hash_equals($etags[$id],$file->getEtag())){$next++;continue;}$path='/'.ltrim($home->getRelativePath($file->getPath()),'/');if($path!==$paths[$id]){$next++;continue;}
-   $item=['id'=>$id,'name'=>$file->getName(),'path'=>$path,'kind'=>str_starts_with($file->getMimeType(),'image/')?'image':'video','etag'=>$file->getEtag(),'mtime'=>$file->getMTime(),'size'=>$file->getSize(),'metadata'=>$metas[$id]];
+   $item=['id'=>$id,'name'=>$file->getName(),'path'=>$path,'kind'=>str_starts_with($file->getMimeType(),'image/')?'image':'video','etag'=>$file->getEtag(),'mtime'=>$file->getMTime(),'size'=>$file->getSize(),'metadata'=>$metas[$id],'search_match'=>['query'=>trim($query),'sources'=>array_values(array_keys($sources[$id]??[]))]];
    // Full OCR/video metadata can be large. Keep complete records and continue on the next page.
    $size=strlen(json_encode($item,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_INVALID_UTF8_SUBSTITUTE));
    if($items&&$bytes+$size>2*1024*1024)break;
