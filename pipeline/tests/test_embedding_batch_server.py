@@ -470,6 +470,33 @@ class EmbeddingBatchServerTests(unittest.TestCase):
             server.server_close()
             thread.join()
 
+    def test_threaded_server_answers_info_during_inference_and_serializes_engine(self):
+        from http.server import ThreadingHTTPServer
+        engine = FakeEngine()
+        release = threading.Event(); entered = threading.Event()
+        active = []; peak = []
+        def slow_embed(text=None, image=None):
+            active.append(1); peak.append(len(active)); entered.set()
+            release.wait(5); active.pop()
+            return [1.0] + [0.0] * 127
+        engine.embed = slow_embed
+        server = ThreadingHTTPServer(('127.0.0.1', 0), handler(engine, 'test-token')); server.daemon_threads = True
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        url = f'http://127.0.0.1:{server.server_port}/v1'
+        try:
+            results = []
+            posts = [threading.Thread(target=lambda: results.append(http_post(url + '/embed', {'model': 'test-model', 'text': 'dog'}, 'test-token')))
+                     for _ in range(2)]
+            for post in posts: post.start()
+            self.assertTrue(entered.wait(5))
+            self.assertEqual(http_get(url + '/info', 'test-token')[0], 200)
+            release.set()
+            for post in posts: post.join(5)
+            self.assertEqual([status for status, _ in results], [200, 200])
+            self.assertEqual(max(peak), 1)
+        finally:
+            release.set(); server.shutdown(); server.server_close()
+
     def test_fallback_for_engine_without_embed_images(self):
         class LegacyEngine:
             def __init__(self):

@@ -12,8 +12,9 @@ import json
 import math
 import os
 import re
+import threading
 from pathlib import Path
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
 def vector(values):
@@ -238,6 +239,8 @@ class Custom:
 
 
 def handler(engine, token):
+    # Requests are threaded so /v1/info answers during a batch; models are not thread-safe.
+    inference=threading.Lock()
     class Handler(BaseHTTPRequestHandler):
         def setup(self):
             super().setup(); self.connection.settimeout(15)
@@ -265,7 +268,7 @@ def handler(engine, token):
                     raise ValueError('Supply exactly one of text, image or images')
                 if text is not None:
                     if not isinstance(text,str) or not text.strip() or len(text)>200: raise ValueError('Invalid query')
-                    embedding=engine.embed(text=text)
+                    with inference: embedding=engine.embed(text=text)
                     if len(embedding)!=engine.info['dimensions']: raise ValueError('Dimension mismatch')
                     self.send(200,{'space':engine.info['space'],'embedding':embedding})
                 elif wire is not None:
@@ -275,7 +278,7 @@ def handler(engine, token):
                     with Image.open(io.BytesIO(image)) as im:
                         if im.width*im.height > 16_777_216: raise ValueError('Image exceeds decode limit')
                         im.verify()
-                    embedding=engine.embed(image=image)
+                    with inference: embedding=engine.embed(image=image)
                     if len(embedding)!=engine.info['dimensions']: raise ValueError('Dimension mismatch')
                     self.send(200,{'space':engine.info['space'],'embedding':embedding})
                 else:
@@ -290,7 +293,7 @@ def handler(engine, token):
                             if im.width*im.height > 16_777_216: raise ValueError('Image exceeds decode limit')
                             im.verify()
                         images.append(img_bytes)
-                    embeddings=engine.embed_images(images) if hasattr(engine,'embed_images') else [engine.embed(image=img) for img in images]
+                    with inference: embeddings=engine.embed_images(images) if hasattr(engine,'embed_images') else [engine.embed(image=img) for img in images]
                     if not isinstance(embeddings,list) or len(embeddings)!=len(images):
                         raise ValueError('Batch count mismatch')
                     embeddings=[vector(emb) for emb in embeddings]
@@ -314,7 +317,7 @@ def main():
     args=parser.parse_args(); token=os.environ.get('NEXTGALLERY_EMBEDDING_KEY','')
     if args.host not in ('127.0.0.1','::1','localhost') and not token: parser.error('External service requires NEXTGALLERY_EMBEDDING_KEY')
     engine=(Custom if args.family=='custom' else GemmaFull if args.family=='gemma2' and args.profile=='full' else Gemma if args.family=='gemma2' else Qwen)(args)
-    server=HTTPServer((args.host,args.port),handler(engine,token)); server.timeout=120
+    server=ThreadingHTTPServer((args.host,args.port),handler(engine,token)); server.timeout=120; server.daemon_threads=True
     print(json.dumps({'ready':True,**engine.info}),flush=True)
     try: server.serve_forever()
     finally: server.server_close()

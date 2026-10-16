@@ -283,9 +283,11 @@ def install(root, profile='lite', accelerator='cpu'):
                            f'pip=={PIP_VERSION}'], timeout=300)
                 if profile=='full':
                     if accelerator=='cuda':
+                        # Same release as the CPU pin and requirements-embeddings-full.txt;
+                        # cu124 has no 2.14 wheels and an unpinned build was replaced from PyPI.
                         step = 'PyTorch-CUDA-Pakete installieren'
                         update(phase='runtime', message='PyTorch-CUDA-Pakete werden installiert …')
-                        run_setup([str(python),'-m','pip','install','--only-binary=:all:','--index-url','https://download.pytorch.org/whl/cu124','--disable-pip-version-check','--no-input','--no-cache-dir','--timeout','60','--retries','2','torch','torchvision'],timeout=1800)
+                        run_setup([str(python),'-m','pip','install','--only-binary=:all:','--index-url','https://download.pytorch.org/whl/cu126','--disable-pip-version-check','--no-input','--no-cache-dir','--timeout','60','--retries','2','torch==2.14.1','torchvision==0.29.1'],timeout=1800)
                     else:
                         step = 'PyTorch-CPU-Pakete installieren'
                         update(phase='runtime', message='PyTorch-CPU-Pakete werden installiert …')

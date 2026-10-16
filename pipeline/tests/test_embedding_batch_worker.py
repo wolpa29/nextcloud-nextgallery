@@ -203,4 +203,50 @@ class BatchClientTests(unittest.TestCase):
             self.assertEqual(single.call_count,2)
 
 
+
+class RejectingClient(BatchClient):
+    """Fails one photo with a server error; health tells input faults from outages."""
+    reject=3;status=503;healthy=True
+    def health(self):
+        # The run's opening check passes; later probes follow the simulated service state.
+        self.probes=getattr(self,'probes',0)+1
+        if self.probes>1 and not RejectingClient.healthy:raise p.ServiceUnavailable('Connection unavailable')
+        return self.info
+    def images(self,wires,should_stop=lambda:False):
+        if any(Image.open(io.BytesIO(wire)).getpixel((0,0))[0]==RejectingClient.reject for wire in wires):
+            BatchClient.calls.append(len(wires))
+            raise p.ServiceUnavailable(f'HTTP {RejectingClient.status} from model',RejectingClient.status)
+        return super().images(wires,should_stop)
+
+
+class ServiceRejectionTests(unittest.TestCase):
+    def setUp(self):
+        BatchClient.calls=[];RejectingClient.status=503;RejectingClient.healthy=True
+    def run_worker(self,directory,source,api,batch_size=4):
+        setting=config();setting['embedding']['batch_size']=batch_size
+        with patch.object(e,'Client',RejectingClient):
+            return e.run(setting,source,api,directory,lambda *a,**k:None,lambda:False)
+
+    def test_server_error_on_one_photo_fails_only_that_photo_while_service_answers(self):
+        for batch_size in (1,4):
+            with self.subTest(batch_size=batch_size),tempfile.TemporaryDirectory() as tmp:
+                api=API();result=self.run_worker(Path(tmp),Source(6),api,batch_size)
+                self.assertEqual(result['state'],'finished')
+                self.assertEqual((result['processed'],result['errors']),(5,1))
+                self.assertNotIn(3,[row['file_id'] for row in api.published])
+                store=e.Store(Path(tmp)/'embeddings.sqlite3')
+                row=store.db.execute("SELECT status,error FROM embeddings WHERE id='3'").fetchone();store.db.close()
+                self.assertEqual(row['status'],'error');self.assertIn('HTTP 503',row['error'])
+                # The next run moves on instead of stopping at the same photo again.
+                BatchClient.calls=[];result=self.run_worker(Path(tmp),Source(6),api,batch_size)
+                self.assertEqual((result['state'],result['processed'],BatchClient.calls),('finished',0,[]))
+
+    def test_outage_or_auth_failure_defers_without_charging_the_photo(self):
+        for status,healthy in ((503,False),(None,True),(401,True)):
+            with self.subTest(status=status,healthy=healthy),tempfile.TemporaryDirectory() as tmp:
+                RejectingClient.status=status;RejectingClient.healthy=healthy
+                result=self.run_worker(Path(tmp),Source(6),API(),1)
+                self.assertEqual(result['state'],'deferred')
+                self.assertEqual((result['errors'],result['stats']['error']),(0,0))
+
 if __name__=='__main__':unittest.main()

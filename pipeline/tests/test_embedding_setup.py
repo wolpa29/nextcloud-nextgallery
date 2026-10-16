@@ -79,6 +79,15 @@ class SetupTests(unittest.TestCase):
             self.assertIn('https://download.pytorch.org/whl/cpu',commands[1])
             self.assertEqual(setup.read(root/'setup.json')['phase'],'installed')
 
+    def test_full_cuda_setup_pins_the_same_torch_release_as_cpu(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp)
+            with patch.object(setup.venv,'EnvBuilder'),patch.object(setup,'run_setup') as run,patch.object(setup,'download_full',return_value=root/'model'):
+                setup.install(root,'full',accelerator='cuda')
+            command=run.call_args_list[1].args[0]
+            self.assertIn('https://download.pytorch.org/whl/cu126',command)
+            self.assertIn('torch==2.14.1',command);self.assertIn('torchvision==0.29.1',command)
+
     def test_pip_failure_exposes_step_and_cause_without_raw_sensitive_output(self):
         output="https://user:secret@example.invalid/private inconsistent Name: expected 'typing-extensions', but metadata has 'typing_extensions'"
         error=subprocess.CalledProcessError(1,['/private/runtime/python'],output=output)

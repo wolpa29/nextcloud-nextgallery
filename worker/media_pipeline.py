@@ -96,7 +96,7 @@ def request(url, method="GET", body=None, headers=None, timeout=60, maximum=64 *
     except urllib.error.HTTPError as error:
         check_budget()
         if error.code in {401, 403, 429} or error.code >= 500:
-            raise ServiceUnavailable(f"HTTP {error.code} from {parts.hostname}") from None
+            raise ServiceUnavailable(f"HTTP {error.code} from {parts.hostname}", error.code) from None
         raise PipelineError(f"HTTP {error.code} from {parts.hostname}") from None
     except (urllib.error.URLError, TimeoutError, OSError) as error:
         check_budget()
@@ -117,7 +117,7 @@ def open_stream(url, method, body, headers, timeout=60, ca_file=None):
     except urllib.error.HTTPError as error:
         check_budget()
         if error.code in {401, 403, 429} or error.code >= 500:
-            raise ServiceUnavailable(f'HTTP {error.code} from {parts.hostname}') from None
+            raise ServiceUnavailable(f'HTTP {error.code} from {parts.hostname}', error.code) from None
         raise PipelineError(f'HTTP {error.code} from {parts.hostname}') from None
     except (urllib.error.URLError, TimeoutError, OSError) as error:
         check_budget()

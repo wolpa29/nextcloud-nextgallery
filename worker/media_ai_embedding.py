@@ -132,6 +132,15 @@ def run(config, source, api, directory, observe, should_stop, retry_errors=False
             items.sort(key=lambda item:retry_ids.get(item.key,(2,0)))
         observe('embedding_inventory_finished',embedding_stats=store.stats(space),embedding_space=space)
         pending=[]; pending_bytes=0
+        def rejected(error):
+            # A 5xx while /info still answers points at this input, not at an outage;
+            # otherwise one bad file would stop every later run at the same place.
+            if not isinstance(error.status,int) or error.status<500:return False
+            try:client.health()
+            except (p.PipelineError,ValueError,KeyError,TypeError,OSError):return False
+            return client.space==space
+        def rejection(error):
+            return p.PipelineError('Embedding service failed on this file ('+str(error)[:200]+')')
         def fail(item,error):
             nonlocal errors
             with store.db:store.db.execute("UPDATE embeddings SET status='error',error=? WHERE id=? AND space=?",(str(error)[:300],item.key,space))
@@ -157,8 +166,9 @@ def run(config, source, api, directory, observe, should_stop, retry_errors=False
                 with hold(config['embedding'].get('_inference_directory'),getattr(client,'url',config['embedding']['url']),should_stop), p.ImageBudget(config.get('image_timeout_seconds',0)):
                     observe('embedding_batch_start',stage='embedding',files=[{'file_id':item.locator,'path':item.path} for item,wire in entries])
                     values=client.images([wire for item,wire in entries],should_stop)
-            except (InferenceCancelled,p.ServiceUnavailable):raise
-            except (p.PipelineError,p.ImageTimeout,ValueError,KeyError,TypeError,OSError):
+            except InferenceCancelled:raise
+            except (p.PipelineError,p.ImageTimeout,ValueError,KeyError,TypeError,OSError) as error:
+                if isinstance(error,p.ServiceUnavailable) and not rejected(error):raise
                 # Isolate a bad entry instead of failing all its healthy neighbours.
                 values=[]
                 for item,wire in entries:
@@ -167,7 +177,10 @@ def run(config, source, api, directory, observe, should_stop, retry_errors=False
                         with hold(config['embedding'].get('_inference_directory'),getattr(client,'url',config['embedding']['url']),should_stop), p.ImageBudget(config.get('image_timeout_seconds',0)):
                             observe('stage_start',path=item.path,file_id=item.locator,stage='embedding')
                             values.append(client.image(wire))
-                    except (InferenceCancelled,p.ServiceUnavailable):raise
+                    except InferenceCancelled:raise
+                    except p.ServiceUnavailable as error:
+                        if not rejected(error):raise
+                        fail(item,rejection(error));values.append(None)
                     except (p.PipelineError,p.ImageTimeout,ValueError,KeyError,TypeError,OSError) as error:
                         fail(item,error);values.append(None)
             staged=[]
@@ -203,9 +216,13 @@ def run(config, source, api, directory, observe, should_stop, retry_errors=False
                             report={}; batch,_,_=p.prepare_video(current,{'frame_count':config['embedding']['video_frames'],'max_edge':config['embedding']['max_edge'],
                                 'decoder_timeout_seconds':max(120,config.get('image_timeout_seconds',0) or 600),
                                 '_should_stop':should_stop,'decoder_threads':4},config['max_image_pixels'],report)
-                    with hold(config['embedding'].get('_inference_directory'),getattr(client,'url',config['embedding']['url']),should_stop), p.ImageBudget(config.get('image_timeout_seconds',0)):
-                        observe('stage_start',path=item.path,file_id=item.locator,stage='embedding')
-                        values=client.images([image[0] for image in batch.images],should_stop)
+                    try:
+                        with hold(config['embedding'].get('_inference_directory'),getattr(client,'url',config['embedding']['url']),should_stop), p.ImageBudget(config.get('image_timeout_seconds',0)):
+                            observe('stage_start',path=item.path,file_id=item.locator,stage='embedding')
+                            values=client.images([image[0] for image in batch.images],should_stop)
+                    except p.ServiceUnavailable as error:
+                        if not rejected(error):raise
+                        raise rejection(error) from None
                     vectors=[{'frame':i,'seconds':report['frames'][i]['sample_seconds'],'values':value} for i,value in enumerate(values)]
                     stage(item,vectors);publish(item,vectors)
                 else:
