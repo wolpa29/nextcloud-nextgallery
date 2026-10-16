@@ -1,4 +1,4 @@
-@import url('app-theme.css?v=0.4.8');
+@import url('app-theme.css?v=0.4.17');
 /* Workspace layout; app-theme.css supplies the shared native palette. */
 .mai-shell{display:flex;width:100%;height:100%;min-height:0;overflow:hidden;background:var(--color-main-background)}
 #app-navigation.mai-navigation{display:block;position:relative;inset:auto;float:none;flex:0 0 224px;width:224px;min-width:224px;max-width:224px;height:100%;margin:0;padding:26px 14px;box-sizing:border-box;border-right:1px solid var(--color-border);background:var(--color-main-background);overflow-y:auto;transform:none;visibility:visible;z-index:auto}
@@ -14,7 +14,7 @@
 #app-navigation.mai-navigation .mai-nav-links a.is-active{background:var(--color-primary-element-light);color:var(--color-primary-element-light-text,var(--color-main-text));font-weight:600}
 #mai-nav-toggle{display:none;border:1px solid var(--color-border);background:var(--color-main-background);color:var(--color-main-text);font-weight:600}
 
-.mai{--mai-border:var(--color-border);--mai-soft:color-mix(in srgb,var(--color-main-text) 4%,var(--color-main-background));margin-inline:auto;max-width:1160px;width:100%;height:100%;padding:28px 30px 40px;box-sizing:border-box;overflow:auto;scrollbar-gutter:stable;color:var(--color-main-text);font-size:14px;line-height:1.5}
+.mai{--mai-border:var(--color-border);--mai-soft:color-mix(in srgb,var(--color-main-text) 4%,var(--color-main-background));margin:0;max-width:none;width:100%;height:100%;padding:28px max(30px,calc((100% - 1100px) / 2)) 40px;box-sizing:border-box;overflow:auto;scrollbar-gutter:stable;color:var(--color-main-text);font-size:14px;line-height:1.5}
 .mai h2{font-size:27px;font-weight:650;letter-spacing:-.7px;line-height:1.25;margin:0}
 .mai h3{font-size:17px;font-weight:600;letter-spacing:-.25px;margin:0 0 14px}
 .mai h4{font-size:14px;font-weight:600;margin:0 0 10px}
@@ -342,6 +342,6 @@
 #media-ai-user .mai-activity-error>strong,#media-ai-user .mai-activity-error .mai-error-detail,#media-ai-user button.mai-error{color:var(--color-error-text,var(--color-error,#b91c1c))}
 #media-ai-user .mai-activity-error{border-left:3px solid var(--color-error,#b91c1c);padding-left:14px}
 #media-ai-user .mai-error-detail{white-space:pre-wrap;overflow-wrap:anywhere}
-#media-ai-user .mai-run-surface [role=status]{display:flex;flex-direction:column;gap:6px}
+#media-ai-user .mai-run-surface [role=status]{display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:6px}
 #media-ai-user .mai-run-surface .mai-current-elapsed{font-size:12px;font-variant-numeric:tabular-nums}
-#media-ai-user #mai-pipeline-logs>.mai-actions{flex-wrap:wrap}
+#media-ai-user #mai-pipeline-logs>.mai-actions{flex-wrap:wrap;align-items:flex-end;gap:12px;margin-bottom:18px}

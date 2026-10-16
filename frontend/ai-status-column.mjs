@@ -89,9 +89,24 @@ setInterval(() => {
   }
   flush()
 }, 10000)
-document.addEventListener('DOMContentLoaded', () => fetch(OC.generateUrl('/apps/nextgallery/ai/preferences'), { credentials: 'same-origin' })
+const rerenderVisible = () => {
+  for (const [id, elements] of visible) {
+    const stored = cache.get(id)
+    if (!stored) continue
+    for (const element of elements) if (element.isConnected) renderStatus(element, stored.item)
+  }
+}
+const loadPreferences = () => fetch(OC.generateUrl('/apps/nextgallery/ai/preferences'), { credentials: 'same-origin' })
   .then(response => response.ok ? response.json() : null)
-  .then(preference => { if (preference && window.MediaAIi18n) window.MediaAIi18n.language = preference.language })
-  .catch(() => {}), { once: true })
+  .then(preference => {
+    if (!preference?.language) return
+    if (window.MediaAIi18n) window.MediaAIi18n.language = preference.language
+    else window.MediaAIi18n = { language: preference.language }
+    rerenderVisible()
+  })
+  .catch(() => {})
+window.addEventListener('media-ai-i18n-ready', rerenderVisible)
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', loadPreferences, { once: true })
+else loadPreferences()
 
 }

@@ -198,7 +198,7 @@ async function init() {
  }
  root.querySelectorAll('[data-embedding-remove]').forEach(button=>button.addEventListener('click',async()=>{
   if(button.disabled)return;
-  const label=selectedProfile()==='full'?'Gemma 2 · Original':'Gemma 2 · sparsam';
+  const label=tr(selectedProfile()==='full'?'Gemma 2 · Original':'Gemma 2 · sparsam');
   if(!await confirmModelAction('Modell deinstallieren',tr('{model} deinstallieren? Modell und Laufzeit werden gelöscht. Die Bildsuche mit dieser Variante ist bis zur erneuten Installation nicht verfügbar. Beschreibungen, OCR und gespeicherte Vektoren bleiben erhalten.',{model:label}),'Deinstallieren',true))return;
   installBusy=true;renderEmbeddingInstall();try{await api('embedding-remove',{profile:selectedProfile()});message('Deinstallation angefordert. Gespeicherte KI-Daten bleiben erhalten.');await status();}catch(e){message(e.message,true);}finally{installBusy=false;renderEmbeddingInstall();}
  }));

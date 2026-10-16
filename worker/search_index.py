@@ -26,7 +26,16 @@ import sqlite3
 try:
     import sqlite_vec
 except ImportError:
-    sqlite_vec = None
+    import platform as _platform
+    _machine = _platform.machine().lower()
+    _arch = 'x86_64' if _machine in ('x86_64', 'amd64') else ('aarch64' if _machine in ('aarch64', 'arm64') else _machine)
+    _vendor = Path(__file__).resolve().parent / 'vendor' / _arch
+    if _vendor.is_dir() and str(_vendor) not in sys.path:
+        sys.path.insert(0, str(_vendor))
+    try:
+        import sqlite_vec
+    except ImportError:
+        sqlite_vec = None
 
 
 # ---------------------------------------------------------------------------

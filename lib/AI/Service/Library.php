@@ -21,7 +21,7 @@ class Library {
         $scope=hash('sha256',json_encode(['native',$identity['scope_identity']??rtrim($url,'/').'/index.php/apps/nextgallery/ai/worker/',$config['user_id'],$config['folders'],$config['exclude_folders']],JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_LINE_TERMINATORS));
         $db=new \PDO('sqlite:file:'.$path.'?mode=ro', null, null, [\PDO::ATTR_ERRMODE=>\PDO::ERRMODE_EXCEPTION]);
         $db->exec('PRAGMA query_only=ON'); $db->exec('PRAGMA busy_timeout=250');
-        $query=$db->prepare('SELECT locator,etag,status,error,retry_at,analyzed_at,publish_error FROM files WHERE active=1 AND scope=?');$query->execute([$scope]);$rows=$query->fetchAll(\PDO::FETCH_ASSOC);
+        $query=$db->prepare('SELECT locator,etag,status,error,retry_at,analyzed_at,publish_error FROM files WHERE active=1 ORDER BY CASE WHEN scope=? THEN 1 ELSE 0 END ASC, analyzed_at ASC');$query->execute([$scope]);$rows=$query->fetchAll(\PDO::FETCH_ASSOC);
         $result=[];
         foreach ($rows as $row) { $result[(int)$row['locator']]=$row; }
         return $result;

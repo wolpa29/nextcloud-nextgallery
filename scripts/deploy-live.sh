@@ -17,6 +17,6 @@ python3 "$REPO_ROOT/scripts/package-app.py" "$REPO_ROOT/dist"
 python3 "$REPO_ROOT/scripts/verify-worker-package.py" "$TARBALL"
 
 echo "==> Deploying NextGallery directly to root@${SERVER}:${APP_DIR}/nextgallery..."
-ssh "${ssh_options[@]}" "tar -xzf - -C ${APP_DIR} && chown -R www-data:www-data ${APP_DIR}/nextgallery" < "$TARBALL"
+ssh "${ssh_options[@]}" "root@${SERVER}" "tar -xzf - -C ${APP_DIR} && chown -R www-data:www-data ${APP_DIR}/nextgallery" < "$TARBALL"
 
 echo "==> NextGallery update successfully deployed to Nextcloud!"

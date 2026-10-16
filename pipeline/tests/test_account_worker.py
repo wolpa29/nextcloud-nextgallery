@@ -3,9 +3,13 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
+_WORKER_DIR = str(Path(__file__).resolve().parents[2] / 'worker')
+if _WORKER_DIR not in sys.path:
+    sys.path.insert(0, _WORKER_DIR)
 import media_pipeline as p
 import media_ai_embedding as embedding
 spec=importlib.util.spec_from_file_location('account_worker',Path(__file__).resolve().parents[2]/'worker/app_worker.py')
