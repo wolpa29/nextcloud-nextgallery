@@ -134,6 +134,7 @@ class NativeMediaTests(unittest.TestCase):
         setting=config();source=ImageSource()
         items=[p.Item('synthetic:'+str(i),'image.png',str(i),'v1',len(source.wire),'image/png') for i in (1,2,3)]
         source.inventory=lambda:items
+        source.read=lambda item,maximum:source.wire+item.locator.encode()  # distinct content per file
         with tempfile.TemporaryDirectory() as temp,patch.object(e,'Client',FakeClient):
             root=Path(temp);space=FakeClient(setting['embedding']).space;store=e.Store(root/'embeddings.sqlite3')
             saved=json.dumps([{'frame':0,'seconds':0,'values':[1.]+[0.]*127}])

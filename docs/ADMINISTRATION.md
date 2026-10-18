@@ -24,6 +24,30 @@ Descriptions, OCR and visual embeddings have three independent workers, start/pa
 
 When upgrading from the earlier combined-worker architecture, restart the existing `nextgallery-ai.service` once. The same service supervises three processes; no additional systemd units are needed. Legacy requests and daily schedule state are split once under `control.lock`; existing description/OCR pause state is inherited by OCR. The original `native.sqlite3` is retained, and its existing results are copied into separate `native-descriptions.sqlite3` and `native-ocr.sqlite3` caches without reanalysis. The embedding cache remains in place. Existing published metadata is recognized without a destructive database migration. Each pipeline has its own control, status, schedule and processing gate. Concurrent description/OCR publication merges both results under a short account lock, and deleting one stage preserves the other. Logs retain a shared account history with the pipeline kind on each event.
 
+### External storage (NAS, SMB)
+
+Nextcloud only notices changes made directly on a NAS when someone opens the folder or a scan runs. Until then NextGallery and the AI pipelines see the old state. A nightly scan keeps it current. Example for an SMB mount `/Familienfotos` of user `paul`:
+
+```ini
+# /etc/systemd/system/nextcloud-familienfotos-scan.service
+[Service]
+Type=oneshot
+User=www-data
+WorkingDirectory=/var/www/nextcloud
+ExecStart=/usr/bin/php /var/www/nextcloud/occ files:scan --quiet --path=/paul/files/Familienfotos
+
+# /etc/systemd/system/nextcloud-familienfotos-scan.timer
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+[Install]
+WantedBy=timers.target
+```
+
+Enable it with `systemctl daemon-reload && systemctl enable --now nextcloud-familienfotos-scan.timer`. Run the scan once before the first AI run.
+
+Moving or renaming files on the NAS gives them a new Nextcloud file ID. Descriptions, OCR and image vectors are reused by content (SHA-256), so only the file is read again and no model runs. Moves made through Nextcloud keep the file ID and need no reread. AI results are stored per user: other members of a group that shares the mount don't see them and process the files separately.
+
 For an external PC, see the [step-by-step installation guide](EXTERNAL_EMBEDDING_SERVER.md) and [installer](../scripts/install-embedding-server.py). The installer starts a separate Gemma embedding service with Docker; LM Studio can continue serving descriptions alongside it. See [embedding architecture](EMBEDDINGS.md).
 
 ## Build and install

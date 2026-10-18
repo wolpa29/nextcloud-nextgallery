@@ -179,7 +179,7 @@ class Settings {
                   'max_download_bytes' => [1048576,536870912], 'max_image_pixels' => [1000000,200000000]] as $key => [$min,$max]) {
             $result[$key] = $this->integer($value[$key] ?? ($key === 'image_timeout_seconds' ? 600 : null), $min, $max, $key);
         }
-        $result['max_video_download_bytes'] = $this->integer($value['max_video_download_bytes'] ?? 536870912, 1048576, 2147483648, 'max_video_download_bytes');
+        $result['max_video_download_bytes'] = $this->integer($value['max_video_download_bytes'] ?? 536870912, 1048576, 4294967296, 'max_video_download_bytes');
         if (!is_array($value['video'] ?? []) || !is_array($value['ocr'] ?? [])) { throw new OCSBadRequestException('Medien-Einstellungen ungültig'); }
         $result['video']['frame_count'] = $this->integer($value['video']['frame_count'] ?? 10, 1, 20, 'video/frame_count');
         $result['ocr']['tile_overlap_percent'] = $this->integer($value['ocr']['tile_overlap_percent'] ?? 10, 1, 25, 'ocr/tile_overlap_percent');

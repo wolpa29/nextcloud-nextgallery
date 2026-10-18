@@ -84,6 +84,7 @@ You choose processing folders and schedules, with separate start/pause controls 
 
 - **Originals stay untouched.** NextGallery reads your Nextcloud folders and never moves, renames or copies your photos.
 - **No external services by default.** The map ships with the app. AI uses only the model services your administrator configures. [Setup details →](docs/ADMINISTRATION.md#ai-administration-and-external-embedding-server)
+- **Photos on a NAS work too.** Mounted as Nextcloud external storage, they are kept current by a nightly scan. AI results survive reorganizing folders on the NAS. [How →](docs/ADMINISTRATION.md#external-storage-nas-smb)
 - **Offline means previews, not a full backup.** Playing original videos needs a connection. Reopening browser collections requires Service Worker support; portable offline files are an alternative.
 
 <sub>All screenshots show synthetic demo images, no real photos.</sub>

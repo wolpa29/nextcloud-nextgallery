@@ -104,11 +104,24 @@ class Store:
     def __init__(self, path):
         self.db=sqlite3.connect(path); self.db.row_factory=sqlite3.Row
         self.db.execute('CREATE TABLE IF NOT EXISTS embeddings (id TEXT,space TEXT,etag TEXT,path TEXT,status TEXT,active INTEGER DEFAULT 1,vectors TEXT,error TEXT,PRIMARY KEY(id,space))')
+        # Vectors by source bytes: a file moved outside Nextcloud gets a new file ID but keeps its content.
+        self.db.execute('CREATE TABLE IF NOT EXISTS content (sha256 TEXT,space TEXT,vectors TEXT,created_at REAL,PRIMARY KEY(sha256,space))')
     def stats(self, space):
         counts={r['status']:r['n'] for r in self.db.execute('SELECT status,COUNT(*) n FROM embeddings WHERE space=? AND active=1 GROUP BY status',(space,))}
         return {k:counts.get(k,0) for k in ('done','pending','error')}
+    def cached(self, sha256, space):
+        row=self.db.execute('SELECT vectors FROM content WHERE sha256=? AND space=?',(sha256,space)).fetchone()
+        return json.loads(row['vectors']) if row else None
     def reset(self):
-        with self.db:self.db.execute('DELETE FROM embeddings')
+        with self.db:
+            self.db.execute('DELETE FROM embeddings');self.db.execute('DELETE FROM content')
+
+
+def file_sha256(path):
+    hash_=p.hashlib.sha256()
+    with Path(path).open('rb') as stream:
+        for block in iter(lambda:stream.read(1024*1024),b''):hash_.update(block)
+    return hash_.hexdigest()
 
 
 def run(config, source, api, directory, observe, should_stop, retry_errors=False):
@@ -131,7 +144,7 @@ def run(config, source, api, directory, observe, should_stop, retry_errors=False
         if retry_ids:
             items.sort(key=lambda item:retry_ids.get(item.key,(2,0)))
         observe('embedding_inventory_finished',embedding_stats=store.stats(space),embedding_space=space)
-        pending=[]; pending_bytes=0
+        pending=[]; pending_bytes=0; hashes={}
         def rejected(error):
             # A 5xx while /info still answers points at this input, not at an outage;
             # otherwise one bad file would stop every later run at the same place.
@@ -147,7 +160,18 @@ def run(config, source, api, directory, observe, should_stop, retry_errors=False
             errors+=1;observe('embedding_error',path=item.path,file_id=item.locator,stage='embedding',error=str(error)[:300],level='error',embedding_stats=store.stats(space))
         def stage(item,vectors):
             if not source.unchanged(item):raise p.PipelineError('Media changed during embedding')
+            with store.db:
+                store.db.execute('UPDATE embeddings SET vectors=? WHERE id=? AND space=?',(json.dumps(vectors),item.key,space))
+                if item.key in hashes:
+                    store.db.execute('INSERT OR REPLACE INTO content VALUES (?,?,?,?)',(hashes.pop(item.key),space,json.dumps(vectors),time.time()))
+        def reuse(item,sha256):
+            """Publish vectors already computed for identical bytes; False means compute them."""
+            vectors=store.cached(sha256,space)
+            if vectors is None:
+                hashes[item.key]=sha256;return False
             with store.db:store.db.execute('UPDATE embeddings SET vectors=? WHERE id=? AND space=?',(json.dumps(vectors),item.key,space))
+            observe('stage_start',path=item.path,file_id=item.locator,stage='publishing');publish(item,vectors)
+            return True
         def publish(item,vectors):
             nonlocal processed
             if not source.unchanged(item):raise p.PipelineError('Media changed during embedding')
@@ -213,6 +237,7 @@ def run(config, source, api, directory, observe, should_stop, retry_errors=False
                         path=Path(temp)/('source'+Path(item.path).suffix)
                         maximum=config['max_video_download_bytes']
                         with video_source(source,item,path,maximum) as current:
+                            if reuse(item,file_sha256(current)):continue
                             report={}; batch,_,_=p.prepare_video(current,{'frame_count':config['embedding']['video_frames'],'max_edge':config['embedding']['max_edge'],
                                 'decoder_timeout_seconds':max(120,config.get('image_timeout_seconds',0) or 600),
                                 '_should_stop':should_stop,'decoder_threads':4},config['max_image_pixels'],report)
@@ -229,7 +254,9 @@ def run(config, source, api, directory, observe, should_stop, retry_errors=False
                     with p.ImageBudget(config.get('image_timeout_seconds',0)):
                         if item.size>config['max_download_bytes']:raise p.PipelineError('Image exceeds download limit')
                         from embedding_image import prepare_image
-                        wire,_,_=prepare_image(source.read(item,config['max_download_bytes']),config['embedding']['max_edge'],config['max_image_pixels'])
+                        data=source.read(item,config['max_download_bytes'])
+                        if reuse(item,p.hashlib.sha256(data).hexdigest()):continue
+                        wire,_,_=prepare_image(data,config['embedding']['max_edge'],config['max_image_pixels'])
                     wire_size=4*((len(wire)+2)//3)+4
                     if wire_size>24*1024*1024-4096:raise p.PipelineError('Embedding image exceeds request limit')
                     if pending and pending_bytes+wire_size>24*1024*1024-4096:flush()

@@ -135,6 +135,38 @@ class BatchWorkerTests(unittest.TestCase):
             self.assertEqual([v['seconds'] for v in api.published[0]['vectors']],[i*2.5 for i in range(10)])
             self.assertEqual([v['values'] for v in api.published[0]['vectors']],[values(i) for i in range(10)])
 
+    def test_photos_moved_outside_nextcloud_reuse_vectors_by_content(self):
+        # A move on the NAS reaches Nextcloud as delete + create: new file ID, same bytes.
+        class Moved(Source):
+            def __init__(self,count):
+                super().__init__(0)
+                self.items=[p.Item(str(100+i),f'sorted/{i}.png',str(100+i),'v2',len(png(i)),'image/png') for i in range(count)]
+            def read(self,item,maximum):return png(int(item.locator)-100)
+        with tempfile.TemporaryDirectory() as tmp:
+            directory=Path(tmp);self.run_worker(directory,Source(5),API())
+            self.assertEqual(BatchClient.calls,[5])
+            api=API();source=Moved(6);result=self.run_worker(directory,source,api)
+            self.assertEqual(result['processed'],6);self.assertEqual(BatchClient.calls,[5,1])
+            self.assertEqual({row['file_id']:row['vectors'][0]['values'] for row in api.published},
+                             {100+i:values(i) for i in range(6)})
+            store=e.Store(directory/'embeddings.sqlite3');store.reset();store.db.close()
+            self.run_worker(directory,Moved(6),API())
+            self.assertEqual(BatchClient.calls,[5,1,6])
+
+    def test_video_moved_outside_nextcloud_skips_frame_extraction(self):
+        frames=p.ImageBatch([(png(i),'image/png','synthetic') for i in range(3)],'synthetic frames');extracted=[]
+        def prepare(path,setting,max_pixels,report):
+            extracted.append(path);report['frames']=[{'sample_seconds':i*2.0} for i in range(3)]
+            return frames,'image/png',{}
+        first=Source(0);first.items=[p.Item('9','clip.mp4','9','v1',1,'video/mp4')]
+        moved=Source(0);moved.items=[p.Item('19','sorted/clip.mp4','19','v2',1,'video/mp4')]
+        with tempfile.TemporaryDirectory() as tmp,patch.object(p,'prepare_video',prepare):
+            self.run_worker(Path(tmp),first,API())
+            api=API();result=self.run_worker(Path(tmp),moved,api)
+            self.assertEqual(result['processed'],1);self.assertEqual(len(extracted),1);self.assertEqual(BatchClient.calls,[3])
+            self.assertEqual(api.published[0]['file_id'],19)
+            self.assertEqual([v['seconds'] for v in api.published[0]['vectors']],[0.0,2.0,4.0])
+
     def test_embedding_png_preserves_all_pixels_of_scaled_image(self):
         original=Image.new('RGB',(40,30));original.putdata([(i%256,(i*17)%256,(i*37)%256) for i in range(1200)])
         out=io.BytesIO();original.save(out,'PNG')

@@ -117,7 +117,9 @@ class EmbeddingTests(unittest.TestCase):
     def test_file_etag_and_model_space_changes_reembed_without_resetting_captions(self):
         with tempfile.TemporaryDirectory() as temp,patch.object(e,'Client',FakeClient):
             source=Source();api=API();d=Path(temp);c=config()
-            for etag in ['v1','v2']:
+            from PIL import Image
+            for etag,color in [('v1','red'),('v2','blue')]:
+                b=io.BytesIO();Image.new('RGB',(64,64),color).save(b,'PNG');source.wire=b.getvalue()
                 source.etag=etag;e.run(c,source,api,d,lambda *a,**k:None,lambda:False)
             c['embedding']['max_edge']=1024;e.run(c,source,api,d,lambda *a,**k:None,lambda:False)
             self.assertEqual(FakeClient.calls,3);self.assertNotEqual(api.published[1]['space'],api.published[2]['space'])
