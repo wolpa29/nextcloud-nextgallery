@@ -90,6 +90,11 @@ class Library {
         $snapshot=['rows'=>$rows,'folders'=>$folders,'recent'=>array_slice($recent,0,5),'generated_at'=>time()];
         $cache?->set($key,$snapshot,10); return $snapshot;
     }
+    /** Live totals of the current selection, independent of when a worker last ran. */
+    public function counts(): array {
+        $snapshot=$this->snapshot();
+        return ['counts'=>$snapshot['folders']['']['counts'],'generated_at'=>$snapshot['generated_at']];
+    }
     public function nodeStatuses(array $nodes): array {
         $snapshot=$this->snapshot(); $ids=array_fill_keys(array_column($nodes,'file_id'),true); $selected=[];
         foreach ($snapshot['rows'] as $row) { if(isset($ids[$row['file_id']])) { $selected[$row['file_id']]=['status'=>$row['status'],'updated_at'=>$row['updated_at']]; } }

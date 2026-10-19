@@ -23,6 +23,7 @@ return ['routes' => [
  ['name'=>'ai_account#folders', 'url'=>'/ai/account/folders', 'verb'=>'GET'],
  ['name'=>'ai_account#status', 'url'=>'/ai/account/status', 'verb'=>'GET'],
  ['name'=>'ai_account#library', 'url'=>'/ai/account/library', 'verb'=>'GET'],
+ ['name'=>'ai_account#inventory', 'url'=>'/ai/account/inventory', 'verb'=>'GET'],
  ['name'=>'ai_account#logs', 'url'=>'/ai/account/logs', 'verb'=>'GET'],
  ['name'=>'ai_account#control', 'url'=>'/ai/account/control', 'verb'=>'POST'],
  ['name'=>'ai_account#delete', 'url'=>'/ai/account/delete', 'verb'=>'POST'],

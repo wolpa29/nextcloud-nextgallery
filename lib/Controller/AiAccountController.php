@@ -70,6 +70,11 @@ class AiAccountController extends Controller {
         }catch(\OCP\AppFramework\OCS\OCSBadRequestException $e){return new DataResponse(['error'=>$e->getMessage()],400);}
     }
     #[NoAdminRequired]
+    public function inventory():DataResponse {
+        try{return new DataResponse($this->library->forUser($this->uid())->counts());
+        }catch(\OCP\AppFramework\OCS\OCSBadRequestException $e){return new DataResponse(['error'=>$e->getMessage()],400);}
+    }
+    #[NoAdminRequired]
     public function logs(string $date,int $cursor=0,string $level='all',string $kind='all'):DataResponse {
         try{return new DataResponse($this->account()->logs($date,$cursor,$level,$kind));}
         catch(\OCP\AppFramework\OCS\OCSBadRequestException $e){return new DataResponse(['error'=>$e->getMessage()],400);}

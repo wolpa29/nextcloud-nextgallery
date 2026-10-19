@@ -75,6 +75,7 @@ $dir=sys_get_temp_dir().'/media-ai-folder-stages-'.bin2hex(random_bytes(8));mkdi
     ['file_id'=>3,'path'=>'clip.mp4','etag'=>'e3','analyzed_etag'=>null,'ocr_etag'=>null,'updated_at'=>0,'size'=>10,'mime'=>'video/mp4','stages'=>$all],
 ]),$settings,new State(new Config($dir)));
 $r=$library->browse();$c=$r['counts'];
+check($library->counts()['counts']===$c&&is_int($library->counts()['generated_at']),'Overview totals differ from the file page');
 check($c['total']===3&&$c['description_total']===2&&$c['done']===1&&$c['pending']===1,'Description counts include a deselected folder');
 check($c['ocr_total']===1&&$c['ocr_pending']===1,'OCR counts include a deselected folder or a video');
 check($c['embedding_total']===1&&$c['embedding_pending']===1&&$c['embedded']===0,'Embedding counts include deselected folders');
