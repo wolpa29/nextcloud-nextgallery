@@ -55,6 +55,8 @@ return ['routes' => [
  ['name'=>'ai_worker#reset', 'url'=>'/ai/worker/reset', 'verb'=>'POST'],
  ['name'=>'ai_worker#publishEmbedding', 'url'=>'/ai/worker/publish-embedding', 'verb'=>'POST'],
  ['name'=>'ai_worker#publish', 'url'=>'/ai/worker/publish', 'verb'=>'POST'],
+ ['name'=>'ai_worker#sharedResult', 'url'=>'/ai/worker/shared-result/lookup', 'verb'=>'POST'],
+ ['name'=>'ai_worker#shareResult', 'url'=>'/ai/worker/shared-result', 'verb'=>'POST'],
 ], 'ocs'=>[
  ['name'=>'native_search#search', 'url'=>'/api/v1/search', 'verb'=>'POST'],
  ['name'=>'ai_metadata#resolve', 'url'=>'/ai/api/v1/resolve', 'verb'=>'GET'],

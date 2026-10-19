@@ -46,7 +46,21 @@ WantedBy=timers.target
 
 Enable it with `systemctl daemon-reload && systemctl enable --now nextcloud-familienfotos-scan.timer`. Run the scan once before the first AI run.
 
-Moving or renaming files on the NAS gives them a new Nextcloud file ID. Descriptions, OCR and image vectors are reused by content (SHA-256), so only the file is read again and no model runs. Moves made through Nextcloud keep the file ID and need no reread. AI results are stored per user: other members of a group that shares the mount don't see them and process the files separately.
+Moving or renaming files on the NAS gives them a new Nextcloud file ID. Descriptions, OCR and image vectors are reused by content (SHA-256), so only the file is read again and no model runs. Moves made through Nextcloud keep the file ID and need no reread.
+
+### Shared results between accounts
+
+Descriptions, OCR and image vectors stay per account, but an account processing a file that another account has already analysed reuses the result instead of running the model again. This covers group-shared mounts such as `/Familienfotos`, regular shares and identical copies. The worker downloads the file as usual, computes its SHA-256 and asks the server for a result for the same content.
+
+Descriptions and OCR follow the same rule as an account's own results: changing the model or prompt applies to media without a result and never reanalyses finished ones. An account therefore also adopts another account's result made with an earlier model or prompt. A result made with the account's current settings (model revision: model, prompt and stage options; for videos also frame sampling) is preferred, otherwise the newest one. The adopted result records the model that produced it in its provenance. Image vectors are only reused within the same embedding space, because vectors of different models cannot be compared in search.
+
+The server answers only for a file inside the requesting account's selected folders, at its current version, and only for stages enabled for that account. Shared rows contain the model output and the public model name, without paths, file IDs, server addresses, prompts or the contributing account. Vectors that another account published for the very same file version before this feature existed are offered as well. Finished descriptions and OCR results from before the upgrade, including those kept after a model change, are offered to the shared store once, on the account's next description or OCR run.
+
+Deleting a pipeline's results or deleting an account also withdraws that account's shared contributions; results another account has already adopted remain that account's own data. Switching the embedding model with deletion clears all shared vectors. To turn sharing off for the whole server:
+
+```bash
+sudo -u www-data php occ config:app:set nextgallery ai_share_results --value=no
+```
 
 For an external PC, see the [step-by-step installation guide](EXTERNAL_EMBEDDING_SERVER.md) and [installer](../scripts/install-embedding-server.py). The installer starts a separate Gemma embedding service with Docker; LM Studio can continue serving descriptions alongside it. See [embedding architecture](EMBEDDINGS.md).
 

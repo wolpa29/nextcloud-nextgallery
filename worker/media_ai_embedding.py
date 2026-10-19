@@ -124,7 +124,18 @@ def file_sha256(path):
     return hash_.hexdigest()
 
 
-def run(config, source, api, directory, observe, should_stop, retry_errors=False):
+def shared_vectors(vectors, dimensions, video, frames):
+    """Accept another account's vectors only in the exact shape this run would publish."""
+    if not isinstance(vectors,list) or not 1<=len(vectors)<=(frames if video else 1):return None
+    for i,frame in enumerate(vectors):
+        if (not isinstance(frame,dict) or frame.get('frame')!=i or isinstance(frame.get('seconds'),bool) or not isinstance(frame.get('seconds'),(int,float))
+            or frame['seconds']<0 or not isinstance(frame.get('values'),list) or len(frame['values'])!=dimensions):return None
+        try:frame['values']=vector(frame['values'])
+        except (p.PipelineError,ValueError,TypeError):return None
+    return [{'frame':f['frame'],'seconds':f['seconds'],'values':f['values']} for f in vectors]
+
+
+def run(config, source, api, directory, observe, should_stop, retry_errors=False, shared=None):
     client=Client(config['embedding']); store=Store(directory/'embeddings.sqlite3'); space=None
     processed=errors=0; started=time.monotonic()
     try:
@@ -163,12 +174,21 @@ def run(config, source, api, directory, observe, should_stop, retry_errors=False
             with store.db:
                 store.db.execute('UPDATE embeddings SET vectors=? WHERE id=? AND space=?',(json.dumps(vectors),item.key,space))
                 if item.key in hashes:
-                    store.db.execute('INSERT OR REPLACE INTO content VALUES (?,?,?,?)',(hashes.pop(item.key),space,json.dumps(vectors),time.time()))
+                    sha256=hashes.pop(item.key)
+                    store.db.execute('INSERT OR REPLACE INTO content VALUES (?,?,?,?)',(sha256,space,json.dumps(vectors),time.time()))
+                    p.shared_call(shared,'put',item.locator,item.etag,sha256,'embedding',space,vectors)
         def reuse(item,sha256):
             """Publish vectors already computed for identical bytes; False means compute them."""
             vectors=store.cached(sha256,space)
             if vectors is None:
-                hashes[item.key]=sha256;return False
+                # Another account with the same bytes and embedding space may already have them.
+                found=p.shared_call(shared,'get',item.locator,item.etag,sha256,'embedding',space)
+                # Vectors of another space are not comparable in search: exact space only.
+                vectors=shared_vectors(found.get('result') if isinstance(found,dict) and found.get('revision',space)==space else None,
+                    client.info['dimensions'],p.is_video(item),config['embedding']['video_frames'])
+                if vectors is None:
+                    hashes[item.key]=sha256;return False
+                with store.db:store.db.execute('INSERT OR REPLACE INTO content VALUES (?,?,?,?)',(sha256,space,json.dumps(vectors),time.time()))
             with store.db:store.db.execute('UPDATE embeddings SET vectors=? WHERE id=? AND space=?',(json.dumps(vectors),item.key,space))
             observe('stage_start',path=item.path,file_id=item.locator,stage='publishing');publish(item,vectors)
             return True

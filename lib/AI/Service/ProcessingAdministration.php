@@ -5,7 +5,7 @@ use OCP\AppFramework\OCS\OCSBadRequestException;
 
 /** Central run suspension and an explicitly confirmed, quiescent model transition. */
 class ProcessingAdministration {
- public function __construct(private Settings $settings,private State $state,private Embeddings $vectors,private EmbeddingClient $client){}
+ public function __construct(private Settings $settings,private State $state,private Embeddings $vectors,private EmbeddingClient $client,private ?SharedResults $shared=null){}
  private function ids():array {return array_values(array_unique(array_merge($this->state->accountIds(),$this->vectors->accounts())));}
  private function cache(string $uid,bool $readOnly=false):?\SQLite3 {
   $file=$this->state->forUser($uid)->directory().'/embeddings.sqlite3';
@@ -98,7 +98,7 @@ class ProcessingAdministration {
     if($mode==='reset'){
      $wasPaused=$this->state->processingPaused('embeddings');$this->state->setProcessingPaused(true,'embeddings');
      foreach($this->ids() as $uid){$db=$this->cache($uid);if(!$db)continue;try{$db->exec('BEGIN IMMEDIATE');$db->exec('DELETE FROM embeddings');$db->exec('COMMIT');}finally{$db->close();}}
-     $this->vectors->resetAll();
+     $this->vectors->resetAll();$this->shared?->forgetKind('embedding');
     }
     $this->settings->save($config);
     foreach($this->ids() as $uid){

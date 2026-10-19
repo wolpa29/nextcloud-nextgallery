@@ -35,11 +35,15 @@ class Source:
     def unchanged(self,item):return item.etag==self.etag
 class API:
     url='https://synthetic.invalid/native/'
-    def __init__(self):self.published=[];self.fail=False
+    def __init__(self,shared=None):self.published=[];self.fail=False;self.shared={} if shared is None else shared
     def call(self,path,body=None):
         if path=='publish-embedding':
             if self.fail:raise p.ServiceUnavailable('Publisher offline')
             self.published.append(body);return {'stored':True}
+        if path in ('shared-result/lookup','shared-result'):
+            key=(body['sha256'],body['kind'],body['revision'])
+            if path=='shared-result/lookup':return {'result':self.shared.get(key)}
+            stored=key not in self.shared;self.shared.setdefault(key,body['result']);return {'stored':stored}
         raise AssertionError(path)
 
 def config():return {'analysis_enabled':False,'user_id':'synthetic','folders':['/'],'exclude_folders':[],

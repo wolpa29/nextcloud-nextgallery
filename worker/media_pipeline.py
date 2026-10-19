@@ -585,6 +585,7 @@ class Store:
           retry_at REAL DEFAULT 0, analyzed_at REAL);
         CREATE TABLE IF NOT EXISTS results(sha256 TEXT, stage TEXT, revision TEXT, result TEXT,
           created_at REAL, PRIMARY KEY(sha256,stage,revision));
+        CREATE TABLE IF NOT EXISTS shared(sha256 TEXT, stage TEXT, revision TEXT, PRIMARY KEY(sha256,stage,revision));
         CREATE VIRTUAL TABLE IF NOT EXISTS search USING fts5(id UNINDEXED, path, description, tags, ocr,
           tokenize='unicode61 remove_diacritics 2');
         """)
@@ -752,7 +753,66 @@ def publish_pending(store, publisher, limit=100, heartbeat=lambda: None):
     return {'published': good, 'publish_errors': bad}
 
 
-def run(config, store, source, models, limit=100, max_seconds=3600, preprocess=prepare_image, publisher=None, observe=lambda event, **fields: None, should_stop=lambda: False):
+def shared_call(shared, method, *args):
+    """Shared results only save inference; an unavailable store never fails a file."""
+    if shared is None:
+        return None
+    try:
+        return getattr(shared, method)(*args)
+    except (PipelineError, OSError, ValueError, KeyError, TypeError):
+        return None
+
+
+def stage_model(model):
+    """Public model name for shared results; never URLs, prompts or keys."""
+    config = getattr(model, 'config', {}) or {}
+    value = lambda key: config.get(key) if isinstance(config.get(key), str) else None
+    return {'id': value('model'), 'weights': value('model_revision')}
+
+
+def share_backlog(store, shared, stages, heartbeat=lambda: None, should_stop=lambda: False):
+    """Offer each account's finished results once, including ones from earlier models or
+    prompts: they stay valid for that account, so they may serve others too."""
+    if shared is None:
+        return 0
+    rows = store.db.execute("""SELECT MIN(locator) locator,etag,sha256,metadata FROM files
+        WHERE active=1 AND status='done' AND analyzed_etag=etag AND locator IS NOT NULL AND sha256 IS NOT NULL AND metadata IS NOT NULL
+        GROUP BY sha256""").fetchall()
+    offered = 0
+    for row in rows:
+        if should_stop():
+            break
+        try:
+            metadata = json.loads(row['metadata'])
+        except ValueError:
+            continue
+        provenance = metadata.get('provenance') or {}
+        for stage in stages:
+            result = metadata.get(stage)
+            # Adopted results are already shared; skipped videos have no OCR.
+            if not isinstance(result, dict) or (provenance.get('output_channels') or {}).get(stage) == 'shared' or result.get('source') == 'skipped_video':
+                continue
+            if store.db.execute('SELECT 1 FROM shared WHERE sha256=? AND stage=?', (row['sha256'], stage)).fetchone():
+                continue
+            # The cache row holding exactly this result names its model revision.
+            candidates = store.db.execute('SELECT revision,result FROM results WHERE sha256=? AND stage=?', (row['sha256'], stage)).fetchall()
+            revision = next((c['revision'] for c in candidates if json.loads(c['result']) == result), None)
+            if revision is None or not re.fullmatch('[a-f0-9]{64}', revision or ''):
+                continue
+            model = (provenance.get('models') or {}).get(stage) or {}
+            heartbeat()
+            try:
+                shared.put(row['locator'], row['etag'], row['sha256'], stage, revision, result,
+                           {key: model.get(key) if isinstance(model.get(key), str) else None for key in ('id', 'weights')})
+            except (PipelineError, OSError, ValueError, KeyError, TypeError):
+                continue  # Changed or unavailable file: offer it again on a later run.
+            with store.db:
+                store.db.execute('INSERT OR IGNORE INTO shared VALUES(?,?,?)', (row['sha256'], stage, revision))
+            offered += 1
+    return offered
+
+
+def run(config, store, source, models, limit=100, max_seconds=3600, preprocess=prepare_image, publisher=None, observe=lambda event, **fields: None, should_stop=lambda: False, shared=None):
     revision = digest({'models': {stage: model.revision for stage, model in models.items()},
                        'publication': publisher.config if publisher else None, 'video': config.get('video', {})})
     start = time.monotonic()
@@ -773,6 +833,7 @@ def run(config, store, source, models, limit=100, max_seconds=3600, preprocess=p
         store.discover(items, source.scope, revision)
         todo = store.db.execute("SELECT id,path,locator,etag,size,mime FROM files WHERE scope=? AND active=1 AND status IN ('pending','error') AND retry_at<=? ORDER BY path", (source.scope, time.time())).fetchall()
         observe("inventory_finished", stats=store.stats(), total=len(items))
+        share_backlog(store, shared, list(models), heartbeat, should_stop)
         completed, errors, cache_hits = 0, 0, 0
         for row in todo:
             if should_stop() or (limit and completed + errors >= limit) or (max_seconds and time.monotonic()-start >= max_seconds):
@@ -829,6 +890,29 @@ def run(config, store, source, models, limit=100, max_seconds=3600, preprocess=p
                         check_budget()
                         result = store.cached(hash_, stage, stage_revision)
                         was_cached = result is not None
+                        from_shared = False
+                        if result is None:
+                            # Another account analysed identical bytes. Like an account's own finished
+                            # results after a model or prompt change, an older revision is adopted too.
+                            found = shared_call(shared, 'get', item.locator, item.etag, hash_, stage, stage_revision)
+                            try:
+                                result = found.get('result') if isinstance(found, dict) else None
+                                if result is not None:
+                                    shared_revision = found.get('revision') or stage_revision
+                                    if not re.fullmatch('[a-f0-9]{64}', shared_revision): raise PipelineError('Invalid shared revision')
+                                    if video and result.get('type') != 'video': raise PipelineError('Video result must have type video')
+                                    if not video and stage == 'vision' and result.get('type') == 'video': raise PipelineError('Image result must not have type video')
+                                    if stage == "ocr": assert_no_repetition(result["text"], "OCR", model.config.get('numeric_loop_repetitions', 40),model.config.get('loop_repetitions',5))
+                                    else: validate_vision(result,model.config)
+                                    store.cache(hash_, stage, shared_revision, result)
+                                    with store.db:
+                                        store.db.execute('INSERT OR IGNORE INTO shared VALUES(?,?,?)', (hash_, stage, shared_revision))
+                                    if shared_revision != stage_revision:
+                                        origin = found.get('model') if isinstance(found.get('model'), dict) else {}
+                                        metadata['provenance']['models'][stage] = {'id': origin.get('id'), 'weights': origin.get('weights'), 'revision': shared_revision, 'shared': True}
+                                    was_cached = from_shared = True
+                            except (PipelineError, ValueError, KeyError, TypeError, AttributeError):
+                                result = None
                         if result is None:
                             result = model.analyze(resized, mime)
                             if video and result.get('type') != 'video': raise PipelineError('Video result must have type video')
@@ -836,6 +920,11 @@ def run(config, store, source, models, limit=100, max_seconds=3600, preprocess=p
                             else: validate_vision(result,model.config)
                             check_budget()
                             store.cache(hash_, stage, stage_revision, result)
+                            if shared_call(shared, 'put', item.locator, item.etag, hash_, stage, stage_revision, result, stage_model(model)) is not None:
+                                with store.db:
+                                    store.db.execute('INSERT OR IGNORE INTO shared VALUES(?,?,?)', (hash_, stage, stage_revision))
+                        elif from_shared:
+                            cache_hits += 1
                         else:
                             try:
                                 if stage == "ocr": assert_no_repetition(result["text"], "OCR", model.config.get('numeric_loop_repetitions', 40),model.config.get('loop_repetitions',5))
@@ -845,10 +934,10 @@ def run(config, store, source, models, limit=100, max_seconds=3600, preprocess=p
                                     store.db.execute("DELETE FROM results WHERE sha256=? AND stage=? AND revision=?", (hash_, stage, stage_revision))
                                 raise
                             cache_hits += 1
-                        observe("stage_finished", path=item.path, file_id=item.locator, stage=stage, seconds=round(time.monotonic()-stage_start,3), cached=was_cached, image=image_info, usage={} if was_cached else getattr(model, "usage", {}))
+                        observe("stage_finished", path=item.path, file_id=item.locator, stage=stage, seconds=round(time.monotonic()-stage_start,3), cached=was_cached, shared=from_shared, image=image_info, usage={} if was_cached else getattr(model, "usage", {}))
                         metadata[stage] = result
                         metadata['provenance'].setdefault('output_channels', {})[stage] = (
-                            'cache' if was_cached else getattr(model, 'output_channel', 'content'))
+                            'shared' if from_shared else 'cache' if was_cached else getattr(model, 'output_channel', 'content'))
                         if not was_cached and getattr(model, 'attempt_history', None):
                             metadata['provenance'].setdefault('inference_attempts', {})[stage] = model.attempt_history
                     if not source.unchanged(item):

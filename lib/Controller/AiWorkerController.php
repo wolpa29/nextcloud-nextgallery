@@ -10,7 +10,7 @@ use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\OCS\OCSException;
 use OCA\Nextgallery\AI\Service\{Settings,Inventory,Metadata,State};
 class AiWorkerController extends Controller {
-    public function __construct(IRequest $request, private Settings $settings, private Inventory $inventory, private Metadata $metadata, private ?State $state = null, private ?\OCA\Nextgallery\AI\Service\Embeddings $embeddings = null) { parent::__construct('nextgallery', $request); }
+    public function __construct(IRequest $request, private Settings $settings, private Inventory $inventory, private Metadata $metadata, private ?State $state = null, private ?\OCA\Nextgallery\AI\Service\Embeddings $embeddings = null, private ?\OCA\Nextgallery\AI\Service\SharedResults $shared = null) { parent::__construct('nextgallery', $request); }
     private function denied(): ?DataResponse {
         if (!$this->settings->verifyWorker($this->request->getHeader('Authorization'))) { return new DataResponse(['error'=>'Worker authentication required'],401); }
         $uid=$this->request->getHeader('X-Nextgallery-User');
@@ -85,7 +85,38 @@ class AiWorkerController extends Controller {
             try{$this->metadata->reset($uid,$kind==='all'?null:$kind);}finally{flock($lock,LOCK_UN);fclose($lock);}
         }
         if(in_array($kind,['all','embeddings'],true))$this->embeddings?->reset($uid);
+        // A reset asks for fresh inference: withdraw this account's shared contributions too.
+        $this->shared?->forget($uid,$kind);
         return new DataResponse(['reset'=>true]);
+    }
+    /** Shared stage results only for a current file this account may process. */
+    private function sharedTarget(int $file_id,string $etag,string $sha256,string $kind,string $revision):?DataResponse {
+        if(!$this->shared||!$this->shared->enabled())return new DataResponse(['result'=>null,'stored'=>false,'disabled'=>true]);
+        try{\OCA\Nextgallery\AI\Service\SharedResults::key($sha256,$kind,$revision);}catch(\OCP\AppFramework\OCS\OCSBadRequestException $e){return new DataResponse(['error'=>$e->getMessage()],400);}
+        $config=$this->settings->get();
+        $active=['vision'=>$config['analysis_enabled'],'ocr'=>$config['ocr_enabled'],'embedding'=>$config['embedding']['enabled']][$kind];
+        if(!$active)return new DataResponse(['error'=>'Stage disabled'],409);
+        $file=$this->sourceFile($file_id);if($file instanceof DataResponse)return $file;
+        if($etag===''||!hash_equals($file->getEtag(),$etag))return new DataResponse(['error'=>'Media changed'],409);
+        return null;
+    }
+    #[PublicPage] #[NoCSRFRequired]
+    public function sharedResult(int $file_id,string $etag,string $sha256,string $kind,string $revision):DataResponse {
+        if($denied=$this->denied())return $denied;
+        if($refused=$this->sharedTarget($file_id,$etag,$sha256,$kind,$revision))return $refused;
+        // Descriptions/OCR: any revision, preferring the requested one. Vectors: same space only.
+        $found=$this->shared->find($sha256,$kind,$revision,true);
+        // Same file and version (e.g. a group mount): vectors published before sharing existed.
+        if($found===null&&$kind==='embedding'&&($frames=$this->embeddings?->sameFile($file_id,$etag,$revision,$this->settings->get()['user_id'])))$found=['result'=>$frames,'revision'=>$revision,'model'=>null];
+        $response=new DataResponse($found??['result'=>null]);$response->addHeader('Cache-Control','no-store');return $response;
+    }
+    #[PublicPage] #[NoCSRFRequired]
+    public function shareResult(int $file_id,string $etag,string $sha256,string $kind,string $revision,mixed $result=null,mixed $model=null):DataResponse {
+        if($denied=$this->denied())return $denied;
+        if($refused=$this->sharedTarget($file_id,$etag,$sha256,$kind,$revision))return $refused;
+        try{$stored=$this->shared->store($this->settings->get()['user_id'],$sha256,$kind,$revision,$result,$model);}
+        catch(\OCP\AppFramework\OCS\OCSBadRequestException $e){return new DataResponse(['error'=>$e->getMessage()],400);}
+        return new DataResponse(['stored'=>$stored]);
     }
     #[PublicPage] #[NoCSRFRequired]
     public function publishEmbedding(int $file_id,string $etag,string $space,array $vectors):DataResponse {

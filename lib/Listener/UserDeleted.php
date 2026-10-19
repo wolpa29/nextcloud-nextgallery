@@ -6,8 +6,8 @@ use OCP\User\Events\UserDeletedEvent;
 use OCA\Nextgallery\Service\Library;
 /** @implements IEventListener<UserDeletedEvent> */
 class UserDeleted implements IEventListener {
- public function __construct(private Library $library,private \OCA\Nextgallery\AI\Service\Metadata $aiMetadata,private \OCA\Nextgallery\AI\Service\Embeddings $embeddings,private \OCA\Nextgallery\AI\Service\State $state,private ?\OCA\Nextgallery\Service\SearchIndexChanges $searchChanges=null) {}
+ public function __construct(private Library $library,private \OCA\Nextgallery\AI\Service\Metadata $aiMetadata,private \OCA\Nextgallery\AI\Service\Embeddings $embeddings,private \OCA\Nextgallery\AI\Service\State $state,private ?\OCA\Nextgallery\Service\SearchIndexChanges $searchChanges=null,private ?\OCA\Nextgallery\AI\Service\SharedResults $shared=null) {}
  public function handle(Event $event):void {
-  if($event instanceof UserDeletedEvent){$uid=$event->getUid();$this->library->forget($uid);$this->aiMetadata->reset($uid);$this->embeddings->reset($uid);$account=$this->state->forUser($uid);if($account->directory()!==$this->state->rootDirectory()){$account->setControl('pause');@unlink($account->directory().'/account.json');}$this->searchChanges?->forget($uid);}
+  if($event instanceof UserDeletedEvent){$uid=$event->getUid();$this->library->forget($uid);$this->aiMetadata->reset($uid);$this->embeddings->reset($uid);$this->shared?->forget($uid);$account=$this->state->forUser($uid);if($account->directory()!==$this->state->rootDirectory()){$account->setControl('pause');@unlink($account->directory().'/account.json');}$this->searchChanges?->forget($uid);}
  }
 }

@@ -171,6 +171,23 @@ class NativeSource:
         yield destination
 
 
+class NativeShared:
+    """Content-addressed results of other accounts, offered only for files this account may read."""
+    def __init__(self,api): self.api=api; self.available=True
+    def call(self,endpoint,body):
+        if not self.available: raise p.PipelineError('Result sharing disabled')
+        data=self.api.call(endpoint,body)
+        if data.get('disabled'):
+            self.available=False  # Administrator choice: stop asking for this run.
+            raise p.PipelineError('Result sharing disabled')
+        return data
+    def get(self,locator,etag,sha256,stage,revision):
+        """{'result', 'revision', 'model'}; the revision may differ for descriptions and OCR."""
+        return self.call('shared-result/lookup',{'file_id':int(locator),'etag':etag,'sha256':sha256,'kind':stage,'revision':revision})
+    def put(self,locator,etag,sha256,stage,revision,result,model=None):
+        return self.call('shared-result',{'file_id':int(locator),'etag':etag,'sha256':sha256,'kind':stage,'revision':revision,'result':result,'model':model}).get('stored')
+
+
 class NativePublisher:
     def __init__(self,api,config):
         # Publication identity participates in the analysis revision; keep it stable across the app move.
@@ -281,7 +298,7 @@ def reset_ai(api,directory,reporter,control):
         store=p.Store(analysis_storage.path(directory,analysis_kind))
         try:
             with store.db:
-                for table in ['files','results','search','locks']:store.db.execute('DELETE FROM '+table)
+                for table in ['files','results','shared','search','locks']:store.db.execute('DELETE FROM '+table)
         finally:store.db.close()
     if kind in ('all','embeddings'):
         embeddings=embedding.Store(directory/'embeddings.sqlite3')
@@ -453,14 +470,14 @@ def cycle(api,config,directory,reporter,control):
                 data=dict(config[stage]);secret=data.pop('api_key','');name='MEDIA_AI_'+stage.upper()+'_KEY'
                 os.environ[name]=secret;data['api_key_env']=name;models[stage]=p.Model(data,stage)
                 models[stage].inference_directory=config.get('_model_directory')
-            analysis=p.run(config,store,source,models,limit=0,max_seconds=0,publisher=NativePublisher(api,config),observe=reporter.event,should_stop=stop)
+            analysis=p.run(config,store,source,models,limit=0,max_seconds=0,publisher=NativePublisher(api,config),observe=reporter.event,should_stop=stop,shared=NativeShared(api))
         reporter.update(analysis_stats=store.stats() if config.get('analysis_enabled',True) else {})
         dense={'state':'disabled','processed':0,'errors':0,'stats':{'done':0,'pending':0,'error':0}}
         if config.get('embedding',{}).get('enabled') and not stop():
             reporter.update(current=None,message='Bildsuche vorbereiten')
             try:
                 ensure_local_embedding(config,Path(config.get('_model_directory',directory)))
-                dense=embedding.run(config,source,api,directory,reporter.event,stop,bool(control.get('retry_errors')))
+                dense=embedding.run(config,source,api,directory,reporter.event,stop,bool(control.get('retry_errors')),NativeShared(api))
             except EmbeddingSetupPending as pending:
                 dense.update(state='preparing')
                 reporter.update(embedding_service={'ready':False,'location':'local','setup_supported':True,'managed':True,**pending.progress})
