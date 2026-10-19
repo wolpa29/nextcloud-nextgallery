@@ -20,8 +20,8 @@ class AiWorkerController extends Controller {
         }
         return null;
     }
-    private function sourceFile(int $id):\OCP\Files\File|DataResponse {
-        try{return $this->inventory->allowedFile($id);}
+    private function sourceFile(int $id,?string $kind=null):\OCP\Files\File|DataResponse {
+        try{return $this->inventory->allowedFile($id,$kind);}
         catch(\OCP\AppFramework\OCS\OCSNotFoundException|\OCP\Files\NotFoundException|\OCP\Files\NotPermittedException){return new DataResponse(['error'=>'Media unavailable'],404);}
     }
     #[PublicPage] #[NoCSRFRequired]
@@ -96,7 +96,7 @@ class AiWorkerController extends Controller {
         $config=$this->settings->get();
         $active=['vision'=>$config['analysis_enabled'],'ocr'=>$config['ocr_enabled'],'embedding'=>$config['embedding']['enabled']][$kind];
         if(!$active)return new DataResponse(['error'=>'Stage disabled'],409);
-        $file=$this->sourceFile($file_id);if($file instanceof DataResponse)return $file;
+        $file=$this->sourceFile($file_id,['vision'=>'descriptions','ocr'=>'ocr','embedding'=>'embeddings'][$kind]);if($file instanceof DataResponse)return $file;
         if($etag===''||!hash_equals($file->getEtag(),$etag))return new DataResponse(['error'=>'Media changed'],409);
         return null;
     }
@@ -122,14 +122,14 @@ class AiWorkerController extends Controller {
     public function publishEmbedding(int $file_id,string $etag,string $space,array $vectors):DataResponse {
         if($denied=$this->denied())return $denied;
         if(!$this->settings->get()['embedding']['enabled'])return new DataResponse(['error'=>'Embeddings disabled'],409);
-        $file=$this->sourceFile($file_id);if($file instanceof DataResponse)return $file;if(!hash_equals($file->getEtag(),$etag))return new DataResponse(['error'=>'Media changed'],409);
+        $file=$this->sourceFile($file_id,'embeddings');if($file instanceof DataResponse)return $file;if(!hash_equals($file->getEtag(),$etag))return new DataResponse(['error'=>'Media changed'],409);
         if(!$this->embeddings)throw new \RuntimeException('Embedding storage unavailable');
         $this->embeddings->publish($this->settings->get()['user_id'],$file_id,$etag,$space,$vectors);return new DataResponse(['stored'=>true]);
     }
     #[PublicPage] #[NoCSRFRequired]
     public function publish(int $file_id, string $etag, string $sha256, string $revision, array $metadata, array $exif = [],string $stage=''): DataResponse {
         if ($denied = $this->denied()) { return $denied; } try{$data = Metadata::validate($file_id,$etag,$sha256,$revision,$metadata,$exif,$stage);}catch(\OCP\AppFramework\OCS\OCSBadRequestException $e){return new DataResponse(['error'=>$e->getMessage()],400);}
-        $file = $this->sourceFile($file_id);if($file instanceof DataResponse)return $file;
+        $file = $this->sourceFile($file_id,$stage===''?null:$stage);if($file instanceof DataResponse)return $file;
         if (!hash_equals($file->getEtag(),$etag)) { return new DataResponse(['error'=>'Image changed'],409); }
         if($stage!==''&&!$this->state)throw new \RuntimeException('Publication state unavailable');
         $lock=$this->state?fopen($this->state->directory().'/publication.lock','c'):null;

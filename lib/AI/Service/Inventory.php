@@ -50,6 +50,7 @@ class Inventory {
             foreach ($config['exclude_folders'] as $exclude) {
                 if ($path === $exclude || str_starts_with($path, rtrim($exclude, '/') . '/')) { continue 2; }
             }
+            if (!in_array($kind, Settings::stagesFor($config, $path), true)) { continue; }
             $items[] = ['file_id' => (int)$row['fileid'], 'path' => ltrim($path, '/'), 'etag' => $row['etag'],
                         'size' => (int)$row['size'], 'mime' => $row['mimetype'], 'analyzed_etag' => $row['analyzed_etag'] ?? null];
         }
@@ -76,14 +77,15 @@ class Inventory {
                     foreach ($config['exclude_folders'] as $exclude) {
                         if ($exclude === '/' || $path === $exclude || str_starts_with($path, rtrim($exclude, '/').'/')) { continue 3; }
                     }
-                    $items[] = ['file_id'=>(int)$row['fileid'],'path'=>ltrim($path,'/'),'etag'=>$row['etag'],'size'=>(int)$row['size'],'mime'=>$row['mimetype'],'analyzed_etag'=>$row['analyzed_etag'],'updated_at'=>(int)$row['updated_at'],'ocr_etag'=>$row['ocr_etag']];
+                    $items[] = ['file_id'=>(int)$row['fileid'],'path'=>ltrim($path,'/'),'etag'=>$row['etag'],'size'=>(int)$row['size'],'mime'=>$row['mimetype'],'analyzed_etag'=>$row['analyzed_etag'],'updated_at'=>(int)$row['updated_at'],'ocr_etag'=>$row['ocr_etag'],'stages'=>Settings::stagesFor($config,$path)];
                     break;
                 }
             }
         } finally { $result->closeCursor(); }
         return $items;
     }
-    public function allowedFile(int $id): \OCP\Files\File {
+    /** A file inside the selection; with $kind also one whose folder runs that pipeline. */
+    public function allowedFile(int $id, ?string $kind = null): \OCP\Files\File {
         $config = $this->settings->get();
         $file = $this->files->byId($config['user_id'], $id);
         $path = '/' . ltrim($this->files->relativePath($config['user_id'], $file), '/');
@@ -91,6 +93,7 @@ class Inventory {
         foreach ($config['folders'] as $folder) { if ($folder === '/' || $path === $folder || str_starts_with($path, $folder . '/')) { $allowed = true; } }
         foreach ($config['exclude_folders'] as $folder) { if ($folder === '/' || $path === $folder || str_starts_with($path, $folder . '/')) { $allowed = false; } }
         if (!$allowed) { throw new \OCP\AppFramework\OCS\OCSNotFoundException('Bild außerhalb der ausgewählten Ordner'); }
+        if ($kind !== null && !in_array($kind, Settings::stagesFor($config, $path), true)) { throw new \OCP\AppFramework\OCS\OCSNotFoundException('Verarbeitung für diesen Ordner nicht ausgewählt'); }
         return $file;
     }
 }

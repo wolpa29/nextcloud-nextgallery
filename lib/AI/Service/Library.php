@@ -43,30 +43,31 @@ class Library {
         if ($item['analyzed_etag'] && $item['analyzed_etag']===$item['etag']) { return 'done'; }
         return $item['analyzed_etag'] ? 'changed' : 'pending';
     }
-    public static function totals(): array { return ['total'=>0,'done'=>0,'pending'=>0,'error'=>0,'changed'=>0,'publishing'=>0,'images'=>0,'videos'=>0,'embedded'=>0,'embedding_pending'=>0,'embedding_error'=>0,'ocr_done'=>0,'ocr_pending'=>0,'ocr_error'=>0,'ocr_total'=>0]; }
+    public static function totals(): array { return ['total'=>0,'done'=>0,'pending'=>0,'error'=>0,'changed'=>0,'publishing'=>0,'images'=>0,'videos'=>0,'embedded'=>0,'embedding_pending'=>0,'embedding_error'=>0,'ocr_done'=>0,'ocr_pending'=>0,'ocr_error'=>0,'ocr_total'=>0,'description_total'=>0,'embedding_total'=>0]; }
     private function snapshot(): array {
         $config=$this->settings->get();$current=$this->state->status();$current=$current['pipelines']['embeddings']??$current;$rebuild=$current['embedding_rebuild']??[];
         $space=$rebuild['target_space']??$rebuild['approved_space']??$current['embedding_space']??$current['last_run']['embedding']['space']??null;
         // A changed model must never present old vectors as completed for the new model.
         if(!empty($rebuild['required'])&&!isset($rebuild['target_space']))$space='';
         $cache=$this->caches?->createLocal('nextgallery_ai_library');
-        $key=hash('sha256',json_encode([3,$config['user_id'],$config['folders'],$config['exclude_folders'],Settings::embeddingSignature($config),$space,$rebuild['required']??false],JSON_THROW_ON_ERROR));
+        $key=hash('sha256',json_encode([4,$config['user_id'],$config['folders'],$config['exclude_folders'],$config['folder_stages'],Settings::embeddingSignature($config),$space,$rebuild['required']??false],JSON_THROW_ON_ERROR));
         $stored=$cache?->get($key); if (is_array($stored)) { return $stored; }
         $queue=$this->queue();$ocrQueue=$this->queue('ocr'); $rows=$this->inventory->snapshot();
         $stored=$this->embeddings?->processingStatuses($config['user_id'],array_column($rows,'file_id'),$space)??[];$embeddingQueue=$this->embeddingQueue($space);
         $folders=[''=>['path'=>'','name'=>'Alle ausgewählten Dateien','counts'=>self::totals()]]; $recent=[];
         foreach ($rows as &$row) {
-            $queued=$queue[$row['file_id']]??null;
-            $row['status']=self::classify($row,$queued);
+            $queued=$queue[$row['file_id']]??null;$stages=$row['stages']??Settings::STAGES;unset($row['stages']);
+            // A pipeline deselected for this folder neither counts as pending nor as done.
+            $row['status']=in_array('descriptions',$stages,true)?self::classify($row,$queued):'not_applicable';
             $row['has_description']=!empty($row['analyzed_etag']);$row['has_ocr']=!empty($row['ocr_etag']);$row['has_metadata']=$row['has_description']||$row['has_ocr'];
             $ocrItem=$row;$ocrItem['analyzed_etag']=$row['ocr_etag']??null;$oq=$ocrQueue[$row['file_id']]??null;
-            $row['ocr_status']=str_starts_with($row['mime'],'video/')?'not_applicable':self::classify($ocrItem,$oq);
+            $row['ocr_status']=str_starts_with($row['mime'],'video/')||!in_array('ocr',$stages,true)?'not_applicable':self::classify($ocrItem,$oq);
             $row['ocr_error']=$row['ocr_status']==='error'?($oq['error']??''):($row['ocr_status']==='publishing'?($oq['publish_error']??''):'');
-            $row['next_pending']=!$row['has_description'] && $row['status']!=='done';
+            $row['next_pending']=!$row['has_description'] && !in_array($row['status'],['done','not_applicable'],true);
             $row['error']=$row['status']==='error' ? ($queued['error']??'') : ($row['status']==='publishing' ? ($queued['publish_error']??'') : '');
             $row['retry_at']=$row['status']==='error' ? (float)($queued['retry_at']??0) : 0;
             $embedding=$embeddingQueue[$row['path']]??null;$row['has_embedding']=isset($stored[$row['file_id']]);
-            $row['embedding_status']=$row['has_embedding']?'done':($embedding&&$embedding['etag']===$row['etag']&&$embedding['status']==='error'?'error':'pending');
+            $row['embedding_status']=!in_array('embeddings',$stages,true)?'not_applicable':($row['has_embedding']?'done':($embedding&&$embedding['etag']===$row['etag']&&$embedding['status']==='error'?'error':'pending'));
             $row['embedding_error']=$row['embedding_status']==='error'?($embedding['error']??''):'';
             $row['name']=basename($row['path']); $row['parent']=dirname($row['path']);
             if ($row['parent']==='.') { $row['parent']=''; }
@@ -77,14 +78,14 @@ class Library {
                 $parent=dirname($parent); if ($parent==='.') { $parent=''; }
             }
             foreach ($paths as $path) {
-                $folders[$path]['counts']['total']++;if($row['ocr_status']!=='not_applicable'){$folders[$path]['counts']['ocr_total']++;$folders[$path]['counts'][match($row['ocr_status']){'done','changed'=>'ocr_done','error'=>'ocr_error',default=>'ocr_pending'}]++;}$folders[$path]['counts'][match($row['embedding_status']){'done'=>'embedded','error'=>'embedding_error',default=>'embedding_pending'}]++; $folders[$path]['counts'][$row['status']]++;
+                $folders[$path]['counts']['total']++;if($row['ocr_status']!=='not_applicable'){$folders[$path]['counts']['ocr_total']++;$folders[$path]['counts'][match($row['ocr_status']){'done','changed'=>'ocr_done','error'=>'ocr_error',default=>'ocr_pending'}]++;}if($row['embedding_status']!=='not_applicable'){$folders[$path]['counts']['embedding_total']++;$folders[$path]['counts'][match($row['embedding_status']){'done'=>'embedded','error'=>'embedding_error',default=>'embedding_pending'}]++;}if($row['status']!=='not_applicable'){$folders[$path]['counts']['description_total']++;$folders[$path]['counts'][$row['status']]++;}
                 $folders[$path]['counts'][str_starts_with($row['mime'],'video/')?'videos':'images']++;
             }
             if ($row['status']==='done') { $recent[]=['file_id'=>$row['file_id'],'path'=>$row['path'],'name'=>$row['name'],'updated_at'=>$row['updated_at']]; }
             unset($row['etag'],$row['analyzed_etag'],$row['ocr_etag']);
         }
         unset($row); usort($recent,fn($a,$b)=>$b['updated_at']<=>$a['updated_at']);
-        foreach ($folders as &$folder) { $folder['status']=$folder['counts']['total']>0 && ($folder['counts']['done']+$folder['counts']['changed'])===$folder['counts']['total'] ? ($folder['counts']['changed']?'changed':'done') : ($folder['counts']['error'] ? 'error' : 'pending'); }
+        foreach ($folders as &$folder) { $counts=$folder['counts']; $folder['status']=$counts['total']>0 && $counts['description_total']===0 ? 'not_applicable' : ($counts['description_total']>0 && ($counts['done']+$counts['changed'])===$counts['description_total'] ? ($counts['changed']?'changed':'done') : ($counts['error'] ? 'error' : 'pending')); }
         unset($folder);
         $snapshot=['rows'=>$rows,'folders'=>$folders,'recent'=>array_slice($recent,0,5),'generated_at'=>time()];
         $cache?->set($key,$snapshot,10); return $snapshot;
@@ -127,6 +128,6 @@ class Library {
         foreach ($snapshot['rows'] as $row) { if ($row['next_pending'] && ($row['status']!=='error' || $row['retry_at']<=($config['enabled']?$next->getTimestamp():time()))) { $eligible++; } }
         $roots=[];foreach($config['folders'] as $selectedPath){$selectedPath=trim($selectedPath,'/');if(isset($snapshot['folders'][$selectedPath]))$roots[]=$snapshot['folders'][$selectedPath];}
         $current=$this->state->status();$current=$current['pipelines']['descriptions']??$current;
-        return ['counts'=>$snapshot['folders']['']['counts'],'folder'=>$folder,'folders'=>$children,'files'=>array_slice($files,$offset,100),'matched'=>count($files),'offset'=>$offset,'next_offset'=>$offset+100<count($files)?$offset+100:null,'recent'=>$snapshot['recent'],'generated_at'=>$snapshot['generated_at'],'current_file_id'=>$current['state']==='running'?($current['current']['file_id']??null):null,'schedule'=>['enabled'=>$config['enabled'],'next_at'=>$config['enabled']?$next->getTimestamp():null,'timezone'=>$config['timezone'],'eligible'=>$eligible,'basis'=>'current_inventory'],'roots'=>$roots,'selection'=>['folders'=>$config['folders'],'excluded'=>$config['exclude_folders']]];
+        return ['counts'=>$snapshot['folders']['']['counts'],'folder'=>$folder,'folders'=>$children,'files'=>array_slice($files,$offset,100),'matched'=>count($files),'offset'=>$offset,'next_offset'=>$offset+100<count($files)?$offset+100:null,'recent'=>$snapshot['recent'],'generated_at'=>$snapshot['generated_at'],'current_file_id'=>$current['state']==='running'?($current['current']['file_id']??null):null,'schedule'=>['enabled'=>$config['enabled'],'next_at'=>$config['enabled']?$next->getTimestamp():null,'timezone'=>$config['timezone'],'eligible'=>$eligible,'basis'=>'current_inventory'],'roots'=>$roots,'selection'=>['folders'=>$config['folders'],'excluded'=>$config['exclude_folders'],'stages'=>$config['folder_stages']]];
     }
 }

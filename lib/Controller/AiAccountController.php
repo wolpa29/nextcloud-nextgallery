@@ -19,7 +19,7 @@ class AiAccountController extends Controller {
         $lane=$own->forPipeline('embeddings')->status();$rebuild=$lane['embedding_rebuild']??[];
         $space=$rebuild['target_space']??$rebuild['approved_space']??$lane['embedding_space']??$lane['last_run']['embedding']['space']??null;
         $embeddingTotal=$this->embeddings->count($uid);
-        return new DataResponse(['user_id'=>$uid,'folders'=>$config['folders'],'exclude_folders'=>$config['exclude_folders'],
+        return new DataResponse(['user_id'=>$uid,'folders'=>$config['folders'],'exclude_folders'=>$config['exclude_folders'],'folder_stages'=>$config['folder_stages'],
             'analysis_enabled'=>$config['analysis_enabled'],'ocr_enabled'=>$config['ocr_enabled'],'embedding_enabled'=>$config['embedding']['enabled'],
             'search_index'=>$this->searchIndex?->status($uid),
             'metadata_count'=>$counts['metadata'],'description_count'=>$counts['descriptions'],'ocr_count'=>$counts['ocr'],'embedding_count'=>$embeddingTotal,

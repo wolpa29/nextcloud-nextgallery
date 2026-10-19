@@ -4,7 +4,7 @@ const cache = new Map()
 const pending = new Map()
 const visible = new Map()
 let timer, inFlight = false
-const labels = { done: 'Bearbeitet', pending: 'Offen', error: 'Fehler', changed: 'Älterer Dateistand', publishing: 'Speichern ausstehend', unselected: 'Nicht ausgewählt' }
+const labels = { done: 'Bearbeitet', pending: 'Offen', error: 'Fehler', changed: 'Älterer Dateistand', publishing: 'Speichern ausstehend', not_applicable: 'Nicht vorgesehen', unselected: 'Nicht ausgewählt' }
 const tr = (key, values) => window.MediaAIi18n?.t(key, values) || key
 const renderStatus = (element, item) => {
   element.replaceChildren()
@@ -12,9 +12,11 @@ const renderStatus = (element, item) => {
   badge.className = 'mai-file-status'
   badge.dataset.state = item?.status || 'unselected'
   badge.textContent = tr(labels[item?.status] || 'Nicht ausgewählt')
-  if (item?.counts) {
-    badge.title = tr('Auswahl: {done} von {total} bearbeitet', { done: item.counts.done + item.counts.changed, total: item.counts.total })
-    badge.textContent = `${item.counts.done + item.counts.changed} / ${item.counts.total}`
+  // Folders count only media whose folder runs descriptions.
+  const total = item?.counts?.description_total ?? item?.counts?.total
+  if (item?.counts && total) {
+    badge.title = tr('Auswahl: {done} von {total} bearbeitet', { done: item.counts.done + item.counts.changed, total })
+    badge.textContent = `${item.counts.done + item.counts.changed} / ${total}`
   }
   element.append(badge)
 }

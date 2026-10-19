@@ -133,7 +133,7 @@ class AiAdminController extends Controller {
     private function availableAccount(string $uid):void {if(!\OCP\Server::get(\OCP\IUserManager::class)->userExists($uid))throw new \OCP\AppFramework\OCS\OCSBadRequestException('Benutzer nicht gefunden');}
     public function accountConfig(string $user_id):DataResponse {
         if($denied=$this->denied())return $denied;
-        try{$this->availableAccount($user_id);$value=$this->settings->forUser($user_id)->get();return new DataResponse(array_intersect_key($value,array_flip(['user_id','folders','exclude_folders','enabled','schedule_time','timezone'])));}
+        try{$this->availableAccount($user_id);$value=$this->settings->forUser($user_id)->get();return new DataResponse(array_intersect_key($value,array_flip(['user_id','folders','exclude_folders','folder_stages','enabled','schedule_time','timezone'])));}
         catch(\OCP\AppFramework\OCS\OCSBadRequestException $e){return new DataResponse(['error'=>$e->getMessage()],400);}
     }
     public function saveAccount(string $user_id,array $config):DataResponse {

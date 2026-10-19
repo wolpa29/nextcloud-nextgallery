@@ -7,6 +7,8 @@ use OCP\Security\ICrypto;
 use OCP\AppFramework\OCS\OCSBadRequestException;
 
 class Settings {
+    /** Pipelines a selected folder can enable; folders without a choice run all of them. */
+    public const STAGES = ['descriptions','ocr','embeddings'];
     private ?string $account = null;
     public function forUser(string $uid):self { $copy=clone $this;$copy->account=$uid;return $copy; }
     public function __construct(private IConfig $config, private ICrypto $crypto) {}
@@ -14,7 +16,7 @@ class Settings {
         return $this->config->getAppValue('nextgallery', 'ai_' . $key, $default);
     }
     public function defaults(): array {
-        return ['enabled' => false, 'analysis_enabled' => true, 'ocr_enabled'=>true, 'embedding' => ['enabled'=>false, 'location'=>'local', 'local_auto_setup'=>true, 'local_profile'=>'lite', 'transport'=>'multimodal', 'family'=>'gemma2', 'model'=>'embeddinggemma-2', 'url'=>'http://10.1.10.78:9379/v1', 'local_model_path'=>'/opt/nextgallery-ai-models/embeddinggemma-2-text-vision-440m.litertlm', 'local_qwen_source'=>'', 'model_revision'=>'', 'max_edge'=>2048, 'video_frames'=>10, 'batch_size'=>1, 'timeout_seconds'=>120], 'user_id' => 'paul', 'folders' => ['/'], 'exclude_folders' => [],
+        return ['enabled' => false, 'analysis_enabled' => true, 'ocr_enabled'=>true, 'embedding' => ['enabled'=>false, 'location'=>'local', 'local_auto_setup'=>true, 'local_profile'=>'lite', 'transport'=>'multimodal', 'family'=>'gemma2', 'model'=>'embeddinggemma-2', 'url'=>'http://10.1.10.78:9379/v1', 'local_model_path'=>'/opt/nextgallery-ai-models/embeddinggemma-2-text-vision-440m.litertlm', 'local_qwen_source'=>'', 'model_revision'=>'', 'max_edge'=>2048, 'video_frames'=>10, 'batch_size'=>1, 'timeout_seconds'=>120], 'user_id' => 'paul', 'folders' => ['/'], 'exclude_folders' => [], 'folder_stages' => [],
             'schedule_time' => '03:00', 'timezone' => 'Europe/Vienna', 'image_timeout_seconds' => 600, 'log_days' => 30, 'max_download_bytes' => 67108864,
             'max_image_pixels' => 80000000, 'max_video_download_bytes' => 536870912, 'video' => ['frame_count' => 10],
             'vision' => ['url' => 'http://10.1.10.78:1234/v1', 'model' => 'qwen/qwen3.8-27b',
@@ -39,19 +41,21 @@ class Settings {
             $uid=$this->account;
             $personal=json_decode($this->config->getUserValue($uid,'nextgallery','ai_processing','{}'),true,64,JSON_THROW_ON_ERROR);
             $base=$uid===$value['user_id']?$value:['enabled'=>false,'folders'=>['/'],'exclude_folders'=>[],'schedule_time'=>$value['schedule_time'],'timezone'=>$value['timezone']];
-            foreach(['enabled','folders','exclude_folders','schedule_time','timezone'] as $key)$value[$key]=$personal[$key]??$base[$key];
+            foreach(['enabled','folders','exclude_folders','folder_stages','schedule_time','timezone'] as $key)$value[$key]=$personal[$key]??$base[$key]??[];
             $value['user_id']=$uid;
         }
+        $value['folder_stages']=self::folderStages($value['folder_stages']??[],$value['folders'],false);
         return $value;
     }
     public function saveAccount(string $uid,array $value,?callable $validateFolders=null):array {
         $result=$this->forUser($uid)->get();
-        foreach(['enabled','folders','exclude_folders','schedule_time','timezone'] as $key)if(array_key_exists($key,$value))$result[$key]=$value[$key];
+        foreach(['enabled','folders','exclude_folders','folder_stages','schedule_time','timezone'] as $key)if(array_key_exists($key,$value))$result[$key]=$value[$key];
         if(!is_bool($result['enabled'])||!is_string($result['schedule_time'])||!is_string($result['timezone'])||!preg_match('/^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/D',$result['schedule_time'])||!in_array($result['timezone'],\DateTimeZone::listIdentifiers(),true))throw new OCSBadRequestException('Zeitplan ungültig');
         $result['folders']=$this->paths($result['folders']);$result['exclude_folders']=$this->paths($result['exclude_folders']);
         if(!$result['folders'])throw new OCSBadRequestException('Mindestens einen Ordner auswählen');
+        $result['folder_stages']=self::folderStages($result['folder_stages'],$result['folders']);
         if($validateFolders)$validateFolders($result);
-        $safe=array_intersect_key($result,array_flip(['enabled','folders','exclude_folders','schedule_time','timezone']));
+        $safe=array_intersect_key($result,array_flip(['enabled','folders','exclude_folders','folder_stages','schedule_time','timezone']));
         $this->config->setUserValue($uid,'nextgallery','ai_processing',json_encode($safe,JSON_THROW_ON_ERROR));
         return $safe+['user_id'=>$uid];
     }
@@ -150,6 +154,26 @@ class Settings {
         }
         return array_values(array_unique($result));
     }
+    /** One pipeline list per selected folder. Lenient reads fall back to all pipelines. */
+    private static function folderStages(mixed $value,array $folders,bool $strict=true):array {
+        if(!is_array($value)||count($value)>100){if($strict)throw new OCSBadRequestException('Ordnerauswahl ungültig');$value=[];}
+        $chosen=[];
+        foreach($value as $path=>$stages){
+            $valid=is_string($path)&&is_array($stages)&&array_is_list($stages)&&$stages&&count($stages)<=count(self::STAGES);
+            if($valid)foreach($stages as $stage)if(!is_string($stage)||!in_array($stage,self::STAGES,true))$valid=false;
+            if($valid&&count(array_unique($stages))!==count($stages))$valid=false;
+            if(!$valid){if($strict)throw new OCSBadRequestException('Mindestens eine Verarbeitung pro Ordner auswählen');continue;}
+            $chosen['/'.trim($path,'/')]=array_values(array_intersect(self::STAGES,$stages));
+        }
+        $result=[];foreach($folders as $folder)$result[$folder]=$chosen[$folder]??self::STAGES;
+        return $result;
+    }
+    /** Pipelines for a path below the home folder: the most specific selected folder decides. */
+    public static function stagesFor(array $config,string $path):array {
+        $path='/'.ltrim($path,'/');$best=null;
+        foreach($config['folders'] as $folder)if(($folder==='/'||$path===$folder||str_starts_with($path,$folder.'/'))&&($best===null||strlen($folder)>strlen($best)))$best=$folder;
+        return $best===null?[]:($config['folder_stages'][$best]??self::STAGES);
+    }
     public static function endpoint(string $value): string {
         $parts = parse_url($value);
         if (!$parts || !isset($parts['host']) || !in_array($parts['scheme'] ?? '', ['http', 'https'], true)
@@ -175,6 +199,7 @@ class Settings {
         $result['folders'] = $this->paths($value['folders'] ?? []);
         $result['exclude_folders'] = $this->paths($value['exclude_folders'] ?? []);
         if (!$result['folders']) { throw new OCSBadRequestException('Mindestens einen Ordner auswählen'); }
+        $result['folder_stages'] = self::folderStages($value['folder_stages'] ?? [], $result['folders']);
         foreach (['image_timeout_seconds' => [0,86400], 'log_days' => [1,365],
                   'max_download_bytes' => [1048576,536870912], 'max_image_pixels' => [1000000,200000000]] as $key => [$min,$max]) {
             $result[$key] = $this->integer($value[$key] ?? ($key === 'image_timeout_seconds' ? 600 : null), $min, $max, $key);

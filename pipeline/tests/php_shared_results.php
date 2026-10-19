@@ -36,10 +36,10 @@ class SharedRequest implements \OCP\IRequest {public string $token='';public str
 class SharedFile implements \OCP\Files\File {public function __construct(public string $etag){}public function getEtag(){return $this->etag;}}
 /** Which file IDs each account can read inside its selected folders, with current ETags. */
 class SharedInventory extends Inventory {
- public string $uid='';public static array $access=[];
+ public string $uid='';public static array $access=[];public static array $kinds=[];
  public function __construct(){}
  public function forUser(string $uid):self{$copy=clone $this;$copy->uid=$uid;return $copy;}
- public function allowedFile(int $id):\OCP\Files\File{if(!isset(self::$access[$this->uid][$id]))throw new \OCP\AppFramework\OCS\OCSNotFoundException('Bild außerhalb der ausgewählten Ordner');return new SharedFile(self::$access[$this->uid][$id]);}
+ public function allowedFile(int $id,?string $kind=null):\OCP\Files\File{if($kind!==null&&!in_array($kind,Settings::STAGES,true))throw new \LogicException('Unknown pipeline '.$kind);if($kind!==null&&isset(self::$kinds[$this->uid])&&!in_array($kind,self::$kinds[$this->uid],true))throw new \OCP\AppFramework\OCS\OCSNotFoundException('Verarbeitung für diesen Ordner nicht ausgewählt');if(!isset(self::$access[$this->uid][$id]))throw new \OCP\AppFramework\OCS\OCSNotFoundException('Bild außerhalb der ausgewählten Ordner');return new SharedFile(self::$access[$this->uid][$id]);}
 }
 class SharedResetState extends State {
  public array $value=[];public function __construct(){}
@@ -96,6 +96,11 @@ sharedCheck($controller()->sharedResult(8,'v1',$sha,'vision',$rev)->status===404
 $request->user='bob';$config->values['ai_settings']=json_encode(['user_id'=>'alice','ocr_enabled'=>false,'embedding'=>['enabled'=>false]]);
 sharedCheck($controller()->sharedResult(7,'v1',$sha,'ocr',$rev)->status===409&&$controller()->sharedResult(7,'v1',$sha,'embedding',$rev)->status===409,'Disabled stage returned shared results');
 sharedCheck($controller()->sharedResult(7,'v1',$sha,'vision',$rev)->status===200,'Enabled stage refused');
+// A folder that runs only OCR receives no shared descriptions or vectors.
+SharedInventory::$kinds['bob']=['ocr'];$config->values['ai_settings']=json_encode(['user_id'=>'alice','embedding'=>['enabled'=>true]]);
+sharedCheck($controller()->sharedResult(7,'v1',$sha,'vision',$rev)->status===404&&$controller()->sharedResult(7,'v1',$sha,'embedding',$rev)->status===404&&$controller()->shareResult(7,'v1',$other,'vision',$rev,$vision)->status===404,'Deselected folder pipeline reached shared results');
+sharedCheck($controller()->sharedResult(7,'v1',$sha,'ocr',$rev)->status===200,'Folder pipeline refused');
+sharedCheck($controller()->publishEmbedding(7,'v1',str_repeat('d',64),$frames)->status===404,'Deselected folder pipeline published vectors');unset(SharedInventory::$kinds['bob']);
 $config->values['ai_settings']=json_encode(['user_id'=>'alice','embedding'=>['enabled'=>true]]);
 $config->values['ai_share_results']='no';$response=$controller()->sharedResult(7,'v1',$sha,'vision',$rev);
 sharedCheck($response->status===200&&$response->data['result']===null&&$response->data['disabled']===true,'Disabled sharing returned results');

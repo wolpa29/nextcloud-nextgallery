@@ -23,7 +23,7 @@ script('nextgallery','ai-i18n');script('nextgallery','ai-user');style('nextgalle
   <nav id="mai-user-breadcrumbs" aria-label="Ordnerpfad"></nav><div id="mai-user-file-list" aria-live="polite"></div><div class="mai-library-pagination"><span id="mai-user-file-count"></span><button type="button" id="mai-user-files-more" hidden>Weitere Dateien</button></div>
  </section>
  <section id="mai-pipeline-settings" data-user-view="selection" hidden>
-  <p class="mai-muted">Diese Auswahl gilt für deine Beschreibungs-, Texterkennungs- und Bildsuch-Läufe. Unterordner sind enthalten.</p>
+  <p class="mai-muted">Diese Auswahl gilt für deine Beschreibungs-, Texterkennungs- und Bildsuch-Läufe. Unterordner sind enthalten. Pro Ordner wählst du, welche Verarbeitung läuft; bei verschachtelten Ordnern gilt der genaueste.</p>
   <form id="mai-user-selection-form">
    <fieldset id="mai-user-selection-fields" disabled>
     <section class="mai-selection-section"><h3>Ausgewählte Ordner</h3><ul id="mai-user-included" class="mai-selected-folders"></ul><button type="button" data-pick-folder="folders">Ordner hinzufügen</button></section>
