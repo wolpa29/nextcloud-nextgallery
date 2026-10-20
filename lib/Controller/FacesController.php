@@ -277,6 +277,29 @@ class FacesController extends Controller {
     }
 
     #[NoAdminRequired]
+    public function bulkAction(string $action = '', ?array $ids = null, int $rules_revision = 0): DataResponse {
+        $uid = $this->uid();
+        $actionName = $action !== '' ? $action : (string)$this->request->getParam('action', '');
+        $groupIds = $ids !== null ? $ids : $this->request->getParam('ids', []);
+        $rulesRev = $rules_revision !== 0 ? $rules_revision : (int)$this->request->getParam('rules_revision', 0);
+
+        try {
+            $response = new DataResponse($this->faces->bulkAction($uid, is_array($groupIds) ? $groupIds : [], $actionName, $rulesRev));
+            $response->addHeader('Cache-Control', 'private, no-store');
+            return $response;
+        } catch (FaceConflictException $e) {
+            return new DataResponse(['error' => $e->getMessage()], 409);
+        } catch (OCSBadRequestException $e) {
+            return new DataResponse(['error' => $e->getMessage()], 400);
+        } catch (OCSNotFoundException $e) {
+            return new DataResponse(['error' => $e->getMessage()], 404);
+        } catch (\Throwable $e) {
+            $this->logger?->error('Faces bulk action error: ' . $e->getMessage(), ['exception' => $e]);
+            return new DataResponse(['error' => 'Interner Serverfehler'], 500);
+        }
+    }
+
+    #[NoAdminRequired]
     public function sharedSortings(string $gallery = ''): DataResponse {
         $uid = $this->uid();
         $gallery = $gallery !== '' ? $gallery : (string)$this->request->getParam('gallery', '');

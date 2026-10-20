@@ -357,6 +357,10 @@
   "Vollen Bildbereich mit markiertem Gesicht und alle Fotos dieser Person anschauen": "View the full image with the face marked and all photos of this person",
   "Die vorgeschlagene Person ({other}) wird mit dieser Person zusammengelegt. Die Erkennung lernt daraus für künftige Vorschläge.": "The suggested person ({other}) will be merged into this person. Recognition uses this for future suggestions.",
   "Vorschlag wurde zusammengeführt ({count}).": "Suggestion merged ({count}).",
+  "Gesichter zuordnen?": "Assign faces?",
+  "Die gefilterten Gesichter werden der vorgeschlagenen Person ({other}) zugeordnet und damit bestätigt. Sie zählen danach wie ihre übrigen Fotos.": "The filtered faces will be assigned to the suggested person ({other}) and thereby confirmed. They then count like that person's other photos.",
+  "Zuordnen": "Assign",
+  "Gesichter wurden zugeordnet ({count}).": "Faces assigned ({count}).",
   "Titelbild": "Cover",
   "Dieses Gesicht als Vorschaubild der Person festlegen": "Use this face as the person's cover image",
   "Ausschnitt": "Crop",
@@ -431,5 +435,16 @@
   "Fokus Gesicht": "Focus face",
   "Auf das erkannte Gesicht zoomen": "Zoom into the detected face",
   "Kein Gesichtsrahmen verfügbar": "No face frame available",
-  "Ansicht zurücksetzen": "Reset view"
+  "Ansicht zurücksetzen": "Reset view",
+  "Mehrere Personen auswählen und gemeinsam verschieben oder ausblenden": "Select several people to move or hide them together",
+  "Auswählen": "Select",
+  "Alle geladenen auswählen": "Select all loaded",
+  "Fertig": "Done",
+  "Personen zum Auswählen antippen": "Tap people to select them",
+  "Diese Person hat auch gute Fotos in der Hauptansicht und wird hier nicht gesammelt verschoben.": "This person also has good photos in the main view and is not moved in bulk here.",
+  "Nicht auswählbar: {count} mit guten Fotos in der Hauptansicht. Öffne sie einzeln, um die gefilterten Fotos abzutrennen.": "Not selectable: {count} with good photos in the main view. Open them individually to separate the filtered photos.",
+  "{count} in „Unbekannte Personen“ verschoben.": "Moved {count} to “Unknown people”.",
+  "{count} als bekannt markiert.": "Marked {count} as known.",
+  "{count} ausgeblendet.": "Hid {count}.",
+  "{count} eingeblendet.": "Showed {count}."
 }

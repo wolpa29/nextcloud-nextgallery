@@ -16,6 +16,8 @@ class Faces {
     public const MODEL_SPACE = 'faces-yunet-sface-128d-v1';
     /** Upper bound for one worker suggestion upload per account. */
     public const SUGGESTION_LIMIT = 5000;
+    /** A group with only filtered faces is only pointed at groups with this many good faces. */
+    public const STRONG_GROUP_FACES = 2;
     private bool $schemaChecked = false;
 
     public function __construct(
@@ -1297,6 +1299,80 @@ class Faces {
     }
 
     /**
+     * Apply one group-level flag action to many groups in a single transaction and rules revision.
+     */
+    public function bulkAction(string $uid, array $ids, string $action, int $rulesRevision = 0): array {
+        $this->ensureSchema();
+        $updates = [
+            'stranger' => ['stranger' => 1, 'hidden' => 0],
+            'unstranger' => ['stranger' => 0],
+            'hide' => ['hidden' => 1],
+            'show' => ['hidden' => 0],
+        ];
+        if (!isset($updates[$action])) {
+            throw new OCSBadRequestException('Unbekannte Sammelaktion: ' . $action);
+        }
+        $clean = [];
+        foreach ($ids as $gid) {
+            if (!is_string($gid) || !preg_match('/^[a-f0-9]{32}$/iD', $gid)) {
+                throw new OCSBadRequestException('Ungültige Subjekt-ID');
+            }
+            $clean[strtolower($gid)] = true;
+        }
+        $clean = array_keys($clean);
+        if (!$clean) {
+            throw new OCSBadRequestException('Keine Personen ausgewählt');
+        }
+        if (count($clean) > 500) {
+            throw new OCSBadRequestException('Zu viele Personen (maximal 500)');
+        }
+
+        $this->lock($uid);
+        try {
+            $acc = $this->accountState($uid);
+            if ($rulesRevision !== $acc['rules_revision']) {
+                throw new FaceConflictException('Regelstand veraltet, bitte Ansicht aktualisieren');
+            }
+            $q = $this->db->getQueryBuilder();
+            $q->select('id')->from('nextgallery_faces_groups')
+              ->where($q->expr()->eq('user_id', $q->createNamedParameter($uid)))
+              ->andWhere($q->expr()->in('id', $q->createNamedParameter($clean, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_STR_ARRAY)));
+            $found = $q->executeQuery()->fetchAll(\PDO::FETCH_COLUMN);
+            if (count($found) !== count($clean)) {
+                throw new OCSNotFoundException('Gruppe nicht gefunden');
+            }
+
+            $this->db->beginTransaction();
+            try {
+                $now = time();
+                $u = $this->db->getQueryBuilder();
+                $u->update('nextgallery_faces_groups');
+                foreach ($updates[$action] as $column => $value) {
+                    $u->set($column, $u->createNamedParameter($value, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT));
+                }
+                $u->set('updated_at', $u->createNamedParameter($now, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT))
+                  ->where($u->expr()->eq('user_id', $u->createNamedParameter($uid)))
+                  ->andWhere($u->expr()->in('id', $u->createNamedParameter($clean, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_STR_ARRAY)));
+                $u->executeStatement();
+
+                $newRevision = $acc['rules_revision'] + 1;
+                $this->db->executeStatement(
+                    'UPDATE *PREFIX*nextgallery_faces_account SET rules_revision = ?, updated_at = ? WHERE user_id = ?',
+                    [$newRevision, $now, $uid]
+                );
+                $this->db->commit();
+            } catch (\Throwable $e) {
+                $this->db->rollBack();
+                throw $e;
+            }
+            $this->cleanupNativeSnapshots($uid);
+            return ['success' => true, 'rules_revision' => $newRevision, 'action' => $action, 'ids' => $clean];
+        } finally {
+            $this->unlock($uid);
+        }
+    }
+
+    /**
      * Live access, current path and file version within the requested gallery roots.
      * Without a home folder the scope cannot be proven, so nothing is returned.
      */
@@ -1456,6 +1532,7 @@ class Faces {
                 'review_count' => $reviewCount,
                 'filtered' => $filter === 'filtered',
                 'filtered_count' => count($weak),
+                'good_count' => $goodCount,
             ];
         }
 
@@ -1721,7 +1798,10 @@ class Faces {
         return $open;
     }
 
-    /** Groups that may show the same person, most similar first; same scope rules as subjects(). */
+    /**
+     * Groups that may show the same person, most similar first; same scope rules as subjects().
+     * A group with only filtered faces never anchors: it is only offered strong groups.
+     */
     public function similar(string $uid, string $groupId, string $gallery = '', int $limit = 8): array {
         $this->ensureSchema();
         if (!preg_match('/^[a-f0-9]{32}$/iD', $groupId)) {
@@ -1748,6 +1828,8 @@ class Faces {
         } finally {
             $r->closeCursor();
         }
+        $weakSource = !($stats[$groupId]['good'] ?? []) && ($stats[$groupId]['weak'] ?? []);
+        $minGood = $weakSource ? self::STRONG_GROUP_FACES : 1;
         if ($candidates) {
             arsort($candidates);
             $access = [];
@@ -1756,7 +1838,7 @@ class Faces {
                 $other = (string)$other;
                 $meta = $groupMeta[$other] ?? ['hidden' => true, 'stranger' => false, 'label' => null, 'cover_id' => null];
                 $good = $stats[$other]['good'] ?? [];
-                if ($meta['hidden'] || $meta['stranger'] || !$good) continue;
+                if ($meta['hidden'] || $meta['stranger'] || count($good) < $minGood) continue;
                 $coverInfo = $this->readableDetectionDetail($uid, $good, $galleryRoots, $access, $meta['cover_id']);
                 if ($coverInfo === null) continue;
                 $items[] = [
@@ -1779,6 +1861,7 @@ class Faces {
                 'id' => $groupId,
                 'label' => $selfMeta['label'],
                 'photo_count' => self::photoCount($stats[$groupId]['good'] ?? []),
+                'filtered_count' => self::photoCount($stats[$groupId]['weak'] ?? []),
             ],
         ];
     }

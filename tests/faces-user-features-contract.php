@@ -155,6 +155,40 @@ expectFeat($subjAfterUnstranger['filter_counts']['strangers'] === 0, 'filter_cou
 $subjSingleAfterUnstranger = $faces->subjects($aliceUid, '', 0, 60, 'single');
 expectFeat(in_array($gidC, array_column($subjSingleAfterUnstranger['items'], 'id'), true), 'Group C returns to single filter');
 
+// 4b. Bulk stranger/unstranger: one transaction, one rules revision, all-or-nothing ownership check
+$st = $faces->accountState($aliceUid);
+$singleBefore = $faces->subjects($aliceUid, '', 0, 60, 'single');
+$itemB = array_values(array_filter($singleBefore['items'], fn($it) => $it['id'] === $gidB))[0];
+expectFeat($itemB['good_count'] === 1, 'subjects() reports good_count for a rare person');
+$bulk = $faces->bulkAction($aliceUid, [$gidB, strtoupper($gidC), $gidB], 'stranger', $st['rules_revision']);
+expectFeat($bulk['rules_revision'] === $st['rules_revision'] + 1, 'bulk stranger bumps rules revision exactly once');
+expectFeat($bulk['ids'] === [$gidB, $gidC], 'bulk stranger normalizes and deduplicates ids');
+$afterBulk = $faces->subjects($aliceUid, '', 0, 60, 'single');
+expectFeat($afterBulk['filter_counts']['strangers'] === 2, 'bulk stranger moves both groups to strangers');
+expectFeat($afterBulk['filter_counts']['single'] === 0, 'bulk stranger empties rare people');
+try {
+    $faces->bulkAction($aliceUid, [$gidB], 'unstranger', $st['rules_revision']);
+    expectFeat(false, 'stale bulk revision must be rejected');
+} catch (FaceConflictException) {
+    expectFeat(true, 'stale bulk revision rejected');
+}
+$st = $faces->accountState($aliceUid);
+try {
+    $faces->bulkAction($aliceUid, [$gidB, str_repeat('ab', 16)], 'unstranger', $st['rules_revision']);
+    expectFeat(false, 'unknown group in bulk must be rejected');
+} catch (OCSNotFoundException) {
+    expectFeat($faces->subjects($aliceUid, '', 0, 60, 'all')['filter_counts']['strangers'] === 2, 'unknown group rejects the whole bulk action');
+}
+try {
+    $faces->bulkAction($aliceUid, [$gidB], 'merge', $st['rules_revision']);
+    expectFeat(false, 'non-flag bulk action must be rejected');
+} catch (OCSBadRequestException) {
+    expectFeat(true, 'non-flag bulk action rejected');
+}
+$faces->bulkAction($aliceUid, [$gidB, $gidC], 'unstranger', $st['rules_revision']);
+$restored = $faces->subjects($aliceUid, '', 0, 60, 'single');
+expectFeat($restored['filter_counts']['strangers'] === 0 && $restored['filter_counts']['single'] === 2, 'bulk unstranger restores rare people');
+
 // 5. Test merge preserving label & cover_id, returning merged_detection_ids
 $st = $faces->accountState($aliceUid);
 $mergeResult = $faces->action($aliceUid, $gidB, 'merge', $gidA, null, $st['rules_revision']);

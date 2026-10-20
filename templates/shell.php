@@ -86,6 +86,21 @@ $tr = static fn(string $text): string => $isGerman ? $text : ($english[$text] ??
    <div id="ch-people-error" class="ch-error-banner" role="alert" hidden></div>
    <div id="ch-people-loading" class="ch-people-loading" role="status" hidden><span class="ch-spinner" aria-hidden="true"></span><span><?php p($tr('Wird geladen …')); ?></span></div>
    <div id="ch-people-list-container">
+    <div class="ch-people-list-tools">
+     <button type="button" id="ch-people-select-mode" class="ch-button ch-button-sm" aria-pressed="false" title="<?php p($tr('Mehrere Personen auswählen und gemeinsam verschieben oder ausblenden')); ?>"><?php p($tr('Auswählen')); ?></button>
+    </div>
+    <div id="ch-people-bulk-bar" class="ch-selection-bar" hidden>
+     <span id="ch-people-bulk-count"></span>
+     <div class="ch-selection-actions">
+      <button type="button" id="ch-people-bulk-all" class="ch-button"><?php p($tr('Alle geladenen auswählen')); ?></button>
+      <button type="button" id="ch-people-bulk-stranger" class="ch-button ch-primary" disabled><?php p($tr('Kenne ich nicht')); ?></button>
+      <button type="button" id="ch-people-bulk-unstranger" class="ch-button ch-primary" hidden disabled><?php p($tr('Als bekannt markieren')); ?></button>
+      <button type="button" id="ch-people-bulk-hide" class="ch-button" disabled><?php p($tr('Ausblenden')); ?></button>
+      <button type="button" id="ch-people-bulk-show" class="ch-button ch-primary" hidden disabled><?php p($tr('Einblenden')); ?></button>
+      <button type="button" id="ch-people-bulk-cancel" class="ch-button"><?php p($tr('Fertig')); ?></button>
+     </div>
+    </div>
+    <p id="ch-people-bulk-note" class="ch-hint" hidden></p>
     <div id="ch-people-grid" class="ch-people-grid" role="list" aria-label="<?php p($tr('Personen')); ?>"></div>
     <div id="ch-people-more-wrap" class="ch-panel-actions" hidden>
      <button id="ch-people-more" class="ch-button"><?php p($tr('Weitere Personen laden')); ?></button>

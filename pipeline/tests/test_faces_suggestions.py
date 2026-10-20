@@ -64,6 +64,56 @@ class MergeSuggestionTests(unittest.TestCase):
         self.assertEqual(faces.merge_suggestions([('a', unit(1)), ('a', unit(1))]), [])
 
 
+@unittest.skipIf(faces.np is None, 'NumPy is part of the optional face runtime')
+class WeakSuggestionTests(unittest.TestCase):
+    strong = [('known', angle(0)), ('known', angle(4))]  # centroid at 2 degrees
+
+    def test_weak_group_points_at_strong_group(self):
+        pairs = faces.merge_suggestions(self.strong, 0.55, weak_items=[('weak', angle(40))])  # cos 38 = 0.79
+        self.assertEqual([(p['a'], p['b']) for p in pairs], [('known', 'weak')])
+
+    def test_weak_threshold_is_the_assignment_threshold(self):
+        # cos 52 = 0.62 would be a regular suggestion (>= 0.40) and is one for an eligible face.
+        self.assertTrue(faces.merge_suggestions(self.strong + [('single', angle(54))], 0.70))
+        self.assertEqual(faces.merge_suggestions(self.strong, 0.70, weak_items=[('weak', angle(54))]), [])
+        self.assertTrue(faces.merge_suggestions(self.strong, 0.60, weak_items=[('weak', angle(54))]))
+
+    def test_weak_faces_never_anchor(self):
+        weak = [('w1', unit(0, 1)), ('w1', unit(0, 1)), ('w2', unit(0, 1, 0.01))]
+        self.assertEqual(faces.merge_suggestions(self.strong, weak_items=weak), [], 'no weak-vs-weak pairs')
+        single = [('single', unit(0, 1))]
+        self.assertEqual(faces.merge_suggestions(single, weak_items=weak), [], 'one eligible face is no anchor')
+
+    def test_weak_faces_of_a_known_group_are_no_source(self):
+        mixed = self.strong + [('other', angle(90)), ('other', angle(92))]
+        pairs = faces.merge_suggestions(mixed, 0.55, weak_items=[('other', angle(1))])
+        self.assertEqual(pairs, [])
+
+    def test_regular_pairs_keep_priority_within_bounds(self):
+        items = self.strong + [('single', angle(30))]  # cos 28 = 0.88
+        weak = [(f'w{i:02d}', angle(1)) for i in range(10)]
+        pairs = faces.merge_suggestions(items, 0.55, limit=3, weak_items=weak)
+        self.assertEqual(len(pairs), 3)
+        self.assertEqual((pairs[0]['a'], pairs[0]['b']), ('known', 'single'), 'regular pair first despite lower similarity')
+        many = [('a', unit(1, 0)), ('a', unit(1, 0))] + [(f's{i}', unit(1, 0, 0.1 * i)) for i in range(1, 6)]
+        per_weak = faces.merge_suggestions(many + [('b', unit(1, 0.1)), ('b', unit(1, 0.1))], 0.55, per_group=1,
+                                           weak_items=[('weak', unit(1, 0.05))])
+        self.assertEqual(len([p for p in per_weak if 'weak' in (p['a'], p['b'])]), 1)
+
+    def test_store_loads_weak_vectors_separately(self):
+        with tempfile.TemporaryDirectory() as temp:
+            store = faces.FaceStore(Path(temp) / 'faces.sqlite3')
+            base = {'file_id': 1, 'etag': 'e', 'bbox': [0, 0, 0.1, 0.1], 'score': 0.9, 'review': 0}
+            store.save_detections([
+                {**base, 'id': 'good', 'vector': angle(0), 'group_id': 'g'},
+                {**base, 'id': 'weak', 'vector': angle(10), 'group_id': 'w', 'eligible': False},
+                {**base, 'id': 'review', 'vector': angle(20), 'group_id': 'r', 'eligible': False, 'review': 1},
+            ])
+            self.assertEqual([g for g, _ in store.load_active_vectors()], ['g'])
+            self.assertEqual([g for g, _ in store.load_weak_vectors()], ['w'])
+            store.close()
+
+
 class SuggestionAPI(MockAPI):
     def __init__(self, fail=False):
         super().__init__()
@@ -79,9 +129,20 @@ class SuggestionAPI(MockAPI):
         return super().call(endpoint, body)
 
 
+class QualityAPI(SuggestionAPI):
+    """Canonical detections carry the server's quality verdict like Faces::publish()."""
+
+    def call(self, endpoint, body=None):
+        response = super().call(endpoint, body)
+        if endpoint == 'publish-faces':
+            for canon, sent in zip(response['detections'], body['detections']):
+                canon['eligible'] = faces.face_eligible(sent)
+        return response
+
+
 @unittest.skipIf(faces.np is None, 'NumPy is part of the optional face runtime')
 class RunPublishesSuggestionsTests(unittest.TestCase):
-    def run_pipeline(self, api, stop=lambda: False):
+    def run_pipeline(self, api, stop=lambda: False, faces_per_file=None):
         image = io.BytesIO()
         Image.new('RGB', (64, 64), 'green').save(image, format='JPEG')
         with tempfile.TemporaryDirectory() as temp:
@@ -94,13 +155,14 @@ class RunPublishesSuggestionsTests(unittest.TestCase):
             detector = Mock()
             # The third face is below the assignment threshold (cos 60 = 0.50 < 0.55),
             # so the online index starts a second group that the centroids still relate.
-            detector.process_image.side_effect = [
+            detector.process_image.side_effect = faces_per_file or [
                 [{'bbox': [0.1, 0.1, 0.3, 0.3], 'vector': angle(0), 'score': 0.95}],
                 [{'bbox': [0.1, 0.1, 0.3, 0.3], 'vector': angle(-5), 'score': 0.95}],
                 [{'bbox': [0.1, 0.1, 0.3, 0.3], 'vector': angle(60), 'score': 0.95}],
             ]
             events = []
-            source = MockSource([MockItem(i, f'etag-{i}') for i in (1, 2, 3)], image.getvalue())
+            files = range(1, len(faces_per_file) + 1) if faces_per_file else (1, 2, 3)
+            source = MockSource([MockItem(i, f'etag-{i}') for i in files], image.getvalue())
             with patch.object(faces, 'cv2', Mock()), patch.object(faces, 'FaceDetector', return_value=detector):
                 result = faces.run(config, source, api, d, lambda event, **fields: events.append((event, fields)), stop)
             return result, events
@@ -117,6 +179,25 @@ class RunPublishesSuggestionsTests(unittest.TestCase):
         self.assertEqual(len(body['pairs']), 1)
         self.assertEqual({body['pairs'][0]['a'], body['pairs'][0]['b']}, groups)
         self.assertIn('faces_suggestions', [name for name, _ in events])
+
+    def test_filtered_face_gets_a_suggestion_toward_a_known_person(self):
+        api = QualityAPI()
+        tiny = [0.1, 0.1, 0.04, 0.04]  # 0.16% of the image: below the default area filter
+        result, _ = self.run_pipeline(api, faces_per_file=[
+            [{'bbox': [0.1, 0.1, 0.3, 0.3], 'vector': angle(0), 'score': 0.95}],
+            [{'bbox': [0.1, 0.1, 0.3, 0.3], 'vector': angle(-5), 'score': 0.95}],
+            [{'bbox': tiny, 'vector': angle(10), 'score': 0.95}],
+            [{'bbox': tiny, 'vector': angle(11), 'score': 0.95}],
+        ])
+        self.assertEqual(result['state'], 'finished')
+        published = [d['group_id'] for p in api.published for d in p['detections']]
+        known, weak = published[0], published[2:]
+        self.assertEqual(published[1], known)
+        self.assertNotIn(known, weak, 'filtered faces are never assigned')
+        pairs = api.suggestions[0]['pairs']
+        self.assertEqual(sorted(tuple(sorted((p['a'], p['b']))) for p in pairs),
+                         sorted(tuple(sorted((known, w))) for w in weak),
+                         'each filtered face points at the known person, never at the other filtered face')
 
     def test_suggestion_failure_does_not_fail_the_run(self):
         result, events = self.run_pipeline(SuggestionAPI(fail=True))

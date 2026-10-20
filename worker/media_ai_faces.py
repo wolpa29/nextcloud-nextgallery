@@ -64,6 +64,9 @@ SUGGESTION_MARGIN = 0.15        # below the automatic assignment threshold
 MIN_SUGGESTION_SIMILARITY = 0.30
 SUGGESTIONS_PER_GROUP = 8
 SUGGESTION_LIMIT = 5000         # server bound per account
+# Filtered (weak) faces are only matched against strong groups, at the assignment
+# threshold itself: their vectors are noisier, so no margin. Provisional, see docs/FACES.md.
+WEAK_SUGGESTION_MARGIN = 0.0
 
 
 class PipelineError(Exception):
@@ -290,7 +293,14 @@ class FaceStore:
 
     def load_active_vectors(self) -> list[tuple[str, list[float]]]:
         """Load (group_id, vector_128) pairs for active cluster matching."""
-        cur = self.conn.execute("SELECT group_id, vector FROM detections WHERE review = 0 AND eligible = 1")
+        return self._load_vectors(1)
+
+    def load_weak_vectors(self) -> list[tuple[str, list[float]]]:
+        """Filtered faces: never anchors, only sources for merge suggestions."""
+        return self._load_vectors(0)
+
+    def _load_vectors(self, eligible: int) -> list[tuple[str, list[float]]]:
+        cur = self.conn.execute("SELECT group_id, vector FROM detections WHERE review = 0 AND eligible = ?", (eligible,))
         results = []
         for group_id, blob in cur.fetchall():
             dim = len(blob) // 4
@@ -732,17 +742,8 @@ def validate_raw_detections(detections: Any) -> list[dict]:
     return validated
 
 
-def merge_suggestions(items, cosine_threshold: float = DEFAULT_COSINE_THRESHOLD,
-                      per_group: int = SUGGESTIONS_PER_GROUP, limit: int = SUGGESTION_LIMIT) -> list[dict]:
-    """Pairs of groups whose mean faces are similar, most similar first.
-
-    Online assignment never joins two groups once both exist, so a person split early
-    stays split. Only groups with at least two faces anchor a comparison; single faces
-    are matched against anchors, never against each other. Chunked: no group-by-group matrix.
-    """
-    if np is None or not items:
-        return []
-    threshold = max(MIN_SUGGESTION_SIMILARITY, float(cosine_threshold) - SUGGESTION_MARGIN)
+def _centroids(items):
+    """(group ids, unit centroids, face counts, usable mask) in first-seen order."""
     index: dict[str, int] = {}
     sums: list = []
     counts: list[int] = []
@@ -753,40 +754,82 @@ def merge_suggestions(items, cosine_threshold: float = DEFAULT_COSINE_THRESHOLD,
             counts.append(0)
         sums[i] += np.asarray(vector, dtype=np.float64)
         counts[i] += 1
-    ids = list(index)
     matrix = np.vstack(sums)
     norms = np.linalg.norm(matrix, axis=1)
     usable = norms > 1e-9
     centroids = np.zeros_like(matrix, dtype=np.float32)
     centroids[usable] = (matrix[usable] / norms[usable, None]).astype(np.float32)
-    anchors = np.flatnonzero((np.asarray(counts) >= 2) & usable)
-    k = min(per_group, len(ids) - 1)
-    best: dict[tuple[str, str], float] = {}
+    return list(index), centroids, np.asarray(counts), usable
+
+
+def _best_pairs(source_ids, sources, rows, target_ids, targets, columns, k, threshold, best, exclude_self=False):
+    """Top-k targets per source row above threshold, kept as the best canonical pair."""
+    k = min(k, len(columns))
     if k <= 0:
-        return []
-    for start in range(0, len(anchors), 512):
-        rows = anchors[start:start + 512]
-        sims = centroids[rows] @ centroids.T
-        sims[np.arange(len(rows)), rows] = -np.inf
-        sims[:, ~usable] = -np.inf
+        return
+    for start in range(0, len(rows), 512):
+        chunk = rows[start:start + 512]
+        sims = sources[chunk] @ targets[columns].T
+        if exclude_self:
+            sims[np.arange(len(chunk)), np.searchsorted(columns, chunk)] = -np.inf
         top = np.argpartition(-sims, k - 1, axis=1)[:, :k]
-        for r, row in enumerate(rows):
+        for r, row in enumerate(chunk):
             for j in top[r]:
                 similarity = float(sims[r, j])
                 if similarity < threshold:
                     continue
-                key = tuple(sorted((ids[row], ids[int(j)])))
+                key = tuple(sorted((source_ids[row], target_ids[int(columns[j])])))
                 if similarity > best.get(key, -2.0):
                     best[key] = similarity
-    ranked = sorted(best.items(), key=lambda pair: (-pair[1], pair[0]))[:limit]
+
+
+def _ranked(best: dict, limit: int) -> list[dict]:
+    ranked = sorted(best.items(), key=lambda pair: (-pair[1], pair[0]))[:max(0, limit)]
     return [{'a': a, 'b': b, 'similarity': round(similarity, 4)} for (a, b), similarity in ranked]
+
+
+def merge_suggestions(items, cosine_threshold: float = DEFAULT_COSINE_THRESHOLD,
+                      per_group: int = SUGGESTIONS_PER_GROUP, limit: int = SUGGESTION_LIMIT,
+                      weak_items=()) -> list[dict]:
+    """Pairs of groups whose mean faces are similar, most similar first.
+
+    Online assignment never joins two groups once both exist, so a person split early
+    stays split. Only groups with at least two faces anchor a comparison; single faces
+    are matched against anchors, never against each other. Chunked: no group-by-group matrix.
+
+    weak_items are filtered faces. They never anchor: the mean of a group that has only
+    filtered faces is compared with strong groups (two or more eligible faces) at the
+    assignment threshold, never with other weak groups. Those pairs fill the account
+    limit after the regular ones.
+    """
+    if np is None or not items:
+        return []
+    ids, centroids, counts, usable = _centroids(items)
+    anchors = np.flatnonzero((counts >= 2) & usable)
+    best: dict[tuple[str, str], float] = {}
+    k = min(per_group, len(ids) - 1)
+    if k > 0:
+        threshold = max(MIN_SUGGESTION_SIMILARITY, float(cosine_threshold) - SUGGESTION_MARGIN)
+        _best_pairs(ids, centroids, anchors, ids, centroids, np.flatnonzero(usable), k, threshold, best, exclude_self=True)
+    pairs = _ranked(best, limit)
+
+    known = set(ids)
+    weak = [(group_id, vector) for group_id, vector in weak_items if group_id not in known]
+    if not weak or not len(anchors) or len(pairs) >= limit:
+        return pairs
+    weak_ids, weak_centroids, _, weak_usable = _centroids(weak)
+    weak_best: dict[tuple[str, str], float] = {}
+    threshold = max(MIN_SUGGESTION_SIMILARITY, float(cosine_threshold) - WEAK_SUGGESTION_MARGIN)
+    _best_pairs(weak_ids, weak_centroids, np.flatnonzero(weak_usable), ids, centroids, anchors,
+                min(per_group, len(anchors)), threshold, weak_best)
+    return pairs + _ranked(weak_best, limit - len(pairs))
 
 
 def publish_suggestions(api, store: FaceStore, epoch: str, generation: int, cosine_threshold: float, observe) -> None:
     """Best effort after a complete run; the server drops pairs of groups changed since."""
     if np is None:
         return
-    pairs = merge_suggestions(store.load_active_vectors(), cosine_threshold)
+    pairs = merge_suggestions(store.load_active_vectors(), cosine_threshold, weak_items=store.load_weak_vectors())
     response = api.call('faces-suggestions', {'epoch': epoch, 'generation': generation, 'pairs': pairs})
     observe('faces_suggestions', computed=len(pairs), stored=int(response.get('stored', 0)) if isinstance(response, dict) else 0)
 

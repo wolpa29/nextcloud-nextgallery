@@ -44,6 +44,31 @@ export function buildActionPayload({action, target_id, detection_ids, rules_revi
   return payload;
 }
 
+export const BULK_ACTIONS = ['stranger', 'unstranger', 'hide', 'show'];
+
+export function buildBulkActionPayload({action, ids, rules_revision}) {
+  if (!BULK_ACTIONS.includes(action)) {
+    throw new Error(`Invalid bulk action "${action}". Allowed: ${BULK_ACTIONS.join(', ')}`);
+  }
+  if (typeof rules_revision !== 'number') {
+    throw new Error('rules_revision must be an integer');
+  }
+  const unique = [...new Set((Array.isArray(ids) ? ids : []).filter(Boolean).map(String))];
+  if (unique.length === 0) {
+    throw new Error('At least one subject id is required');
+  }
+  return { action, ids: unique, rules_revision };
+}
+
+// Bulk actions offered per list filter; the inverse is used for undo.
+export function bulkActionsForFilter(filter) {
+  if (filter === 'hidden') return ['show'];
+  if (filter === 'strangers') return ['unstranger', 'hide'];
+  return ['stranger', 'hide'];
+}
+
+const BULK_INVERSE = { stranger: 'unstranger', unstranger: 'stranger', hide: 'show', show: 'hide' };
+
 export function buildResetPayload(confirmation) {
   if (confirmation !== 'faces') {
     throw new Error('Reset confirmation must be "faces"');
@@ -115,6 +140,8 @@ export function createPeopleController({
   let similarGeneration = 0;
   let showFaceBoxes = true;
   let lastUndoAction = null;
+  let selectMode = false;
+  let selectedSubjects = new Set(); // subject ids picked in the list for a bulk action
 
   function contextPreviewUrl(detectionId) {
     const u = previewUrl(detectionId);
@@ -200,6 +227,7 @@ export function createPeopleController({
     const moreBtn = $('ch-people-more');
     if (moreBtn) moreBtn.disabled = isLoading;
     $$('[data-people-filter]').forEach((b) => { b.disabled = isLoading; });
+    updateBulkBar();
   }
 
   function showError(msg) {
@@ -235,6 +263,7 @@ export function createPeopleController({
     if (reset) {
       cursor = null;
       subjects = [];
+      selectedSubjects.clear();
       const grid = $('ch-people-grid');
       if (grid) grid.replaceChildren();
     }
@@ -284,8 +313,10 @@ export function createPeopleController({
     if (detailWrap) detailWrap.hidden = true;
     if (listWrap) listWrap.hidden = false;
 
+    updateBulkBar();
     if (!grid) return;
     grid.replaceChildren();
+    grid.classList.toggle('is-selecting', selectMode);
 
     if (subjects.length === 0) {
       if (emptyState) {
@@ -318,6 +349,16 @@ export function createPeopleController({
       const countStr = formatPhotoCount(subject.photo_count, tr, locale);
       const hasName = typeof subject.label === 'string' && subject.label.trim() !== '';
       card.setAttribute('aria-label', hasName ? `${subject.label.trim()} · ${countStr}` : countStr);
+      if (selectMode) {
+        const locked = bulkLocked(subject);
+        card.classList.toggle('is-selected', selectedSubjects.has(subject.id));
+        card.classList.toggle('is-locked', locked);
+        card.setAttribute('aria-pressed', String(selectedSubjects.has(subject.id)));
+        if (locked) {
+          card.setAttribute('aria-disabled', 'true');
+          card.title = tr('Diese Person hat auch gute Fotos in der Hauptansicht und wird hier nicht gesammelt verschoben.');
+        }
+      }
 
       const thumbWrap = document.createElement('div');
       thumbWrap.className = 'ch-person-thumb-wrap';
@@ -369,6 +410,14 @@ export function createPeopleController({
         thumbWrap.append(hideBadge);
       }
 
+      if (selectMode && !bulkLocked(subject)) {
+        const check = document.createElement('span');
+        check.className = 'ch-person-select-check';
+        check.setAttribute('aria-hidden', 'true');
+        check.textContent = selectedSubjects.has(subject.id) ? '✓' : '';
+        thumbWrap.append(check);
+      }
+
       card.append(thumbWrap);
 
       if (hasName) {
@@ -383,13 +432,115 @@ export function createPeopleController({
       countLabel.textContent = countStr;
       card.append(countLabel);
 
-      card.onclick = () => openSubject(subject);
+      card.onclick = () => {
+        if (selectMode) toggleSelectSubject(subject);
+        else openSubject(subject);
+      };
       grid.append(card);
     }
 
     if (moreWrap) {
       moreWrap.hidden = !more;
     }
+  }
+
+  // In the filtered view a card shows only the weak faces of a group; moving the whole
+  // group would also move a known person's good photos, so such groups stay out of bulk actions.
+  function bulkLocked(subject) {
+    if (filter !== 'filtered') return false;
+    const hasName = typeof subject.label === 'string' && subject.label.trim() !== '';
+    return hasName || Number(subject.good_count) > 0;
+  }
+
+  function toggleSelectSubject(subject) {
+    if (bulkLocked(subject)) return;
+    if (selectedSubjects.has(subject.id)) selectedSubjects.delete(subject.id);
+    else selectedSubjects.add(subject.id);
+    renderSubjectsList();
+  }
+
+  function setSelectMode(on) {
+    selectMode = Boolean(on);
+    selectedSubjects.clear();
+    renderSubjectsList();
+  }
+
+  function updateBulkBar() {
+    const toggle = $('ch-people-select-mode');
+    if (toggle) {
+      toggle.setAttribute('aria-pressed', String(selectMode));
+      toggle.classList.toggle('active', selectMode);
+      toggle.hidden = subjects.length === 0 && !selectMode;
+    }
+    const bar = $('ch-people-bulk-bar');
+    if (!bar) return;
+    bar.hidden = !selectMode;
+    const count = selectedSubjects.size;
+    const countLabel = $('ch-people-bulk-count');
+    if (countLabel) {
+      countLabel.textContent = count === 0
+        ? tr('Personen zum Auswählen antippen')
+        : formatPeopleCount(count, tr, locale) + ' ' + tr('ausgewählt');
+    }
+    const offered = bulkActionsForFilter(filter);
+    for (const action of BULK_ACTIONS) {
+      const btn = $('ch-people-bulk-' + action);
+      if (!btn) continue;
+      btn.hidden = !offered.includes(action);
+      btn.disabled = count === 0 || loading;
+    }
+    const selectable = subjects.filter((s) => !bulkLocked(s));
+    const allBtn = $('ch-people-bulk-all');
+    if (allBtn) {
+      const allSelected = selectable.length > 0 && selectable.every((s) => selectedSubjects.has(s.id));
+      allBtn.textContent = allSelected ? tr('Auswahl aufheben') : tr('Alle geladenen auswählen');
+      allBtn.disabled = selectable.length === 0;
+    }
+    const note = $('ch-people-bulk-note');
+    if (note) {
+      const lockedCount = subjects.length - selectable.length;
+      note.hidden = !selectMode || lockedCount === 0;
+      note.textContent = lockedCount > 0
+        ? tr('Nicht auswählbar: {count} mit guten Fotos in der Hauptansicht. Öffne sie einzeln, um die gefilterten Fotos abzutrennen.', { count: formatPeopleCount(lockedCount, tr, locale) })
+        : '';
+    }
+  }
+
+  function toggleSelectAllSubjects() {
+    const selectable = subjects.filter((s) => !bulkLocked(s));
+    const allSelected = selectable.length > 0 && selectable.every((s) => selectedSubjects.has(s.id));
+    if (allSelected) selectedSubjects.clear();
+    else selectable.forEach((s) => selectedSubjects.add(s.id));
+    renderSubjectsList();
+  }
+
+  async function postBulkAction(action, ids) {
+    const res = await api('subjects/bulk-action', {
+      method: 'POST',
+      body: JSON.stringify(buildBulkActionPayload({ action, ids, rules_revision: rulesRevision }))
+    });
+    if (typeof res?.rules_revision === 'number') rulesRevision = res.rules_revision;
+    return res;
+  }
+
+  async function performBulkAction(action) {
+    const ids = [...selectedSubjects];
+    if (ids.length === 0 || loading) return;
+    clearError();
+    try {
+      await postBulkAction(action, ids);
+      const countStr = formatPeopleCount(ids.length, tr, locale);
+      const texts = {
+        stranger: tr('{count} in „Unbekannte Personen“ verschoben.', { count: countStr }),
+        unstranger: tr('{count} als bekannt markiert.', { count: countStr }),
+        hide: tr('{count} ausgeblendet.', { count: countStr }),
+        show: tr('{count} eingeblendet.', { count: countStr })
+      };
+      showUndoBar({ bulkAction: BULK_INVERSE[action], bulkIds: ids, text: texts[action] });
+    } catch (err) {
+      showError(err);
+    }
+    await loadSubjects(true);
   }
 
   function createGenericPersonIcon() {
@@ -488,9 +639,12 @@ export function createPeopleController({
     await loadSimilar();
   }
 
-  // Suggestions only apply to the main person view, not to filtered, review or hidden lists.
+  // Suggestions apply to the main person view and to groups made only of filtered faces,
+  // which are offered known people. Review, hidden and stranger lists get none.
   function similarApplies() {
-    return Boolean(selectedSubject) && ['all', 'single', 'suggested'].includes(filter);
+    if (!selectedSubject) return false;
+    if (filter === 'filtered') return !bulkLocked(selectedSubject);
+    return ['all', 'single', 'suggested'].includes(filter);
   }
 
   async function loadSimilar() {
@@ -507,7 +661,7 @@ export function createPeopleController({
       if (reqGen !== similarGeneration || !selectedSubject || selectedSubject.id !== subjectId) return;
       similarItems = Array.isArray(data.items) ? data.items : [];
       if (typeof data.rules_revision === 'number') rulesRevision = data.rules_revision;
-      const count = Number(data.subject?.photo_count);
+      const count = Number(filter === 'filtered' ? data.subject?.filtered_count : data.subject?.photo_count);
       if (count > 0) {
         selectedSubject.photo_count = count;
         const countEl = $('ch-people-detail-count');
@@ -571,7 +725,7 @@ export function createPeopleController({
       const merge = document.createElement('button');
       merge.type = 'button';
       merge.className = 'ch-button ch-primary';
-      merge.textContent = tr('Zusammenführen');
+      merge.textContent = filter === 'filtered' ? tr('Zuordnen') : tr('Zusammenführen');
       merge.onclick = () => mergeSuggestion(other);
       const dismiss = document.createElement('button');
       dismiss.type = 'button';
@@ -611,6 +765,10 @@ export function createPeopleController({
     const otherDesc = other.label
       ? `„${other.label}“ (${formatPhotoCount(other.photo_count, tr, locale)})`
       : formatPhotoCount(other.photo_count, tr, locale);
+    if (filter === 'filtered') {
+      await mergeFilteredInto(other, otherDesc);
+      return;
+    }
     const ok = await showActionConfirm(
       tr('Person zusammenführen?'),
       tr('Die vorgeschlagene Person ({other}) wird mit dieser Person zusammengelegt. Die Erkennung lernt daraus für künftige Vorschläge.', { other: otherDesc }),
@@ -629,6 +787,31 @@ export function createPeopleController({
     }
     await loadSubjectMedia(true);
     await loadSimilar();
+  }
+
+  // Filtered faces never anchor a person: they move into the known one, never the reverse.
+  // The merge confirms them, so afterwards they count like that person's other photos.
+  async function mergeFilteredInto(other, otherDesc) {
+    const ok = await showActionConfirm(
+      tr('Gesichter zuordnen?'),
+      tr('Die gefilterten Gesichter werden der vorgeschlagenen Person ({other}) zugeordnet und damit bestätigt. Sie zählen danach wie ihre übrigen Fotos.', { other: otherDesc }),
+      tr('Zuordnen'),
+      false
+    );
+    if (!ok) return;
+    const res = await suggestionAction(selectedSubject.id, { action: 'merge', target_id: other.id });
+    if (!res) {
+      await loadSimilar();
+      return;
+    }
+    if (Array.isArray(res.merged_detection_ids) && res.merged_detection_ids.length > 0) {
+      showUndoBar({
+        targetId: other.id,
+        detectionIds: res.merged_detection_ids,
+        text: tr('Gesichter wurden zugeordnet ({count}).', { count: formatPhotoCount(res.merged_detection_ids.length, tr, locale) })
+      });
+    }
+    await backToList();
   }
 
   async function dismissSuggestion(other) {
@@ -951,7 +1134,9 @@ export function createPeopleController({
     showUndoBar(null);
     clearError();
     try {
-      if (undo.strangerGroupId) {
+      if (undo.bulkAction && Array.isArray(undo.bulkIds) && undo.bulkIds.length > 0) {
+        await postBulkAction(undo.bulkAction, undo.bulkIds);
+      } else if (undo.strangerGroupId) {
         const res = await api(`subjects/${encodeURIComponent(undo.strangerGroupId)}/action`, {
           method: 'POST',
           body: JSON.stringify(buildActionPayload({ action: 'unstranger', rules_revision: rulesRevision }))
@@ -1533,6 +1718,23 @@ export function createPeopleController({
       $$('[data-people-filter]').forEach((b) => b.classList.toggle('active', b.dataset.peopleFilter === filter));
       loadSubjects(true);
     };
+  }
+
+  const selectModeBtn = $('ch-people-select-mode');
+  if (selectModeBtn) {
+    selectModeBtn.onclick = () => setSelectMode(!selectMode);
+  }
+  const bulkCancelBtn = $('ch-people-bulk-cancel');
+  if (bulkCancelBtn) {
+    bulkCancelBtn.onclick = () => setSelectMode(false);
+  }
+  const bulkAllBtn = $('ch-people-bulk-all');
+  if (bulkAllBtn) {
+    bulkAllBtn.onclick = () => toggleSelectAllSubjects();
+  }
+  for (const action of BULK_ACTIONS) {
+    const btn = $('ch-people-bulk-' + action);
+    if (btn) btn.onclick = () => performBulkAction(action);
   }
 
   const helpToggleBtn = $('ch-people-help-toggle');

@@ -230,6 +230,15 @@
 .ch-person-badge{position:absolute;top:6px;right:6px;background:var(--ng-accent);color:var(--ng-on-accent);font-size:10px;font-weight:700;padding:2px 6px;border-radius:10px;line-height:1.2}
 .ch-person-badge.ch-badge-review{background:#e07000;color:#fff}
 .ch-person-badge.ch-badge-hidden{background:var(--ng-muted);color:var(--ng-surface)}
+.ch-people-list-tools{display:flex;justify-content:flex-end;margin:-8px 0 12px}
+.ch-people-list-tools .ch-button.active{background:var(--ng-selected);color:var(--ng-on-selected);border-color:var(--ng-accent)}
+#ch-people-bulk-bar{margin-bottom:12px;position:sticky;top:0;z-index:2}
+#ch-people-bulk-note{margin:-4px 0 12px}
+.ch-people-grid.is-selecting .ch-person-card:hover{transform:none}
+.ch-person-card.is-selected{border-color:var(--ng-accent);box-shadow:0 0 0 2px var(--ng-accent);background:var(--ng-selected)}
+.ch-person-card.is-locked{opacity:.45;cursor:not-allowed}
+.ch-person-select-check{position:absolute;top:6px;left:6px;width:24px;height:24px;border-radius:50%;border:2px solid #fff;background:rgba(0,0,0,.35);color:var(--ng-on-accent);font-size:14px;font-weight:700;line-height:20px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.ch-person-card.is-selected .ch-person-select-check{background:var(--ng-accent);border-color:var(--ng-accent)}
 
 /* Person Detail View */
 #ch-person-detail{display:flex;flex-direction:column;gap:16px}

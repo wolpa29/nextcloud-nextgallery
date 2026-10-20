@@ -123,6 +123,16 @@ class FacesOcsController extends OCSController {
 
     #[NoAdminRequired]
     #[NoCSRFRequired]
+    public function bulkAction(string $action = '', ?array $ids = null, int $rules_revision = 0): DataResponse {
+        $uid = $this->uid();
+        $actionName = $action !== '' ? $action : (string)$this->request->getParam('action', '');
+        $groupIds = $ids !== null ? $ids : $this->request->getParam('ids', []);
+        $rulesRev = $rules_revision !== 0 ? $rules_revision : (int)$this->request->getParam('rules_revision', 0);
+        return $this->response($this->faces->bulkAction($uid, is_array($groupIds) ? $groupIds : [], $actionName, $rulesRev));
+    }
+
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function sharedSortings(string $gallery = ''): DataResponse {
         $uid = $this->uid();
         $gallery = $gallery !== '' ? $gallery : (string)$this->request->getParam('gallery', '');

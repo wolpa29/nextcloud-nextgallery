@@ -7,6 +7,8 @@ import {
   buildSubjectsQuery,
   buildActionPayload,
   buildResetPayload,
+  buildBulkActionPayload,
+  bulkActionsForFilter,
   formatPhotoCount,
   formatPeopleCount,
   createPeopleController
@@ -138,6 +140,20 @@ test('buildResetPayload requires typed confirmation faces', () => {
   assert.throws(() => {
     buildResetPayload('');
   }, /confirmation must be "faces"/);
+});
+
+test('buildBulkActionPayload validates group flag actions and deduplicates ids', () => {
+  assert.deepEqual(
+    buildBulkActionPayload({ action: 'stranger', ids: ['a', 'b', 'a', ''], rules_revision: 4 }),
+    { action: 'stranger', ids: ['a', 'b'], rules_revision: 4 }
+  );
+  assert.throws(() => buildBulkActionPayload({ action: 'merge', ids: ['a'], rules_revision: 1 }), /Invalid bulk action/);
+  assert.throws(() => buildBulkActionPayload({ action: 'hide', ids: [], rules_revision: 1 }), /At least one subject id/);
+  assert.throws(() => buildBulkActionPayload({ action: 'hide', ids: ['a'] }), /rules_revision must be an integer/);
+  assert.deepEqual(bulkActionsForFilter('single'), ['stranger', 'hide']);
+  assert.deepEqual(bulkActionsForFilter('filtered'), ['stranger', 'hide']);
+  assert.deepEqual(bulkActionsForFilter('strangers'), ['unstranger', 'hide']);
+  assert.deepEqual(bulkActionsForFilter('hidden'), ['show']);
 });
 
 test('formatPhotoCount and formatPeopleCount format numbers correctly', () => {
@@ -526,6 +542,17 @@ const HTML_SHELL = `<!DOCTYPE html>
       <div id="ch-people-error" class="ch-error-banner" hidden></div>
       <div id="ch-people-loading" class="ch-people-loading" hidden><span class="ch-spinner"></span> Wird geladen …</div>
       <div id="ch-people-list-container">
+        <div class="ch-people-list-tools"><button type="button" id="ch-people-select-mode" aria-pressed="false">Auswählen</button></div>
+        <div id="ch-people-bulk-bar" hidden>
+          <span id="ch-people-bulk-count"></span>
+          <button type="button" id="ch-people-bulk-all">Alle geladenen auswählen</button>
+          <button type="button" id="ch-people-bulk-stranger" disabled>Kenne ich nicht</button>
+          <button type="button" id="ch-people-bulk-unstranger" hidden disabled>Als bekannt markieren</button>
+          <button type="button" id="ch-people-bulk-hide" disabled>Ausblenden</button>
+          <button type="button" id="ch-people-bulk-show" hidden disabled>Einblenden</button>
+          <button type="button" id="ch-people-bulk-cancel">Fertig</button>
+        </div>
+        <p id="ch-people-bulk-note" hidden></p>
         <div id="ch-people-grid" role="list"></div>
         <div id="ch-people-more-wrap" hidden>
           <button id="ch-people-more">Weitere Personen laden</button>
@@ -1119,7 +1146,7 @@ test('DOM: Detail view offers suggestions, merges into the open person and dismi
   assert.equal(controller.getSelectedSubject().id, 'subj-1', 'the open person stays open');
 });
 
-test('DOM: Suggestions are not requested for filtered, review or hidden lists', async () => {
+test('DOM: Suggestions are not requested for review, hidden or known filtered groups', async () => {
   const { root, makeEl } = setupMockDOM();
   makeEl('ch-people-similar');
   makeEl('ch-people-similar-list');
@@ -1130,11 +1157,126 @@ test('DOM: Suggestions are not requested for filtered, review or hidden lists', 
     api: async (endpoint) => { calls.push(endpoint); return { items: [] }; },
     getGallery: () => 'default'
   });
-  for (const filter of ['filtered', 'review', 'hidden']) {
+  for (const filter of ['review', 'hidden']) {
     controller.setFilter(filter);
     await controller.openSubject({ id: 'subj-' + filter, photo_count: 2 });
   }
+  // A filtered card of a known person shows only its weak faces; merging it would move the good ones too.
+  controller.setFilter('filtered');
+  await controller.openSubject({ id: 'subj-named', photo_count: 1, filtered: true, label: 'Oma', good_count: 0 });
+  await controller.openSubject({ id: 'subj-mixed', photo_count: 1, filtered: true, good_count: 3 });
   assert.equal(calls.filter((c) => c.includes('/similar')).length, 0);
+});
+
+test('DOM: Filtered faces get suggestions toward known people and move into them', async () => {
+  const { root, elements, makeEl } = setupMockDOM();
+  makeEl('ch-people-similar');
+  makeEl('ch-people-similar-list');
+  makeEl('ch-people-undo-bar').hidden = true;
+  makeEl('ch-people-undo-text');
+  const calls = [];
+  const controller = createPeopleController({
+    root,
+    dialogRoot: root,
+    api: async (endpoint, options = {}) => {
+      calls.push({ endpoint, options });
+      if (endpoint.includes('/similar?')) {
+        return {
+          items: [{ id: 'known-1', label: 'Max', photo_count: 12, cover_id: 'c1', similarity: 0.71 }],
+          rules_revision: 7,
+          subject: { id: 'weak-1', photo_count: 0, filtered_count: 2 }
+        };
+      }
+      if (endpoint.includes('/action')) return { success: true, rules_revision: 8, merged_detection_ids: ['d1', 'd2'] };
+      return { items: [] };
+    },
+    getGallery: () => 'default'
+  });
+
+  controller.setFilter('filtered');
+  await controller.openSubject({ id: 'weak-1', photo_count: 1, filtered: true, good_count: 0 });
+  const section = elements.get('ch-people-similar');
+  const list = elements.get('ch-people-similar-list');
+  assert.equal(section.hidden, false, 'suggestion panel is shown in the filtered view');
+  assert.equal(list.children.length, 1);
+  assert.equal(elements.get('ch-people-detail-count').textContent, '2 Fotos', 'count follows the filtered faces');
+
+  const [merge] = list.children[0].querySelector('.ch-people-similar-actions').children;
+  const pending = merge.onclick();
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(elements.get('ch-people-action-dialog').open, true, 'assignment asks for confirmation');
+  assert.match(elements.get('ch-people-action-text').textContent, /bestätigt/, 'dialog says the faces get confirmed');
+  elements.get('ch-people-action-ok').onclick();
+  await pending;
+  const mergeCall = calls.filter((c) => c.endpoint.endsWith('/action')).at(-1);
+  assert.equal(mergeCall.endpoint, 'subjects/weak-1/action', 'the filtered group is the source');
+  assert.deepEqual(JSON.parse(mergeCall.options.body), { action: 'merge', target_id: 'known-1', rules_revision: 7 });
+  assert.equal(controller.getSelectedSubject(), null, 'the merged filtered group closes');
+  assert.equal(elements.get('ch-people-undo-bar').hidden, false, 'undo is offered');
+});
+
+test('Real DOM: Filtered person shows "Vielleicht dieselbe Person" and is assigned to a known person', async (t) => {
+  if (!chromium) {
+    t.skip('Playwright not available');
+    return;
+  }
+
+  const browser = await chromium.launch({
+    executablePath: process.env.PLAYWRIGHT_EXECUTABLE || undefined,
+    headless: true,
+    args: ['--no-sandbox']
+  });
+  const page = await (await browser.newContext()).newPage();
+  await page.route('**/faces.mjs', (route) => {
+    route.fulfill({ status: 200, contentType: 'application/javascript', body: facesMjsContent });
+  });
+  await page.setContent(HTML_SHELL);
+
+  await page.evaluate(async (modUrl) => {
+    const { createPeopleController } = await import(modUrl);
+    window.actionCalls = [];
+    window.controller = createPeopleController({
+      root: document.getElementById('ch-people-view'),
+      dialogRoot: document.getElementById('nextgallery'),
+      api: async (endpoint, options = {}) => {
+        if (endpoint.includes('subjects?')) {
+          return { items: window.actionCalls.length ? [] : [{ id: 'weak-1', photo_count: 1, filtered: true, good_count: 0, review_count: 0, cover_id: 'c1' }] };
+        }
+        if (endpoint.includes('/similar?')) {
+          return {
+            items: [{ id: 'known-1', label: 'Max', photo_count: 12, cover_id: 'c2', similarity: 0.71 }],
+            rules_revision: 3,
+            subject: { id: 'weak-1', photo_count: 0, filtered_count: 1 }
+          };
+        }
+        if (endpoint.includes('/media?')) return { items: [{ id: 601, name: 'crowd.jpg', face_detection_ids: ['d601'] }] };
+        if (endpoint.includes('/action')) {
+          window.actionCalls.push({ endpoint, body: JSON.parse(options.body) });
+          return { success: true, rules_revision: 4, merged_detection_ids: ['d601'] };
+        }
+        return { items: [] };
+      },
+      getGallery: () => 'default'
+    });
+    window.controller.setFilter('filtered');
+  }, facesMjsDataUri);
+
+  await page.waitForFunction(() => document.querySelectorAll('#ch-people-grid .ch-person-card').length === 1);
+  await page.locator('#ch-people-grid .ch-person-card').click();
+  await page.waitForFunction(() => !document.getElementById('ch-people-similar').hidden);
+  assert.equal((await page.locator('#ch-people-similar .ch-person-name').textContent()).trim(), 'Max');
+  assert.equal((await page.locator('#ch-people-similar .ch-people-similar-actions .ch-primary').textContent()).trim(), 'Zuordnen');
+
+  await page.locator('#ch-people-similar .ch-people-similar-actions .ch-primary').click();
+  await page.waitForFunction(() => document.getElementById('ch-people-action-dialog').open);
+  await page.locator('#ch-people-action-ok').click();
+  await page.waitForFunction(() => window.actionCalls.length === 1);
+  const call = await page.evaluate(() => window.actionCalls[0]);
+  assert.equal(call.endpoint, 'subjects/weak-1/action');
+  assert.deepEqual(call.body, { action: 'merge', target_id: 'known-1', rules_revision: 3 });
+  await page.waitForFunction(() => document.getElementById('ch-person-detail').hidden);
+
+  await browser.close();
 });
 
 test('Real DOM: Merge dialog card selection shows active state, badge, and live preview bar with inspect trigger', async (t) => {
@@ -1407,6 +1549,122 @@ test('Real DOM: Kenne ich nicht (Stranger) moves person, shows undo bar, and und
 
   const revertAction = await page.evaluate(() => window.actionCalls[1]);
   assert.equal(revertAction.action, 'unstranger', 'Undo sends reverse unstranger action');
+
+  await browser.close();
+});
+
+test('Real DOM: Bulk selection moves several rare people at once, locks mixed filtered groups, and undo reverts', async (t) => {
+  if (!chromium) {
+    t.skip('Playwright not available');
+    return;
+  }
+
+  const browser = await chromium.launch({
+    executablePath: process.env.PLAYWRIGHT_EXECUTABLE || undefined,
+    headless: true,
+    args: ['--no-sandbox']
+  });
+  const context = await browser.newContext();
+  const page = await context.newPage();
+
+  await page.route('**/faces.mjs', (route) => {
+    route.fulfill({
+      status: 200,
+      contentType: 'application/javascript',
+      body: facesMjsContent
+    });
+  });
+
+  await page.setContent(HTML_SHELL);
+
+  await page.evaluate(async (modUrl) => {
+    const { createPeopleController } = await import(modUrl);
+    window.bulkCalls = [];
+    window.singleCalls = [];
+    window.controller = createPeopleController({
+      root: document.getElementById('ch-people-view'),
+      dialogRoot: document.getElementById('nextgallery'),
+      api: async (endpoint, options = {}) => {
+        if (endpoint.includes('subjects?')) {
+          const filtered = endpoint.includes('filter=filtered');
+          return {
+            items: filtered
+              ? [
+                  { id: 'weak-only', photo_count: 1, label: null, cover_id: 'c1', good_count: 0, filtered: true },
+                  { id: 'mama', photo_count: 2, label: null, cover_id: 'c2', good_count: 40, filtered: true }
+                ]
+              : [
+                  { id: 'r1', photo_count: 1, label: null, cover_id: 'c1' },
+                  { id: 'r2', photo_count: 2, label: null, cover_id: 'c2' },
+                  { id: 'r3', photo_count: 1, label: null, cover_id: 'c3' }
+                ],
+            rules_revision: 7,
+            filter_counts: { all: 0, suggested: 0, single: 3, review: 0, strangers: 0, filtered: 2, hidden: 0 }
+          };
+        }
+        if (endpoint === 'subjects/bulk-action') {
+          window.bulkCalls.push(JSON.parse(options.body));
+          return { success: true, rules_revision: 8 + window.bulkCalls.length };
+        }
+        if (endpoint.includes('/action') || endpoint.includes('/media?')) {
+          window.singleCalls.push(endpoint);
+        }
+        return { items: [] };
+      },
+      getGallery: () => 'default'
+    });
+    window.controller.setFilter('single');
+  }, facesMjsDataUri);
+
+  await page.waitForFunction(() => document.querySelectorAll('#ch-people-grid .ch-person-card').length === 3);
+  assert.equal(await page.evaluate(() => document.getElementById('ch-people-bulk-bar').hidden), true, 'Bulk bar hidden until select mode');
+
+  await page.locator('#ch-people-select-mode').click();
+  assert.equal(await page.evaluate(() => document.getElementById('ch-people-bulk-bar').hidden), false, 'Bulk bar visible in select mode');
+  assert.equal(await page.locator('#ch-people-bulk-stranger').isDisabled(), true, 'Actions disabled without selection');
+
+  await page.locator('#ch-people-grid .ch-person-card[data-id="r1"]').click();
+  await page.locator('#ch-people-grid .ch-person-card[data-id="r3"]').click();
+  assert.equal(await page.evaluate(() => document.getElementById('ch-person-detail').hidden), true, 'Card click selects instead of opening');
+  assert.equal(await page.locator('#ch-people-grid .ch-person-card.is-selected').count(), 2);
+  assert.ok((await page.locator('#ch-people-bulk-count').textContent()).includes('2 Personen'), 'Count label shows two people');
+
+  await page.locator('#ch-people-bulk-stranger').click();
+  await page.waitForFunction(() => window.bulkCalls.length === 1);
+  const call = await page.evaluate(() => window.bulkCalls[0]);
+  assert.deepEqual(call, { action: 'stranger', ids: ['r1', 'r3'], rules_revision: 7 }, 'One bulk request with both ids and current revision');
+  assert.deepEqual(await page.evaluate(() => window.singleCalls), [], 'No per-person requests');
+
+  await page.waitForFunction(() => !document.getElementById('ch-people-undo-bar').hidden);
+  assert.ok((await page.locator('#ch-people-undo-text').textContent()).includes('Unbekannte Personen'));
+  await page.waitForFunction(() => document.querySelectorAll('#ch-people-grid .ch-person-card').length === 3);
+  assert.equal(await page.locator('#ch-people-grid .ch-person-card.is-selected').count(), 0, 'Selection cleared after reload');
+
+  await page.locator('#ch-people-undo-btn').click();
+  await page.waitForFunction(() => window.bulkCalls.length === 2);
+  const undo = await page.evaluate(() => window.bulkCalls[1]);
+  assert.equal(undo.action, 'unstranger', 'Undo sends inverse bulk action');
+  assert.deepEqual(undo.ids, ['r1', 'r3']);
+
+  // Select all on the filtered view skips groups that also have good photos in the main view.
+  await page.evaluate(() => window.controller.setFilter('filtered'));
+  await page.waitForFunction(() => document.querySelector('#ch-people-grid .ch-person-card[data-id="mama"]'));
+  assert.equal(await page.locator('#ch-people-grid .ch-person-card[data-id="mama"]').getAttribute('aria-disabled'), 'true');
+  assert.equal(await page.evaluate(() => document.getElementById('ch-people-bulk-note').hidden), false, 'Locked groups are explained');
+  await page.locator('#ch-people-bulk-all').click();
+  assert.deepEqual(
+    await page.evaluate(() => [...document.querySelectorAll('#ch-people-grid .ch-person-card.is-selected')].map((c) => c.dataset.id)),
+    ['weak-only'],
+    'Select all only picks weak-only groups'
+  );
+  await page.locator('#ch-people-bulk-hide').click();
+  await page.waitForFunction(() => window.bulkCalls.length === 3);
+  const hideCall = await page.evaluate(() => window.bulkCalls[2]);
+  assert.equal(hideCall.action, 'hide');
+  assert.deepEqual(hideCall.ids, ['weak-only']);
+
+  await page.locator('#ch-people-bulk-cancel').click();
+  assert.equal(await page.evaluate(() => document.getElementById('ch-people-bulk-bar').hidden), true, 'Done leaves select mode');
 
   await browser.close();
 });

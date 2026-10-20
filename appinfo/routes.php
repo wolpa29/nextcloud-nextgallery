@@ -73,6 +73,7 @@ return ['routes' => [
  ['name'=>'faces#preview', 'url'=>'/api/v1/subjects/preview/{detectionId}', 'verb'=>'GET'],
  ['name'=>'faces#previewPeople', 'url'=>'/api/v1/people/preview/{detectionId}', 'verb'=>'GET'],
  ['name'=>'faces#action', 'url'=>'/api/v1/subjects/{id}/action', 'verb'=>'POST'],
+ ['name'=>'faces#bulkAction', 'url'=>'/api/v1/subjects/bulk-action', 'verb'=>'POST'],
  ['name'=>'faces#reset', 'url'=>'/api/v1/subjects/reset', 'verb'=>'POST'],
 ], 'ocs'=>[
  ['name'=>'native_search#search', 'url'=>'/api/v1/search', 'verb'=>'POST'],
@@ -89,5 +90,6 @@ return ['routes' => [
  ['name'=>'faces_ocs#media', 'url'=>'/api/v1/subjects/{id}/media', 'verb'=>'GET'],
  ['name'=>'faces_ocs#similar', 'url'=>'/api/v1/subjects/{id}/similar', 'verb'=>'GET'],
  ['name'=>'faces_ocs#action', 'url'=>'/api/v1/subjects/{id}/action', 'verb'=>'POST'],
+ ['name'=>'faces_ocs#bulkAction', 'url'=>'/api/v1/subjects/bulk-action', 'verb'=>'POST'],
  ['name'=>'faces_ocs#reset', 'url'=>'/api/v1/subjects/reset', 'verb'=>'POST'],
 ]];
