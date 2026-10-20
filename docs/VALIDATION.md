@@ -1,13 +1,17 @@
 # Merge suggestions and scoped People listing — 2026-10-20
 
-NextGallery **0.4.23** was validated on the disposable Nextcloud **34.0.5 / MariaDB** test instance only. It has **not** been installed on the production server.
+NextGallery **0.4.23** was validated on the disposable Nextcloud **34.0.5 / MariaDB** instance and installed on production **34.0.5.1 / MariaDB** on 2026-10-20 from commit `eb6de9d`.
 
 - **372 Python tests** passed in the base environment (13 optional-runtime skips); all **63 face tests**, including eight new suggestion tests, passed in the OpenCV/NumPy runtime.
 - All standalone PHP suites passed, including **92 face assertions** and **50 new assertions** for the separate face-reuse switch, index-scoped listing, fail-closed access without a home folder, suggestion upload guards, dismissal, split/merge behaviour and cleanup.
 - The real Nextcloud upgrade to 0.4.23 created both new tables. **49 People**, **43 shared-artifact** and **30 quality** contracts passed unchanged, and **22 new MariaDB contracts** covered the switch fallback, gallery-scoped counts and suggestions, the constraint join, merges, cleanup and reset. All contracts passed twice in a row.
 - All **28 Node tests** passed, including the five Chromium real-DOM tests and three new suggestion-panel tests.
 - Synthetic scale check: 50,000 detections in 2,000 groups, one overview request about **0.7 s**; per-file live checks for all files would have taken at least about 14 s.
-- Not validated: the HTTP worker integration with the real face models, and suggestion quality on a real library. The suggestion thresholds are provisional.
+- Deployment verification repeated all **63 real-runtime face tests**, **28 Node/Chromium tests**, standalone PHP suites and syntax checks, and the **49 / 43 / 30 / 22** real database contracts. **24 public-portrait HTTP checks** and **13 shared-folder worker/HTTP checks** passed. A real-model processing run successfully uploaded its suggestion result through the new HTTP endpoint; the two distinct public identities produced no merge candidates.
+- The extracted 0.4.23 package passed its SDK and SQLite/FTS/vector runtime checks; all **1,043 runtime files** matched the installed package. Four deployment fault tests passed. No private photographs were opened for verification. Suggestion quality in a real library remains unmeasured; thresholds are provisional.
+- Production installation preserved all **14** protected SQL/settings summaries (the two new tables were initially empty), all worker-cache logical contents and unrelated controls. Backup: `/root/nextgallery-backups/faces-0423-20261020-101326`. Only the People worker restarted; the supervisor and other three worker PIDs remained unchanged.
+- At the owner's request, `paul`'s People generation changed **3 → 4**. Detections, groups, processed-file records, constraints, suggestions, dismissals and artifact references were all verified empty before resumption, and the derived face cache was removed. Other accounts and all non-People data/settings were unchanged. Personal filters remained **0% minimum area / sharpness 45 / three photographs**.
+- Live production Web/OCS list and suggestion endpoints, delivered JavaScript bytes, four worker heartbeats, model readiness, scratch-account cache erasure and `maintenance=false` passed. The new run reached **18 processed photographs with zero errors** during final verification. Installed hashes, unrelated caches, controls and worker PIDs still matched after resumption. Only aggregate counts were inspected; private image quality was not evaluated.
 
 ---
 
