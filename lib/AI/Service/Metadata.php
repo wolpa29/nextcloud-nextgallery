@@ -103,6 +103,31 @@ class Metadata {
         }
         $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_ai_meta WHERE user_id=?',[$uid]);
     }
+    public function resetFiles(string $uid,array $fileIds,?string $stage=null):int {
+        $ids=array_values(array_unique(array_filter(array_map('intval',$fileIds),fn($id)=>$id>0)));
+        if(!$ids)return 0;
+        $affected=0;
+        foreach(array_chunk($ids,200) as $chunk){
+            $marks=implode(',',array_fill(0,count($chunk),'?'));
+            if($stage===null){
+                $affected+=(int)$this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_ai_meta WHERE user_id=? AND file_id IN ('.$marks.')',array_merge([$uid],$chunk));
+                continue;
+            }
+            $r=$this->db->executeQuery('SELECT file_id,etag,sha256,revision,metadata_json FROM *PREFIX*nextgallery_ai_meta WHERE user_id=? AND file_id IN ('.$marks.')',array_merge([$uid],$chunk));
+            try{$rows=$r->fetchAll();}finally{$r->closeCursor();}
+            foreach($rows as $row){
+                $completed=self::stages($row);if(!isset($completed[$stage]))continue;unset($completed[$stage]);$affected++;
+                if(!$completed){$this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_ai_meta WHERE user_id=? AND file_id=?',[$uid,(int)$row['file_id']]);continue;}
+                $wire=json_decode($row['metadata_json'],true);$analysis=$wire['analysis'];unset($analysis[$stage==='descriptions'?'vision':'ocr'],$analysis['stage_provenance'][$stage],$analysis['stage_sources'][$stage]);
+                $model=$stage==='descriptions'?'vision':'ocr';foreach(['models','images','inference_attempts','output_channels'] as $field)unset($analysis['provenance'][$field][$model]);
+                $analysis['completed_stages']=array_fill_keys(array_keys($completed),true);$analysis['stage_etags']=$completed;$remaining=isset($completed['descriptions'])?'descriptions':'ocr';
+                $data=self::validate((int)$row['file_id'],reset($completed),$row['sha256'],$row['revision'],$analysis,$wire['source_exif']??[],$remaining);
+                $this->db->executeStatement('UPDATE *PREFIX*nextgallery_ai_meta SET '.implode(',',array_map(fn($key)=>$key.'=?',array_keys($data))).' WHERE user_id=? AND file_id=?',array_merge(array_values($data),[$uid,(int)$row['file_id']]));
+            }
+        }
+        if($affected>0)$this->searchChanges?->account($uid);
+        return $affected;
+    }
     private function getStored(string $uid,int $fileId):?array {
         $result=$this->db->executeQuery('SELECT etag,sha256,revision,metadata_json,updated_at FROM *PREFIX*nextgallery_ai_meta WHERE user_id=? AND file_id=?',[$uid,$fileId]);
         try { $row=$result->fetch(); return $row ?: null; } finally { $result->closeCursor(); }

@@ -38,6 +38,10 @@ test('buildSubjectsQuery produces correct contract URL parameters', () => {
     buildSubjectsQuery({ filter: 'filtered' }),
     'limit=60&filter=filtered'
   );
+  assert.equal(
+    buildSubjectsQuery({ filter: 'strangers' }),
+    'limit=60&filter=strangers'
+  );
   // Invalid filter falls back to 'all'
   assert.equal(
     buildSubjectsQuery({ filter: 'unknown' }),
@@ -80,6 +84,34 @@ test('buildActionPayload validates actions and structures contract payloads', ()
   assert.deepEqual(
     buildActionPayload({ action: 'resolve', rules_revision: 1 }),
     { action: 'resolve', rules_revision: 1 }
+  );
+
+  // Rename action with label
+  assert.deepEqual(
+    buildActionPayload({ action: 'rename', label: 'Oma Maria', rules_revision: 5 }),
+    { action: 'rename', label: 'Oma Maria', rules_revision: 5 }
+  );
+
+  // Set cover action
+  assert.deepEqual(
+    buildActionPayload({ action: 'set_cover', target_id: 'det-abc-123', rules_revision: 2 }),
+    { action: 'set_cover', target_id: 'det-abc-123', rules_revision: 2 }
+  );
+
+  // Stranger and unstranger actions
+  assert.deepEqual(
+    buildActionPayload({ action: 'stranger', rules_revision: 1 }),
+    { action: 'stranger', rules_revision: 1 }
+  );
+  assert.deepEqual(
+    buildActionPayload({ action: 'unstranger', rules_revision: 1 }),
+    { action: 'unstranger', rules_revision: 1 }
+  );
+
+  // Split with target_id
+  assert.deepEqual(
+    buildActionPayload({ action: 'split', detection_ids: ['d1'], target_id: 'target-uuid-123', rules_revision: 4 }),
+    { action: 'split', detection_ids: ['d1'], target_id: 'target-uuid-123', rules_revision: 4 }
   );
 
   // Disallowed action throws
@@ -445,20 +477,50 @@ const HTML_SHELL = `<!DOCTYPE html>
         <div class="ch-filters" role="group">
           <select id="ch-people-filter">
             <option value="all">Alle</option>
-            <option value="review">Überprüfung</option>
+            <option value="suggested">Vorschläge</option>
             <option value="single">Seltene Personen</option>
+            <option value="review">Überprüfung</option>
+            <option value="strangers">Unbekannte Personen</option>
             <option value="filtered">Gefilterte Gesichter</option>
             <option value="hidden">Ausgeblendet</option>
           </select>
-          <button data-people-filter="all" class="active">Alle</button>
-          <button data-people-filter="review">Überprüfung</button>
-          <button data-people-filter="single">Seltene Personen</button>
-          <button data-people-filter="filtered">Gefilterte Gesichter</button>
-          <button data-people-filter="hidden">Ausgeblendet</button>
+          <div id="ch-people-filter-pills" class="ch-filter-pills">
+            <button data-people-filter="all" class="ch-filter-pill active">Alle <span class="ch-pill-count"></span></button>
+            <button data-people-filter="suggested" class="ch-filter-pill">Vorschläge <span class="ch-pill-count"></span></button>
+            <button data-people-filter="single" class="ch-filter-pill">Seltene Personen <span class="ch-pill-count"></span></button>
+            <button data-people-filter="review" class="ch-filter-pill">Überprüfung <span class="ch-pill-count"></span></button>
+            <button data-people-filter="strangers" class="ch-filter-pill">Unbekannte Personen <span class="ch-pill-count"></span></button>
+            <button data-people-filter="filtered" class="ch-filter-pill">Gefilterte Gesichter <span class="ch-pill-count"></span></button>
+            <button data-people-filter="hidden" class="ch-filter-pill">Ausgeblendet <span class="ch-pill-count"></span></button>
+          </div>
         </div>
         <div class="ch-people-top-actions">
+          <button type="button" id="ch-people-share-sorting">Sortierung teilen</button>
+          <button type="button" id="ch-people-guide-toggle">Hilfe &amp; Tipps</button>
           <button id="ch-people-refresh">Aktualisieren</button>
           <button id="ch-people-reset" class="ch-danger">Zurücksetzen</button>
+        </div>
+      </div>
+      <div id="ch-people-filter-explainer" class="ch-people-filter-explainer" hidden>
+        <span class="ch-explainer-icon">ℹ</span>
+        <div class="ch-explainer-body">
+          <strong id="ch-people-explainer-title"></strong>
+          <p id="ch-people-explainer-text"></p>
+        </div>
+      </div>
+      <details id="ch-people-guide" class="ch-people-guide">
+        <summary><strong>Hilfe &amp; Tipps zur Personenerkennung</strong></summary>
+        <div class="ch-guide-content">
+          <div class="ch-guide-grid">
+            <div class="ch-guide-card"><h4>Zusammenführen (Mergen)</h4><p>Verbessert zukünftige Erkennungen.</p></div>
+          </div>
+        </div>
+      </details>
+      <div id="ch-people-undo-bar" class="ch-people-undo-bar" hidden>
+        <span id="ch-people-undo-text"></span>
+        <div class="ch-undo-actions">
+          <button type="button" id="ch-people-undo-btn" class="ch-button ch-button-sm">Rückgängig</button>
+          <button type="button" id="ch-people-undo-dismiss" class="ch-icon-btn">✕</button>
         </div>
       </div>
       <div id="ch-people-error" class="ch-error-banner" hidden></div>
@@ -476,21 +538,40 @@ const HTML_SHELL = `<!DOCTYPE html>
       <div id="ch-person-detail" hidden>
         <div class="ch-people-detail-head">
           <button id="ch-people-back">← Alle Personen</button>
+          <div id="ch-people-detail-avatar" class="ch-people-detail-avatar"></div>
           <div class="ch-people-detail-title-wrap">
-            <h2 id="ch-people-detail-title">Person</h2>
+            <div class="ch-people-detail-title-row">
+              <h2 id="ch-people-detail-title">Person</h2>
+              <button type="button" id="ch-people-rename-btn">✎ Benennen</button>
+            </div>
+            <div id="ch-people-rename-bar" hidden>
+              <input type="text" id="ch-people-rename-input" maxlength="120" placeholder="Name der Person …">
+              <button type="button" id="ch-people-rename-save">Speichern</button>
+              <button type="button" id="ch-people-rename-cancel">Abbrechen</button>
+            </div>
             <p id="ch-people-detail-count"></p>
           </div>
           <div class="ch-people-detail-actions">
+            <button type="button" id="ch-people-inspect-self">Bildkontext</button>
+            <button type="button" id="ch-people-toggle-stranger">Kenne ich nicht</button>
             <button id="ch-people-toggle-hide">Ausblenden</button>
             <button id="ch-people-merge">Zusammenführen</button>
             <button id="ch-people-resolve" hidden>Überprüfung auflösen</button>
           </div>
           <p id="ch-people-detail-filter-note" class="ch-hint" hidden>Kleine oder unscharfe Gesichter im Hintergrund werden hier gesammelt und können bestätigt werden.</p>
         </div>
+        <section id="ch-people-similar" class="ch-people-similar" hidden>
+          <div id="ch-people-similar-list" class="ch-people-similar-list" role="list"></div>
+        </section>
+        <div class="ch-person-media-toolbar">
+          <button type="button" id="ch-people-toggle-boxes">Gesichtsrahmen anzeigen</button>
+        </div>
         <div id="ch-person-selection-bar" hidden>
           <span id="ch-people-selection-count"></span>
           <div class="ch-selection-actions">
+            <button type="button" id="ch-people-cover-selected" hidden>★ Als Titelbild</button>
             <button id="ch-people-split-selected">Abtrennen</button>
+            <button type="button" id="ch-people-move-selected">Zu Person verschieben</button>
             <button id="ch-people-remove-selected" class="ch-danger">Entfernen</button>
             <button id="ch-people-resolve-selected">Bestätigen</button>
             <button id="ch-people-clear-selected">Auswahl aufheben</button>
@@ -522,6 +603,7 @@ const HTML_SHELL = `<!DOCTYPE html>
         <div class="ch-segmented">
           <button type="button" class="ch-seg-btn active" data-merge-filter="all">Alle</button>
           <button type="button" class="ch-seg-btn" data-merge-filter="single">Seltene Personen</button>
+          <button type="button" class="ch-seg-btn" data-merge-filter="strangers">Unbekannte Personen</button>
         </div>
         <input type="search" id="ch-people-merge-search" placeholder="Personen suchen …">
       </div>
@@ -529,9 +611,34 @@ const HTML_SHELL = `<!DOCTYPE html>
       <div id="ch-people-merge-more-wrap" hidden>
         <button type="button" id="ch-people-merge-more">Weitere laden</button>
       </div>
+      <div id="ch-people-merge-selection-preview" class="ch-people-merge-selection-preview"></div>
       <div class="ch-confirm-actions">
         <button type="button" id="ch-people-merge-cancel">Abbrechen</button>
         <button type="button" id="ch-people-merge-ok" class="ch-primary" disabled>Zusammenführen</button>
+      </div>
+    </dialog>
+    <dialog id="ch-people-inspect-dialog">
+      <form method="dialog" class="ch-dialog-head">
+        <h2>Bildkontext &amp; Fotos prüfen</h2>
+      </form>
+      <div id="ch-people-inspect-stage" class="ch-people-inspect-stage"></div>
+      <div class="ch-people-inspect-photos-wrap">
+        <div id="ch-people-inspect-photos" class="ch-people-inspect-photos"></div>
+      </div>
+      <div class="ch-confirm-actions">
+        <button type="button" id="ch-people-inspect-close">Schließen</button>
+        <button type="button" id="ch-people-inspect-merge" class="ch-primary" hidden>Mit dieser Person zusammenführen</button>
+      </div>
+    </dialog>
+    <dialog id="ch-people-share-dialog">
+      <form method="dialog" class="ch-dialog-head">
+        <h2>Personensortierung teilen &amp; übernehmen</h2>
+      </form>
+      <input type="checkbox" id="ch-people-share-toggle">
+      <div id="ch-people-share-status"></div>
+      <div id="ch-people-share-list"></div>
+      <div class="ch-confirm-actions">
+        <button type="button" id="ch-people-share-close">Schließen</button>
       </div>
     </dialog>
     <dialog id="ch-people-action-dialog">
@@ -1028,4 +1135,378 @@ test('DOM: Suggestions are not requested for filtered, review or hidden lists', 
     await controller.openSubject({ id: 'subj-' + filter, photo_count: 2 });
   }
   assert.equal(calls.filter((c) => c.includes('/similar')).length, 0);
+});
+
+test('Real DOM: Merge dialog card selection shows active state, badge, and live preview bar with inspect trigger', async (t) => {
+  if (!chromium) {
+    t.skip('Playwright not available');
+    return;
+  }
+
+  const browser = await chromium.launch({
+    executablePath: process.env.PLAYWRIGHT_EXECUTABLE || undefined,
+    headless: true,
+    args: ['--no-sandbox']
+  });
+  const context = await browser.newContext();
+  const page = await context.newPage();
+
+  await page.route('**/faces.mjs', (route) => {
+    route.fulfill({
+      status: 200,
+      contentType: 'application/javascript',
+      body: facesMjsContent
+    });
+  });
+
+  await page.setContent(HTML_SHELL);
+
+  await page.evaluate(async (modUrl) => {
+    const { createPeopleController } = await import(modUrl);
+    window.controller = createPeopleController({
+      root: document.getElementById('ch-people-view'),
+      dialogRoot: document.getElementById('nextgallery'),
+      api: async (endpoint) => {
+        if (endpoint.includes('subjects?')) {
+          return {
+            items: [
+              { id: 'subj-1', photo_count: 5, label: 'Oma Maria', cover_id: 'c1' },
+              { id: 'subj-2', photo_count: 8, label: 'Onkel Hans', cover_id: 'c2' }
+            ],
+            filter_counts: { all: 2, suggested: 0, single: 0, review: 0, strangers: 0, filtered: 0, hidden: 0 }
+          };
+        }
+        if (endpoint.includes('/media?')) {
+          return {
+            items: [
+              { id: 101, name: 'p1.jpg', face_detection_ids: ['d1'], faces: [{ id: 'd1', box: [0.1, 0.1, 0.2, 0.2] }] }
+            ]
+          };
+        }
+        return { items: [] };
+      },
+      getGallery: () => 'default'
+    });
+    window.controller.refresh();
+  }, facesMjsDataUri);
+
+  await page.waitForFunction(() => document.querySelectorAll('#ch-people-grid .ch-person-card').length === 2);
+
+  // Open person 1
+  await page.locator('#ch-people-grid .ch-person-card[data-id="subj-1"]').click();
+  await page.waitForFunction(() => !document.getElementById('ch-person-detail').hidden);
+
+  // Click merge button
+  await page.locator('#ch-people-merge').click();
+  await page.waitForFunction(() => document.getElementById('ch-people-merge-dialog').open);
+
+  // Wait for candidate card
+  await page.waitForFunction(() => document.querySelectorAll('#ch-people-merge-targets .ch-people-merge-choice').length === 1);
+
+  // Click the candidate card (subj-2)
+  await page.locator('#ch-people-merge-targets .ch-people-merge-choice').click();
+
+  // Card now has active class
+  const hasActiveClass = await page.evaluate(() => {
+    const card = document.querySelector('#ch-people-merge-targets .ch-people-merge-choice');
+    return card && card.classList.contains('active');
+  });
+  assert.equal(hasActiveClass, true, 'Selected merge card has active class');
+
+  // Card contains ✓ Ausgewählt badge
+  const badgeText = await page.locator('#ch-people-merge-targets .ch-people-merge-selected-badge').textContent();
+  assert.ok(badgeText.includes('Ausgewählt'), 'Badge shows Ausgewählt');
+
+  // Preview bar is visible and shows Onkel Hans
+  const previewVisible = await page.evaluate(() => {
+    const el = document.getElementById('ch-people-merge-selection-preview');
+    return el && !el.hidden && el.textContent.includes('Onkel Hans');
+  });
+  assert.equal(previewVisible, true, 'Live merge selection preview bar is visible with target name');
+
+  // Inspect button inside preview bar
+  const inspectBtn = page.locator('#ch-people-merge-selection-preview button:has-text("Fotos prüfen")');
+  assert.equal(await inspectBtn.isVisible(), true, 'Inspect button visible in preview bar');
+
+  // Click inspect button -> opens inspect dialog
+  await inspectBtn.click();
+  await page.waitForFunction(() => document.getElementById('ch-people-inspect-dialog').open);
+  const inspectOpen = await page.evaluate(() => document.getElementById('ch-people-inspect-dialog').open);
+  assert.equal(inspectOpen, true, 'Inspect dialog opens from merge selection preview');
+
+  // Close inspect dialog
+  await page.locator('#ch-people-inspect-close').click();
+  await page.waitForFunction(() => !document.getElementById('ch-people-inspect-dialog').open);
+
+  // Close merge dialog
+  await page.locator('#ch-people-merge-cancel').click();
+  await page.waitForFunction(() => !document.getElementById('ch-people-merge-dialog').open);
+
+  await browser.close();
+});
+
+test('Real DOM: Person renaming in detail header updates title and sends rename action', async (t) => {
+  if (!chromium) {
+    t.skip('Playwright not available');
+    return;
+  }
+
+  const browser = await chromium.launch({
+    executablePath: process.env.PLAYWRIGHT_EXECUTABLE || undefined,
+    headless: true,
+    args: ['--no-sandbox']
+  });
+  const context = await browser.newContext();
+  const page = await context.newPage();
+
+  await page.route('**/faces.mjs', (route) => {
+    route.fulfill({
+      status: 200,
+      contentType: 'application/javascript',
+      body: facesMjsContent
+    });
+  });
+
+  await page.setContent(HTML_SHELL);
+
+  await page.evaluate(async (modUrl) => {
+    const { createPeopleController } = await import(modUrl);
+    window.actionCalls = [];
+    window.controller = createPeopleController({
+      root: document.getElementById('ch-people-view'),
+      dialogRoot: document.getElementById('nextgallery'),
+      api: async (endpoint, options = {}) => {
+        if (endpoint.includes('subjects?')) {
+          return {
+            items: [{ id: 'subj-1', photo_count: 4, label: null, cover_id: 'c1' }],
+            filter_counts: { all: 1, suggested: 0, single: 0, review: 0, strangers: 0, filtered: 0, hidden: 0 }
+          };
+        }
+        if (endpoint.includes('/media?')) {
+          return { items: [{ id: 1, name: 'f1.jpg', face_detection_ids: ['d1'] }] };
+        }
+        if (endpoint.includes('/action')) {
+          const body = JSON.parse(options.body);
+          window.actionCalls.push(body);
+          return { ok: true, label: body.label, rules_revision: 2 };
+        }
+        return { items: [] };
+      },
+      getGallery: () => 'default'
+    });
+    window.controller.refresh();
+  }, facesMjsDataUri);
+
+  await page.waitForFunction(() => document.querySelectorAll('#ch-people-grid .ch-person-card').length === 1);
+
+  // Open person
+  await page.locator('#ch-people-grid .ch-person-card').click();
+  await page.waitForFunction(() => !document.getElementById('ch-person-detail').hidden);
+
+  // Click rename button
+  await page.locator('#ch-people-rename-btn').click();
+  const renameBarVisible = await page.evaluate(() => !document.getElementById('ch-people-rename-bar').hidden);
+  assert.equal(renameBarVisible, true, 'Rename bar is visible');
+
+  // Type new name
+  await page.locator('#ch-people-rename-input').fill('Oma Hilde');
+  await page.locator('#ch-people-rename-save').click();
+
+  // Verify action called
+  await page.waitForFunction(() => window.actionCalls.length > 0);
+  const action = await page.evaluate(() => window.actionCalls[0]);
+  assert.equal(action.action, 'rename', 'Rename action called');
+  assert.equal(action.label, 'Oma Hilde', 'Label passed in action payload');
+
+  // Verify header title updated
+  const titleText = await page.locator('#ch-people-detail-title').textContent();
+  assert.equal(titleText.trim(), 'Oma Hilde', 'Detail title updated to Oma Hilde');
+
+  await browser.close();
+});
+
+test('Real DOM: Kenne ich nicht (Stranger) moves person, shows undo bar, and undo reverts', async (t) => {
+  if (!chromium) {
+    t.skip('Playwright not available');
+    return;
+  }
+
+  const browser = await chromium.launch({
+    executablePath: process.env.PLAYWRIGHT_EXECUTABLE || undefined,
+    headless: true,
+    args: ['--no-sandbox']
+  });
+  const context = await browser.newContext();
+  const page = await context.newPage();
+
+  await page.route('**/faces.mjs', (route) => {
+    route.fulfill({
+      status: 200,
+      contentType: 'application/javascript',
+      body: facesMjsContent
+    });
+  });
+
+  await page.setContent(HTML_SHELL);
+
+  await page.evaluate(async (modUrl) => {
+    const { createPeopleController } = await import(modUrl);
+    window.actionCalls = [];
+    window.controller = createPeopleController({
+      root: document.getElementById('ch-people-view'),
+      dialogRoot: document.getElementById('nextgallery'),
+      api: async (endpoint, options = {}) => {
+        if (endpoint.includes('subjects?')) {
+          return {
+            items: [{ id: 'subj-1', photo_count: 2, label: null, cover_id: 'c1' }],
+            filter_counts: { all: 1, suggested: 0, single: 0, review: 0, strangers: 0, filtered: 0, hidden: 0 }
+          };
+        }
+        if (endpoint.includes('/media?')) {
+          return { items: [{ id: 1, name: 'f1.jpg', face_detection_ids: ['d1'] }] };
+        }
+        if (endpoint.includes('/action')) {
+          const body = JSON.parse(options.body);
+          window.actionCalls.push(body);
+          return { ok: true, rules_revision: 2 };
+        }
+        return { items: [] };
+      },
+      getGallery: () => 'default'
+    });
+    window.controller.refresh();
+  }, facesMjsDataUri);
+
+  await page.waitForFunction(() => document.querySelectorAll('#ch-people-grid .ch-person-card').length === 1);
+
+  // Open person
+  await page.locator('#ch-people-grid .ch-person-card').click();
+  await page.waitForFunction(() => !document.getElementById('ch-person-detail').hidden);
+
+  // Click "Kenne ich nicht" (executes directly and shows undo bar)
+  await page.locator('#ch-people-toggle-stranger').click();
+  await page.waitForFunction(() => window.actionCalls.length > 0);
+
+  // Verify stranger action
+  const strangerAction = await page.evaluate(() => window.actionCalls[0]);
+  assert.equal(strangerAction.action, 'stranger', 'Stranger action sent');
+
+  // Verify detail view closed
+  const detailHidden = await page.evaluate(() => document.getElementById('ch-person-detail').hidden);
+  assert.equal(detailHidden, true, 'Detail view closed after moving to strangers');
+
+  // Verify undo bar is visible
+  const undoBarVisible = await page.evaluate(() => !document.getElementById('ch-people-undo-bar').hidden);
+  assert.equal(undoBarVisible, true, 'Undo bar is visible');
+  const undoText = await page.locator('#ch-people-undo-text').textContent();
+  assert.ok(undoText.includes('Unbekannte Personen'), 'Undo text mentions Unbekannte Personen');
+
+  // Click Undo
+  await page.locator('#ch-people-undo-btn').click();
+  await page.waitForFunction(() => window.actionCalls.length > 1);
+
+  const revertAction = await page.evaluate(() => window.actionCalls[1]);
+  assert.equal(revertAction.action, 'unstranger', 'Undo sends reverse unstranger action');
+
+  await browser.close();
+});
+
+test('Real DOM: Shared sorting dialog opens, toggles share_sorting, and adopts sorting', async (t) => {
+  if (!chromium) {
+    t.skip('Playwright not available');
+    return;
+  }
+
+  const browser = await chromium.launch({
+    executablePath: process.env.PLAYWRIGHT_EXECUTABLE || undefined,
+    headless: true,
+    args: ['--no-sandbox']
+  });
+  const context = await browser.newContext();
+  const page = await context.newPage();
+
+  await page.route('**/faces.mjs', (route) => {
+    route.fulfill({
+      status: 200,
+      contentType: 'application/javascript',
+      body: facesMjsContent
+    });
+  });
+
+  await page.setContent(HTML_SHELL);
+
+  await page.evaluate(async (modUrl) => {
+    const { createPeopleController } = await import(modUrl);
+    window.sharedCalls = [];
+    window.controller = createPeopleController({
+      root: document.getElementById('ch-people-view'),
+      dialogRoot: document.getElementById('nextgallery'),
+      api: async (endpoint, options = {}) => {
+        window.sharedCalls.push({ endpoint, options });
+        if (endpoint.includes('subjects?')) {
+          return { items: [], filter_counts: {} };
+        }
+        if (endpoint.includes('subjects/shared-sorting')) {
+          if (options.method === 'POST') {
+            return { success: true };
+          }
+          return {
+            sharing_enabled: false,
+            available: [
+              {
+                user_id: 'alice',
+                display_name: 'Alice',
+                shared_files: 15,
+                people_count: 4,
+                named_count: 2,
+                stranger_count: 1,
+                sample_labels: ['Oma', 'Papa']
+              }
+            ]
+          };
+        }
+        return { items: [] };
+      },
+      getGallery: () => 'default'
+    });
+    window.controller.refresh();
+  }, facesMjsDataUri);
+
+  // Click Sortierung teilen button
+  await page.locator('#ch-people-share-sorting').click();
+  await page.waitForFunction(() => document.getElementById('ch-people-share-dialog').open);
+
+  const dialogOpen = await page.evaluate(() => document.getElementById('ch-people-share-dialog').open);
+  assert.equal(dialogOpen, true, 'Shared sorting dialog is open');
+
+  // Available users list contains Alice
+  await page.waitForFunction(() => document.querySelectorAll('#ch-people-share-list .ch-people-share-item').length === 1);
+  const cardText = await page.locator('#ch-people-share-list .ch-people-share-item').textContent();
+  assert.ok(cardText.includes('Alice'), 'Alice listed in available sortings');
+  assert.ok(cardText.includes('15 Fotos'), 'Lists shared photo count');
+
+  // Click toggle to enable sharing
+  await page.locator('#ch-people-share-toggle').click();
+  await page.waitForFunction(() => window.sharedCalls.some(c => c.options.method === 'POST'));
+
+  const toggleCall = await page.evaluate(() => window.sharedCalls.find(c => c.options.method === 'POST'));
+  assert.ok(toggleCall.endpoint.includes('subjects/shared-sorting'), 'Saved shared sorting');
+  const body = JSON.parse(toggleCall.options.body);
+  assert.equal(body.mode, 'share');
+  assert.equal(body.enabled, true);
+
+  // Click adopt button for Alice (executes adoption)
+  await page.locator('#ch-people-share-list button:has-text("Sortierung übernehmen")').click();
+  await page.waitForFunction(() => window.sharedCalls.filter(c => c.options.method === 'POST').length >= 2);
+
+  const adoptCall = await page.evaluate(() => window.sharedCalls.filter(c => c.options.method === 'POST')[1]);
+  const adoptBody = JSON.parse(adoptCall.options.body);
+  assert.equal(adoptBody.mode, 'adopt');
+  assert.equal(adoptBody.source_user, 'alice');
+
+  // Close share dialog
+  await page.locator('#ch-people-share-close').click();
+  await page.waitForFunction(() => !document.getElementById('ch-people-share-dialog').open);
+
+  await browser.close();
 });

@@ -308,10 +308,102 @@
  .ch-person-media-grid{grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px}
  .ch-people-similar-list{grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px}
 }
+#nextgallery .ch-people-toolbar{background:var(--ng-surface);border:1px solid var(--ng-line);border-radius:16px;padding:12px 16px;box-shadow:0 2px 8px rgba(0,0,0,.02)}
 #nextgallery .ch-people-toolbar .ch-filters{background:transparent;padding:0;min-width:180px}
 #nextgallery #ch-people-filter{width:100%;min-height:44px;margin:0}
 #nextgallery .ch-people-toolbar-actions{display:flex;align-items:center;gap:8px}
-#nextgallery .ch-person-media-select{position:absolute;z-index:1;top:8px;left:8px;width:22px;height:22px;margin:0}
+#nextgallery :is(#ch-people-view,#ch-search-view){padding:12px 28px 40px}
+#nextgallery #ch-search-form{max-width:760px;background:var(--ng-surface);border:1px solid var(--ng-line);border-radius:18px;padding:12px 16px;box-shadow:0 2px 10px rgba(0,0,0,.03)}
+#nextgallery .ch-search-tile{background:var(--ng-surface);border:1px solid var(--ng-line);border-radius:14px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.02);transition:transform .12s ease,border-color .15s ease,box-shadow .15s ease}
+#nextgallery .ch-search-tile:hover{border-color:var(--ng-accent);transform:translateY(-2px);box-shadow:0 6px 16px rgba(0,0,0,.08)}
+#nextgallery .ch-search-tile span{padding:8px 10px 10px;font-weight:500}
+#nextgallery #ch-people-view:has(#ch-person-detail:not([hidden])) .ch-people-toolbar{display:none}
+#nextgallery .ch-people-detail-title-wrap{margin-right:auto}
+#nextgallery .ch-people-detail-title-wrap h2{font-size:20px;margin:0}
+#nextgallery .ch-people-detail-title-wrap p{margin:2px 0 0}
+#nextgallery .ch-person-media-select{position:absolute;z-index:1;top:8px;left:8px;width:20px;height:20px;margin:0;accent-color:var(--ng-accent);cursor:pointer;opacity:0;transition:opacity .15s ease}
+#nextgallery .ch-person-media-tile:is(:hover,:focus-within,.is-selected) .ch-person-media-select,#nextgallery .ch-person-media-select:checked,#nextgallery #ch-person-detail:has(.ch-person-media-select:checked) .ch-person-media-select{opacity:1}
+@media(hover:none){#nextgallery .ch-person-media-select{opacity:.85}}
+@media(max-width:1100px) and (min-width:701px){#nextgallery :is(#ch-people-view,#ch-search-view){padding-inline:20px}}
+@media(max-width:700px){#nextgallery :is(#ch-people-view,#ch-search-view){padding:12px 16px 32px}}
+#media-ai-user button.mai-folder-delete-btn,#media-ai-user button.mai-stage-delete-btn{margin:0;border:1px solid var(--ng-line);background:var(--ng-low);color:var(--ng-muted);font-size:12px;font-weight:500;padding:4px 10px;min-height:30px;border-radius:8px;white-space:nowrap}
+#media-ai-user button.mai-folder-delete-btn:hover:not(:disabled),#media-ai-user button.mai-stage-delete-btn:hover:not(:disabled){background:var(--ng-soft);border-color:color-mix(in srgb,var(--ng-accent) 45%,var(--ng-line));color:var(--ng-text)}
+#media-ai-user button.mai-library-err-badge{min-height:24px;font-size:11.5px;font-weight:600;padding:2px 9px;border-radius:999px;background:color-mix(in srgb,var(--ng-danger,#b42318) 10%,var(--ng-surface));color:var(--ng-danger,#b42318);border:1px solid color-mix(in srgb,var(--ng-danger,#b42318) 32%,var(--ng-line))}
+#media-ai-user button.mai-library-err-badge:hover{background:color-mix(in srgb,var(--ng-danger,#b42318) 18%,var(--ng-surface));border-color:color-mix(in srgb,var(--ng-danger,#b42318) 50%,var(--ng-line))}
+#media-ai-user .mai-scope-target{margin:0 0 10px;padding:10px 14px;border-radius:12px;border:1px solid var(--ng-line);background:var(--ng-low);font-family:var(--ng-mono,monospace);font-size:13px;font-weight:600;overflow-wrap:anywhere}
+#media-ai-user .mai-scope-safe-note{margin:0 0 12px;padding:10px 14px;border-radius:12px;border:1px solid color-mix(in srgb,var(--color-success,#16a34a) 35%,var(--ng-line));background:color-mix(in srgb,var(--color-success,#16a34a) 10%,var(--ng-surface));color:var(--ng-text);font-size:12.5px;line-height:1.45}
+#media-ai-user .mai-scope-delete-options{display:flex;flex-direction:column;gap:8px;margin:0 0 14px}
+#media-ai-user button.mai-scope-option{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;margin:0;padding:12px 16px;border-radius:14px;border:1px solid var(--ng-line);background:var(--ng-low);text-align:left;font-weight:500;min-height:54px}
+#media-ai-user button.mai-scope-option:hover:not(:disabled){border-color:color-mix(in srgb,var(--ng-accent) 55%,var(--ng-line));background:var(--ng-soft)}
+#media-ai-user button.mai-scope-option-all{border-style:dashed;border-color:color-mix(in srgb,var(--ng-muted) 45%,var(--ng-line));background:var(--ng-surface)}
+#nextgallery #ch-people-reset{border-color:var(--ng-line);color:var(--ng-muted);background:var(--ng-low)}
+#nextgallery #ch-people-reset:hover:not(:disabled){border-color:color-mix(in srgb,var(--ng-danger) 45%,var(--ng-line));color:var(--ng-danger);background:color-mix(in srgb,var(--ng-danger) 10%,var(--ng-surface))}
+#nextgallery #ch-people-view:has(#ch-person-detail:not([hidden])) :is(#ch-people-filter-explainer,#ch-people-guide){display:none}
+#nextgallery .ch-people-filter-group{display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex:1}
+#nextgallery .ch-people-filter-pills{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+#nextgallery button.ch-people-pill{min-height:36px;padding:6px 12px;border-radius:999px;font-size:13px;font-weight:600;border:1px solid var(--ng-line);background:var(--ng-low);color:var(--ng-text)}
+#nextgallery button.ch-people-pill.active{background:var(--ng-selected);color:var(--ng-on-selected);border-color:var(--ng-accent)}
+#nextgallery #ch-people-filter{width:auto;min-width:190px;min-height:38px;margin:0}
+#nextgallery .ch-people-explainer{margin:10px 0 14px;padding:10px 14px;border-radius:12px;border:1px solid var(--ng-line);background:var(--ng-low);color:var(--ng-muted);font-size:13px;line-height:1.45}
+#nextgallery .ch-people-guide{margin:0 0 16px;padding:14px 16px;border-radius:16px;border:1px solid color-mix(in srgb,var(--ng-accent) 35%,var(--ng-line));background:var(--ng-surface)}
+#nextgallery .ch-people-guide-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+#nextgallery .ch-people-guide-card{padding:10px 12px;border-radius:12px;background:var(--ng-low);border:1px solid var(--ng-line)}
+#nextgallery .ch-people-guide-card strong{display:block;font-size:13.5px;margin-bottom:4px;color:var(--ng-text)}
+#nextgallery .ch-people-guide-card p{margin:0;font-size:12.5px;line-height:1.45;color:var(--ng-muted)}
+#nextgallery .ch-people-undo-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 14px;padding:10px 14px;border-radius:14px;border:1px solid var(--ng-accent);background:color-mix(in srgb,var(--ng-accent) 12%,var(--ng-surface));font-size:13.5px;font-weight:600}
+#nextgallery .ch-people-undo-actions{display:flex;align-items:center;gap:8px}
+#nextgallery .ch-person-name{display:block;font-size:13.5px;font-weight:700;color:var(--ng-text);margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+#nextgallery .ch-person-badge-stranger{background:var(--ng-muted);color:var(--ng-surface)}
+#nextgallery .ch-people-detail-avatar{width:52px;height:52px;border-radius:50%;overflow:hidden;border:2px solid var(--ng-line);background:var(--ng-soft);flex-shrink:0;display:flex;align-items:center;justify-content:center}
+#nextgallery .ch-people-detail-avatar img{width:100%;height:100%;object-fit:cover}
+#nextgallery .ch-people-detail-title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+#nextgallery .ch-people-rename-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 0}
+#nextgallery #ch-people-rename-input{min-height:34px;padding:4px 10px;border-radius:10px;border:1px solid var(--ng-line);background:var(--ng-surface);color:var(--ng-text);font-size:14px;min-width:200px}
+#nextgallery button.ch-button-sm{min-height:30px;padding:4px 10px;font-size:12px;border-radius:10px}
+#nextgallery .ch-person-media-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:8px 12px;border-radius:12px;background:var(--ng-low);border:1px solid var(--ng-line)}
+#nextgallery .ch-person-media-toolbar .ch-hint{margin:0;font-size:12.5px}
+#nextgallery .ch-person-media-select{opacity:.82;background:rgba(255,255,255,.85);border-radius:5px;box-shadow:0 1px 4px rgba(0,0,0,.35)}
+#nextgallery .ch-face-box-overlay{position:absolute;border:2px solid #00d2ff;box-shadow:0 0 0 1.5px rgba(0,0,0,.55),inset 0 0 0 1px rgba(255,255,255,.65);border-radius:6px;pointer-events:none;z-index:1;opacity:0;transition:opacity .15s ease}
+#nextgallery .ch-face-box-overlay.is-review{border-color:#ff9800}
+#nextgallery .ch-face-box-overlay.is-prominent,#nextgallery .ch-person-media-grid.show-face-boxes .ch-face-box-overlay,#nextgallery .ch-person-media-tile:hover .ch-face-box-overlay{opacity:1}
+#nextgallery .ch-person-media-cover-badge{position:absolute;top:8px;right:8px;z-index:2;background:rgba(16,59,58,.88);color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;pointer-events:none}
+#nextgallery .ch-person-media-quick{position:absolute;left:6px;right:6px;bottom:6px;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:4px;opacity:0;transition:opacity .15s ease;pointer-events:none}
+#nextgallery .ch-person-media-tile:is(:hover,:focus-within) .ch-person-media-quick{opacity:1;pointer-events:auto}
+#nextgallery button.ch-person-media-quick-btn{min-height:26px;padding:2px 8px;font-size:11px;font-weight:600;border-radius:8px;background:rgba(15,23,42,.84);color:#fff;border:1px solid rgba(255,255,255,.22);backdrop-filter:blur(4px)}
+#nextgallery button.ch-person-media-quick-btn:hover{background:var(--ng-accent);color:var(--ng-on-accent)}
+#nextgallery button.ch-people-merge-choice{position:relative;border:2px solid var(--ng-line);background:var(--ng-surface);padding:8px;border-radius:14px}
+#nextgallery button.ch-people-merge-choice:hover{border-color:color-mix(in srgb,var(--ng-accent) 60%,var(--ng-line));background:var(--ng-low)}
+#nextgallery button.ch-people-merge-choice.active{border-color:var(--ng-accent);background:color-mix(in srgb,var(--ng-accent) 16%,var(--ng-surface));box-shadow:0 0 0 2px var(--ng-accent);transform:translateY(-1px)}
+#nextgallery .ch-people-merge-selected-badge{margin-top:4px;display:inline-block;padding:2px 8px;border-radius:999px;background:var(--ng-accent);color:var(--ng-on-accent);font-size:11px;font-weight:700}
+#nextgallery .ch-people-merge-selection-preview{margin:8px 0 12px;padding:10px 12px;border-radius:12px;border:1px solid var(--ng-line);background:var(--ng-low)}
+#nextgallery .ch-people-merge-selection-preview .ch-hint{margin:0}
+#nextgallery .ch-people-merge-compare-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:space-between}
+#nextgallery .ch-people-merge-chip{display:flex;align-items:center;gap:8px;padding:4px 10px 4px 4px;border-radius:999px;background:var(--ng-surface);border:1px solid var(--ng-line);font-size:12.5px}
+#nextgallery .ch-people-merge-chip.is-target{border-color:var(--ng-accent);background:color-mix(in srgb,var(--ng-accent) 12%,var(--ng-surface))}
+#nextgallery .ch-people-merge-chip img{width:28px;height:28px;border-radius:50%;object-fit:cover}
+#nextgallery .ch-people-merge-arrow{font-weight:700;color:var(--ng-accent);font-size:16px}
+#nextgallery #ch-people-inspect-dialog,#nextgallery #ch-people-share-dialog,#nextgallery #ch-people-merge-dialog{max-width:720px;width:min(94vw,720px)}
+#nextgallery .ch-people-inspect-comparison{display:grid;grid-template-columns:1fr 160px;gap:12px;align-items:start;margin:10px 0}
+@media(max-width:600px){#nextgallery .ch-people-inspect-comparison{grid-template-columns:1fr}}
+#nextgallery .ch-people-inspect-full-card,#nextgallery .ch-people-inspect-crop-card{padding:10px;border-radius:12px;background:var(--ng-low);border:1px solid var(--ng-line);display:flex;flex-direction:column;gap:8px}
+#nextgallery .ch-people-inspect-card-label{font-size:12px;font-weight:600;color:var(--ng-muted)}
+#nextgallery .ch-people-inspect-full-wrap{position:relative;display:inline-block;align-self:center;max-width:100%;overflow:hidden;border-radius:10px;background:#000}
+#nextgallery .ch-people-inspect-full-img{display:block;max-width:100%;max-height:360px;width:auto;height:auto;object-fit:contain}
+#nextgallery .ch-people-inspect-crop-img{width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:10px}
+#nextgallery .ch-people-inspect-photos-wrap h3{font-size:13.5px;margin:12px 0 8px}
+#nextgallery .ch-people-inspect-photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(74px,1fr));gap:8px;max-height:190px;overflow-y:auto;padding:2px}
+#nextgallery button.ch-people-inspect-photo-btn{padding:0;border:2px solid var(--ng-line);border-radius:10px;overflow:hidden;aspect-ratio:1/1;background:var(--ng-soft);cursor:pointer}
+#nextgallery button.ch-people-inspect-photo-btn.active,#nextgallery button.ch-people-inspect-photo-btn:hover{border-color:var(--ng-accent)}
+#nextgallery button.ch-people-inspect-photo-btn img{width:100%;height:100%;object-fit:cover;display:block}
+#nextgallery .ch-people-share-box{margin:12px 0;padding:12px 14px;border-radius:14px;border:1px solid var(--ng-line);background:var(--ng-low)}
+#nextgallery .ch-people-share-toggle-row{display:flex;align-items:flex-start;gap:12px;cursor:pointer}
+#nextgallery .ch-people-share-toggle-row input{margin-top:3px;width:18px;height:18px;accent-color:var(--ng-accent)}
+#nextgallery .ch-people-share-toggle-row span{display:flex;flex-direction:column;gap:4px}
+#nextgallery .ch-people-share-toggle-row small{color:var(--ng-muted);font-size:12.5px;line-height:1.4}
+#nextgallery .ch-people-share-available-section h3{font-size:14px;margin:14px 0 6px}
+#nextgallery .ch-people-share-list{display:flex;flex-direction:column;gap:8px;margin:8px 0 14px}
+#nextgallery .ch-people-share-item{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:10px 14px;border-radius:12px;border:1px solid var(--ng-line);background:var(--ng-surface)}
+#nextgallery .ch-people-share-info p{margin:2px 0 0;font-size:12.5px}
 
 /* LEAFLET STYLES */
 /* required styles */

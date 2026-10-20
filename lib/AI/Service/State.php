@@ -154,21 +154,21 @@ class State {
             $status=$this->status();$running=$status['state']==='running';$waiting=!empty($value['requested']);$paused=!empty($value['paused']);
             $rebuild=$status['embedding_rebuild']??[];$saved=json_decode($this->config->getAppValue('nextgallery','ai_settings','{}'),true)??[];
             $needsRebuild=$kind==='embeddings'&&!empty($rebuild['required'])&&!empty($saved['embedding']['enabled']);
-            $allowed=$status['online']&&empty($value['reset_requested'])&&match($action){
-                'start'=>!$running&&(!$waiting||$needsRebuild),
-                'pause'=>!$paused,
-                'resume'=>!$running&&!$waiting&&$paused&&($status['stats']['pending']??0)>0,
-                'retry'=>!$running&&!$waiting&&($status['stats']['error']??0)>0,
+            if(!$status['online'])throw new OCSBadRequestException('Der Hintergrund-Worker ist aktuell offline.');
+            if(!empty($value['reset_requested']))throw new OCSBadRequestException('Bitte warten, bis das Löschen der KI-Daten abgeschlossen ist.');
+            $allowed=match($action){
+                'start','resume','retry'=>!$running&&(!$waiting||$needsRebuild),
+                'pause'=>!$paused||$running||$waiting,
                 default=>false,
             };
-            if(!$allowed)throw new OCSBadRequestException('Diese Aktion ist im aktuellen Zustand nicht verfügbar.');
+            if(!$allowed)throw new OCSBadRequestException($action==='pause'?'Dieser Lauf ist bereits pausiert.':'Dieser Lauf ist bereits aktiv oder in der Warteschlange.');
             if($needsRebuild&&in_array($action,['start','resume','retry'],true)){
                 if($confirmation===''||!hash_equals($rebuild['request_id']??'',$confirmation))throw new OCSBadRequestException('Modellwechsel: Bitte zuerst den Neuaufbau der Bildvektoren bestätigen.');
                 $rebuild['required']=false;$rebuild['approved']=true;$rebuild['approved_space']=$rebuild['target_space']??null;$pendingRebuild=$rebuild;
             }
         }
         if($action==='reset'){
-            if(empty($value['paused'])||!empty($value['requested'])||!empty($value['reset_requested'])||$this->status()['state']==='running')throw new OCSBadRequestException('Bitte zuerst pausieren.');
+            if(!empty($value['requested'])||!empty($value['reset_requested'])||$this->status()['state']==='running')throw new OCSBadRequestException('Bitte zuerst pausieren.');
             $value['paused']=true;$value['requested']=false;$value['reset_kind']=$kind;$value['reset_requested']=true;$value['reset_request_id']=bin2hex(random_bytes(12));
         }elseif($action==='pause'){$value['paused']=true;$value['requested']=false;unset($value['retry_errors']);}
         else{$value['paused']=false;$value['requested']=true;$value['request_id']=bin2hex(random_bytes(12));}
@@ -226,6 +226,51 @@ class State {
     public function requestReset(string $kind):array {
         if(!in_array($kind,['descriptions','ocr','embeddings','faces','all'],true))throw new OCSBadRequestException('Lösch-Auswahl ungültig');
         return $this->setControl('reset',false,'',$kind==='all'?'both':$kind);
+    }
+    /** Purge local worker queue entries for specific files so they are not treated as cached/done. */
+    public function forgetFiles(array $fileIds,string $kind='all'):void {
+        $ids=array_values(array_unique(array_filter(array_map('intval',$fileIds),fn($id)=>$id>0)));
+        if(!$ids)return;
+        $dir=$this->directory();
+        if(in_array($kind,['all','descriptions','ocr'],true)){
+            $names=$kind==='all'?['native-descriptions.sqlite3','native-ocr.sqlite3','native.sqlite3']:['native-'.$kind.'.sqlite3','native.sqlite3'];
+            foreach($names as $name){
+                $path=$dir.'/'.$name;if(!is_file($path)||is_link($path))continue;
+                try{
+                    $db=new \PDO('sqlite:'.$path,null,null,[\PDO::ATTR_ERRMODE=>\PDO::ERRMODE_EXCEPTION]);$db->exec('PRAGMA busy_timeout=1000');
+                    foreach(array_chunk($ids,200) as $chunk){
+                        $marks=implode(',',array_fill(0,count($chunk),'?'));$locators=array_map('strval',$chunk);
+                        try{$db->prepare('DELETE FROM results WHERE sha256 IN (SELECT sha256 FROM files WHERE locator IN ('.$marks.') AND sha256 IS NOT NULL)')->execute($locators);}catch(\Throwable){}
+                        try{$db->prepare('DELETE FROM shared WHERE sha256 IN (SELECT sha256 FROM files WHERE locator IN ('.$marks.') AND sha256 IS NOT NULL)')->execute($locators);}catch(\Throwable){}
+                        try{$db->prepare('DELETE FROM search WHERE id IN (SELECT id FROM files WHERE locator IN ('.$marks.'))')->execute($locators);}catch(\Throwable){}
+                        try{$db->prepare('DELETE FROM files WHERE locator IN ('.$marks.')')->execute($locators);}catch(\Throwable){}
+                    }
+                }catch(\Throwable){}
+            }
+        }
+        if(in_array($kind,['all','embeddings'],true)){
+            $path=$dir.'/embeddings.sqlite3';
+            if(is_file($path)&&!is_link($path)){
+                try{
+                    $db=new \PDO('sqlite:'.$path,null,null,[\PDO::ATTR_ERRMODE=>\PDO::ERRMODE_EXCEPTION]);$db->exec('PRAGMA busy_timeout=1000');
+                    $stmt=$db->prepare('DELETE FROM embeddings WHERE id LIKE ?');
+                    foreach($ids as $id)$stmt->execute(['%:'.$id]);
+                }catch(\Throwable){}
+            }
+        }
+        if(in_array($kind,['all','faces'],true)){
+            $path=$dir.'/faces.sqlite3';
+            if(is_file($path)&&!is_link($path)){
+                try{
+                    $db=new \PDO('sqlite:'.$path,null,null,[\PDO::ATTR_ERRMODE=>\PDO::ERRMODE_EXCEPTION]);$db->exec('PRAGMA busy_timeout=1000');
+                    foreach(array_chunk($ids,200) as $chunk){
+                        $marks=implode(',',array_fill(0,count($chunk),'?'));
+                        try{$db->prepare('DELETE FROM detections WHERE file_id IN ('.$marks.')')->execute($chunk);}catch(\Throwable){}
+                        try{$db->prepare('DELETE FROM files WHERE file_id IN ('.$marks.')')->execute($chunk);}catch(\Throwable){}
+                    }
+                }catch(\Throwable){}
+            }
+        }
     }
     public function requireEmbeddingRebuild(string $signature,array $details=[]):void {
         $lock=fopen($this->directory().'/control.lock','c');

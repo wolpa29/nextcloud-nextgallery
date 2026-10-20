@@ -38,6 +38,7 @@ class AiAccountController extends Controller {
             $this->settings->saveAccount($uid,$config,function(array $candidate)use($home){
                 foreach(array_merge($candidate['folders'],$candidate['exclude_folders']) as $path){$folder=$path==='/'?$home:$home->get(ltrim($path,'/'));if(!$folder instanceof Folder||!$folder->isReadable())throw new \OCP\AppFramework\OCS\OCSBadRequestException('Ein Ordner fehlt oder ist nicht lesbar.');}
             });
+            $this->library->forUser($uid)->invalidate();
             return $this->config();
         }catch(\OCP\AppFramework\OCS\OCSBadRequestException|\OCP\Files\NotFoundException|\OCP\Files\NotPermittedException $e){return new DataResponse(['error'=>'Ordnerauswahl oder Zeitplan ungültig. Bitte die Eingaben prüfen.'],400);}
         finally{flock($lock,LOCK_UN);fclose($lock);}
@@ -89,13 +90,36 @@ class AiAccountController extends Controller {
         catch(\OCP\AppFramework\OCS\OCSBadRequestException $e){return new DataResponse(['error'=>$e->getMessage()],409);}
     }
     #[NoAdminRequired]
-    public function delete(string $kind,string $confirmation,int $expected_count=-1):DataResponse {
+    public function delete(string $kind,string $confirmation,int $expected_count=-1,string $folder='',int $file_id=0):DataResponse {
         if($confirmation!==$kind||!in_array($kind,['descriptions','ocr','embeddings','faces','all'],true))return new DataResponse(['error'=>'Bestätigung fehlt'],400);
-        $state=$this->account();if($kind!=='all')$state=$state->forPipeline($kind);$status=$state->status();
-        if(!$status['online']||empty($status['control']['paused'])||!empty($status['control']['requested'])||!empty($status['control']['reset_requested'])||$status['state']==='running')return new DataResponse(['error'=>'Bitte zuerst pausieren und das Ende der aktuellen Datei abwarten.'],409);
+        $state=$this->account();
+        if($folder!==''||$file_id>0){
+            $state->initializePipelines();$lanes=$kind==='all'?State::PIPELINES:[$kind];
+            foreach($lanes as $lane){
+                $laneStatus=$state->forPipeline($lane)->status();
+                if(!empty($laneStatus['control']['requested'])||!empty($laneStatus['control']['reset_requested'])||$laneStatus['state']==='running')return new DataResponse(['error'=>'Bitte zuerst pausieren und das Ende der aktuellen Datei abwarten.'],409);
+            }
+            $uid=$this->uid();$userLibrary=$this->library->forUser($uid);
+            try{
+                $fileIds=$file_id>0?[$this->files->byId($uid,$file_id)->getId()]:$userLibrary->folderFileIds($folder);
+            }catch(\OCP\AppFramework\OCS\OCSBadRequestException|\OCP\AppFramework\OCS\OCSNotFoundException $e){
+                return new DataResponse(['error'=>$e->getMessage()],400);
+            }
+            $deleted=0;
+            if(in_array($kind,['all','descriptions','ocr'],true)){
+                $lock=fopen($state->directory().'/publication.lock','c');if(!$lock||!flock($lock,LOCK_EX))throw new \RuntimeException('Publication gate unavailable');
+                try{$deleted+=$this->metadata->resetFiles($uid,$fileIds,$kind==='all'?null:$kind);}finally{flock($lock,LOCK_UN);fclose($lock);}
+            }
+            if(in_array($kind,['all','embeddings'],true))$deleted+=$this->embeddings->resetFiles($uid,$fileIds);
+            if(in_array($kind,['all','faces'],true))$deleted+=$this->faces?->resetFiles($uid,$fileIds)??0;
+            $state->forgetFiles($fileIds,$kind);$userLibrary->invalidate();
+            return new DataResponse(['requested'=>true,'scoped'=>true,'deleted'=>$deleted]);
+        }
+        if($kind!=='all')$state=$state->forPipeline($kind);$status=$state->status();
+        if(!$status['online']||!empty($status['control']['requested'])||!empty($status['control']['reset_requested'])||$status['state']==='running')return new DataResponse(['error'=>'Bitte zuerst pausieren und das Ende der aktuellen Datei abwarten.'],409);
         $uid=$this->uid();$count=$kind==='all'?$this->metadata->count($uid)+$this->embeddings->count($uid)+($this->faces?->count($uid)??0):($kind==='faces'?($this->faces?->count($uid)??0):($kind==='embeddings'?$this->embeddings->count($uid):$this->metadata->count($uid,$kind)));
         if($expected_count!==$count)return new DataResponse(['error'=>'Die Anzahl hat sich geändert. Bitte die Bestätigung erneut öffnen.'],409);
-        try{$state->requestReset($kind);return new DataResponse(['requested'=>true]);}
+        try{$state->requestReset($kind);$this->library->forUser($uid)->invalidate();return new DataResponse(['requested'=>true]);}
         catch(\OCP\AppFramework\OCS\OCSBadRequestException $e){return new DataResponse(['error'=>$e->getMessage()],409);}
     }
     #[NoAdminRequired]

@@ -32,10 +32,17 @@ $tr = static fn(string $text): string => $isGerman ? $text : ($english[$text] ??
   <section id="ch-map-view" hidden><div class="ch-map-top"><p id="ch-map-count"><?php p($tr('Fotos und Videos mit Standort')); ?></p><button id="ch-map-reset"><?php p($tr('Weltkarte')); ?></button></div><div id="ch-map" aria-label="<?php p($tr('Weltkarte mit Medienstandorten')); ?>"></div><p class="ch-map-note"><?php p($tr('Kartendaten: Natural Earth · Lokal geladen, ohne externe Kartenanfragen.')); ?></p></section>
   <section id="ch-people-view" class="ch-panel" hidden>
    <div class="ch-people-toolbar">
-    <div class="ch-filters" role="group" aria-label="<?php p($tr('Filter')); ?>">
-     <select id="ch-people-filter" aria-label="<?php p($tr('Filter')); ?>">
+    <div class="ch-filters ch-people-filter-group" role="group" aria-label="<?php p($tr('Filter')); ?>">
+     <div class="ch-people-filter-pills">
+      <button type="button" data-people-filter="all" class="ch-people-pill active"><?php p($tr('Alle')); ?></button>
+      <button type="button" data-people-filter="suggested" class="ch-people-pill"><?php p($tr('Vorschläge')); ?></button>
+      <button type="button" data-people-filter="strangers" class="ch-people-pill"><?php p($tr('Unbekannte Personen')); ?></button>
+      <button type="button" data-people-filter="single" class="ch-people-pill"><?php p($tr('Seltene Personen')); ?></button>
+     </div>
+     <select id="ch-people-filter" aria-label="<?php p($tr('Ansicht wählen')); ?>">
       <option value="all"><?php p($tr('Alle')); ?></option>
       <option value="suggested"><?php p($tr('Vorschläge')); ?></option>
+      <option value="strangers"><?php p($tr('Unbekannte Personen')); ?></option>
       <option value="review"><?php p($tr('Überprüfung')); ?></option>
       <option value="single"><?php p($tr('Seltene Personen')); ?></option>
       <option value="filtered"><?php p($tr('Gefilterte Gesichter')); ?></option>
@@ -43,8 +50,34 @@ $tr = static fn(string $text): string => $isGerman ? $text : ($english[$text] ??
      </select>
     </div>
     <div class="ch-people-toolbar-actions">
+     <button type="button" id="ch-people-share-sorting" class="ch-button" title="<?php p($tr('Sortierung mit anderen Benutzern dieser Galerie teilen oder übernehmen')); ?>"><?php p($tr('Sortierung teilen')); ?></button>
+     <button type="button" id="ch-people-help-toggle" class="ch-button" aria-expanded="false"><?php p($tr('Hilfe & Tipps')); ?></button>
      <button id="ch-people-refresh" class="ch-button" aria-label="<?php p($tr('Aktualisieren')); ?>" title="<?php p($tr('Aktualisieren')); ?>"><span data-icon="refresh"></span></button>
      <button id="ch-people-reset" class="ch-button ch-danger" aria-label="<?php p($tr('Personenerkennung zurücksetzen')); ?>"><?php p($tr('Zurücksetzen')); ?></button>
+    </div>
+   </div>
+   <div id="ch-people-filter-explainer" class="ch-people-explainer" role="note"></div>
+   <section id="ch-people-guide" class="ch-people-guide" hidden>
+    <div class="ch-people-guide-grid">
+     <div class="ch-people-guide-card">
+      <strong><?php p($tr('Lernt die Erkennung beim Zusammenführen mit?')); ?></strong>
+      <p><?php p($tr('Ja! Jedes Mal, wenn du Personen zusammenführst oder falsch zugeordnete Fotos abtrennst, werden diese Gesichter als feste Referenz gespeichert. Neue Fotos und künftige Vorschläge werden dadurch automatisch genauer zugeordnet.')); ?></p>
+     </div>
+     <div class="ch-people-guide-card">
+      <strong><?php p($tr('Falsch zusammengeführt oder falsches Foto dabei?')); ?></strong>
+      <p><?php p($tr('Direkt nach dem Zusammenführen kannst du oben auf „Rückgängig machen“ klicken. Auch später kannst du in einer Person jederzeit einzelne Fotos auswählen und über „Abtrennen“ als eigene Person lösen oder über „Zu Person verschieben“ neu zuordnen.')); ?></p>
+     </div>
+     <div class="ch-people-guide-card">
+      <strong><?php p($tr('Unbekannte Personen & Titelbild ändern')); ?></strong>
+      <p><?php p($tr('Personen im Hintergrund, die du nicht kennst, verschiebst du mit „Kenne ich nicht“ in den Sammelordner „Unbekannte Personen“. In der Personenansicht kannst du außerdem jedes Foto per Klick auf „★ Titelbild“ als neues Vorschaubild festlegen.')); ?></p>
+     </div>
+    </div>
+   </section>
+   <div id="ch-people-undo-bar" class="ch-people-undo-bar" role="status" hidden>
+    <span id="ch-people-undo-text"></span>
+    <div class="ch-people-undo-actions">
+     <button type="button" id="ch-people-undo-btn" class="ch-button ch-primary"><?php p($tr('Rückgängig machen')); ?></button>
+     <button type="button" id="ch-people-undo-close" class="ch-button" aria-label="<?php p($tr('Schließen')); ?>">×</button>
     </div>
    </div>
    <div id="ch-people-error" class="ch-error-banner" role="alert" hidden></div>
@@ -63,32 +96,53 @@ $tr = static fn(string $text): string => $isGerman ? $text : ($english[$text] ??
    <div id="ch-person-detail" class="ch-person-detail" hidden>
     <div class="ch-person-detail-bar">
      <button id="ch-people-back" class="ch-button">← <?php p($tr('Alle Personen')); ?></button>
+     <div id="ch-people-detail-avatar" class="ch-people-detail-avatar"></div>
      <div class="ch-people-detail-title-wrap">
-      <h2 id="ch-people-detail-title"><?php p($tr('Person')); ?></h2>
+      <div class="ch-people-detail-title-row">
+       <h2 id="ch-people-detail-title"><?php p($tr('Person')); ?></h2>
+       <button type="button" id="ch-people-rename-btn" class="ch-button ch-button-sm" title="<?php p($tr('Namen vergeben oder ändern')); ?>">✎ <?php p($tr('Benennen')); ?></button>
+      </div>
+      <div id="ch-people-rename-bar" class="ch-people-rename-bar" hidden>
+       <input type="text" id="ch-people-rename-input" maxlength="120" placeholder="<?php p($tr('Name der Person …')); ?>" aria-label="<?php p($tr('Name der Person')); ?>">
+       <button type="button" id="ch-people-rename-save" class="ch-button ch-primary ch-button-sm"><?php p($tr('Speichern')); ?></button>
+       <button type="button" id="ch-people-rename-cancel" class="ch-button ch-button-sm"><?php p($tr('Abbrechen')); ?></button>
+      </div>
       <p id="ch-people-detail-count" class="ch-hint"></p>
      </div>
      <div class="ch-person-detail-actions">
+      <button type="button" id="ch-people-inspect-self" class="ch-button" title="<?php p($tr('Volles Bild mit markiertem Gesichtsausschnitt ansehen')); ?>"><?php p($tr('Bildkontext')); ?></button>
+      <button type="button" id="ch-people-toggle-stranger" class="ch-button" title="<?php p($tr('Person in den Sammelordner „Unbekannte Personen“ verschieben')); ?>"><?php p($tr('Kenne ich nicht')); ?></button>
       <button id="ch-people-toggle-hide" class="ch-button"><?php p($tr('Ausblenden')); ?></button>
-      <button id="ch-people-merge" class="ch-button"><?php p($tr('Zusammenführen')); ?></button>
+      <button id="ch-people-merge" class="ch-button ch-primary"><?php p($tr('Zusammenführen')); ?></button>
       <button id="ch-people-resolve" class="ch-button" hidden><?php p($tr('Überprüfung auflösen')); ?></button>
      </div>
     </div>
     <p id="ch-people-detail-filter-note" class="ch-hint" hidden><?php p($tr('Kleine oder unscharfe Gesichter im Hintergrund werden hier gesammelt und können bestätigt werden.')); ?></p>
     <section id="ch-people-similar" class="ch-people-similar" aria-labelledby="ch-people-similar-title" hidden>
-     <h3 id="ch-people-similar-title"><?php p($tr('Vielleicht dieselbe Person')); ?></h3>
-     <p class="ch-hint"><?php p($tr('Vorschläge aus ähnlichen Gesichtern. Zusammengeführt wird nur, was du bestätigst.')); ?></p>
+     <div class="ch-people-similar-head">
+      <div>
+       <h3 id="ch-people-similar-title"><?php p($tr('Vielleicht dieselbe Person')); ?></h3>
+       <p class="ch-hint"><?php p($tr('Vorschläge aus ähnlichen Gesichtern. Über „Fotos & Kontext“ siehst du das ganze Bild mit markiertem Gesicht sowie alle Fotos der vorgeschlagenen Person.')); ?></p>
+      </div>
+     </div>
      <div id="ch-people-similar-list" class="ch-people-similar-list" role="list"></div>
     </section>
+    <div class="ch-person-media-toolbar">
+     <p class="ch-hint"><?php p($tr('Tipp: Wähle Fotos über das Kästchen oben links aus, um falsche Zuordnungen abzutrennen oder zu einer anderen Person zu verschieben. Über „★ Titelbild“ auf einem Foto änderst du das Vorschaubild dieser Person.')); ?></p>
+     <button type="button" id="ch-people-toggle-boxes" class="ch-button ch-button-sm" aria-pressed="true"><?php p($tr('Gesichtsrahmen anzeigen')); ?></button>
+    </div>
     <div id="ch-person-selection-bar" class="ch-selection-bar" hidden>
      <span id="ch-people-selection-count"></span>
      <div class="ch-selection-actions">
-      <button id="ch-people-split-selected" class="ch-button"><?php p($tr('Abtrennen')); ?></button>
+      <button type="button" id="ch-people-cover-selected" class="ch-button" hidden>★ <?php p($tr('Als Titelbild')); ?></button>
+      <button id="ch-people-split-selected" class="ch-button" title="<?php p($tr('Ausgewählte Fotos als eigene neue Person herauslösen')); ?>"><?php p($tr('Abtrennen')); ?></button>
+      <button type="button" id="ch-people-move-selected" class="ch-button" title="<?php p($tr('Ausgewählte Fotos einer anderen bestehenden Person zuordnen')); ?>"><?php p($tr('Zu Person verschieben')); ?></button>
       <button id="ch-people-remove-selected" class="ch-button ch-danger"><?php p($tr('Entfernen')); ?></button>
       <button id="ch-people-resolve-selected" class="ch-button"><?php p($tr('Bestätigen')); ?></button>
       <button id="ch-people-clear-selected" class="ch-button"><?php p($tr('Auswahl aufheben')); ?></button>
      </div>
     </div>
-    <div id="ch-person-media-grid" class="ch-person-media-grid" role="list" aria-label="<?php p($tr('Fotos dieser Person')); ?>"></div>
+    <div id="ch-person-media-grid" class="ch-person-media-grid show-face-boxes" role="list" aria-label="<?php p($tr('Fotos dieser Person')); ?>"></div>
     <div id="ch-people-media-more-wrap" class="ch-panel-actions" hidden>
      <button id="ch-people-media-more" class="ch-button"><?php p($tr('Weitere Fotos laden')); ?></button>
     </div>
@@ -128,21 +182,57 @@ $tr = static fn(string $text): string => $isGerman ? $text : ($english[$text] ??
   </dialog>
   <dialog id="ch-people-merge-dialog" aria-labelledby="ch-people-merge-title">
    <form method="dialog" class="ch-dialog-head"><h2 id="ch-people-merge-title"><?php p($tr('Person zusammenführen')); ?></h2><button aria-label="<?php p($tr('Schließen')); ?>" class="ch-dialog-close"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></form>
-   <p><?php p($tr('Wähle die Person aus, mit der diese zusammengelegt werden soll.')); ?></p>
+   <p id="ch-people-merge-subtitle"><?php p($tr('Wähle die Person aus, mit der diese zusammengelegt werden soll. Über „🔍 Fotos & Kontext“ kannst du dir das ganze Bild mit markiertem Gesicht und alle Fotos einer Person ansehen.')); ?></p>
    <div class="ch-merge-toolbar">
     <div class="ch-segmented" role="radiogroup" aria-label="<?php p($tr('Filter')); ?>">
      <button type="button" class="ch-seg-btn active" data-merge-filter="all"><?php p($tr('Alle')); ?></button>
      <button type="button" class="ch-seg-btn" data-merge-filter="single"><?php p($tr('Seltene Personen')); ?></button>
+     <button type="button" class="ch-seg-btn" data-merge-filter="strangers"><?php p($tr('Unbekannte Personen')); ?></button>
     </div>
-    <input type="search" id="ch-people-merge-search" placeholder="<?php p($tr('Personen suchen …')); ?>" aria-label="<?php p($tr('Personen suchen')); ?>">
+    <input type="search" id="ch-people-merge-search" placeholder="<?php p($tr('Nach Name oder Fotoanzahl suchen …')); ?>" aria-label="<?php p($tr('Personen suchen')); ?>">
    </div>
    <div id="ch-people-merge-targets" class="ch-people-merge-list"></div>
    <div id="ch-people-merge-more-wrap" class="ch-panel-actions" hidden>
     <button type="button" id="ch-people-merge-more" class="ch-button"><?php p($tr('Weitere laden')); ?></button>
    </div>
+   <div id="ch-people-merge-selection-preview" class="ch-people-merge-selection-preview"></div>
    <div class="ch-confirm-actions">
     <button type="button" id="ch-people-merge-cancel"><?php p($tr('Abbrechen')); ?></button>
     <button type="button" id="ch-people-merge-ok" class="ch-primary" disabled><?php p($tr('Zusammenführen')); ?></button>
+   </div>
+  </dialog>
+  <dialog id="ch-people-inspect-dialog" aria-labelledby="ch-people-inspect-title">
+   <form method="dialog" class="ch-dialog-head"><h2 id="ch-people-inspect-title"><?php p($tr('Bildkontext & Fotos prüfen')); ?></h2><button aria-label="<?php p($tr('Schließen')); ?>" class="ch-dialog-close"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></form>
+   <p id="ch-people-inspect-subtitle" class="ch-hint"><?php p($tr('Das erkannte Gesicht ist im vollen Bildbereich farbig markiert. Klicke unten auf ein weiteres Foto dieser Person, um es hier zu prüfen.')); ?></p>
+   <div id="ch-people-inspect-stage" class="ch-people-inspect-stage"></div>
+   <div class="ch-people-inspect-photos-wrap">
+    <h3 id="ch-people-inspect-photos-title"><?php p($tr('Fotos dieser Person')); ?></h3>
+    <div id="ch-people-inspect-photos" class="ch-people-inspect-photos"></div>
+   </div>
+   <div class="ch-confirm-actions">
+    <button type="button" id="ch-people-inspect-close"><?php p($tr('Schließen')); ?></button>
+    <button type="button" id="ch-people-inspect-merge" class="ch-primary" hidden><?php p($tr('Mit dieser Person zusammenführen')); ?></button>
+   </div>
+  </dialog>
+  <dialog id="ch-people-share-dialog" aria-labelledby="ch-people-share-title">
+   <form method="dialog" class="ch-dialog-head"><h2 id="ch-people-share-title"><?php p($tr('Personensortierung teilen & übernehmen')); ?></h2><button aria-label="<?php p($tr('Schließen')); ?>" class="ch-dialog-close"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></form>
+   <p class="ch-hint"><?php p($tr('Standardmäßig werden nur die rohen Gesichtserkennungen gemeinsam genutzt, während Zusammenführungen und Namen pro Konto getrennt sind. Hier kannst du deine Sortierung für Mitbenutzer derselben Galerie-Ordner freigeben oder deren Sortierung übernehmen.')); ?></p>
+   <div class="ch-people-share-box">
+    <label class="ch-people-share-toggle-row" for="ch-people-share-toggle">
+     <input type="checkbox" id="ch-people-share-toggle">
+     <span>
+      <strong><?php p($tr('Meine Sortierung für Mitbenutzer freigeben')); ?></strong>
+      <small><?php p($tr('Andere Konten können deine Zusammenführungen, Namen, Titelbilder und „Unbekannte Personen“ nur für Fotos übernehmen, auf die sie in Nextcloud selbst Lesezugriff haben.')); ?></small>
+     </span>
+    </label>
+   </div>
+   <div class="ch-people-share-available-section">
+    <h3><?php p($tr('Freigegebene Sortierungen für diese Galerie')); ?></h3>
+    <div id="ch-people-share-status" class="ch-hint" role="status"></div>
+    <div id="ch-people-share-list" class="ch-people-share-list"></div>
+   </div>
+   <div class="ch-confirm-actions">
+    <button type="button" id="ch-people-share-close"><?php p($tr('Schließen')); ?></button>
    </div>
   </dialog>
   <dialog id="ch-people-action-dialog" aria-labelledby="ch-people-action-title">

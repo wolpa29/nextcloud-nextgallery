@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require '/var/www/html/lib/base.php';
+\OC_User::setIncognitoMode(false);
 
 set_exception_handler(function(\Throwable $e): void {
     fwrite(STDERR, get_class($e) . ': ' . $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine() . "\n" . $e->getTraceAsString() . "\n");

@@ -64,6 +64,11 @@ class Embeddings {
   return $frames?:null;
  }
  public function reset(string $uid):void {$this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_ai_vectors WHERE user_id=?',[$uid]);$this->searchChanges?->account($uid);}
+ public function resetFiles(string $uid,array $fileIds):int {
+  $ids=array_values(array_unique(array_filter(array_map('intval',$fileIds),fn($id)=>$id>0)));if(!$ids)return 0;$affected=0;
+  foreach(array_chunk($ids,500) as $chunk){$marks=implode(',',array_fill(0,count($chunk),'?'));$affected+=(int)$this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_ai_vectors WHERE user_id=? AND file_id IN ('.$marks.')',array_merge([$uid],$chunk));}
+  if($affected>0)$this->searchChanges?->account($uid);return $affected;
+ }
  public function resetAll():void {$this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_ai_vectors');$this->searchChanges?->catalog();}
  public function spaces():array {
   $result=$this->db->executeQuery('SELECT DISTINCT space,dimensions FROM *PREFIX*nextgallery_ai_vectors');

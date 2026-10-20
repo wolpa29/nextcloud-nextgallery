@@ -110,4 +110,48 @@ class Inventory {
         if ($kind !== null && !in_array($kind, Settings::stagesFor($config, $path), true)) { throw new \OCP\AppFramework\OCS\OCSNotFoundException('Verarbeitung für diesen Ordner nicht ausgewählt'); }
         return $file;
     }
+    /** Resolve media file IDs inside a folder (or '*' for current selection). */
+    public function folderFileIds(string $folder): array {
+        if ($folder === '*') {
+            return array_values(array_unique(array_map(fn($row) => (int)$row['file_id'], $this->snapshot())));
+        }
+        if ($folder === '' || strlen($folder) > 2000 || str_contains($folder, "\0") || str_contains($folder, '\\') || preg_match('~(^|/)(\.|\.\.)(/|$)~', $folder)) {
+            throw new OCSBadRequestException('Ungültiger Ordnerpfad');
+        }
+        $config = $this->settings->get();
+        $root = $this->root->getUserFolder($config['user_id']);
+        $trimmed = trim($folder, '/');
+        try {
+            $node = $trimmed === '' ? $root : $root->get($trimmed);
+        } catch (\OCP\Files\NotFoundException|\OCP\Files\NotPermittedException) {
+            throw new OCSBadRequestException('Ordner nicht verfügbar');
+        }
+        if (!$node instanceof Folder || !$node->isReadable()) {
+            throw new OCSBadRequestException('Ordner nicht verfügbar');
+        }
+        $storage = (int)$node->getStorage()->getCache()->getNumericStorageId();
+        $internal = trim($node->getInternalPath(), '/');
+        $userPrefix = $trimmed === '' ? '' : '/' . $trimmed;
+        $prefix = $this->escaped($internal === '' ? '' : $internal . '/') . '%';
+        $sql = "SELECT DISTINCT f.fileid,f.path FROM *PREFIX*filecache f JOIN *PREFIX*mimetypes m ON m.id=f.mimetype WHERE f.storage=? AND f.path LIKE ? ESCAPE '!' AND (m.mimetype LIKE 'image/%' OR m.mimetype LIKE 'video/%')";
+        $result = $this->db->executeQuery($sql, [$storage, $prefix]);
+        $ids = [];
+        try {
+            $internalPrefixLen = $internal === '' ? 0 : strlen($internal) + 1;
+            while ($row = $result->fetch()) {
+                $rel = substr((string)$row['path'], $internalPrefixLen);
+                $userPath = $userPrefix . '/' . ltrim($rel, '/');
+                foreach ($config['exclude_folders'] as $exclude) {
+                    $ex = '/' . trim($exclude, '/');
+                    if ($ex !== '/' && $userPrefix !== $ex && !str_starts_with($userPrefix . '/', $ex . '/') && ($userPath === $ex || str_starts_with($userPath, $ex . '/'))) {
+                        continue 2;
+                    }
+                }
+                $ids[] = (int)$row['fileid'];
+            }
+        } finally {
+            $result->closeCursor();
+        }
+        return array_values(array_unique($ids));
+    }
 }

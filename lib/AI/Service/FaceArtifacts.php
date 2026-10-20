@@ -114,6 +114,18 @@ class FaceArtifacts {
         $this->config->deleteUserValue($uid,'nextgallery','ai_faces_cleanup_cursor');
         $this->prune(array_map(fn($r)=>(int)$r['artifact_id'],$rows));
     }
+    public function forgetFiles(string $uid,array $fileIds):void {
+        $ids=array_values(array_unique(array_filter(array_map('intval',$fileIds),fn($id)=>$id>0)));
+        if(!$ids)return;
+        $artifactIds=[];
+        foreach(array_chunk($ids,500) as $chunk){
+            $marks=implode(',',array_fill(0,count($chunk),'?'));
+            $rows=$this->rows('SELECT artifact_id FROM *PREFIX*nextgallery_faces_artifact_refs WHERE user_id=? AND file_id IN ('.$marks.')',array_merge([$uid],$chunk));
+            foreach($rows as $r)$artifactIds[]=(int)$r['artifact_id'];
+            $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_artifact_refs WHERE user_id=? AND file_id IN ('.$marks.')',array_merge([$uid],$chunk));
+        }
+        if($artifactIds)$this->prune($artifactIds);
+    }
     /** Bounded sweep cursor avoids starving later files in a large account. */
     public function cleanupUser(string $uid,callable $allowed):void {
         $cursor=(int)$this->config->getUserValue($uid,'nextgallery','ai_faces_cleanup_cursor','0');

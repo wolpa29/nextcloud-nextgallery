@@ -99,13 +99,15 @@ class FacesOcsController extends OCSController {
         string $action = '',
         ?string $target_id = null,
         ?array $detection_ids = null,
-        int $rules_revision = 0
+        int $rules_revision = 0,
+        ?string $label = null
     ): DataResponse {
         $uid = $this->uid();
         $actionName = $action !== '' ? $action : (string)$this->request->getParam('action', '');
         $target = $target_id !== null ? $target_id : (string)$this->request->getParam('target_id', '');
         $dets = $detection_ids !== null ? $detection_ids : $this->request->getParam('detection_ids', null);
         $rulesRev = $rules_revision !== 0 ? $rules_revision : (int)$this->request->getParam('rules_revision', 0);
+        $lbl = $label !== null ? $label : $this->request->getParam('label', null);
 
         $result = $this->faces->action(
             $uid,
@@ -113,9 +115,41 @@ class FacesOcsController extends OCSController {
             $actionName,
             $target !== '' ? $target : null,
             !empty($dets) ? $dets : null,
-            $rulesRev
+            $rulesRev,
+            is_string($lbl) ? $lbl : null
         );
         return $this->response($result);
+    }
+
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
+    public function sharedSortings(string $gallery = ''): DataResponse {
+        $uid = $this->uid();
+        $gallery = $gallery !== '' ? $gallery : (string)$this->request->getParam('gallery', '');
+        return $this->response($this->faces->sharedSortings($uid, $gallery));
+    }
+
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
+    public function saveSharedSorting(
+        string $mode = '',
+        ?bool $enabled = null,
+        string $source_user = '',
+        string $gallery = ''
+    ): DataResponse {
+        $uid = $this->uid();
+        $modeName = $mode !== '' ? $mode : (string)$this->request->getParam('mode', '');
+        $galleryName = $gallery !== '' ? $gallery : (string)$this->request->getParam('gallery', '');
+        $sourceUser = $source_user !== '' ? $source_user : (string)$this->request->getParam('source_user', '');
+        $rawEnabled = $enabled !== null ? $enabled : $this->request->getParam('enabled', null);
+
+        if ($modeName === 'adopt' || ($modeName === '' && $sourceUser !== '')) {
+            return $this->response($this->faces->adoptSharedSorting($uid, $sourceUser, $galleryName));
+        }
+        $boolEnabled = is_bool($rawEnabled)
+            ? $rawEnabled
+            : in_array(strtolower((string)$rawEnabled), ['1', 'true', 'yes', 'on'], true);
+        return $this->response($this->faces->setSharedSorting($uid, $boolEnabled));
     }
 
     #[NoAdminRequired]

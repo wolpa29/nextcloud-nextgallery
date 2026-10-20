@@ -53,7 +53,9 @@ class Library {
         if ($item['analyzed_etag'] && $item['analyzed_etag']===$item['etag']) { return 'done'; }
         return $item['analyzed_etag'] ? 'changed' : 'pending';
     }
-    public static function totals(): array { return ['total'=>0,'done'=>0,'pending'=>0,'error'=>0,'changed'=>0,'publishing'=>0,'images'=>0,'videos'=>0,'embedded'=>0,'embedding_pending'=>0,'embedding_error'=>0,'ocr_done'=>0,'ocr_pending'=>0,'ocr_error'=>0,'ocr_total'=>0,'description_total'=>0,'embedding_total'=>0,'faces_total'=>0,'faces_done'=>0,'faces_pending'=>0,'faces_error'=>0]; }
+    public static function totals(): array { return ['total'=>0,'done'=>0,'pending'=>0,'error'=>0,'changed'=>0,'publishing'=>0,'images'=>0,'videos'=>0,'embedded'=>0,'embedding_pending'=>0,'embedding_error'=>0,'ocr_done'=>0,'ocr_pending'=>0,'ocr_error'=>0,'ocr_total'=>0,'description_total'=>0,'embedding_total'=>0,'faces_total'=>0,'faces_done'=>0,'faces_pending'=>0,'faces_error'=>0,'stored_descriptions'=>0,'stored_ocr'=>0,'stored_embeddings'=>0,'stored_faces'=>0]; }
+    public function invalidate(): void { $this->caches?->createLocal('nextgallery_ai_library')?->clear(); }
+    public function folderFileIds(string $folder): array { return $this->inventory->folderFileIds($folder); }
     private function snapshot(): array {
         $config=$this->settings->get();$current=$this->state->status();$current=$current['pipelines']['embeddings']??$current;$rebuild=$current['embedding_rebuild']??[];
         $space=$rebuild['target_space']??$rebuild['approved_space']??$current['embedding_space']??$current['last_run']['embedding']['space']??null;
@@ -79,7 +81,7 @@ class Library {
             $row['retry_at']=$row['status']==='error' ? (float)($queued['retry_at']??0) : 0;
             $embedding=$embeddingQueue[$row['path']]??null;$row['has_embedding']=isset($stored[$row['file_id']]);
             $row['embedding_status']=!in_array('embeddings',$stages,true)?'not_applicable':($row['has_embedding']?'done':($embedding&&$embedding['etag']===$row['etag']&&$embedding['status']==='error'?'error':'pending'));
-            $fq=$faceQueue[$row['file_id']]??null;
+            $fq=$faceQueue[$row['file_id']]??null;$row['has_faces']=isset($faceStored[$row['file_id']]);
             $row['faces_status']=!in_array('faces',$stages,true)||str_starts_with($row['mime'],'video/')?'not_applicable':(($faceStored[$row['file_id']]??null)===$row['etag']?'done':(($fq['etag']??null)===$row['etag']&&($fq['status']??'')==='error'?'error':'pending'));
             $row['faces_error']=$row['faces_status']==='error'?($fq['error']??''):'';
             $row['embedding_error']=$row['embedding_status']==='error'?($embedding['error']??''):'';
@@ -92,6 +94,10 @@ class Library {
                 $parent=dirname($parent); if ($parent==='.') { $parent=''; }
             }
             foreach ($paths as $path) {
+                if($row['has_description'])$folders[$path]['counts']['stored_descriptions']++;
+                if($row['has_ocr'])$folders[$path]['counts']['stored_ocr']++;
+                if($row['has_embedding'])$folders[$path]['counts']['stored_embeddings']++;
+                if($row['has_faces'])$folders[$path]['counts']['stored_faces']++;
                 if($row['faces_status']!=='not_applicable'){$folders[$path]['counts']['faces_total']++;$folders[$path]['counts'][match($row['faces_status']){'done'=>'faces_done','error'=>'faces_error',default=>'faces_pending'}]++;}
                 $folders[$path]['counts']['total']++;if($row['ocr_status']!=='not_applicable'){$folders[$path]['counts']['ocr_total']++;$folders[$path]['counts'][match($row['ocr_status']){'done','changed'=>'ocr_done','error'=>'ocr_error',default=>'ocr_pending'}]++;}if($row['embedding_status']!=='not_applicable'){$folders[$path]['counts']['embedding_total']++;$folders[$path]['counts'][match($row['embedding_status']){'done'=>'embedded','error'=>'embedding_error',default=>'embedding_pending'}]++;}if($row['status']!=='not_applicable'){$folders[$path]['counts']['description_total']++;$folders[$path]['counts'][$row['status']]++;}
                 $folders[$path]['counts'][str_starts_with($row['mime'],'video/')?'videos':'images']++;

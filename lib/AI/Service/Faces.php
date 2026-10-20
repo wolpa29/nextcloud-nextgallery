@@ -16,6 +16,7 @@ class Faces {
     public const MODEL_SPACE = 'faces-yunet-sface-128d-v1';
     /** Upper bound for one worker suggestion upload per account. */
     public const SUGGESTION_LIMIT = 5000;
+    private bool $schemaChecked = false;
 
     public function __construct(
         private IDBConnection $db,
@@ -29,6 +30,29 @@ class Faces {
         private ?IRootFolder $rootFolder = null,
         private ?FaceArtifacts $faceArtifacts = null
     ) {}
+
+    private function ensureSchema(): void {
+        if ($this->schemaChecked) return;
+        $this->schemaChecked = true;
+        try {
+            $r = $this->db->executeQuery('SELECT label, cover_id, stranger FROM *PREFIX*nextgallery_faces_groups WHERE 1=0');
+            $r->closeCursor();
+        } catch (\Throwable) {
+            foreach ([
+                'ALTER TABLE *PREFIX*nextgallery_faces_groups ADD COLUMN label VARCHAR(120) DEFAULT NULL',
+                'ALTER TABLE *PREFIX*nextgallery_faces_groups ADD COLUMN cover_id VARCHAR(32) DEFAULT NULL',
+                'ALTER TABLE *PREFIX*nextgallery_faces_groups ADD COLUMN stranger SMALLINT NOT NULL DEFAULT 0',
+            ] as $sql) {
+                try { $this->db->executeStatement($sql); } catch (\Throwable) {}
+            }
+        }
+        try {
+            $r = $this->db->executeQuery('SELECT share_sorting FROM *PREFIX*nextgallery_faces_account WHERE 1=0');
+            $r->closeCursor();
+        } catch (\Throwable) {
+            try { $this->db->executeStatement('ALTER TABLE *PREFIX*nextgallery_faces_account ADD COLUMN share_sorting SMALLINT NOT NULL DEFAULT 0'); } catch (\Throwable) {}
+        }
+    }
 
     public function forUser(string $uid): self {
         $copy = clone $this;
@@ -774,6 +798,54 @@ class Faces {
         }
     }
 
+    public function resetFiles(string $uid, array $fileIds): int {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $fileIds), fn($id) => $id > 0)));
+        if (!$ids) return 0;
+        $this->lock($uid);
+        try {
+            $affected = 0;
+            $this->db->beginTransaction();
+            try {
+                foreach (array_chunk($ids, 500) as $chunk) {
+                    $marks = implode(',', array_fill(0, count($chunk), '?'));
+                    $params = array_merge([$uid], $chunk);
+                    $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_detections WHERE user_id = ? AND file_id IN ('.$marks.')', $params);
+                    $affected += (int)$this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_files WHERE user_id = ? AND file_id IN ('.$marks.')', $params);
+                }
+                $this->db->executeStatement(
+                    'DELETE FROM *PREFIX*nextgallery_faces_groups WHERE user_id = ? AND id NOT IN (SELECT DISTINCT group_id FROM *PREFIX*nextgallery_faces_detections WHERE user_id = ?)',
+                    [$uid, $uid]
+                );
+                $this->db->executeStatement(
+                    'DELETE FROM *PREFIX*nextgallery_faces_constraints WHERE user_id = ? AND (
+                        detection_id NOT IN (SELECT id FROM *PREFIX*nextgallery_faces_detections WHERE user_id = ?)
+                        OR group_id NOT IN (SELECT id FROM *PREFIX*nextgallery_faces_groups WHERE user_id = ?)
+                    )',
+                    [$uid, $uid, $uid]
+                );
+                foreach (['nextgallery_faces_suggestions', 'nextgallery_faces_dismissed'] as $table) {
+                    $this->db->executeStatement(
+                        'DELETE FROM *PREFIX*' . $table . ' WHERE user_id = ? AND (
+                            group_a NOT IN (SELECT id FROM *PREFIX*nextgallery_faces_groups WHERE user_id = ?)
+                            OR group_b NOT IN (SELECT id FROM *PREFIX*nextgallery_faces_groups WHERE user_id = ?)
+                        )',
+                        [$uid, $uid, $uid]
+                    );
+                }
+                $this->faceArtifacts?->forgetFiles($uid, $ids);
+                if ($affected > 0) $this->bumpRulesRevision($uid);
+                $this->db->commit();
+            } catch (\Throwable $e) {
+                $this->db->rollBack();
+                throw $e;
+            }
+            $this->cleanupNativeSnapshots($uid);
+            return $affected;
+        } finally {
+            $this->unlock($uid);
+        }
+    }
+
     public function purge(string $uid): void {
         // Account deletion waits briefly for an in-flight file publication.
         for ($attempt = 0; ; $attempt++) {
@@ -884,8 +956,10 @@ class Faces {
         string $action,
         ?string $targetId = null,
         ?array $detectionIds = null,
-        int $rulesRevision = 0
+        int $rulesRevision = 0,
+        ?string $label = null
     ): array {
+        $this->ensureSchema();
         if (!preg_match('/^[a-f0-9]{32}$/iD', $id)) {
             throw new OCSBadRequestException('Ungültige Subjekt-ID');
         }
@@ -895,7 +969,7 @@ class Faces {
         try {
             // Validate source group exists and belongs to user
             $gq = $this->db->getQueryBuilder();
-            $gq->select('id')->from('nextgallery_faces_groups')
+            $gq->select('id', 'label', 'cover_id', 'stranger', 'hidden')->from('nextgallery_faces_groups')
                ->where($gq->expr()->eq('user_id', $gq->createNamedParameter($uid)))
                ->andWhere($gq->expr()->eq('id', $gq->createNamedParameter($id)));
             $gr = $gq->executeQuery();
@@ -929,7 +1003,7 @@ class Faces {
                 }
 
                 // Verify each detection exists and strictly belongs to source group and user
-                if (in_array($action, ['split', 'remove'], true)) {
+                if (in_array($action, ['split', 'remove', 'set_cover'], true)) {
                     $checkQ = $this->db->getQueryBuilder();
                     $checkQ->select('id')->from('nextgallery_faces_detections')
                            ->where($checkQ->expr()->eq('user_id', $checkQ->createNamedParameter($uid)))
@@ -942,6 +1016,7 @@ class Faces {
                 }
             }
 
+            $extraResponse = [];
             $this->db->beginTransaction();
             try {
                 $now = time();
@@ -960,6 +1035,58 @@ class Faces {
                         );
                         break;
 
+                    case 'stranger':
+                        $this->db->executeStatement(
+                            'UPDATE *PREFIX*nextgallery_faces_groups SET stranger = 1, hidden = 0, updated_at = ? WHERE user_id = ? AND id = ?',
+                            [$now, $uid, $id]
+                        );
+                        $extraResponse['stranger'] = true;
+                        break;
+
+                    case 'unstranger':
+                        $this->db->executeStatement(
+                            'UPDATE *PREFIX*nextgallery_faces_groups SET stranger = 0, updated_at = ? WHERE user_id = ? AND id = ?',
+                            [$now, $uid, $id]
+                        );
+                        $extraResponse['stranger'] = false;
+                        break;
+
+                    case 'rename':
+                        $rawLabel = is_string($label) ? trim((string)preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $label)) : '';
+                        if (mb_strlen($rawLabel) > 120) {
+                            $rawLabel = trim(mb_substr($rawLabel, 0, 120));
+                        }
+                        $cleanLabel = $rawLabel !== '' ? $rawLabel : null;
+                        $this->db->executeStatement(
+                            'UPDATE *PREFIX*nextgallery_faces_groups SET label = ?, updated_at = ? WHERE user_id = ? AND id = ?',
+                            [$cleanLabel, $now, $uid, $id]
+                        );
+                        $extraResponse['label'] = $cleanLabel;
+                        break;
+
+                    case 'set_cover':
+                        $coverDetId = $targetId !== null && $targetId !== '' ? strtolower($targetId) : ($cleanDets[0] ?? null);
+                        if ($coverDetId !== null) {
+                            if (!preg_match('/^[a-f0-9]{32}$/iD', $coverDetId)) {
+                                throw new OCSBadRequestException('Ungültige Detection-ID für Vorschaubild');
+                            }
+                            $chkDet = $this->db->executeQuery(
+                                'SELECT id FROM *PREFIX*nextgallery_faces_detections WHERE user_id = ? AND group_id = ? AND id = ?',
+                                [$uid, $id, $coverDetId]
+                            );
+                            $existsDet = (bool)$chkDet->fetchOne();
+                            $chkDet->closeCursor();
+                            if (!$existsDet) {
+                                throw new OCSBadRequestException('Detection gehört nicht zur Quellgruppe');
+                            }
+                        }
+                        $this->db->executeStatement(
+                            'UPDATE *PREFIX*nextgallery_faces_groups SET cover_id = ?, updated_at = ? WHERE user_id = ? AND id = ?',
+                            [$coverDetId, $now, $uid, $id]
+                        );
+                        $extraResponse['cover_id'] = $coverDetId;
+                        break;
+
                     case 'merge':
                         if (!$targetId || !preg_match('/^[a-f0-9]{32}$/iD', $targetId)) {
                             throw new OCSBadRequestException('Ziel-ID für Zusammenführung erforderlich');
@@ -969,6 +1096,39 @@ class Faces {
                             throw new OCSBadRequestException('Zielgruppe muss sich von Quellgruppe unterscheiden');
                         }
                         $this->ensureGroup($uid, $targetId);
+
+                        // Record source detection IDs before moving so caller can offer 1-click undo
+                        $srcDetRows = $this->db->executeQuery(
+                            'SELECT id FROM *PREFIX*nextgallery_faces_detections WHERE user_id = ? AND group_id = ?',
+                            [$uid, $id]
+                        );
+                        $mergedDetectionIds = [];
+                        try {
+                            while ($dr = $srcDetRows->fetch()) {
+                                $mergedDetectionIds[] = (string)$dr['id'];
+                            }
+                        } finally {
+                            $srcDetRows->closeCursor();
+                        }
+
+                        // Preserve source label/cover if target group does not have one
+                        $tq = $this->db->executeQuery(
+                            'SELECT label, cover_id FROM *PREFIX*nextgallery_faces_groups WHERE user_id = ? AND id = ?',
+                            [$uid, $targetId]
+                        );
+                        $targetRow = $tq->fetch() ?: [];
+                        $tq->closeCursor();
+                        $srcLabel = isset($groupRow['label']) && trim((string)$groupRow['label']) !== '' ? (string)$groupRow['label'] : null;
+                        $tgtLabel = isset($targetRow['label']) && trim((string)$targetRow['label']) !== '' ? (string)$targetRow['label'] : null;
+                        $srcCover = isset($groupRow['cover_id']) && trim((string)$groupRow['cover_id']) !== '' ? (string)$groupRow['cover_id'] : null;
+                        $tgtCover = isset($targetRow['cover_id']) && trim((string)$targetRow['cover_id']) !== '' ? (string)$targetRow['cover_id'] : null;
+
+                        $mergedLabel = $tgtLabel ?? $srcLabel;
+                        $mergedCover = $tgtCover ?? $srcCover;
+                        $this->db->executeStatement(
+                            'UPDATE *PREFIX*nextgallery_faces_groups SET label = ?, cover_id = ?, updated_at = ? WHERE user_id = ? AND id = ?',
+                            [$mergedLabel, $mergedCover, $now, $uid, $targetId]
+                        );
 
                         // Move detections from source group to target group
                         $this->db->executeStatement(
@@ -1015,6 +1175,9 @@ class Faces {
                             'DELETE FROM *PREFIX*nextgallery_faces_groups WHERE user_id = ? AND id = ?',
                             [$uid, $id]
                         );
+                        $extraResponse['target_id'] = $targetId;
+                        $extraResponse['merged_detection_ids'] = $mergedDetectionIds;
+                        $extraResponse['label'] = $mergedLabel;
                         break;
 
                     case 'dismiss':
@@ -1051,10 +1214,15 @@ class Faces {
                                 );
                             }
                         }
+                        if (!empty($groupRow['cover_id']) && in_array((string)$groupRow['cover_id'], $cleanDets, true)) {
+                            $this->db->executeStatement('UPDATE *PREFIX*nextgallery_faces_groups SET cover_id = NULL WHERE user_id = ? AND id = ?', [$uid, $id]);
+                        }
                         $rem = $this->db->executeQuery('SELECT COUNT(*) FROM *PREFIX*nextgallery_faces_detections WHERE user_id = ? AND group_id = ?', [$uid, $id]);
                         if ((int)$rem->fetchOne() === 0) {
                             $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_groups WHERE user_id = ? AND id = ?', [$uid, $id]);
                         }
+                        $extraResponse['target_id'] = $destGroup;
+                        $extraResponse['detection_ids'] = $cleanDets;
                         break;
 
                     case 'remove':
@@ -1081,6 +1249,9 @@ class Faces {
                                     [$uid, 'cannot_link', $did, $id, $now]
                                 );
                             }
+                        }
+                        if (!empty($groupRow['cover_id']) && in_array((string)$groupRow['cover_id'], $cleanDets, true)) {
+                            $this->db->executeStatement('UPDATE *PREFIX*nextgallery_faces_groups SET cover_id = NULL WHERE user_id = ? AND id = ?', [$uid, $id]);
                         }
                         $rem = $this->db->executeQuery('SELECT COUNT(*) FROM *PREFIX*nextgallery_faces_detections WHERE user_id = ? AND group_id = ?', [$uid, $id]);
                         if ((int)$rem->fetchOne() === 0) {
@@ -1114,11 +1285,12 @@ class Faces {
                     [$newRevision, $now, $uid]
                 );
                 $this->db->commit();
-                return ['success' => true, 'rules_revision' => $newRevision];
             } catch (\Throwable $e) {
                 $this->db->rollBack();
                 throw $e;
             }
+            $this->cleanupNativeSnapshots($uid);
+            return ['success' => true, 'rules_revision' => $newRevision] + $extraResponse;
         } finally {
             $this->unlock($uid);
         }
@@ -1194,6 +1366,7 @@ class Faces {
         int $limit = 60,
         string $filter = 'all'
     ): array {
+        $this->ensureSchema();
         $limit = max(1, min(100, $limit));
         $cursor = max(0, $cursor);
         $acc = $this->accountState($uid);
@@ -1203,7 +1376,7 @@ class Faces {
         $galleryRoots = $this->library->settings($uid, $gallery)['roots'] ?? [];
 
         $gq = $this->db->getQueryBuilder();
-        $gq->select('id', 'hidden', 'updated_at')
+        $gq->select('id', 'hidden', 'stranger', 'label', 'cover_id', 'updated_at')
            ->from('nextgallery_faces_groups')
            ->where($gq->expr()->eq('user_id', $gq->createNamedParameter($uid)))
            ->orderBy('updated_at', 'DESC')
@@ -1211,9 +1384,23 @@ class Faces {
         $groups = $gq->executeQuery()->fetchAll();
 
         $stats = $groups ? $this->groupStats($this->scopedDetections($uid, $gallery), $qualityFilters) : [];
-        $open = $filter === 'suggested' ? $this->openSuggestions($uid) : [];
+        $open = $groups ? $this->openSuggestions($uid) : [];
         $hiddenGroups = [];
-        foreach ($groups as $g) if ((int)$g['hidden'] === 1) $hiddenGroups[(string)$g['id']] = true;
+        $strangerGroups = [];
+        foreach ($groups as $g) {
+            if ((int)$g['hidden'] === 1) $hiddenGroups[(string)$g['id']] = true;
+            if ((int)($g['stranger'] ?? 0) === 1) $strangerGroups[(string)$g['id']] = true;
+        }
+
+        $filterCounts = [
+            'all' => 0,
+            'suggested' => 0,
+            'strangers' => 0,
+            'single' => 0,
+            'review' => 0,
+            'filtered' => 0,
+            'hidden' => 0,
+        ];
 
         // Quality and rarity are presentation choices, never data deletion.
         $filtered = [];
@@ -1221,26 +1408,55 @@ class Faces {
             $gid = (string)$g['id'];
             $good = $stats[$gid]['good'] ?? [];
             $weak = $stats[$gid]['weak'] ?? [];
-            $dets = $filter === 'filtered' ? $weak : (in_array($filter, ['review', 'hidden'], true) ? array_merge($good, $weak) : $good);
+            $allDets = array_merge($good, $weak);
+            $goodCount = self::photoCount($good);
+            $weakCount = self::photoCount($weak);
+            $allCount = self::photoCount($allDets);
+            $hidden = isset($hiddenGroups[$gid]);
+            $stranger = isset($strangerGroups[$gid]);
+            $rawLabel = isset($g['label']) && trim((string)$g['label']) !== '' ? trim((string)$g['label']) : null;
+            $preferredCover = isset($g['cover_id']) && trim((string)$g['cover_id']) !== '' ? strtolower(trim((string)$g['cover_id'])) : null;
+
+            $hasOpenSuggestion = !$hidden && !$stranger && $goodCount >= $minGroupSize && !empty(array_filter(
+                array_keys($open[$gid] ?? []),
+                fn($other) => !isset($hiddenGroups[$other]) && !isset($strangerGroups[$other]) && !empty($stats[$other]['good'])
+            ));
+
+            if ($hidden && $allCount > 0) $filterCounts['hidden']++;
+            if (!$hidden && !$stranger && $weakCount > 0) $filterCounts['filtered']++;
+            if (!$hidden && !$stranger && $allCount > 0 && count(array_filter($allDets, fn($d) => (int)$d['review'] === 1)) > 0) $filterCounts['review']++;
+            if (!$hidden && $stranger && $allCount > 0) $filterCounts['strangers']++;
+            if (!$hidden && !$stranger && $goodCount > 0 && $goodCount < $minGroupSize && $rawLabel === null) $filterCounts['single']++;
+            if ($hasOpenSuggestion) $filterCounts['suggested']++;
+            if (!$hidden && !$stranger && $goodCount > 0 && ($goodCount >= $minGroupSize || $rawLabel !== null)) $filterCounts['all']++;
+
+            $dets = $filter === 'filtered' ? $weak : (in_array($filter, ['review', 'hidden', 'strangers'], true) ? $allDets : $good);
             $photoCount = self::photoCount($dets);
             if (!$photoCount) continue;
             $reviewCount = count(array_filter($dets, fn($d) => (int)$d['review'] === 1));
-            $hidden = isset($hiddenGroups[$gid]);
             $match = match ($filter) {
-                'filtered' => !$hidden,
+                'filtered' => !$hidden && !$stranger,
                 'hidden' => $hidden,
-                'review' => !$hidden && $reviewCount > 0,
-                'single' => !$hidden && $photoCount < $minGroupSize,
-                'suggested' => !$hidden && $photoCount >= $minGroupSize && array_filter(
-                    array_keys($open[$gid] ?? []),
-                    fn($other) => !isset($hiddenGroups[$other]) && !empty($stats[$other]['good'])
-                ),
-                default => !$hidden && $photoCount >= $minGroupSize,
+                'strangers' => !$hidden && $stranger,
+                'review' => !$hidden && !$stranger && $reviewCount > 0,
+                'single' => !$hidden && !$stranger && $photoCount < $minGroupSize && $rawLabel === null,
+                'suggested' => $hasOpenSuggestion,
+                default => !$hidden && !$stranger && ($photoCount >= $minGroupSize || $rawLabel !== null),
             };
             if (!$match) continue;
             usort($dets, fn($a, $b) => (float)$b['score'] <=> (float)$a['score']);
-            $filtered[] = ['id' => $gid, 'label' => null, 'photo_count' => $photoCount, 'dets' => $dets,
-                'hidden' => $hidden, 'review_count' => $reviewCount, 'filtered' => $filter === 'filtered', 'filtered_count' => count($weak)];
+            $filtered[] = [
+                'id' => $gid,
+                'label' => $rawLabel,
+                'photo_count' => $photoCount,
+                'dets' => $dets,
+                'preferred_cover' => $preferredCover,
+                'hidden' => $hidden,
+                'stranger' => $stranger,
+                'review_count' => $reviewCount,
+                'filtered' => $filter === 'filtered',
+                'filtered_count' => count($weak),
+            ];
         }
 
         $total = count($filtered);
@@ -1249,10 +1465,14 @@ class Faces {
         $access = [];
         foreach ($slice as $entry) {
             // Only the returned page is checked live; the cover must be readable now.
-            $cover = $this->readableDetection($uid, $entry['dets'], $galleryRoots, $access);
-            if ($cover === null) continue;
-            unset($entry['dets']);
-            $items[] = ['cover_id' => $cover] + $entry;
+            $coverInfo = $this->readableDetectionDetail($uid, $entry['dets'], $galleryRoots, $access, $entry['preferred_cover'] ?? null);
+            if ($coverInfo === null) continue;
+            unset($entry['dets'], $entry['preferred_cover']);
+            $items[] = [
+                'cover_id' => $coverInfo['id'],
+                'cover_file_id' => $coverInfo['file_id'],
+                'cover_box' => $coverInfo['box'],
+            ] + $entry;
         }
         $more = ($cursor + count($slice)) < $total;
 
@@ -1260,6 +1480,7 @@ class Faces {
             'items' => $items,
             'next' => $more ? $cursor + count($slice) : null,
             'more' => $more,
+            'filter_counts' => $filterCounts,
             'epoch' => $acc['epoch'],
             'generation' => $acc['generation'],
             'rules_revision' => $acc['rules_revision'],
@@ -1267,14 +1488,47 @@ class Faces {
         ];
     }
 
-    /** Best-scoring detection whose file is readable now; bounded number of live checks. */
-    private function readableDetection(string $uid, array $detections, array $roots, array &$access, int $attempts = 12): ?string {
+    /** Best-scoring (or preferred) detection whose file is readable now; bounded number of live checks. */
+    private function readableDetectionDetail(
+        string $uid,
+        array $detections,
+        array $roots,
+        array &$access,
+        ?string $preferredCoverId = null,
+        int $attempts = 12
+    ): ?array {
+        if ($preferredCoverId !== null && $preferredCoverId !== '') {
+            $preferred = [];
+            $rest = [];
+            foreach ($detections as $d) {
+                if ((string)$d['id'] === $preferredCoverId) {
+                    $preferred[] = $d;
+                } else {
+                    $rest[] = $d;
+                }
+            }
+            if ($preferred) {
+                $detections = array_merge($preferred, $rest);
+            }
+        }
         foreach (array_slice($detections, 0, $attempts) as $d) {
             $key = (int)$d['file_id'] . '|' . $d['face_etag'];
             $access[$key] ??= $this->authorizedFile($uid, (int)$d['file_id'], (string)$d['face_etag'], $roots) !== null;
-            if ($access[$key]) return (string)$d['id'];
+            if ($access[$key]) {
+                return [
+                    'id' => (string)$d['id'],
+                    'file_id' => (int)$d['file_id'],
+                    'box' => [(float)$d['bbox_x'], (float)$d['bbox_y'], (float)$d['bbox_w'], (float)$d['bbox_h']],
+                ];
+            }
         }
         return null;
+    }
+
+    /** Best-scoring detection whose file is readable now; bounded number of live checks. */
+    private function readableDetection(string $uid, array $detections, array $roots, array &$access, int $attempts = 12): ?string {
+        $info = $this->readableDetectionDetail($uid, $detections, $roots, $access, null, $attempts);
+        return $info['id'] ?? null;
     }
 
     public function media(
@@ -1285,6 +1539,7 @@ class Faces {
         int $limit = 60,
         string $filter = 'all'
     ): array {
+        $this->ensureSchema();
         if (!preg_match('/^[a-f0-9]{32}$/iD', $groupId)) {
             throw new OCSBadRequestException('Ungültige Subjekt-ID');
         }
@@ -1295,13 +1550,24 @@ class Faces {
         $galleryRoots = $this->library->settings($uid, $gallery)['roots'] ?? [];
         $qualityFilters = $this->settings->forUser($uid)->get()['faces_filters'];
 
+        $gq = $this->db->executeQuery(
+            'SELECT label, cover_id, stranger, hidden FROM *PREFIX*nextgallery_faces_groups WHERE user_id = ? AND id = ?',
+            [$uid, $groupId]
+        );
+        $gRow = $gq->fetch() ?: [];
+        $gq->closeCursor();
+        $groupLabel = isset($gRow['label']) && trim((string)$gRow['label']) !== '' ? trim((string)$gRow['label']) : null;
+        $groupCoverId = isset($gRow['cover_id']) && trim((string)$gRow['cover_id']) !== '' ? strtolower(trim((string)$gRow['cover_id'])) : null;
+        $groupStranger = (int)($gRow['stranger'] ?? 0) === 1;
+        $groupHidden = (int)($gRow['hidden'] ?? 0) === 1;
+
         // Order and paginate files from the index; only the returned page is checked live.
         $rows = $this->scopedDetections($uid, $gallery, $groupId);
         usort($rows, fn($a, $b) => [(string)$b['sort_key'], (int)$b['file_id']] <=> [(string)$a['sort_key'], (int)$a['file_id']]);
         $files = [];
         foreach ($rows as $row) {
             $eligible = self::qualityEligible($row, $qualityFilters);
-            if ($filter === 'filtered' ? $eligible : (!in_array($filter, ['review', 'hidden'], true) && !$eligible)) continue;
+            if ($filter === 'filtered' ? $eligible : (!in_array($filter, ['review', 'hidden', 'strangers'], true) && !$eligible)) continue;
             $files[(int)$row['file_id']][] = $row;
         }
         $total = count($files);
@@ -1331,6 +1597,7 @@ class Faces {
                         'box' => [(float)$d['bbox_x'], (float)$d['bbox_y'], (float)$d['bbox_w'], (float)$d['bbox_h']],
                         'score' => (float)$d['score'],
                         'review' => (bool)$d['review'],
+                        'is_cover' => $groupCoverId !== null && (string)$d['id'] === $groupCoverId,
                     ];
                 }
                 $items[] = $payload;
@@ -1343,7 +1610,13 @@ class Faces {
             'next' => $more ? $cursor + count($slice) : null,
             'more' => $more,
             'rules_revision' => $acc['rules_revision'],
-            'subject' => ['id' => $groupId],
+            'subject' => [
+                'id' => $groupId,
+                'label' => $groupLabel,
+                'cover_id' => $groupCoverId,
+                'stranger' => $groupStranger,
+                'hidden' => $groupHidden,
+            ],
         ];
     }
 
@@ -1450,6 +1723,7 @@ class Faces {
 
     /** Groups that may show the same person, most similar first; same scope rules as subjects(). */
     public function similar(string $uid, string $groupId, string $gallery = '', int $limit = 8): array {
+        $this->ensureSchema();
         if (!preg_match('/^[a-f0-9]{32}$/iD', $groupId)) {
             throw new OCSBadRequestException('Ungültige Subjekt-ID');
         }
@@ -1460,32 +1734,397 @@ class Faces {
         $stats = $this->groupStats($this->scopedDetections($uid, $gallery), $config['faces_filters']);
         $candidates = $this->openSuggestions($uid)[$groupId] ?? [];
         $items = [];
-        if ($candidates) {
-            $hidden = [];
-            $r = $this->db->executeQuery('SELECT id, hidden FROM *PREFIX*nextgallery_faces_groups WHERE user_id = ?', [$uid]);
-            try {
-                while ($row = $r->fetch()) $hidden[(string)$row['id']] = (int)$row['hidden'] === 1;
-            } finally {
-                $r->closeCursor();
+        $groupMeta = [];
+        $r = $this->db->executeQuery('SELECT id, hidden, stranger, label, cover_id FROM *PREFIX*nextgallery_faces_groups WHERE user_id = ?', [$uid]);
+        try {
+            while ($row = $r->fetch()) {
+                $groupMeta[(string)$row['id']] = [
+                    'hidden' => (int)$row['hidden'] === 1,
+                    'stranger' => (int)($row['stranger'] ?? 0) === 1,
+                    'label' => isset($row['label']) && trim((string)$row['label']) !== '' ? trim((string)$row['label']) : null,
+                    'cover_id' => isset($row['cover_id']) && trim((string)$row['cover_id']) !== '' ? strtolower(trim((string)$row['cover_id'])) : null,
+                ];
             }
+        } finally {
+            $r->closeCursor();
+        }
+        if ($candidates) {
             arsort($candidates);
             $access = [];
             foreach ($candidates as $other => $similarity) {
                 if (count($items) >= $limit) break;
                 $other = (string)$other;
+                $meta = $groupMeta[$other] ?? ['hidden' => true, 'stranger' => false, 'label' => null, 'cover_id' => null];
                 $good = $stats[$other]['good'] ?? [];
-                if (($hidden[$other] ?? true) || !$good) continue;
-                $cover = $this->readableDetection($uid, $good, $galleryRoots, $access);
-                if ($cover === null) continue;
-                $items[] = ['id' => $other, 'label' => null, 'photo_count' => self::photoCount($good), 'cover_id' => $cover, 'similarity' => round($similarity, 3)];
+                if ($meta['hidden'] || $meta['stranger'] || !$good) continue;
+                $coverInfo = $this->readableDetectionDetail($uid, $good, $galleryRoots, $access, $meta['cover_id']);
+                if ($coverInfo === null) continue;
+                $items[] = [
+                    'id' => $other,
+                    'label' => $meta['label'],
+                    'photo_count' => self::photoCount($good),
+                    'cover_id' => $coverInfo['id'],
+                    'cover_file_id' => $coverInfo['file_id'],
+                    'cover_box' => $coverInfo['box'],
+                    'similarity' => round($similarity, 3),
+                ];
             }
         }
+        $selfMeta = $groupMeta[$groupId] ?? ['label' => null, 'cover_id' => null, 'stranger' => false, 'hidden' => false];
         return [
             'items' => $items,
             'rules_revision' => $acc['rules_revision'],
             // Current main-view count, so a client can refresh it after merging a suggestion.
-            'subject' => ['id' => $groupId, 'photo_count' => self::photoCount($stats[$groupId]['good'] ?? [])],
+            'subject' => [
+                'id' => $groupId,
+                'label' => $selfMeta['label'],
+                'photo_count' => self::photoCount($stats[$groupId]['good'] ?? []),
+            ],
         ];
+    }
+
+    /**
+     * Check whether this account shares its person sorting and discover co-users
+     * who share sorting on overlapping files in the current gallery scope.
+     */
+    public function sharedSortings(string $uid, string $gallery = ''): array {
+        $this->ensureSchema();
+        $acc = $this->accountState($uid);
+        $r = $this->db->executeQuery('SELECT share_sorting FROM *PREFIX*nextgallery_faces_account WHERE user_id = ?', [$uid]);
+        $sharingEnabled = (int)($r->fetchOne() ?: 0) === 1;
+        $r->closeCursor();
+
+        $galleryRoots = $this->library->settings($uid, $gallery)['roots'] ?? [];
+
+        // Scoped files in the caller's gallery index
+        $mq = $this->db->getQueryBuilder();
+        $mq->select('m.file_id', 'm.etag')
+           ->from('nextgallery_media', 'm')
+           ->where($mq->expr()->eq('m.user_id', $mq->createNamedParameter($uid)));
+        $this->library->scopeQuery($mq, $uid, 'm.path_text', $gallery);
+        $mr = $mq->executeQuery();
+        $myFiles = [];
+        try {
+            while ($row = $mr->fetch()) {
+                $myFiles[(int)$row['file_id']] = (string)$row['etag'];
+            }
+        } finally {
+            $mr->closeCursor();
+        }
+
+        // Find other accounts that opted into sharing sorting
+        $aq = $this->db->executeQuery(
+            'SELECT user_id, updated_at FROM *PREFIX*nextgallery_faces_account WHERE share_sorting = 1 AND user_id != ?',
+            [$uid]
+        );
+        $sharingUsers = [];
+        try {
+            while ($row = $aq->fetch()) {
+                $sharingUsers[(string)$row['user_id']] = (int)$row['updated_at'];
+            }
+        } finally {
+            $aq->closeCursor();
+        }
+
+        $available = [];
+        if ($myFiles && $sharingUsers) {
+            $accessCache = [];
+            foreach ($sharingUsers as $otherUid => $updatedAt) {
+                $dq = $this->db->executeQuery(
+                    'SELECT d.file_id, d.etag, d.group_id, g.label, g.hidden, g.stranger, g.updated_at AS group_updated
+                     FROM *PREFIX*nextgallery_faces_detections d
+                     INNER JOIN *PREFIX*nextgallery_faces_groups g ON g.user_id = d.user_id AND g.id = d.group_id
+                     WHERE d.user_id = ?',
+                    [$otherUid]
+                );
+                $sharedFiles = [];
+                $groups = [];
+                $namedGroups = [];
+                $strangerGroups = [];
+                $latestUpdate = $updatedAt;
+                try {
+                    while ($d = $dq->fetch()) {
+                        $fid = (int)$d['file_id'];
+                        $etag = (string)$d['etag'];
+                        if (!isset($myFiles[$fid]) || !hash_equals($myFiles[$fid], $etag)) continue;
+                        $aKey = $fid . '|' . $etag;
+                        $accessCache[$aKey] ??= $this->authorizedFile($uid, $fid, $etag, $galleryRoots) !== null;
+                        if (!$accessCache[$aKey]) continue;
+
+                        $sharedFiles[$fid] = true;
+                        $gid = (string)$d['group_id'];
+                        if ((int)$d['hidden'] === 0) {
+                            $groups[$gid] = true;
+                        }
+                        if ((int)($d['stranger'] ?? 0) === 1) {
+                            $strangerGroups[$gid] = true;
+                        }
+                        $lbl = isset($d['label']) && trim((string)$d['label']) !== '' ? trim((string)$d['label']) : null;
+                        if ($lbl !== null) {
+                            $namedGroups[$gid] = $lbl;
+                        }
+                        $gu = (int)($d['group_updated'] ?? 0);
+                        if ($gu > $latestUpdate) $latestUpdate = $gu;
+                    }
+                } finally {
+                    $dq->closeCursor();
+                }
+
+                if (!$sharedFiles) continue;
+                $displayName = $otherUid;
+                if ($this->userManager !== null) {
+                    try {
+                        $uObj = $this->userManager->get($otherUid);
+                        if ($uObj !== null && trim($uObj->getDisplayName()) !== '') {
+                            $displayName = $uObj->getDisplayName();
+                        }
+                    } catch (\Throwable) {}
+                }
+                $available[] = [
+                    'user_id' => $otherUid,
+                    'display_name' => $displayName,
+                    'shared_files' => count($sharedFiles),
+                    'people_count' => count($groups),
+                    'named_count' => count($namedGroups),
+                    'stranger_count' => count($strangerGroups),
+                    'sample_labels' => array_slice(array_values($namedGroups), 0, 6),
+                    'updated_at' => $latestUpdate,
+                ];
+            }
+        }
+
+        return [
+            'sharing_enabled' => $sharingEnabled,
+            'available' => $available,
+            'rules_revision' => $acc['rules_revision'],
+        ];
+    }
+
+    /**
+     * Enable or disable sharing this account's person sorting with co-users who have access to the same files.
+     */
+    public function setSharedSorting(string $uid, bool $enabled): array {
+        $this->ensureSchema();
+        $acc = $this->accountState($uid);
+        $now = time();
+        $this->db->executeStatement(
+            'UPDATE *PREFIX*nextgallery_faces_account SET share_sorting = ?, updated_at = ? WHERE user_id = ?',
+            [$enabled ? 1 : 0, $now, $uid]
+        );
+        return [
+            'sharing_enabled' => $enabled,
+            'rules_revision' => $acc['rules_revision'],
+        ];
+    }
+
+    /**
+     * Adopt person grouping, merges, names, covers, and unknown-person classifications
+     * from a co-user who opted into sharing sorting, restricted strictly to files in the
+     * caller's gallery scope that the caller has live read access to.
+     */
+    public function adoptSharedSorting(string $uid, string $sourceUid, string $gallery = ''): array {
+        $this->ensureSchema();
+        $sourceUid = trim($sourceUid);
+        if ($sourceUid === '' || $sourceUid === $uid) {
+            throw new OCSBadRequestException('Ungültiger Quellbenutzer für Sortierungsübernahme');
+        }
+
+        $r = $this->db->executeQuery('SELECT share_sorting FROM *PREFIX*nextgallery_faces_account WHERE user_id = ?', [$sourceUid]);
+        $isShared = (int)($r->fetchOne() ?: 0) === 1;
+        $r->closeCursor();
+        if (!$isShared) {
+            throw new OCSNotFoundException('Dieser Benutzer hat keine Sortierung freigegeben');
+        }
+
+        $galleryRoots = $this->library->settings($uid, $gallery)['roots'] ?? [];
+        $mq = $this->db->getQueryBuilder();
+        $mq->select('m.file_id', 'm.etag')
+           ->from('nextgallery_media', 'm')
+           ->where($mq->expr()->eq('m.user_id', $mq->createNamedParameter($uid)));
+        $this->library->scopeQuery($mq, $uid, 'm.path_text', $gallery);
+        $mr = $mq->executeQuery();
+        $myFiles = [];
+        try {
+            while ($row = $mr->fetch()) {
+                $myFiles[(int)$row['file_id']] = (string)$row['etag'];
+            }
+        } finally {
+            $mr->closeCursor();
+        }
+        if (!$myFiles) {
+            throw new OCSBadRequestException('Keine gemeinsamen Dateien in dieser Galerie gefunden');
+        }
+
+        // Load source user's groups and detections
+        $sgRows = $this->db->executeQuery(
+            'SELECT id, hidden, stranger, label, cover_id FROM *PREFIX*nextgallery_faces_groups WHERE user_id = ?',
+            [$sourceUid]
+        );
+        $sourceGroups = [];
+        try {
+            while ($g = $sgRows->fetch()) {
+                $sourceGroups[(string)$g['id']] = $g;
+            }
+        } finally {
+            $sgRows->closeCursor();
+        }
+
+        $sdRows = $this->db->executeQuery(
+            'SELECT d.id, d.file_id, d.etag, d.bbox_x, d.bbox_y, d.bbox_w, d.bbox_h, d.score, d.sharpness,
+                    d.group_id, d.model_space, d.vector_data, d.review, ff.inference_revision
+             FROM *PREFIX*nextgallery_faces_detections d
+             INNER JOIN *PREFIX*nextgallery_faces_files ff ON ff.user_id = d.user_id AND ff.file_id = d.file_id
+             WHERE d.user_id = ?',
+            [$sourceUid]
+        );
+        $sourceByFile = [];
+        try {
+            while ($d = $sdRows->fetch()) {
+                $fid = (int)$d['file_id'];
+                $etag = (string)$d['etag'];
+                if (!isset($myFiles[$fid]) || !hash_equals($myFiles[$fid], $etag)) continue;
+                $sourceByFile[$fid][] = $d;
+            }
+        } finally {
+            $sdRows->closeCursor();
+        }
+
+        // Filter to live-authorized files
+        $authorizedByFile = [];
+        foreach ($sourceByFile as $fid => $dets) {
+            $etag = (string)$dets[0]['etag'];
+            if ($this->authorizedFile($uid, $fid, $etag, $galleryRoots) !== null) {
+                $authorizedByFile[$fid] = $dets;
+            }
+        }
+        if (!$authorizedByFile) {
+            throw new OCSBadRequestException('Keine freigegebenen Gesichtsdaten für gemeinsame Dateien gefunden');
+        }
+
+        $this->lock($uid);
+        try {
+            $acc = $this->accountState($uid);
+            $now = time();
+            $filesSynced = 0;
+            $detsSynced = 0;
+            $mappedGroups = [];
+            $sourceDetToMyDet = [];
+
+            $this->db->beginTransaction();
+            try {
+                foreach ($authorizedByFile as $fid => $srcDets) {
+                    $etag = (string)$srcDets[0]['etag'];
+                    $infRev = (string)($srcDets[0]['inference_revision'] ?? 'unknown');
+                    $myDets = $this->getExistingDetections($uid, $fid, $etag);
+                    $usedMyDetIds = [];
+                    $filesSynced++;
+
+                    $hadFileRecord = (bool)$this->db->executeQuery(
+                        'SELECT 1 FROM *PREFIX*nextgallery_faces_files WHERE user_id = ? AND file_id = ? AND etag = ?',
+                        [$uid, $fid, $etag]
+                    )->fetchOne();
+                    if (!$hadFileRecord) {
+                        $this->db->executeStatement(
+                            'DELETE FROM *PREFIX*nextgallery_faces_files WHERE user_id = ? AND file_id = ?',
+                            [$uid, $fid]
+                        );
+                        $this->db->executeStatement(
+                            'DELETE FROM *PREFIX*nextgallery_faces_detections WHERE user_id = ? AND file_id = ?',
+                            [$uid, $fid]
+                        );
+                        $this->db->executeStatement(
+                            'INSERT INTO *PREFIX*nextgallery_faces_files (user_id, file_id, etag, face_count, updated_at, inference_revision) VALUES (?, ?, ?, ?, ?, ?)',
+                            [$uid, $fid, $etag, count($srcDets), $now, $infRev]
+                        );
+                        $myDets = [];
+                    }
+
+                    foreach ($srcDets as $sDet) {
+                        $srcGroupId = (string)$sDet['group_id'];
+                        $targetGroupId = substr(hash('sha256', $uid . ':shared-group:' . $sourceUid . ':' . $srcGroupId), 0, 32);
+                        $this->ensureGroup($uid, $targetGroupId);
+                        $mappedGroups[$srcGroupId] = $targetGroupId;
+
+                        $sBox = [(float)$sDet['bbox_x'], (float)$sDet['bbox_y'], (float)$sDet['bbox_w'], (float)$sDet['bbox_h']];
+                        $bestMatch = null;
+                        $bestIou = 0.0;
+                        foreach ($myDets as $mDet) {
+                            if (isset($usedMyDetIds[$mDet['id']])) continue;
+                            $iou = self::iou($sBox, $mDet['bbox']);
+                            if ($iou > $bestIou) {
+                                $bestIou = $iou;
+                                $bestMatch = $mDet;
+                            }
+                        }
+
+                        if ($bestMatch !== null && $bestIou >= 0.5) {
+                            $myDetId = (string)$bestMatch['id'];
+                            $usedMyDetIds[$myDetId] = true;
+                            $this->db->executeStatement(
+                                'UPDATE *PREFIX*nextgallery_faces_detections SET group_id = ?, manual = 1, review = ?, updated_at = ? WHERE user_id = ? AND id = ?',
+                                [$targetGroupId, (int)$sDet['review'], $now, $uid, $myDetId]
+                            );
+                        } else {
+                            $myDetId = bin2hex(random_bytes(16));
+                            $this->db->executeStatement(
+                                'INSERT INTO *PREFIX*nextgallery_faces_detections (user_id, id, file_id, etag, bbox_x, bbox_y, bbox_w, bbox_h, score, group_id, model_space, vector_data, review, manual, created_at, updated_at, sharpness) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)',
+                                [
+                                    $uid, $myDetId, $fid, $etag,
+                                    (float)$sDet['bbox_x'], (float)$sDet['bbox_y'], (float)$sDet['bbox_w'], (float)$sDet['bbox_h'],
+                                    (float)$sDet['score'], $targetGroupId, (string)$sDet['model_space'], (string)$sDet['vector_data'],
+                                    (int)$sDet['review'], $now, $now, isset($sDet['sharpness']) ? (float)$sDet['sharpness'] : null
+                                ]
+                            );
+                        }
+                        $sourceDetToMyDet[(string)$sDet['id']] = $myDetId;
+                        $detsSynced++;
+                    }
+                }
+
+                // Sync group metadata (labels, stranger, hidden, custom cover)
+                foreach ($mappedGroups as $srcGroupId => $targetGroupId) {
+                    $sg = $sourceGroups[$srcGroupId] ?? null;
+                    if (!$sg) continue;
+                    $lbl = isset($sg['label']) && trim((string)$sg['label']) !== '' ? trim((string)$sg['label']) : null;
+                    $stranger = (int)($sg['stranger'] ?? 0) === 1 ? 1 : 0;
+                    $hidden = (int)($sg['hidden'] ?? 0) === 1 ? 1 : 0;
+                    $srcCover = isset($sg['cover_id']) && trim((string)$sg['cover_id']) !== '' ? (string)$sg['cover_id'] : null;
+                    $mappedCover = ($srcCover !== null && isset($sourceDetToMyDet[$srcCover])) ? $sourceDetToMyDet[$srcCover] : null;
+
+                    $this->db->executeStatement(
+                        'UPDATE *PREFIX*nextgallery_faces_groups SET label = COALESCE(?, label), stranger = ?, hidden = ?, cover_id = COALESCE(?, cover_id), updated_at = ? WHERE user_id = ? AND id = ?',
+                        [$lbl, $stranger, $hidden, $mappedCover, $now, $uid, $targetGroupId]
+                    );
+                }
+
+                // Prune any empty groups
+                $this->db->executeStatement(
+                    'DELETE FROM *PREFIX*nextgallery_faces_groups WHERE user_id = ? AND id NOT IN (SELECT DISTINCT group_id FROM *PREFIX*nextgallery_faces_detections WHERE user_id = ?)',
+                    [$uid, $uid]
+                );
+
+                $newRevision = $acc['rules_revision'] + 1;
+                $this->db->executeStatement(
+                    'UPDATE *PREFIX*nextgallery_faces_account SET rules_revision = ?, updated_at = ? WHERE user_id = ?',
+                    [$newRevision, $now, $uid]
+                );
+                $this->db->commit();
+            } catch (\Throwable $e) {
+                $this->db->rollBack();
+                throw $e;
+            }
+            $this->cleanupNativeSnapshots($uid);
+            return [
+                'adopted' => true,
+                'source_user' => $sourceUid,
+                'files_synced' => $filesSynced,
+                'detections_synced' => $detsSynced,
+                'groups_synced' => count($mappedGroups),
+                'rules_revision' => $newRevision,
+            ];
+        } finally {
+            $this->unlock($uid);
+        }
     }
 
     /** Suggestions and decisions follow a merged group to its target. */

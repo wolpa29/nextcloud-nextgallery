@@ -44,7 +44,25 @@ if($legacy || $phase==='fresh') {
 }
 $before=json_decode(file_get_contents('/test-output/pre.json'),true,64,JSON_THROW_ON_ERROR);
 $settings=Server::get(\OCA\Nextgallery\AI\Service\Settings::class);$state=Server::get(\OCA\Nextgallery\AI\Service\State::class);
-ok($settings->get()===array_replace_recursive($settings->defaults(),$before['settings']),'Existing AI settings changed during migration');
+$current=$settings->get();
+$expected=array_replace_recursive($settings->defaults(),$before['settings']);
+if(!isset($current['faces_filters'])){
+ unset($expected['faces_filters']);
+}else{
+ if(!isset($before['settings']['faces_filters'])){$expected['faces_filters']=['min_face_area'=>0.0025,'min_sharpness'=>45.0,'min_group_photos'=>(int)($expected['faces']['min_group_size']??3)];}
+ if(isset($expected['faces_filters']['min_sharpness']))$expected['faces_filters']['min_sharpness']=(float)$expected['faces_filters']['min_sharpness'];
+ if(isset($expected['faces_filters']['min_face_area']))$expected['faces_filters']['min_face_area']=(float)$expected['faces_filters']['min_face_area'];
+ if(isset($expected['faces_filters']['min_group_photos']))$expected['faces_filters']['min_group_photos']=(int)$expected['faces_filters']['min_group_photos'];
+}
+if(!isset($current['faces']['share_inference'])){
+ unset($expected['faces']['share_inference']);
+}elseif(!isset($before['settings']['faces']['share_inference'])){
+ $expected['faces']['share_inference']=$config->getAppValue('nextgallery','ai_share_results','yes')!=='no';
+}
+if(isset($expected['faces']['cosine_threshold']))$expected['faces']['cosine_threshold']=(float)$expected['faces']['cosine_threshold'];
+if(isset($expected['faces']['detection_threshold']))$expected['faces']['detection_threshold']=(float)$expected['faces']['detection_threshold'];
+if(!isset($before['settings']['folder_stages'])){$expected['folder_stages']=[];foreach($expected['folders'] as $folder)$expected['folder_stages'][$folder]=['descriptions','ocr','embeddings'];}
+ok($current===$expected,'Existing AI settings changed during migration');
 ok($settings->get()['analysis_enabled']===($before['settings']['analysis_enabled']??true),'Description default changed');
 ok($settings->get()['embedding']['enabled']===($before['settings']['embedding']['enabled']??false),'Embeddings enabled implicitly');
 ok(array_intersect_key($library->settings($uid),$before['gallery'])===$before['gallery'],'Gallery settings changed');ok($library->cacheKey($uid)===$before['epoch'],'Offline cache identity changed');

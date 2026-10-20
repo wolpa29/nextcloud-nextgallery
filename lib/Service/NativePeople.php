@@ -163,16 +163,26 @@ class NativePeople {
      */
     private function eligibleSubjectsAndFiles(string $uid, Folder $home, array $canonicalRoots, array $qualityFilters, int $minGroupPhotos): array {
         $gq = $this->db->getQueryBuilder();
-        $gq->select('id', 'hidden', 'updated_at')
-           ->from('nextgallery_faces_groups')
-           ->where($gq->expr()->eq('user_id', $gq->createNamedParameter($uid)))
-           ->orderBy('updated_at', 'DESC')
-           ->addOrderBy('id', 'ASC');
-        $groups = $gq->executeQuery()->fetchAll();
+        try {
+            $gq->select('id', 'hidden', 'stranger', 'label', 'cover_id', 'updated_at')
+               ->from('nextgallery_faces_groups')
+               ->where($gq->expr()->eq('user_id', $gq->createNamedParameter($uid)))
+               ->orderBy('updated_at', 'DESC')
+               ->addOrderBy('id', 'ASC');
+            $groups = $gq->executeQuery()->fetchAll();
+        } catch (\Throwable) {
+            $gq = $this->db->getQueryBuilder();
+            $gq->select('id', 'hidden', 'updated_at')
+               ->from('nextgallery_faces_groups')
+               ->where($gq->expr()->eq('user_id', $gq->createNamedParameter($uid)))
+               ->orderBy('updated_at', 'DESC')
+               ->addOrderBy('id', 'ASC');
+            $groups = $gq->executeQuery()->fetchAll();
+        }
 
         $hiddenGroups = [];
         foreach ($groups as $g) {
-            if ((int)$g['hidden'] === 1) {
+            if ((int)$g['hidden'] === 1 || (int)($g['stranger'] ?? 0) === 1) {
                 $hiddenGroups[(string)$g['id']] = true;
             }
         }
@@ -207,11 +217,22 @@ class NativePeople {
                 $distinctFiles[(int)$d['file_id']] = true;
             }
             $photoCount = count($distinctFiles);
-            if ($photoCount < $minGroupPhotos) {
+            $rawLabel = isset($g['label']) && trim((string)$g['label']) !== '' ? trim((string)$g['label']) : null;
+            if ($photoCount < $minGroupPhotos && $rawLabel === null) {
                 continue;
             }
 
             usort($dets, fn($a, $b) => (float)$b['score'] <=> (float)$a['score']);
+            $preferredCover = isset($g['cover_id']) && trim((string)$g['cover_id']) !== '' ? strtolower(trim((string)$g['cover_id'])) : null;
+            if ($preferredCover !== null) {
+                $pref = [];
+                $rest = [];
+                foreach ($dets as $d) {
+                    if ((string)$d['id'] === $preferredCover) $pref[] = $d;
+                    else $rest[] = $d;
+                }
+                if ($pref) $dets = array_merge($pref, $rest);
+            }
             $cover = $this->readableDetection($uid, $home, $dets, $canonicalRoots, $access);
             if ($cover === null) {
                 continue;
@@ -221,7 +242,7 @@ class NativePeople {
                 'id' => $gid,
                 'cover_id' => $cover,
                 'photo_count' => $photoCount,
-                'label' => null,
+                'label' => $rawLabel,
             ];
 
             foreach ($dets as $d) {

@@ -7,6 +7,10 @@
    const link=event.target.closest('a[href]');if(!link)return;
    const target=new URL(link.href,location.href);
    if(target.origin!==location.origin)return;
+   if(target.hash==='#people'){
+    event.preventDefault();event.stopImmediatePropagation();
+    window.parent.postMessage({type:'nextgallery-ai-navigation',page:'people'},location.origin);return;
+   }
    if(target.pathname===location.pathname&&target.hash){
     event.preventDefault();event.stopImmediatePropagation();
     history.replaceState(null,'',target.hash);window.dispatchEvent(new Event('hashchange'));return;
