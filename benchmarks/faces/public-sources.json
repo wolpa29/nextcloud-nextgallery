@@ -1,0 +1,44 @@
+{
+  "purpose": "Small public-portrait smoke evaluation; not a face-accuracy benchmark",
+  "sources": [
+    {
+      "file": "obama-2012.jpg",
+      "identity": "obama",
+      "source": "https://commons.wikimedia.org/wiki/File:President_Barack_Obama.jpg",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/8/8d/President_Barack_Obama.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+      "license": "Public domain",
+      "copyrighted": "False",
+      "author": "Official White House Photo by <a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/Pete%20Souza\" title=\"w:Pete Souza\" class=\"extiw\">Pete Souza</a>",
+      "sha256": "744dd848fbb0584229169e01c4944664957c62495fb9e8af514a088ebca43e19"
+    },
+    {
+      "file": "biden-2013.jpg",
+      "identity": "biden",
+      "source": "https://commons.wikimedia.org/wiki/File:Joe_Biden_official_portrait_2013.jpg",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/f/f4/Joe_Biden_official_portrait_2013.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+      "license": "Public domain",
+      "copyrighted": "False",
+      "author": "David Lienemann",
+      "sha256": "ad176d4d368e0944c666bea12e6372347f27d1194837e6731766f878d254bdee"
+    },
+    {
+      "file": "biden-2021.jpg",
+      "identity": "biden",
+      "source": "https://commons.wikimedia.org/wiki/File:Joe_Biden_presidential_portrait.jpg",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/6/68/Joe_Biden_presidential_portrait.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+      "license": "Public domain",
+      "copyrighted": "False",
+      "author": "<bdi><a href=\"https://en.wikipedia.org/wiki/en:Adam_Schultz\" class=\"extiw\" title=\"w:en:Adam Schultz\"><span title=\"American photographer\">Adam Schultz</span></a></bdi>",
+      "sha256": "563f24c3a1a7392bb7f96831ba0ee8e7d53755ac9c053e9eeb520530542cc051"
+    },
+    {
+      "file": "obama-2009.jpg",
+      "identity": "obama",
+      "source": "https://commons.wikimedia.org/wiki/File:Official_portrait_of_Barack_Obama_(1).jpg",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/0/04/Official_portrait_of_Barack_Obama_%281%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+      "license": "CC BY 3.0",
+      "author": "<bdi><a href=\"https://en.wikipedia.org/wiki/en:Pete_Souza\" class=\"extiw\" title=\"w:en:Pete Souza\"><span title=\"American photographer (born 1954)\">Pete Souza</span></a></bdi>",
+      "sha256": "c00719b14633924a844e3a174491411e7f7d106edb9a57d116518bd385f27b20"
+    }
+  ]
+}

@@ -27,5 +27,5 @@ def package(name,source,parts,version):
     for file in sorted(path.rglob('*')):
      if file.is_file() and not excluded(file.relative_to(source)):archive.add(file,arcname=name+'/'+str(file.relative_to(source)),recursive=False)
  manifest={'file':target.name,'bytes':target.stat().st_size,'sha256':hashlib.sha256(target.read_bytes()).hexdigest()};print(json.dumps(manifest));return manifest
-main=package('nextgallery',root,['appinfo','lib','templates','css','js','img','worker','LICENSE','NOTICE','docs/licenses','docs/EMBEDDINGS.md','docs/EXTERNAL_EMBEDDING_SERVER.md','docs/EXTERNAL_EMBEDDING_SERVER.en.md','docs/EMBEDDING_SERVICE_REFERENCE.md','docs/EMBEDDING_SERVICE_REFERENCE.en.md','docs/SQL_SEARCH.md','docs/examples'],version)
+main=package('nextgallery',root,['appinfo','lib','templates','css','js','img','worker','LICENSE','NOTICE','docs/licenses','docs/EMBEDDINGS.md','docs/EXTERNAL_EMBEDDING_SERVER.md','docs/EXTERNAL_EMBEDDING_SERVER.en.md','docs/EMBEDDING_SERVICE_REFERENCE.md','docs/EMBEDDING_SERVICE_REFERENCE.en.md','docs/SQL_SEARCH.md','docs/FACES.md','docs/examples'],version)
 (args.output/'manifest.json').write_text(json.dumps([main],indent=2)+'\n')

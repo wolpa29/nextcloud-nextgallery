@@ -10,7 +10,7 @@ use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\OCS\OCSException;
 use OCA\Nextgallery\AI\Service\{Settings,Inventory,Metadata,State};
 class AiWorkerController extends Controller {
-    public function __construct(IRequest $request, private Settings $settings, private Inventory $inventory, private Metadata $metadata, private ?State $state = null, private ?\OCA\Nextgallery\AI\Service\Embeddings $embeddings = null, private ?\OCA\Nextgallery\AI\Service\SharedResults $shared = null) { parent::__construct('nextgallery', $request); }
+    public function __construct(IRequest $request, private Settings $settings, private Inventory $inventory, private Metadata $metadata, private ?State $state = null, private ?\OCA\Nextgallery\AI\Service\Embeddings $embeddings = null, private ?\OCA\Nextgallery\AI\Service\SharedResults $shared = null, private ?\OCA\Nextgallery\AI\Service\Faces $faces = null) { parent::__construct('nextgallery', $request); }
     private function denied(): ?DataResponse {
         if (!$this->settings->verifyWorker($this->request->getHeader('Authorization'))) { return new DataResponse(['error'=>'Worker authentication required'],401); }
         $uid=$this->request->getHeader('X-Nextgallery-User');
@@ -74,10 +74,10 @@ class AiWorkerController extends Controller {
     #[PublicPage] #[NoCSRFRequired]
     public function reset(string $kind='all'): DataResponse {
         if($denied=$this->denied())return $denied;
-        if(!in_array($kind,['all','descriptions','ocr','embeddings'],true))return new DataResponse(['error'=>'Invalid reset kind'],400);
+        if(!in_array($kind,['all','descriptions','ocr','embeddings','faces'],true))return new DataResponse(['error'=>'Invalid reset kind'],400);
         $state=$kind==='all'?$this->state:$this->state?->forPipeline($kind);
         $control=$state?->control()??[];
-        if($kind==='all'&&$state&&is_file($state->directory().'/pipelines.json'))foreach(['descriptions','ocr','embeddings'] as $lane){$c=$state->forPipeline($lane)->control();if(empty($c['reset_requested'])||empty($c['paused']))return new DataResponse(['error'=>'Explicit paused reset request required for all pipelines'],409);}
+        if($kind==='all'&&$state&&is_file($state->directory().'/pipelines.json'))foreach(\OCA\Nextgallery\AI\Service\State::PIPELINES as $lane){$c=$state->forPipeline($lane)->control();if(empty($c['reset_requested'])||empty($c['paused']))return new DataResponse(['error'=>'Explicit paused reset request required for all pipelines'],409);}
         if(empty($control['reset_requested']) || empty($control['paused']))return new DataResponse(['error'=>'Explicit paused reset request required'],409);
         $uid=$this->settings->get()['user_id'];$kind=$control['reset_kind']??$kind;
         if(in_array($kind,['all','descriptions','ocr'],true)){
@@ -86,7 +86,8 @@ class AiWorkerController extends Controller {
         }
         if(in_array($kind,['all','embeddings'],true))$this->embeddings?->reset($uid);
         // A reset asks for fresh inference: withdraw this account's shared contributions too.
-        $this->shared?->forget($uid,$kind);
+        if(in_array($kind,['all','faces'],true))$this->faces?->reset($uid);
+        if($kind!=='faces')$this->shared?->forget($uid,$kind);
         return new DataResponse(['reset'=>true]);
     }
     /** Shared stage results only for a current file this account may process. */

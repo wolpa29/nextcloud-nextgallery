@@ -10,7 +10,7 @@ use OCA\Nextgallery\AI\Service\{Settings,State,Library,Metadata,Embeddings,Files
 
 /** Account identity always comes from the authenticated session, never a form. */
 class AiAccountController extends Controller {
-    public function __construct(IRequest $request,private IUserSession $session,private Settings $settings,private State $state,private Library $library,private Metadata $metadata,private Embeddings $embeddings,private Files $files,private IRootFolder $root,private ?\OCA\Nextgallery\Service\SearchIndex $searchIndex=null){parent::__construct('nextgallery',$request);}
+    public function __construct(IRequest $request,private IUserSession $session,private Settings $settings,private State $state,private Library $library,private Metadata $metadata,private Embeddings $embeddings,private Files $files,private IRootFolder $root,private ?\OCA\Nextgallery\Service\SearchIndex $searchIndex=null,private ?\OCA\Nextgallery\AI\Service\Faces $faces=null){parent::__construct('nextgallery',$request);}
     private function uid():string { $user=$this->session->getUser();if(!$user)throw new \OCP\AppFramework\OCS\OCSException('Anmeldung erforderlich',401);return $user->getUID(); }
     private function account():State {$state=$this->state->forUser($this->uid());$state->registerAccount();return $state;}
     #[NoAdminRequired]
@@ -20,7 +20,7 @@ class AiAccountController extends Controller {
         $space=$rebuild['target_space']??$rebuild['approved_space']??$lane['embedding_space']??$lane['last_run']['embedding']['space']??null;
         $embeddingTotal=$this->embeddings->count($uid);
         return new DataResponse(['user_id'=>$uid,'folders'=>$config['folders'],'exclude_folders'=>$config['exclude_folders'],'folder_stages'=>$config['folder_stages'],
-            'analysis_enabled'=>$config['analysis_enabled'],'ocr_enabled'=>$config['ocr_enabled'],'embedding_enabled'=>$config['embedding']['enabled'],
+            'analysis_enabled'=>$config['analysis_enabled'],'ocr_enabled'=>$config['ocr_enabled'],'embedding_enabled'=>$config['embedding']['enabled'],'faces_enabled'=>$config['faces']['enabled'],'faces_count'=>$this->faces?->count($uid)??0,
             'search_index'=>$this->searchIndex?->status($uid),
             'metadata_count'=>$counts['metadata'],'description_count'=>$counts['descriptions'],'ocr_count'=>$counts['ocr'],'embedding_count'=>$embeddingTotal,
             'embedding_current_count'=>is_string($space)&&preg_match('/^[a-f0-9]{64}$/D',$space)?$this->embeddings->count($uid,$space):null,
@@ -65,8 +65,8 @@ class AiAccountController extends Controller {
         return new DataResponse($status);
     }
     #[NoAdminRequired]
-    public function library(string $path='',string $filter='all',string $query='',int $offset=0,string $embedding_filter='all',string $ocr_filter='all'):DataResponse {
-        try{return new DataResponse($this->library->forUser($this->uid())->browse($path,$filter,$query,$offset,$embedding_filter,$ocr_filter));
+    public function library(string $path='',string $filter='all',string $query='',int $offset=0,string $embedding_filter='all',string $ocr_filter='all',string $faces_filter='all'):DataResponse {
+        try{return new DataResponse($this->library->forUser($this->uid())->browse($path,$filter,$query,$offset,$embedding_filter,$ocr_filter,$faces_filter));
         }catch(\OCP\AppFramework\OCS\OCSBadRequestException $e){return new DataResponse(['error'=>$e->getMessage()],400);}
     }
     #[NoAdminRequired]
@@ -83,16 +83,17 @@ class AiAccountController extends Controller {
     public function control(string $action,string $kind='both',string $embedding_rebuild_id=''):DataResponse {
         if(!in_array($action,['start','pause','resume','retry'],true))return new DataResponse(['error'=>'Unbekannte Aktion'],400);
         $config=$this->settings->forUser($this->uid())->get();
-        if($action==='start'&&(($kind==='descriptions'&&!$config['analysis_enabled'])||($kind==='ocr'&&!$config['ocr_enabled'])||($kind==='embeddings'&&!$config['embedding']['enabled'])||($kind==='both'&&(!$config['analysis_enabled']||!$config['ocr_enabled']||!$config['embedding']['enabled']))))return new DataResponse(['error'=>'Diese Verarbeitung ist vom Administrator noch nicht eingerichtet.'],409);
+        if(in_array($action,['start','resume','retry'],true)&&(($kind==='descriptions'&&!$config['analysis_enabled'])||($kind==='ocr'&&!$config['ocr_enabled'])||($kind==='embeddings'&&!$config['embedding']['enabled'])||($kind==='faces'&&!$config['faces']['enabled'])||($kind==='both'&&(!$config['analysis_enabled']||!$config['ocr_enabled']||!$config['embedding']['enabled']))))return new DataResponse(['error'=>'Diese Verarbeitung ist vom Administrator noch nicht eingerichtet.'],409);
+        if($kind==='faces'&&in_array($action,['start','resume','retry'],true)){$setup=$this->account()->forPipeline('faces')->status()['faces_setup']??[];if(empty($setup['installed']))return new DataResponse(['error'=>'Bitte zuerst die Personenerkennung in den Server-Einstellungen installieren.'],409);}
         try{return new DataResponse($this->account()->setControl($action,true,$embedding_rebuild_id,$kind));}
         catch(\OCP\AppFramework\OCS\OCSBadRequestException $e){return new DataResponse(['error'=>$e->getMessage()],409);}
     }
     #[NoAdminRequired]
     public function delete(string $kind,string $confirmation,int $expected_count=-1):DataResponse {
-        if($confirmation!==$kind||!in_array($kind,['descriptions','ocr','embeddings','all'],true))return new DataResponse(['error'=>'Bestätigung fehlt'],400);
+        if($confirmation!==$kind||!in_array($kind,['descriptions','ocr','embeddings','faces','all'],true))return new DataResponse(['error'=>'Bestätigung fehlt'],400);
         $state=$this->account();if($kind!=='all')$state=$state->forPipeline($kind);$status=$state->status();
         if(!$status['online']||empty($status['control']['paused'])||!empty($status['control']['requested'])||!empty($status['control']['reset_requested'])||$status['state']==='running')return new DataResponse(['error'=>'Bitte zuerst pausieren und das Ende der aktuellen Datei abwarten.'],409);
-        $uid=$this->uid();$count=$kind==='all'?$this->metadata->count($uid)+$this->embeddings->count($uid):($kind==='embeddings'?$this->embeddings->count($uid):$this->metadata->count($uid,$kind));
+        $uid=$this->uid();$count=$kind==='all'?$this->metadata->count($uid)+$this->embeddings->count($uid)+($this->faces?->count($uid)??0):($kind==='faces'?($this->faces?->count($uid)??0):($kind==='embeddings'?$this->embeddings->count($uid):$this->metadata->count($uid,$kind)));
         if($expected_count!==$count)return new DataResponse(['error'=>'Die Anzahl hat sich geändert. Bitte die Bestätigung erneut öffnen.'],409);
         try{$state->requestReset($kind);return new DataResponse(['requested'=>true]);}
         catch(\OCP\AppFramework\OCS\OCSBadRequestException $e){return new DataResponse(['error'=>$e->getMessage()],409);}

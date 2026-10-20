@@ -22,7 +22,7 @@ import embedding_setup
 import analysis_storage
 
 _shutdown = threading.Event()
-PIPELINES = ('descriptions', 'ocr', 'embeddings')
+PIPELINES = ('descriptions', 'ocr', 'embeddings', 'faces')
 
 _local_embedding_process = None
 _local_embedding_signature = None
@@ -53,10 +53,10 @@ def admin_paused(directory, kind=None):
 
 def initialize_pipelines(directory):
     """One-time split, shared with PHP; leave native/vector databases untouched."""
-    if read(directory/'pipelines.json',{}).get('version',0)>=2:return
+    if read(directory/'pipelines.json',{}).get('version',0)>=3:return
     with (directory/'control.lock').open('a') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX)
-        if read(directory/'pipelines.json',{}).get('version',0)>=2:return
+        if read(directory/'pipelines.json',{}).get('version',0)>=3:return
         version=read(directory/'pipelines.json',{}).get('version',0)
         if version<1:
             old=read(directory/'control.json',{'paused':True,'requested':False})
@@ -79,14 +79,18 @@ def initialize_pipelines(directory):
                 next_schedule=dict(schedule)
                 if kind=='descriptions':next_schedule.pop('embedding_pending',None)
                 atomic(lane_file(directory,'schedule.json',kind),next_schedule)
-        description=read(directory/'control-descriptions.json',{'paused':True,'requested':False})
-        control={**description,'run_kind':'ocr'}
-        if control.get('reset_requested'):control['reset_kind']='ocr'
-        atomic(directory/'control-ocr.json',control)
-        atomic(directory/'status-ocr.json',{'state':'paused','current':None,'stats':{},'ocr_stats':{}})
-        atomic(directory/'schedule-ocr.json',read(directory/'schedule-descriptions.json',{}))
-        if (directory/'processing-admin-descriptions.json').exists():atomic(directory/'processing-admin-ocr.json',read(directory/'processing-admin-descriptions.json',{}))
-        atomic(directory/'pipelines.json',{'version':2})
+        if version<2:
+            description=read(directory/'control-descriptions.json',{'paused':True,'requested':False})
+            control={**description,'run_kind':'ocr'}
+            if control.get('reset_requested'):control['reset_kind']='ocr'
+            atomic(directory/'control-ocr.json',control)
+            atomic(directory/'status-ocr.json',{'state':'paused','current':None,'stats':{},'ocr_stats':{}})
+            atomic(directory/'schedule-ocr.json',read(directory/'schedule-descriptions.json',{}))
+            if (directory/'processing-admin-descriptions.json').exists():atomic(directory/'processing-admin-ocr.json',read(directory/'processing-admin-descriptions.json',{}))
+        atomic(directory/'control-faces.json',{'paused':True,'requested':False,'run_kind':'faces'})
+        atomic(directory/'status-faces.json',{'state':'paused','current':None,'stats':{'done':0,'pending':0,'error':0}})
+        atomic(directory/'schedule-faces.json',{})
+        atomic(directory/'pipelines.json',{'version':3})
 
 
 
@@ -304,6 +308,10 @@ def reset_ai(api,directory,reporter,control):
         embeddings=embedding.Store(directory/'embeddings.sqlite3')
         try:embeddings.reset()
         finally:embeddings.db.close()
+    if kind in ('all','faces'):
+        for suffix in ('','-wal','-shm'):
+            cache=directory/('faces.sqlite3'+suffix)
+            if cache.is_file() and not cache.is_symlink():cache.unlink()
     with (directory/'control.lock').open('a') as stream:
         fcntl.flock(stream,fcntl.LOCK_EX)
         current=read(lane_file(directory,'control.json',lane),{})
@@ -313,6 +321,44 @@ def reset_ai(api,directory,reporter,control):
     if kind=='ocr':fields['ocr_stats']={}
     reporter.update(stats={'done':0,'pending':0,'error':0},last_run=None,current=None,state='paused',message='KI-Daten zurückgesetzt',**fields)
     reporter.event('ai_reset_finished',kind=kind)
+
+
+def faces_cycle(api,config,directory,reporter,control):
+    """Independent face processing. The PHP database owns results and corrections."""
+    import media_ai_faces
+    kind='faces';config=dict(config);config['_pipeline']=kind
+    config['_inference_directory']=config.get('_model_directory')
+    def stop():
+        return _shutdown.is_set() or admin_paused(Path(config.get('_model_directory',directory)),kind) or read(lane_file(directory,'control.json',kind),{'paused':True}).get('paused',True)
+    reporter.run_id=uuid.uuid4().hex
+    reporter.update(state='running',current=None,message='Personenerkennung läuft')
+    started=time.monotonic()
+    progress={'done':0,'pending':0,'error':0}
+    def observe(event,**fields):
+        if event=='faces_inventory':
+            progress.update(done=fields.get('done',0),pending=fields.get('pending',0),error=0)
+            reporter.update(stats=dict(progress),faces_stats=dict(progress))
+        elif event in ('faces_processed','faces_error'):
+            progress['pending']=max(0,progress['pending']-1)
+            progress['error' if event=='faces_error' else 'done']+=1
+            reporter.update(stats=dict(progress),faces_stats=dict(progress))
+            fields.pop('level',None)
+            reporter.update(current=None)
+            reporter.event('file_error' if event=='faces_error' else 'file_finished',**fields,level='error' if event=='faces_error' else 'info')
+        else:
+            if event=='file_start':reporter.update(current={'path':fields.get('path',''),'stage':'faces','file_id':fields.get('file_id'),'started_at':time.time()})
+            reporter.event(event,**fields)
+    try:
+        reporter.event('run_start',kind=kind)
+        result=media_ai_faces.run(config,NativeSource(api,config),api,directory,observe,stop,retry_errors=bool(control.get('retry_errors')))
+        stats=result.get('stats',{'done':result.get('done',0),'pending':result.get('pending',0),'error':result.get('error',0)})
+        result={**result,'kind':kind,'processed':result.get('processed',result.get('done',0)),'seconds':round(time.monotonic()-started,3)}
+        reporter.update(state='paused' if stop() else result.get('state','finished'),current=None,stats=stats,faces_stats=stats,last_run=result,message='')
+        return {'faces':result,'embedding':{'state':'disabled'},'kind':kind}
+    except Exception as error:
+        raise p.PipelineError(str(error)) from error
+    finally:
+        reporter.run_id=None
 
 
 def is_due(config,control,schedule,now=None):
@@ -441,7 +487,7 @@ def maintain_embedding_service(config, directory, reporter):
 def cycle(api,config,directory,reporter,control):
     config=json.loads(json.dumps(config))
     kind=control.get('run_kind','both')
-    config['analysis_enabled']=(config.get('ocr_enabled',config.get('analysis_enabled',True)) if kind=='ocr' else config.get('analysis_enabled',True)) and kind!='embeddings'
+    config['analysis_enabled']=(config.get('ocr_enabled',config.get('analysis_enabled',True)) if kind=='ocr' else config.get('analysis_enabled',True)) and kind in ('descriptions','ocr','both')
     config.setdefault('embedding',{'enabled':False})
     config['embedding']['enabled']=config['embedding'].get('enabled',False) and kind in ('embeddings','both')
     lane=getattr(reporter,'kind',None)
@@ -561,7 +607,7 @@ def main():
         try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         except BlockingIOError:raise SystemExit('Worker already active')
         initialize_pipelines(directory)
-        if kind!='embeddings':analysis_storage.initialize(directory)
+        if kind in ('descriptions','ocr'):analysis_storage.initialize(directory)
         bootstrap=read(Path(args.bootstrap),{});api=API(bootstrap);reporter=Reporter(directory,service=True,kind=kind)
         try:
             while not _shutdown.is_set():
@@ -574,10 +620,22 @@ def main():
                             fcntl.flock(maintenance_lock,fcntl.LOCK_SH|fcntl.LOCK_NB)
                             global_config=api.call('config')
                             embedding_ready=maintain_embedding_service(global_config,directory,reporter)
+                    if kind=='faces':
+                        import faces_setup
+                        request=read(directory/'faces-install.json',{})
+                        setup=faces_setup.tick(directory,requested=bool(request.get('requested')))
+                        reporter.update(faces_setup=setup)
+                        if setup.get('installed'):
+                            if request.get('requested'):atomic(directory/'faces-install.json',{'requested':False})
+                            runtime=Path(faces_setup.python_path(directory))
+                            if Path(sys.executable).absolute()!=runtime.absolute():
+                                # Re-exec just this lane into its isolated OpenCV runtime.
+                                reporter.close()
+                                os.execv(str(runtime),[str(runtime),str(Path(__file__).resolve()),*sys.argv[1:]])
                     candidates=account_directories(directory,global_config['user_id'])
                     for _,account_directory in candidates:
                         initialize_pipelines(account_directory)
-                        if kind!='embeddings':analysis_storage.initialize(account_directory)
+                        if kind in ('descriptions','ocr'):analysis_storage.initialize(account_directory)
                     candidates.sort(key=lambda item:(not read(lane_file(item[1],'control.json',kind),{}).get('reset_requested'),not read(lane_file(item[1],'control.json',kind),{}).get('requested'),read(lane_file(item[1],'control.json',kind),{}).get('updated_at',0),item[0]))
                     active=False
                     if admin_paused(directory,kind):
@@ -596,8 +654,9 @@ def main():
                             control=read(lane_file(account_directory,'control.json',kind),{'paused':True})
                             if not control.get('reset_requested') and control.get('paused',True):continue
                             config=scoped_api.call('config');config['_model_directory']=str(directory)
+                            if kind=='faces' and not control.get('reset_requested') and (not config.get('faces',{}).get('enabled') or not setup.get('installed')):continue
                             config['_pipeline']=kind
-                            config['analysis_enabled']=(config.get('ocr_enabled',config.get('analysis_enabled',True)) if kind=='ocr' else config.get('analysis_enabled',True)) and kind!='embeddings'
+                            config['analysis_enabled']=(config.get('ocr_enabled',config.get('analysis_enabled',True)) if kind=='ocr' else config.get('analysis_enabled',True)) and kind in ('descriptions','ocr','both')
                             config.setdefault('embedding',{})['enabled']=config.get('embedding',{}).get('enabled',False) and kind=='embeddings'
                             if not control.get('reset_requested') and not is_due(config,control,schedule):continue
                             if schedule.get('embedding_pending') and not embedding_ready and not control.get('requested') and not control.get('reset_requested'):continue
@@ -613,7 +672,7 @@ def main():
                                 reporter.update(active_user_id=uid)
                                 consume(account_directory,control.get('request_id'),kind)
                                 result_date=datetime.now(ZoneInfo(config['timezone'])).strftime('%Y-%m-%d')
-                                result=cycle(scoped_api,config,account_directory,child,control)
+                                result=(faces_cycle if kind=='faces' else cycle)(scoped_api,config,account_directory,child,control)
                                 atomic(lane_file(account_directory,'schedule.json',kind),{'date':result_date,'embedding_pending':result['embedding']['state']=='preparing'})
                                 if not config['enabled'] and result['embedding']['state']!='preparing':
                                     with (account_directory/'control.lock').open('a') as account_lock:
@@ -642,6 +701,9 @@ def main():
                 _shutdown.wait(5)
         finally:
             if kind=='embeddings':embedding_setup.stop()
+            if kind=='faces':
+                import faces_setup
+                faces_setup.stop()
             if _local_embedding_process is not None and _local_embedding_process.poll() is None:_local_embedding_process.terminate()
             reporter.close()
             atomic(lane_file(directory,'service.json',kind),{'heartbeat_at':0,'active_user_id':None})

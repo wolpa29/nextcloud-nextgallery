@@ -69,6 +69,7 @@ Remember *a dog on the beach*, but not the filename? Optional AI makes processed
 - **Descriptions & tags** make photos and videos easier to discover.
 - **Text recognition (OCR)** finds words in photographed signs or documents.
 - **Visual search** finds matching images from a description of what you remember.
+- **People** groups photos by familiar faces, without requiring names. Enable it explicitly for selected folders. [Setup and corrections →](docs/FACES.md)
 
 You choose processing folders and schedules, with separate start/pause controls for each AI feature. The models can run on your own hardware. **The gallery works fine without AI.** [AI & visual search →](docs/EMBEDDINGS.md)
 

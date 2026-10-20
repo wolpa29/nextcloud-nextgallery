@@ -1,0 +1,17 @@
+OpenCV Zoo Face Models (YuNet and SFace)
+
+Copyright (c) 2021-2023 OpenCV authors and contributors.
+
+1. YuNet Face Detector (face_detection_yunet_2023mar.onnx):
+   - License: MIT License
+   - Upstream repository: https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet
+   - Upstream training reference: WiderFace dataset.
+
+2. SFace Face Recognizer (face_recognition_sface_2021dec.onnx):
+   - License: Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
+   - Upstream training reference: Upstream research mentions Casia-WebFace, VGGFace2, and MS-Celeb experiments; exact pre-trained checkpoint dataset split is unspecified upstream.
+
+Legal & Provenance Notice:
+While model weights and inference code are distributed under open source licenses (MIT and Apache-2.0),
+the complete end-to-end provenance and consent status of underlying training datasets are not fully
+specified upstream. No blanket legal or biometric compliance assurance is provided.

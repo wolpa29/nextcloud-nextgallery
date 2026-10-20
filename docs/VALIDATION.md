@@ -1,3 +1,20 @@
+# People release validation — 2026-10-20
+
+NextGallery **0.4.20** was tested and installed on Nextcloud **34.0.5.1** with MariaDB. A separate Nextcloud 34/MariaDB instance verified the upgrade from 0.4.19 without changing existing descriptions, OCR, visual vectors or shared results. Real Nextcloud 35/SQLite contracts were also exercised.
+
+- 340 Python tests passed in the base environment; three tests required optional NumPy/OpenCV. The installed face runtime separately passed all 31 face tests.
+- 20 Node/browser behavior tests passed, including real Chromium dialog and stale-gallery response checks. Desktop/mobile screenshots were visually inspected against the actual Nextcloud app; gallery and map markup, photo counts and protected confirmations were checked.
+- 92 PHP face assertions and 49 real Nextcloud database/controller assertions passed. The existing PHP pipeline suites remained successful.
+- 24 full HTTP integration cases covered public-image inference, zero-face files, account/gallery isolation, private previews, OCS headers/envelopes, corrections, current ETags, file deletion, cache removal, reset generations and account re-creation.
+- A synthetic 100,000-vector search check recovered the known nearest identity in all 500 queries, taking 1.529 seconds in total and about 673 MiB peak process memory on the development host. It allocates a one-to-many score vector, not a pairwise distance matrix.
+- The production Python 3.11.2 / OpenCV 4.14.0 / NumPy 2.4.6 runtime detected one face in each of four public portraits and grouped them into the two expected identities. No private media were inspected or processed.
+- Live Web/OCS responses, served JavaScript bytes, four worker heartbeats, model setup and maintenance state were verified with a disposable account. Account deletion also removed its synthetic face-cache files.
+- Existing canonical AI rows, worker cache contents and controls matched before/after fingerprints. Normal gallery-scan progress continued. A scoped backup and runtime rollback copy were retained on the server.
+
+Person recognition remains globally disabled, with no folders opted in, and all pipelines retain their paused state. The four-portrait smoke check does not establish family-photo accuracy, recognition of children over time or individual pet recognition. Public fixture provenance and reproducible commands are in [benchmarks/faces](../benchmarks/faces/README.md).
+
+---
+
 # Validation of the live installation
 
 Tested on 2026-10-03/04 against Nextcloud **32.0.5**, app **NextGallery 0.1.2**. The repository is private. Only generated, visibly marked demo media were used; no personal media folder was opened or configured.

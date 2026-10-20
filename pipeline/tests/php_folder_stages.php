@@ -17,7 +17,7 @@ class Config implements \OCP\IConfig {
  public function getSystemValueString($key){return $this->directory;}
 }
 class Crypto implements \OCP\Security\ICrypto {public function encrypt($v){return $v;}public function decrypt($v){return $v;}}
-$all=Settings::STAGES;$config=new Config();$settings=new Settings($config,new Crypto());
+$all=Settings::DEFAULT_STAGES;$config=new Config();$settings=new Settings($config,new Crypto());
 
 // Settings: every selected folder has a pipeline list; folders without a choice run all of them.
 check($settings->get()['folder_stages']===['/'=>$all],'Default selection does not run every pipeline');
@@ -37,6 +37,10 @@ check($settings->forUser('alice')->get()['folder_stages']===['/A'=>$all,'/B'=>['
 $owner=$settings->defaults();$owner['folders']=['/','/Scans'];$owner['folder_stages']=['/Scans'=>['ocr']];
 check($settings->save($owner,null,false)['folder_stages']===['/'=>$all,'/Scans'=>['ocr']],'Administrator save dropped pipeline choice');
 
+// Fourth pipeline is available only by explicit folder choice.
+check(in_array('faces',Settings::STAGES,true)&&!in_array('faces',$all,true),'Faces fallback is not opt-in');
+$faceSelection=$settings->saveAccount('faces-opt-in',['folders'=>['/Photos'],'folder_stages'=>['/Photos'=>['faces']]]);
+check($faceSelection['folder_stages']['/Photos']===['faces'],'Explicit faces choice lost');
 // The most specific selected folder decides.
 $selection=['folders'=>['/','/Photos/Screens','/Photos'],'folder_stages'=>['/'=>$all,'/Photos'=>['descriptions'],'/Photos/Screens'=>['ocr']]];
 check(Settings::stagesFor($selection,'/root.jpg')===$all,'Root folder choice ignored');

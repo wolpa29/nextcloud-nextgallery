@@ -1,0 +1,4 @@
+# Isolated face processing runtime (YuNet + SFace)
+-r requirements.txt
+opencv-python-headless==4.14.0.94; python_version>="3.11"
+opencv-python-headless>=4.8.0,<5; python_version<"3.11"

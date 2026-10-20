@@ -93,7 +93,7 @@ async function init() {
    const value=input.type==='checkbox'?input.checked:input.type==='number'?Number(input.value):input.value;
    if(Array.isArray(previous))previous=previous.join('\n');
    if(value===(previous??''))continue;
-   const kinds=group==='embedding'?['embeddings']:['ocr','ocr_enabled'].includes(group)?['ocr']:['vision','video','analysis_enabled'].includes(group)?['descriptions']:['descriptions','ocr','embeddings'];
+   const kinds=group==='faces'?['faces']:group==='embedding'?['embeddings']:['ocr','ocr_enabled'].includes(group)?['ocr']:['vision','video','analysis_enabled'].includes(group)?['descriptions']:['descriptions','ocr','embeddings','faces'];
    for(const kind of kinds)if(pipelineRunning(kind))blocked.add(kind);
   }
   return [...blocked];
@@ -101,14 +101,16 @@ async function init() {
  function settingsBlocked(){return blockedPipelines().length>0;}
  function formConfig(){
   const value=structuredClone(config);
-  for(const input of form.elements){if(!input.name)continue;let x=input.type==='checkbox'?input.checked:input.type==='number'?Number(input.value):input.value;const parts=input.name.split('.');if(['folders','exclude_folders'].includes(input.name))x=input.value.split('\n').map(x=>x.trim()).filter(Boolean);if(input.dataset.defaultPrompt&&x===config[parts[0]]['default_'+parts[1]])x='';if(parts.length===2)value[parts[0]][parts[1]]=x;else value[parts[0]]=x;}
+  if(!value.faces)value.faces={enabled:false,cosine_threshold:0.55,detection_threshold:0.9,min_face_size:32,min_group_size:2,max_edge:2048};
+  for(const input of form.elements){if(!input.name)continue;let x=input.type==='checkbox'?input.checked:input.type==='number'?Number(input.value):input.value;const parts=input.name.split('.');if(['folders','exclude_folders'].includes(input.name))x=input.value.split('\n').map(x=>x.trim()).filter(Boolean);if(input.dataset.defaultPrompt&&x===config[parts[0]]['default_'+parts[1]])x='';if(parts.length===2){if(!value[parts[0]])value[parts[0]]={};value[parts[0]][parts[1]]=x;}else value[parts[0]]=x;}
+  if(form.elements['faces.cosine_threshold'])value.faces.cosine_threshold=Number(form.elements['faces.cosine_threshold'].value);
   return value;
  }
  function updateSaveState(){
   const snapshot=formSnapshot(),dirty=savedSnapshot!==null&&snapshot!==savedSnapshot,blocked=dirty?blockedPipelines():[];
   for(const [last,current,id] of [[embeddingProbeSnapshot,formSnapshot('embedding'),'mai-embedding-result'],[modelProbeSnapshot,snapshot,'mai-model-result']])if(last!==null&&last!==current)$(id).textContent=tr('Eingaben geändert. Verbindung erneut prüfen.');
   if(modelProbeSnapshot!==null&&modelProbeSnapshot!==snapshot)modelProbe=null;
-  root.querySelectorAll('[data-save-blocked]').forEach(node=>{node.hidden=!blocked.length;node.querySelector('[data-save-blocked-text]').textContent=tr('Zum Speichern zuerst {pipelines} pausieren und den Abschluss der aktuellen Datei abwarten.',{pipelines:blocked.map(kind=>tr({descriptions:'Beschreibungen',ocr:'Texterkennung (OCR)',embeddings:'Visuelle Bildsuche · Embeddings'}[kind])).join(', ')});});
+  root.querySelectorAll('[data-save-blocked]').forEach(node=>{node.hidden=!blocked.length;node.querySelector('[data-save-blocked-text]').textContent=tr('Zum Speichern zuerst {pipelines} pausieren und den Abschluss der aktuellen Datei abwarten.',{pipelines:blocked.map(kind=>tr({descriptions:'Beschreibungen',ocr:'Texterkennung (OCR)',embeddings:'Visuelle Bildsuche · Embeddings',faces:'Personenerkennung · Gesichter'}[kind])).join(', ')});});
   if(!dirty)saveError=false;
   const state=savedSnapshot===null?'loading':saving?'saving':dirty?(saveError?'error':blocked.length?'blocked':'dirty'):'saved';
   const labels={loading:'Einstellungen werden geladen …',saving:'Wird gespeichert …',dirty:'Ungespeicherte Änderungen',blocked:'Speichern erst nach dem Pausieren möglich',error:'Nicht gespeichert · erneut versuchen',saved:'Gespeichert'};
@@ -120,10 +122,11 @@ async function init() {
   $('mai-embedding-test').textContent=tr(embeddingProbeBusy?'Verbindung wird geprüft …':'Verbindung prüfen');
   processingExplanation();
   renderEmbeddingInstall();
+  renderFacesInstall();
  }
  root.querySelectorAll('[data-show-processing]').forEach(button=>button.onclick=()=>{workspace.show('settings');$('mai-processing-admin').open=true;$('mai-processing-admin').scrollIntoView({behavior:'smooth',block:'start'});});
  for(const event of ['input','change'])form.addEventListener(event,e=>{if(e.target.name)updateSaveState();});
- function loadForm(){for(const input of form.elements){if(!input.name)continue;const parts=input.name.split('.');let v=parts.length===2?config[parts[0]][parts[1]]:config[parts[0]];if(input.dataset.defaultPrompt)v=v||config[parts[0]]['default_'+parts[1]];if(input.type==='checkbox')input.checked=Boolean(v);else if(Array.isArray(v))input.value=v.join('\n');else input.value=v??'';} form.querySelectorAll('[data-image-edge]').forEach(i=>i.dispatchEvent(new Event('input')));const allowed=config.can_configure_models;form.elements.user_id.readOnly=true; $('mai-model-settings').querySelectorAll('input,select,button').forEach(i=>i.disabled=!allowed);$('mai-model-settings').querySelectorAll('textarea').forEach(i=>{i.readOnly=!allowed;i.dispatchEvent(new Event('input'));});root.querySelectorAll('#mai-embedding-settings input,#mai-embedding-settings select,[data-model-admin]').forEach(i=>i.disabled=!allowed);processingExplanation(); savedSnapshot=formSnapshot();saveError=false;updateSaveState(); }
+ function loadForm(){if(!config.faces)config.faces={enabled:false,cosine_threshold:0.55,detection_threshold:0.9,min_face_size:32,min_group_size:2,max_edge:2048};for(const input of form.elements){if(!input.name)continue;const parts=input.name.split('.');let v=parts.length===2?config[parts[0]]?.[parts[1]]:config[parts[0]];if(input.dataset.defaultPrompt)v=v||config[parts[0]]['default_'+parts[1]];if(input.type==='checkbox')input.checked=Boolean(v);else if(Array.isArray(v))input.value=v.join('\n');else input.value=v??'';} form.querySelectorAll('[data-image-edge]').forEach(i=>i.dispatchEvent(new Event('input')));const allowed=config.can_configure_models;form.elements.user_id.readOnly=true; $('mai-model-settings').querySelectorAll('input,select,button').forEach(i=>i.disabled=!allowed);$('mai-model-settings').querySelectorAll('textarea').forEach(i=>{i.readOnly=!allowed;i.dispatchEvent(new Event('input'));});root.querySelectorAll('#mai-embedding-settings input,#mai-embedding-settings select,[data-model-admin]').forEach(i=>i.disabled=!allowed);root.querySelectorAll('#mai-faces-settings input,#mai-faces-settings select,button[data-faces-install]').forEach(i=>i.disabled=!allowed);processingExplanation(); savedSnapshot=formSnapshot();saveError=false;updateSaveState(); }
  async function saveForm(){
   if(!config||saving||choosingModel)return false;if(savedSnapshot===formSnapshot())return true;if(settingsBlocked()||!form.reportValidity())return false;
   const submittedSnapshot=formSnapshot(),v=formConfig();
@@ -153,18 +156,20 @@ async function init() {
  }
  async function processing(){
   processingState=await api('processing');
-  for(const kind of ['descriptions','ocr','embeddings']){
-   const section=root.querySelector('[data-admin-pipeline="'+kind+'"]'),value=processingState.pipelines?.[kind]||processingState;
+  for(const kind of ['descriptions','ocr','embeddings','faces']){
+   const section=root.querySelector('[data-admin-pipeline="'+kind+'"]');
+   if(!section)continue;
+   const value=processingState.pipelines?.[kind]||processingState;
    section.querySelector('[data-processing-status]').textContent=tr(value.paused?(value.running?'Läufe gesperrt. Die aktuelle Datei wird noch abgeschlossen.':'Diese Verarbeitung ist durch den Administrator pausiert.'):'Benutzerläufe sind erlaubt.');
    const allow=section.querySelector('[data-processing-action="allow_runs"]'),pause=section.querySelector('[data-processing-action="pause_all"]');
    allow.hidden=!value.paused;allow.disabled=value.running;pause.disabled=value.paused&&!value.running;
-   section.querySelector('[data-processing-accounts-summary]').textContent=tr('{count} Benutzer · {active} aktiv',{count:value.accounts.length,active:value.accounts.filter(row=>row.state==='running'||row.requested).length});
-   section.querySelector('[data-processing-accounts]').replaceChildren(...value.accounts.map(row=>el('li',row.user_id+' · '+tr(row.state==='running'?'Läuft':row.requested?'Vorgemerkt':row.paused?'Pausiert':'Bereit'),true)));
+   section.querySelector('[data-processing-accounts-summary]').textContent=tr('{count} Benutzer · {active} aktiv',{count:value.accounts?.length||0,active:(value.accounts||[]).filter(row=>row.state==='running'||row.requested).length});
+   section.querySelector('[data-processing-accounts]').replaceChildren(...(value.accounts||[]).map(row=>el('li',row.user_id+' · '+tr(row.state==='running'?'Läuft':row.requested?'Vorgemerkt':row.paused?'Pausiert':'Bereit'),true)));
   }
  }
  root.querySelectorAll('[data-processing-action]').forEach(button=>button.onclick=async()=>{
   const action=button.dataset.processingAction,kind=button.dataset.kind;
-  try{if(action==='pause_all'&&!await confirmModelAction(kind==='embeddings'?'Alle Embedding-Läufe pausieren?':kind==='ocr'?'Alle OCR-Läufe pausieren?':'Alle Beschreibungs-Läufe pausieren?','Die aktuelle Datei wird abgeschlossen. Vorgemerkte Starts werden entfernt; neue und automatische Läufe dieser Verarbeitung sind bis zur Freigabe gesperrt. Die anderen Verarbeitungen laufen weiter.','Pausieren'))return;
+  try{if(action==='pause_all'&&!await confirmModelAction(kind==='embeddings'?'Alle Embedding-Läufe pausieren?':kind==='ocr'?'Alle OCR-Läufe pausieren?':kind==='faces'?'Alle Läufe der Personenerkennung pausieren?':'Alle Beschreibungs-Läufe pausieren?','Die aktuelle Datei wird abgeschlossen. Vorgemerkte Starts werden entfernt; neue und automatische Läufe dieser Verarbeitung sind bis zur Freigabe gesperrt. Die anderen Verarbeitungen laufen weiter.','Pausieren'))return;
    await api('processing',{action,kind});await processing();await status();
   }catch(error){message(error.message,true);}
  });
@@ -271,7 +276,62 @@ async function init() {
   for(const id of ['mai-embedding-setup-processing','mai-embedding-setup-settings']){const n=$(id);if(!n)continue;n.hidden=id==='mai-embedding-setup-settings'?!native:!local;n.textContent=text;n.classList.toggle('mai-error',Boolean(s.online&&health?.phase==='error'));}
   renderEmbeddingInstall();
  }
- async function status(){try{lastStatus=await api('status');await processing();embeddingSetupStatus(lastStatus);updateSaveState();workspace.status(lastStatus);}catch(e){message(e.message,true);}}
+ let facesStatusData=null, facesInstallBusy=false;
+ async function checkFacesStatus(){
+  try{
+   facesStatusData=await api('faces-status');
+  }catch{
+   facesStatusData=null;
+  }
+  renderFacesInstall();
+ }
+ function formatFacesMessage(raw){if(!raw)return tr('Installation fehlgeschlagen. Bitte erneut versuchen.');const str=String(raw);if(str.includes('hash mismatch')||str.includes('checksum'))return tr('Prüfsumme der Gesichtsmodelle stimmt nicht überein.');if(str.includes('network')||str.includes('download failed')||str.includes('Connection')||str.includes('timed out'))return tr('Download der Gesichtsmodelle fehlgeschlagen. Bitte Netzwerkverbindung prüfen.');if(str.includes('python')||str.includes('venv')||str.includes('pip'))return tr('Einrichtung der isolierten Python-Umgebung fehlgeschlagen.');const sanitized=str.replace(/\/(?:home|var|tmp|usr|opt|etc)\/[^\s:,]+/g,'').trim();return tr(sanitized||'Installation fehlgeschlagen. Bitte erneut versuchen.');}
+ function renderFacesInstall(){
+  const s=facesStatusData||lastStatus?.faces_setup;
+  const installed=Boolean(s?.installed), ready=Boolean(s?.ready), phase=s?.phase||(installed?'installed':'not_installed');
+  const active=facesInstallBusy||lastStatus?.faces_install_requested||['preparing','runtime','downloading','verifying'].includes(phase);
+  const statusEl=$('mai-faces-setup-settings');
+  if(statusEl){
+   statusEl.hidden=false;
+   let text='';
+   if(!lastStatus?.online){
+    text=tr('Worker ist offline. Bitte starten, um Gesichtsmodelle zu installieren.');
+   }else if(phase==='preparing'||phase==='runtime'){
+    text=tr('Python-Laufzeit wird eingerichtet …');
+   }else if(phase==='downloading'){
+    text=tr('Gesichtsmodelle (YuNet und SFace) werden heruntergeladen …');
+   }else if(phase==='verifying'){
+    text=tr('Modelle werden überprüft …');
+   }else if(phase==='error'){
+    text=formatFacesMessage(s?.message);
+   }else if(installed){
+    text=ready?tr('Lokale Personenerkennung bereit. Gesichtsmodelle sind eingerichtet.'):tr('Gesichtsmodelle installiert.');
+   }else{
+    text=tr('Gesichtsmodelle sind noch nicht installiert. Zum Einrichten „Gesichtsmodelle installieren“ auswählen.');
+   }
+   statusEl.textContent=text;
+   statusEl.classList.toggle('mai-error',phase==='error');
+  }
+  root.querySelectorAll('[data-faces-install]').forEach(button=>{
+   button.hidden=installed&&ready;
+   button.disabled=!config?.can_configure_models||!lastStatus?.online||facesInstallBusy||active||saving;
+   button.textContent=tr(active?'Einrichtung läuft …':phase==='error'?'Installation erneut versuchen':'Gesichtsmodelle installieren');
+  });
+ }
+ root.querySelectorAll('[data-faces-install]').forEach(button=>button.addEventListener('click',async()=>{
+  if(button.disabled||facesInstallBusy)return;
+  if(!await confirmModelAction('Gesichtsmodelle auf diesem Host installieren?',tr('YuNet und SFace als ONNX-Modelle (OpenCV Zoo) herunterladen und einrichten. Deine Einstellungen werden gespeichert. Es startet kein Medienlauf.'),'Installieren'))return;
+  facesInstallBusy=true;renderFacesInstall();
+  try{
+   if(!await saveForm())return;
+   await api('faces-install',{});
+   message('Installation der Gesichtsmodelle angefordert.');
+   await checkFacesStatus();
+   await status();
+  }catch(e){message(e.message,true);}
+  finally{facesInstallBusy=false;renderFacesInstall();}
+ }));
+ async function status(){try{lastStatus=await api('status');await processing();await checkFacesStatus();embeddingSetupStatus(lastStatus);updateSaveState();workspace.status(lastStatus);}catch(e){message(e.message,true);}}
  api('config').then(c=>{canManage=true;config=c;loadForm();workspace.start();status();}).catch(e=>message(e.status===403?'Nur Administratoren dürfen diese Einstellungen öffnen.':e.message,true));
  const timer=setInterval(()=>{if(!document.contains(root)){clearInterval(timer);return;}if(canManage&&!document.hidden)status();},5000);
 }

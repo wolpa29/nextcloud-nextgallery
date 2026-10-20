@@ -15,7 +15,7 @@ class ProcessingAdministration {
  }
  public function overview():array {
   $pipelines=[];
-  foreach(['descriptions','ocr','embeddings'] as $kind){
+  foreach(State::PIPELINES as $kind){
    $rows=[];foreach($this->ids() as $uid){$s=$this->state->forUser($uid)->forPipeline($kind)->status();$rows[]=['user_id'=>$uid,'state'=>$s['state'],'requested'=>!empty($s['control']['requested']),'paused'=>!empty($s['control']['paused']),'kind'=>$kind];}
    $pipelines[$kind]=['paused'=>$this->state->processingPaused($kind),'running'=>$this->state->anyRunning($kind),'accounts'=>$rows];
   }
@@ -44,11 +44,11 @@ class ProcessingAdministration {
   $kinds=[];
   foreach(array_unique(array_merge(array_keys($previous),array_keys($candidate))) as $key){
    if(self::canonical($previous[$key]??null)===self::canonical($candidate[$key]??null))continue;
-   $lanes=$key==='embedding'?['embeddings']:(in_array($key,['ocr','ocr_enabled'],true)?['ocr']:(in_array($key,['analysis_enabled','vision','video'],true)?['descriptions']:['descriptions','ocr','embeddings']));
+   $lanes=$key==='faces'?['faces']:($key==='embedding'?['embeddings']:(in_array($key,['ocr','ocr_enabled'],true)?['ocr']:(in_array($key,['analysis_enabled','vision','video'],true)?['descriptions']:State::PIPELINES)));
    $kinds=array_merge($kinds,$lanes);
   }
   foreach(['vision','ocr','embedding'] as $key)if(!empty($submitted[$key]['api_key'])||!empty($submitted[$key]['clear_api_key']))$kinds[]=$key==='embedding'?'embeddings':($key==='ocr'?'ocr':'descriptions');
-  return array_values(array_intersect(['descriptions','ocr','embeddings'],array_unique($kinds)));
+  return array_values(array_intersect(State::PIPELINES,array_unique($kinds)));
  }
  private function candidate(array $config):array {return $this->settings->save($config,null,false);}
  private function compatible(array $submitted):array {

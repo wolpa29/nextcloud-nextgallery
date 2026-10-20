@@ -64,6 +64,19 @@ class AiAdminController extends Controller {
         catch (\OCP\AppFramework\OCS\OCSBadRequestException $e) { return new DataResponse(['error'=>$e->getMessage()],400); }
     }
     public function status(): DataResponse { if($denied=$this->denied())return $denied; return new DataResponse($this->state->status()); }
+    public function facesStatus():DataResponse {
+        if($denied=$this->denied())return $denied;
+        $path=$this->state->rootDirectory().'/faces-setup.json';
+        $value=is_file($path)&&!is_link($path)&&filesize($path)<1048576?json_decode((string)file_get_contents($path),true):[];
+        return new DataResponse((is_array($value)?$value:[])+['phase'=>'not_installed','installed'=>false,'ready'=>false,'message'=>'Personenerkennung noch nicht installiert']);
+    }
+    public function facesInstall():DataResponse {
+        if($denied=$this->denied())return $denied;
+        $status=$this->state->forPipeline('faces')->status();
+        if(!$status['online'])return new DataResponse(['error'=>'Bitte den aktualisierten Worker zuerst starten.'],409);
+        $this->state->atomic('faces-install.json',['requested'=>true,'request_id'=>bin2hex(random_bytes(12)),'updated_at'=>time()]);
+        return new DataResponse(['requested'=>true]);
+    }
     public function embeddingInstall():DataResponse {
         if(!$this->admin())return new DataResponse(['error'=>'Nur Nextcloud-Administratoren dürfen Gemma installieren.'],403);
         $embedding=$this->settings->get()['embedding'];

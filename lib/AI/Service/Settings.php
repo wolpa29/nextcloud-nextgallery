@@ -7,8 +7,9 @@ use OCP\Security\ICrypto;
 use OCP\AppFramework\OCS\OCSBadRequestException;
 
 class Settings {
-    /** Pipelines a selected folder can enable; folders without a choice run all of them. */
-    public const STAGES = ['descriptions','ocr','embeddings'];
+    /** Available pipelines and the conservative fallback are intentionally distinct. */
+    public const STAGES = ['descriptions','ocr','embeddings','faces'];
+    public const DEFAULT_STAGES = ['descriptions','ocr','embeddings'];
     private ?string $account = null;
     public function forUser(string $uid):self { $copy=clone $this;$copy->account=$uid;return $copy; }
     public function __construct(private IConfig $config, private ICrypto $crypto) {}
@@ -17,6 +18,7 @@ class Settings {
     }
     public function defaults(): array {
         return ['enabled' => false, 'analysis_enabled' => true, 'ocr_enabled'=>true, 'embedding' => ['enabled'=>false, 'location'=>'local', 'local_auto_setup'=>true, 'local_profile'=>'lite', 'transport'=>'multimodal', 'family'=>'gemma2', 'model'=>'embeddinggemma-2', 'url'=>'http://10.1.10.78:9379/v1', 'local_model_path'=>'/opt/nextgallery-ai-models/embeddinggemma-2-text-vision-440m.litertlm', 'local_qwen_source'=>'', 'model_revision'=>'', 'max_edge'=>2048, 'video_frames'=>10, 'batch_size'=>1, 'timeout_seconds'=>120], 'user_id' => 'paul', 'folders' => ['/'], 'exclude_folders' => [], 'folder_stages' => [],
+            'faces'=>['enabled'=>false,'model'=>'opencv-yunet-sface-v1','cosine_threshold'=>0.55,'detection_threshold'=>0.9,'min_face_size'=>32,'min_group_size'=>2,'max_edge'=>2048],
             'schedule_time' => '03:00', 'timezone' => 'Europe/Vienna', 'image_timeout_seconds' => 600, 'log_days' => 30, 'max_download_bytes' => 67108864,
             'max_image_pixels' => 80000000, 'max_video_download_bytes' => 536870912, 'video' => ['frame_count' => 10],
             'vision' => ['url' => 'http://10.1.10.78:1234/v1', 'model' => 'qwen/qwen3.8-27b',
@@ -154,7 +156,7 @@ class Settings {
         }
         return array_values(array_unique($result));
     }
-    /** One pipeline list per selected folder. Lenient reads fall back to all pipelines. */
+    /** Missing/invalid old selections must never opt an account into face processing. */
     private static function folderStages(mixed $value,array $folders,bool $strict=true):array {
         if(!is_array($value)||count($value)>100){if($strict)throw new OCSBadRequestException('Ordnerauswahl ungültig');$value=[];}
         $chosen=[];
@@ -165,14 +167,14 @@ class Settings {
             if(!$valid){if($strict)throw new OCSBadRequestException('Mindestens eine Verarbeitung pro Ordner auswählen');continue;}
             $chosen['/'.trim($path,'/')]=array_values(array_intersect(self::STAGES,$stages));
         }
-        $result=[];foreach($folders as $folder)$result[$folder]=$chosen[$folder]??self::STAGES;
+        $result=[];foreach($folders as $folder)$result[$folder]=$chosen[$folder]??self::DEFAULT_STAGES;
         return $result;
     }
     /** Pipelines for a path below the home folder: the most specific selected folder decides. */
     public static function stagesFor(array $config,string $path):array {
         $path='/'.ltrim($path,'/');$best=null;
         foreach($config['folders'] as $folder)if(($folder==='/'||$path===$folder||str_starts_with($path,$folder.'/'))&&($best===null||strlen($folder)>strlen($best)))$best=$folder;
-        return $best===null?[]:($config['folder_stages'][$best]??self::STAGES);
+        return $best===null?[]:($config['folder_stages'][$best]??self::DEFAULT_STAGES);
     }
     public static function endpoint(string $value): string {
         $parts = parse_url($value);
@@ -252,6 +254,15 @@ class Settings {
         $result['embedding']=$this->validatedEmbedding($value['embedding']??$result['embedding']);
         $secret=$result['embedding']['api_key'];unset($result['embedding']['api_key']);
         if($secret!==''||!empty($value['embedding']['clear_api_key']))$secrets['embedding_api_key']=$secret;
+        $faces=$value['faces']??$result['faces'];
+        if(!is_array($faces)||!is_bool($faces['enabled']??false))throw new OCSBadRequestException('Personenerkennung ungültig');
+        $result['faces']['enabled']=$faces['enabled']??false;
+        foreach(['cosine_threshold'=>[0.3,0.95],'detection_threshold'=>[0.5,0.99]] as $key=>[$min,$max]){
+            $number=$faces[$key]??$result['faces'][$key];
+            if(!is_numeric($number)||!is_finite((float)$number)||$number<$min||$number>$max)throw new OCSBadRequestException('Schwellwert der Personenerkennung ungültig');
+            $result['faces'][$key]=(float)$number;
+        }
+        foreach(['min_face_size'=>[16,256],'min_group_size'=>[1,20],'max_edge'=>[640,4096]] as $key=>[$min,$max])$result['faces'][$key]=$this->integer($faces[$key]??$result['faces'][$key],$min,$max,'faces/'.$key);
         // Validate the entire form before writing any value or encrypted secret.
         if ($validateFolders !== null) { $validateFolders($result); }
         if (!$persist) { return $result; }

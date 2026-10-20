@@ -23,7 +23,7 @@ class Inventory {
     }
     private function escaped(string $value): string { return str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $value); }
     public function page(int $cursor = 0,string $kind='descriptions'): array {
-        if(!in_array($kind,['descriptions','ocr','embeddings'],true))throw new OCSBadRequestException('Verarbeitungsauswahl ungültig');
+        if(!in_array($kind,Settings::STAGES,true))throw new OCSBadRequestException('Verarbeitungsauswahl ungültig');
         if ($cursor < 0) { throw new OCSBadRequestException('Inventar-Cursor ungültig'); }
         $scopes = $this->scopes();
         $config = $this->settings->get();
@@ -37,9 +37,10 @@ class Inventory {
         $result = $this->db->executeQuery($sql, $parameters);
         try { $rows = $result->fetchAll(); } finally { $result->closeCursor(); }
         $config = $this->settings->get(); $items = [];
+        $faceEtags=$kind==='faces'?$this->faceStatuses($config['user_id'],array_column($rows,'fileid')):[];
         foreach ($rows as $row) {
-            if($kind==='ocr'&&str_starts_with($row['mimetype'],'video/'))continue;
-            $stages=Metadata::stages(['etag'=>$row['analyzed_etag']??null,'metadata_json'=>$row['metadata_json']??'{}']);$row['analyzed_etag']=$stages[$kind]??null;
+            if(in_array($kind,['ocr','faces'],true)&&str_starts_with($row['mimetype'],'video/'))continue;
+            $stages=Metadata::stages(['etag'=>$row['analyzed_etag']??null,'metadata_json'=>$row['metadata_json']??'{}']);$row['analyzed_etag']=$kind==='faces'?($faceEtags[(int)$row['fileid']]??null):($stages[$kind]??null);
             $path = null;
             foreach ($scopes as $scope) {
                 if ((int)$row['storage'] === $scope['storage'] && str_starts_with($row['path'], ($scope['path'] === '' ? '' : $scope['path'] . '/'))) {
@@ -55,6 +56,19 @@ class Inventory {
                         'size' => (int)$row['size'], 'mime' => $row['mimetype'], 'analyzed_etag' => $row['analyzed_etag'] ?? null];
         }
         return ['items' => $items, 'cursor' => count($rows) === 1000 ? (int)end($rows)['fileid'] : null];
+    }
+    /** Processed face files are canonical; keep Inventory independent of Faces. */
+    private function faceStatuses(string $uid,array $ids):array {
+        $result=[];
+        foreach(array_chunk(array_map('intval',$ids),500) as $chunk){
+            $q=$this->db->getQueryBuilder();
+            $q->select('file_id','etag')->from('nextgallery_faces_files')
+              ->where($q->expr()->eq('user_id',$q->createNamedParameter($uid)))
+              ->andWhere($q->expr()->in('file_id',$q->createNamedParameter($chunk,\OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT_ARRAY)));
+            $r=$q->executeQuery();
+            try{while($row=$r->fetch())$result[(int)$row['file_id']]=(string)$row['etag'];}finally{$r->closeCursor();}
+        }
+        return $result;
     }
     /** Small inventory fields only: no downloads and no analysis JSON. */
     public function snapshot(): array {

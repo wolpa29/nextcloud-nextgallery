@@ -6,7 +6,7 @@ use OCP\AppFramework\OCS\OCSBadRequestException;
 
 /** Read-only presentation of the selected inventory, published results and worker queue. */
 class Library {
-    public function __construct(private Inventory $inventory, private Settings $settings, private State $state, private ?ICacheFactory $caches = null, private ?Embeddings $embeddings = null) {}
+    public function __construct(private Inventory $inventory, private Settings $settings, private State $state, private ?ICacheFactory $caches = null, private ?Embeddings $embeddings = null, private ?Faces $faces = null) {}
     public function forUser(string $uid):self {$copy=clone $this;$copy->inventory=$this->inventory->forUser($uid);$copy->settings=$this->settings->forUser($uid);$copy->state=$this->state->forUser($uid);return $copy;}
     private function queue(string $kind='descriptions'): array {
         $path=$this->state->directory().'/native-'.$kind.'.sqlite3';
@@ -32,6 +32,16 @@ class Library {
         $db=new \PDO('sqlite:file:'.$path.'?mode=ro',null,null,[\PDO::ATTR_ERRMODE=>\PDO::ERRMODE_EXCEPTION]);$db->exec('PRAGMA query_only=ON');$db->exec('PRAGMA busy_timeout=250');
         $query=$db->prepare('SELECT path,etag,status,error FROM embeddings WHERE active=1 AND space=?');$query->execute([$space]);$result=[];foreach($query->fetchAll(\PDO::FETCH_ASSOC) as $row)$result[$row['path']]=$row;return $result;
     }
+    private function facesQueue():array {
+        $path=$this->state->directory().'/faces.sqlite3';
+        if(!is_file($path)||is_link($path))return [];
+        try{
+            $db=new \PDO('sqlite:file:'.$path.'?mode=ro',null,null,[\PDO::ATTR_ERRMODE=>\PDO::ERRMODE_EXCEPTION]);
+            $db->exec('PRAGMA query_only=ON');$db->exec('PRAGMA busy_timeout=250');$rows=[];
+            foreach($db->query('SELECT file_id,etag,status,error FROM files') as $row)$rows[(int)$row['file_id']]=$row;
+            return $rows;
+        }catch(\Throwable){return [];}
+    }
     public static function classify(array $item, ?array $queued): string {
         // Published metadata is authoritative, including after queue/app/model changes.
         if ($item['analyzed_etag']) { return $item['analyzed_etag']===$item['etag'] ? 'done' : 'changed'; }
@@ -43,20 +53,21 @@ class Library {
         if ($item['analyzed_etag'] && $item['analyzed_etag']===$item['etag']) { return 'done'; }
         return $item['analyzed_etag'] ? 'changed' : 'pending';
     }
-    public static function totals(): array { return ['total'=>0,'done'=>0,'pending'=>0,'error'=>0,'changed'=>0,'publishing'=>0,'images'=>0,'videos'=>0,'embedded'=>0,'embedding_pending'=>0,'embedding_error'=>0,'ocr_done'=>0,'ocr_pending'=>0,'ocr_error'=>0,'ocr_total'=>0,'description_total'=>0,'embedding_total'=>0]; }
+    public static function totals(): array { return ['total'=>0,'done'=>0,'pending'=>0,'error'=>0,'changed'=>0,'publishing'=>0,'images'=>0,'videos'=>0,'embedded'=>0,'embedding_pending'=>0,'embedding_error'=>0,'ocr_done'=>0,'ocr_pending'=>0,'ocr_error'=>0,'ocr_total'=>0,'description_total'=>0,'embedding_total'=>0,'faces_total'=>0,'faces_done'=>0,'faces_pending'=>0,'faces_error'=>0]; }
     private function snapshot(): array {
         $config=$this->settings->get();$current=$this->state->status();$current=$current['pipelines']['embeddings']??$current;$rebuild=$current['embedding_rebuild']??[];
         $space=$rebuild['target_space']??$rebuild['approved_space']??$current['embedding_space']??$current['last_run']['embedding']['space']??null;
         // A changed model must never present old vectors as completed for the new model.
         if(!empty($rebuild['required'])&&!isset($rebuild['target_space']))$space='';
         $cache=$this->caches?->createLocal('nextgallery_ai_library');
-        $key=hash('sha256',json_encode([4,$config['user_id'],$config['folders'],$config['exclude_folders'],$config['folder_stages'],Settings::embeddingSignature($config),$space,$rebuild['required']??false],JSON_THROW_ON_ERROR));
+        $key=hash('sha256',json_encode([5,$config['user_id'],$config['folders'],$config['exclude_folders'],$config['folder_stages'],Settings::embeddingSignature($config),$space,$rebuild['required']??false],JSON_THROW_ON_ERROR));
         $stored=$cache?->get($key); if (is_array($stored)) { return $stored; }
         $queue=$this->queue();$ocrQueue=$this->queue('ocr'); $rows=$this->inventory->snapshot();
         $stored=$this->embeddings?->processingStatuses($config['user_id'],array_column($rows,'file_id'),$space)??[];$embeddingQueue=$this->embeddingQueue($space);
+        $faceStored=$this->faces?->statuses($config['user_id'],array_column($rows,'file_id'))??[];$faceQueue=$this->facesQueue();
         $folders=[''=>['path'=>'','name'=>'Alle ausgewählten Dateien','counts'=>self::totals()]]; $recent=[];
         foreach ($rows as &$row) {
-            $queued=$queue[$row['file_id']]??null;$stages=$row['stages']??Settings::STAGES;unset($row['stages']);
+            $queued=$queue[$row['file_id']]??null;$stages=$row['stages']??Settings::DEFAULT_STAGES;unset($row['stages']);
             // A pipeline deselected for this folder neither counts as pending nor as done.
             $row['status']=in_array('descriptions',$stages,true)?self::classify($row,$queued):'not_applicable';
             $row['has_description']=!empty($row['analyzed_etag']);$row['has_ocr']=!empty($row['ocr_etag']);$row['has_metadata']=$row['has_description']||$row['has_ocr'];
@@ -68,6 +79,9 @@ class Library {
             $row['retry_at']=$row['status']==='error' ? (float)($queued['retry_at']??0) : 0;
             $embedding=$embeddingQueue[$row['path']]??null;$row['has_embedding']=isset($stored[$row['file_id']]);
             $row['embedding_status']=!in_array('embeddings',$stages,true)?'not_applicable':($row['has_embedding']?'done':($embedding&&$embedding['etag']===$row['etag']&&$embedding['status']==='error'?'error':'pending'));
+            $fq=$faceQueue[$row['file_id']]??null;
+            $row['faces_status']=!in_array('faces',$stages,true)||str_starts_with($row['mime'],'video/')?'not_applicable':(($faceStored[$row['file_id']]??null)===$row['etag']?'done':(($fq['etag']??null)===$row['etag']&&($fq['status']??'')==='error'?'error':'pending'));
+            $row['faces_error']=$row['faces_status']==='error'?($fq['error']??''):'';
             $row['embedding_error']=$row['embedding_status']==='error'?($embedding['error']??''):'';
             $row['name']=basename($row['path']); $row['parent']=dirname($row['path']);
             if ($row['parent']==='.') { $row['parent']=''; }
@@ -78,6 +92,7 @@ class Library {
                 $parent=dirname($parent); if ($parent==='.') { $parent=''; }
             }
             foreach ($paths as $path) {
+                if($row['faces_status']!=='not_applicable'){$folders[$path]['counts']['faces_total']++;$folders[$path]['counts'][match($row['faces_status']){'done'=>'faces_done','error'=>'faces_error',default=>'faces_pending'}]++;}
                 $folders[$path]['counts']['total']++;if($row['ocr_status']!=='not_applicable'){$folders[$path]['counts']['ocr_total']++;$folders[$path]['counts'][match($row['ocr_status']){'done','changed'=>'ocr_done','error'=>'ocr_error',default=>'ocr_pending'}]++;}if($row['embedding_status']!=='not_applicable'){$folders[$path]['counts']['embedding_total']++;$folders[$path]['counts'][match($row['embedding_status']){'done'=>'embedded','error'=>'embedding_error',default=>'embedding_pending'}]++;}if($row['status']!=='not_applicable'){$folders[$path]['counts']['description_total']++;$folders[$path]['counts'][$row['status']]++;}
                 $folders[$path]['counts'][str_starts_with($row['mime'],'video/')?'videos':'images']++;
             }
@@ -106,8 +121,8 @@ class Library {
         }
         return $selected;
     }
-    public function browse(string $path='', string $filter='all', string $query='', int $offset=0,string $embeddingFilter='all',string $ocrFilter='all'): array {
-        if (strlen($path)>2000 || str_contains($path,"\0") || str_contains($path,'\\') || preg_match('~(^|/)(\.|\.\.)(/|$)~',$path) || $offset<0 || $offset>10000000 || strlen($query)>200 || !in_array($ocrFilter,['all','done','pending','error'],true) || !in_array($embeddingFilter,['all','done','pending','error'],true) || !in_array($filter,['all','analyzed','done','pending','unprocessed','error','changed'],true)) { throw new OCSBadRequestException('Ungültige Dateiauswahl'); }
+    public function browse(string $path='', string $filter='all', string $query='', int $offset=0,string $embeddingFilter='all',string $ocrFilter='all',string $facesFilter='all'): array {
+        if (strlen($path)>2000 || str_contains($path,"\0") || str_contains($path,'\\') || preg_match('~(^|/)(\.|\.\.)(/|$)~',$path) || $offset<0 || $offset>10000000 || strlen($query)>200 || !in_array($facesFilter,['all','done','pending','error'],true) || !in_array($ocrFilter,['all','done','pending','error'],true) || !in_array($embeddingFilter,['all','done','pending','error'],true) || !in_array($filter,['all','analyzed','done','pending','unprocessed','error','changed'],true)) { throw new OCSBadRequestException('Ungültige Dateiauswahl'); }
         $path=trim($path,'/'); $snapshot=$this->snapshot(); $config=$this->settings->get();
         if (!isset($snapshot['folders'][$path])) { throw new OCSBadRequestException('Ordner außerhalb der Auswahl oder ohne Medien'); }
         $folder=$snapshot['folders'][$path]; $children=[]; $files=[];
@@ -118,9 +133,10 @@ class Library {
         // Search/filter recurse within the current folder. Unfiltered browsing is one level.
         foreach ($snapshot['rows'] as $row) {
             $inside=$path==='' || str_starts_with($row['path'],$path.'/');
-            if (!$inside || ($filter==='all' && $embeddingFilter==='all' && $ocrFilter==='all' && $query==='' && $row['parent']!==$path)) { continue; }
+            if (!$inside || ($filter==='all' && $embeddingFilter==='all' && $ocrFilter==='all' && $facesFilter==='all' && $query==='' && $row['parent']!==$path)) { continue; }
             if ($filter==='analyzed' ? !$row['has_description'] : ($filter==='pending' ? !$row['next_pending'] : ($filter==='unprocessed' ? !in_array($row['status'],['pending','publishing'],true) : ($filter!=='all' && $row['status']!==$filter)))) { continue; }
             if($ocrFilter!=='all'&&($ocrFilter==='done'?!in_array($row['ocr_status'],['done','changed'],true):($ocrFilter==='pending'?!in_array($row['ocr_status'],['pending','publishing'],true):$row['ocr_status']!==$ocrFilter)))continue;
+            if($facesFilter!=='all'&&$row['faces_status']!==$facesFilter)continue;
             if($embeddingFilter!=='all'&&$row['embedding_status']!==$embeddingFilter)continue;
             if ($query!=='' && mb_stripos($row['path'],$query)===false) { continue; }
             $files[]=$row;

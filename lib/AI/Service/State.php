@@ -5,22 +5,24 @@ use OCP\IConfig;
 use OCP\AppFramework\OCS\OCSBadRequestException;
 
 class State {
+    public const PIPELINES=['descriptions','ocr','embeddings','faces'];
+    public const DEFAULT_PIPELINES=['descriptions','ocr','embeddings'];
     private ?string $account=null;
     private ?string $pipeline=null;
     public function __construct(private IConfig $config) {}
     public function forUser(string $uid):self {$copy=clone $this;$copy->account=$uid;return $copy;}
     public function forPipeline(string $kind):self {
-        if(!in_array($kind,['descriptions','ocr','embeddings'],true))throw new OCSBadRequestException('Verarbeitungsauswahl ungültig');
+        if(!in_array($kind,self::PIPELINES,true))throw new OCSBadRequestException('Verarbeitungsauswahl ungültig');
         $this->initializePipelines();$copy=clone $this;$copy->pipeline=$kind;return $copy;
     }
     /** Seed once under the same lock used by the old worker; caches stay in place. */
     public function initializePipelines():void {
         $root=clone $this;$root->pipeline=null;
-        if(($root->read('pipelines.json',[])['version']??0)>=2)return;
+        if(($root->read('pipelines.json',[])['version']??0)>=3)return;
         $lock=fopen($root->directory().'/control.lock','c');
         if(!$lock||!flock($lock,LOCK_EX))throw new \RuntimeException('Steuerung ist gesperrt');
         try{
-            if(($root->read('pipelines.json',[])['version']??0)>=2)return;
+            if(($root->read('pipelines.json',[])['version']??0)>=3)return;
             $version=$root->read('pipelines.json',[])['version']??0;
             if($version<1){
             $old=$root->read('control.json',['paused'=>true,'requested'=>false]);$status=$root->read('status.json',[]);$schedule=$root->read('schedule.json',[]);
@@ -41,6 +43,7 @@ class State {
                 $next=$schedule;if($kind==='descriptions')unset($next['embedding_pending']);$root->atomic('schedule-'.$kind.'.json',$next);
             }
             }
+            if($version<2){
             $description=$root->read('control-descriptions.json',['paused'=>true,'requested'=>false]);
             $ocr=$description;$ocr['run_kind']='ocr';
             if(!empty($ocr['reset_requested']))$ocr['reset_kind']='ocr';
@@ -51,7 +54,11 @@ class State {
             // Old description suspension applied to both analysis stages.
             $adminFile=$root->rootDirectory().'/processing-admin-descriptions.json';
             if($root->directory()===$root->rootDirectory()&&is_file($adminFile))$root->atomic('processing-admin-ocr.json',$root->read('processing-admin-descriptions.json',[]));
-            $root->atomic('pipelines.json',['version'=>2]);
+            }
+            $root->atomic('control-faces.json',['paused'=>true,'requested'=>false,'run_kind'=>'faces']);
+            $root->atomic('status-faces.json',['state'=>'paused','current'=>null,'stats'=>['done'=>0,'pending'=>0,'error'=>0]]);
+            $root->atomic('schedule-faces.json',[]);
+            $root->atomic('pipelines.json',['version'=>3]);
         }finally{flock($lock,LOCK_UN);fclose($lock);}
     }
     private function filename(string $name):string {
@@ -76,7 +83,7 @@ class State {
     }
     public function anyRunning(?string $kind=null):bool {
         $kind=$kind??$this->pipeline;
-        if($kind===null)return $this->anyRunning('descriptions')||$this->anyRunning('ocr')||$this->anyRunning('embeddings');
+        if($kind===null)return $this->anyRunning('descriptions')||$this->anyRunning('ocr')||$this->anyRunning('embeddings')||$this->anyRunning('faces');
         $file=$this->rootDirectory().'/service-'.$kind.'.json';
         $service=is_file($file)?json_decode((string)file_get_contents($file),true):[];
         if(!empty($service['active_user_id'])&&time()-(float)($service['heartbeat_at']??0)<20)return true;
@@ -90,10 +97,10 @@ class State {
         $legacyFile=$this->rootDirectory().'/service.json';$legacy=is_file($legacyFile)?json_decode((string)file_get_contents($legacyFile),true):[];
         if($exclusive&&!empty($legacy['active_user_id'])&&time()-(float)($legacy['heartbeat_at']??0)<20)throw new OCSBadRequestException('Bitte den Worker nach dem App-Update neu starten.');
         if($kind===null){
-            $locks=[];try{foreach(['descriptions','ocr','embeddings'] as $lane)$locks[]=$this->globalLock($exclusive,$lane);return $locks;}
+            $locks=[];try{foreach(self::PIPELINES as $lane)$locks[]=$this->globalLock($exclusive,$lane);return $locks;}
             catch(\Throwable $e){self::releaseLock($locks);throw $e;}
         }
-        if(!in_array($kind,['descriptions','ocr','embeddings'],true))throw new OCSBadRequestException('Verarbeitungsauswahl ungültig');
+        if(!in_array($kind,self::PIPELINES,true))throw new OCSBadRequestException('Verarbeitungsauswahl ungültig');
         $lock=@fopen($this->rootDirectory().'/processing-'.$kind.'.lock','c');
         if(!$lock)throw new OCSBadRequestException('Die Verarbeitungssperre ist nicht beschreibbar. Bitte den Administrator die Worker-Dateirechte prüfen lassen.');
         if(!flock($lock,($exclusive?LOCK_EX:LOCK_SH)|LOCK_NB)){
@@ -104,15 +111,15 @@ class State {
     public static function releaseLock($locks):void {foreach(is_array($locks)?$locks:[$locks] as $lock){flock($lock,LOCK_UN);fclose($lock);}}
     public function processingPaused(?string $kind=null):bool {
         $kind=$kind??$this->pipeline;
-        if($kind===null)return $this->processingPaused('descriptions')&&$this->processingPaused('ocr')&&$this->processingPaused('embeddings');
+        if($kind===null)return $this->processingPaused('descriptions')&&$this->processingPaused('ocr')&&$this->processingPaused('embeddings')&&$this->processingPaused('faces');
         $root=clone $this;$root->account=null;$root->pipeline=null;
         $path='processing-admin-'.$kind.'.json';
         return !empty($root->read($path,$root->read('processing-admin.json',[]))['paused']);
     }
     public function setProcessingPaused(bool $paused,?string $kind=null):void {
         $kind=$kind??$this->pipeline;
-        if($kind===null){foreach(['descriptions','ocr','embeddings'] as $lane)$this->setProcessingPaused($paused,$lane);return;}
-        if(!in_array($kind,['descriptions','ocr','embeddings'],true))throw new OCSBadRequestException('Verarbeitungsauswahl ungültig');
+        if($kind===null){foreach(self::PIPELINES as $lane)$this->setProcessingPaused($paused,$lane);return;}
+        if(!in_array($kind,self::PIPELINES,true))throw new OCSBadRequestException('Verarbeitungsauswahl ungültig');
         $root=clone $this;$root->account=null;$root->pipeline=null;$root->atomic('processing-admin-'.$kind.'.json',['paused'=>$paused,'updated_at'=>time()]);
     }
     public function accountIds():array {
@@ -134,7 +141,7 @@ class State {
     }
     public function control(): array {
         if($this->pipeline===null&&is_file($this->directory().'/pipelines.json')){
-            $controls=array_map(fn($kind)=>$this->forPipeline($kind)->control(),['descriptions','ocr','embeddings']);
+            $controls=array_map(fn($kind)=>$this->forPipeline($kind)->control(),self::PIPELINES);
             return ['paused'=>!in_array(false,array_map(fn($c)=>!empty($c['paused']),$controls),true),'requested'=>in_array(true,array_map(fn($c)=>!empty($c['requested']),$controls),true),'reset_requested'=>in_array(true,array_map(fn($c)=>!empty($c['reset_requested']),$controls),true),'run_kind'=>'both'];
         }
         return $this->read('control.json', ['paused' => true, 'requested' => false]);
@@ -170,9 +177,9 @@ class State {
         return ['control'=>$value,'rebuild'=>$pendingRebuild];
     }
     public function setControl(string $action,bool $validate=false,string $rebuildConfirmation='',string $kind='both'):array {
-        if(!in_array($kind,['both','descriptions','ocr','embeddings'],true))throw new OCSBadRequestException('Verarbeitungsauswahl ungültig');
+        if(!in_array($kind,['both','descriptions','ocr','embeddings','faces'],true))throw new OCSBadRequestException('Verarbeitungsauswahl ungültig');
         if(!in_array($action,['start','pause','resume','retry','reset'],true))throw new OCSBadRequestException('Unbekannte Aktion');
-        $this->initializePipelines();$kinds=$this->pipeline!==null?[$this->pipeline]:($kind==='both'?['descriptions','ocr','embeddings']:[$kind]);
+        $this->initializePipelines();$kinds=$this->pipeline!==null?[$this->pipeline]:($kind==='both'?(in_array($action,['pause','reset'],true)?self::PIPELINES:self::DEFAULT_PIPELINES):[$kind]);
         $gate=$this->globalLock(false,count($kinds)===1?$kinds[0]:null);$lock=fopen($this->directory().'/control.lock','c');
         if(!$lock||!flock($lock,LOCK_EX)){self::releaseLock($gate);throw new \RuntimeException('Steuerung ist gesperrt');}
         try{
@@ -190,12 +197,12 @@ class State {
     }
     public function status(): array {
         if($this->pipeline===null&&is_file($this->directory().'/pipelines.json')){
-            $pipelines=[];foreach(['descriptions','ocr','embeddings'] as $kind)$pipelines[$kind]=$this->forPipeline($kind)->status();
+            $pipelines=[];foreach(self::PIPELINES as $kind)$pipelines[$kind]=$this->forPipeline($kind)->status();
             $value=$pipelines['embeddings'];$value['pipelines']=$pipelines;
             $value['online']=in_array(true,array_column($pipelines,'online'),true);
             $states=array_column($pipelines,'state');$value['state']=in_array('running',$states,true)?'running':(in_array('error',$states,true)?'error':$value['state']);
-            $value['control']=$this->control();$value['description_stats']=$pipelines['descriptions']['stats'];$value['ocr_stats']=$pipelines['ocr']['stats'];$value['embedding_stats']=$pipelines['embeddings']['stats'];
-            $value['analysis_stats']=[];$value['stats']=[];foreach(['done','pending','error'] as $key){$value['analysis_stats'][$key]=($value['description_stats'][$key]??0)+($value['ocr_stats'][$key]??0);$value['stats'][$key]=$value['analysis_stats'][$key]+($value['embedding_stats'][$key]??0);}
+            $value['control']=$this->control();$value['description_stats']=$pipelines['descriptions']['stats'];$value['ocr_stats']=$pipelines['ocr']['stats'];$value['embedding_stats']=$pipelines['embeddings']['stats'];$value['faces_stats']=$pipelines['faces']['stats'];
+            $value['analysis_stats']=[];$value['stats']=[];foreach(['done','pending','error'] as $key){$value['analysis_stats'][$key]=($value['description_stats'][$key]??0)+($value['ocr_stats'][$key]??0);$value['stats'][$key]=$value['analysis_stats'][$key]+($value['embedding_stats'][$key]??0)+($value['faces_stats'][$key]??0);}
             $value['admin_paused']=$this->processingPaused();return $value;
         }
         $value = $this->read('status.json', ['state' => 'not_started', 'stats' => [], 'message' => 'Worker noch nicht gestartet']);
@@ -213,10 +220,11 @@ class State {
         $install=$this->read('embedding-install.json', []);$value['embedding_install_requested']=!empty($install['requested']);$value['embedding_install_profile']=$install['profile']??'lite';
         $value['embedding_remove']=$this->read('embedding-remove.json',[]);
         $value['embedding_rebuild']=$this->read('embedding-rebuild.json',[]);
+        if($this->pipeline==='faces'){$root=clone $this;$root->account=null;$root->pipeline=null;$value['faces_setup']=$root->read('faces-setup.json',[]);}
         return $value;
     }
     public function requestReset(string $kind):array {
-        if(!in_array($kind,['descriptions','ocr','embeddings','all'],true))throw new OCSBadRequestException('Lösch-Auswahl ungültig');
+        if(!in_array($kind,['descriptions','ocr','embeddings','faces','all'],true))throw new OCSBadRequestException('Lösch-Auswahl ungültig');
         return $this->setControl('reset',false,'',$kind==='all'?'both':$kind);
     }
     public function requireEmbeddingRebuild(string $signature,array $details=[]):void {
@@ -266,7 +274,7 @@ class State {
         return $count;
     }
     public function logs(string $date, int $cursor = 0, string $level = 'all', string $kind = 'all'): array {
-        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/D', $date) || $cursor < 0 || !in_array($level,['all','error'],true) || !in_array($kind,['all','descriptions','ocr','embeddings','both'],true)) { throw new OCSBadRequestException('Log-Auswahl ungültig'); }
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/D', $date) || $cursor < 0 || !in_array($level,['all','error'],true) || !in_array($kind,['all','descriptions','ocr','embeddings','faces','both'],true)) { throw new OCSBadRequestException('Log-Auswahl ungültig'); }
         $path = $this->directory() . '/logs/' . $date . '.jsonl';
         if (!is_file($path)) { return ['entries' => [], 'cursor' => null]; }
         $stream = fopen($path, 'rb');
