@@ -2166,6 +2166,16 @@ test('Real template: People workspace remains usable at 320, 390 and 1360 pixels
   try{
     const page=await browser.newPage();
     const errors=[];page.on('pageerror',e=>errors.push(e.message));
+    await page.route('https://people.test/**',route=>{
+      const url=new URL(route.request().url());
+      if(url.pathname==='/')return route.fulfill({contentType:'text/html',body:'<!doctype html><html></html>'});
+      const context=url.searchParams.get('context')==='1';
+      const portrait=url.pathname.endsWith('second');
+      const size=context?(portrait?'180 320':'400 200'):'100 100';
+      const body=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size}"><rect width="100%" height="100%" fill="#c9d6c2"/><circle cx="50" cy="35" r="20" fill="#f7e8db"/><path d="M10 100a40 40 0 0 1 80 0" fill="#36564d"/>${context?'<circle cx="135" cy="80" r="18" fill="#f7e8db"/><rect x="28" y="13" width="44" height="44" fill="none" stroke="white" stroke-width="5"/><rect x="28" y="13" width="44" height="44" fill="none" stroke="#0082c9" stroke-width="2"/>':''}</svg>`;
+      return route.fulfill({contentType:'image/svg+xml',body});
+    });
+    await page.goto('https://people.test/');
     const shell=readFileSync(resolve(ROOT,'templates/shell.php'),'utf8')
       .replace(/<\?php p\(\$tr\('([^']*)'\)\); \?>/g,(_,text)=>text)
       .replace(/<\?php[\s\S]*?\?>/g,'');
@@ -2181,8 +2191,13 @@ test('Real template: People workspace remains usable at 320, 390 and 1360 pixels
       for(const id of ['ch-count','ch-header-search','ch-refresh'])document.getElementById(id).hidden=true;
       document.getElementById('ch-gallery-name').textContent='Synthetische Galerie';
       const art='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#c9d6c2"/><circle cx="50" cy="35" r="20" fill="#f7e8db"/><path d="M10 100a40 40 0 0 1 80 0" fill="#36564d"/></svg>');
-      const persons=[{id:'first',cover_id:'cover',photo_count:6,suggestion_count:1},{id:'second',cover_id:'cover',photo_count:4}];
-      window.realTemplateController=createPeopleController({root:document.getElementById('ch-people-view'),dialogRoot:document.getElementById('nextgallery'),previewUrl:()=>art,imageURL:async()=>art,api:async endpoint=>endpoint.includes('/similar?')?{items:[persons[1]]}:endpoint.includes('/media?')?{items:[{id:1,name:'Synthetic image',face_detection_ids:['d1']}]}:{items:persons,filter_counts:{all:2,suggested:1,single:0,filtered:0,strangers:0,hidden:0,review:0}}});
+      const persons=[{id:'first',cover_id:'first',photo_count:6,suggestion_count:1},{id:'second',cover_id:'second',photo_count:4}];
+      window.peopleCalls=[];
+      window.makePeopleController=()=>createPeopleController({root:document.getElementById('ch-people-view'),dialogRoot:document.getElementById('nextgallery'),previewUrl:id=>`https://people.test/preview/${id}?gallery=synthetic`,imageURL:async()=>art,api:async endpoint=>{
+        window.peopleCalls.push(endpoint);
+        return endpoint.includes('/similar?')?{items:[persons[1]]}:endpoint.includes('/media?')?{items:[{id:1,name:'Synthetic image',face_detection_ids:['d1']}]}:{items:persons,filter_counts:{all:2,suggested:1,single:0,filtered:2,strangers:0,hidden:0,review:0}};
+      }});
+      window.realTemplateController=window.makePeopleController();
       window.realTemplateController.show();
     },facesMjsDataUri);
     await page.locator('#ch-people-grid button').first().waitFor();
@@ -2208,7 +2223,28 @@ test('Real template: People workspace remains usable at 320, 390 and 1360 pixels
       await page.locator('#ch-people-back').click();
       await page.locator('#ch-people-grid button').first().waitFor();
       await page.screenshot({path:`${out}/overview-${theme}-${width}.png`,fullPage:true});
+      const calls=await page.evaluate(()=>window.peopleCalls.length);
+      await page.getByLabel('Gesamtfoto',{exact:true}).check();
+      assert.equal(await page.locator('#ch-people-grid img').first().evaluate(img=>new URL(img.src).searchParams.get('context')),'1');
+      assert.equal(await page.locator('#ch-people-grid img').first().evaluate(img=>new URL(img.src).searchParams.get('gallery')),'synthetic');
+      assert.equal(await page.locator('#ch-people-grid img').first().evaluate(img=>getComputedStyle(img).objectFit),'contain');
+      await page.waitForFunction(()=>[...document.querySelectorAll('#ch-people-grid img')].every(img=>img.complete&&img.naturalWidth>0));
+      assert.equal(await page.evaluate(()=>window.peopleCalls.length),calls,'Switching previews needs no subject/media requests');
+      assert.equal(await page.evaluate(()=>[...document.querySelectorAll('#nextgallery,#ch-people-view')].some(el=>el.scrollWidth>el.clientWidth+1)),false,`Context list fits: ${width}/${theme}`);
+      await page.screenshot({path:`${out}/overview-context-${theme}-${width}.png`,fullPage:true});
+      await page.getByLabel('Gesamtfoto',{exact:true}).uncheck();
+      assert.equal(await page.locator('#ch-people-grid img').first().evaluate(img=>new URL(img.src).searchParams.has('context')),false);
     }
+    await page.locator('[data-people-filter="filtered"]').click();
+    await page.getByLabel('Gesamtfoto',{exact:true}).check();
+    await page.locator('#ch-people-select-mode').click();
+    await page.locator('#ch-people-grid button').first().click();
+    await page.getByLabel('Gesamtfoto',{exact:true}).uncheck();
+    assert.equal(await page.locator('#ch-people-grid button').first().getAttribute('aria-pressed'),'true','Changing previews preserves bulk selection');
+    await page.getByLabel('Gesamtfoto',{exact:true}).check();
+    await page.evaluate(async()=>{window.realTemplateController=window.makePeopleController();await window.realTemplateController.refresh();});
+    assert.equal(await page.getByLabel('Gesamtfoto',{exact:true}).isChecked(),true,'A new controller restores the saved preference');
+    assert.equal(await page.locator('#ch-people-grid img').first().evaluate(img=>new URL(img.src).searchParams.get('context')),'1');
     assert.deepEqual(errors,[],'No browser errors in real template');
   }finally{await browser.close();}
 });

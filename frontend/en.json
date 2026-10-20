@@ -484,5 +484,7 @@
   "Fotos wieder abtrennen": "Separate photos again",
   "Nach einer Zusammenführung kannst du die Fotos oben wieder abtrennen. Dabei entsteht eine neue Person; frühere Namen und Titelbilder werden nicht wiederhergestellt. Einzelne falsche Zuordnungen kannst du auch später auswählen und abtrennen oder zu einer anderen Person verschieben.": "After merging, you can separate the photos again using the button above. This creates a new person; previous names and covers are not restored. You can also select incorrect assignments later and separate them or move them to another person.",
   "Die vorgeschlagene Person ({other}) wird dieser Person zugeordnet. Du kannst die verschobenen Fotos anschließend wieder abtrennen.": "The suggested person ({other}) will be assigned to this person. You can separate the moved photos again afterwards.",
-  "Diese Person wird mit {target} zusammengelegt. Du kannst die verschobenen Fotos anschließend wieder abtrennen.": "This person will be merged with {target}. You can separate the moved photos again afterwards."
+  "Diese Person wird mit {target} zusammengelegt. Du kannst die verschobenen Fotos anschließend wieder abtrennen.": "This person will be merged with {target}. You can separate the moved photos again afterwards.",
+  "Gesamtfoto": "Full photo",
+  "Ganzes Foto mit markiertem Gesicht statt Gesichtsausschnitt anzeigen": "Show the full photo with the face marked instead of a face crop"
 }

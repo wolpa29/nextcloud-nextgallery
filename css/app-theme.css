@@ -224,6 +224,9 @@
 .ch-person-card:focus-visible{outline:2px solid var(--ng-accent);outline-offset:2px}
 .ch-person-thumb-wrap{aspect-ratio:1/1;width:100%;border-radius:12px;background:var(--ng-soft);overflow:hidden;display:flex;align-items:center;justify-content:center;margin-bottom:8px;position:relative}
 .ch-person-thumb{width:100%;height:100%;object-fit:cover;display:block}
+.ch-people-grid.is-context .ch-person-thumb-wrap{aspect-ratio:4/3}
+.ch-people-grid.is-context .ch-person-thumb{object-fit:contain}
+.ch-people-context-toggle{display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;white-space:nowrap;color:var(--ng-text)}
 .ch-person-placeholder{width:50%;height:50%;color:var(--ng-muted);opacity:.6}
 .ch-person-meta{display:flex;flex-direction:column;gap:2px;padding:0 4px 4px}
 .ch-person-count{font-size:12.5px;font-weight:600;color:var(--ng-text)}
@@ -413,9 +416,10 @@
 #nextgallery .ch-people-options-panel{position:absolute;right:0;top:calc(100% + 8px);width:240px;max-width:calc(100vw - 48px);padding:6px;border:1px solid var(--ng-line);border-radius:14px;background:var(--ng-surface);box-shadow:0 10px 30px #0002;display:flex;flex-direction:column;gap:4px}
 #nextgallery .ch-people-options-panel button{width:100%;text-align:left;justify-content:flex-start;min-height:44px;border:0;background:transparent}
 #nextgallery .ch-people-options-panel #ch-people-reset{border-top:1px solid var(--ng-line);border-radius:0 0 10px 10px;color:var(--ng-danger)}
-#nextgallery .ch-people-list-tools{align-items:center;justify-content:space-between;gap:12px;margin:0 0 16px;min-height:40px}
+#nextgallery .ch-people-list-tools{align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin:0 0 16px;min-height:40px}
 #nextgallery .ch-people-count{margin:0;font-variant-numeric:tabular-nums}
 #nextgallery .ch-people-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:20px}
+#nextgallery .ch-people-grid.is-context{grid-template-columns:repeat(auto-fill,minmax(min(100%,220px),1fr))}
 #nextgallery .ch-person-card{min-width:0;padding:12px;border-radius:16px;box-shadow:none;transition:background .15s,border-color .15s}
 #nextgallery .ch-person-card:hover{transform:none;background:var(--ng-low)}
 #nextgallery .ch-person-card:focus-visible,#nextgallery .ch-people-options summary:focus-visible,#nextgallery .ch-person-thumb-clickable:focus-visible{outline:3px solid var(--ng-accent);outline-offset:3px}

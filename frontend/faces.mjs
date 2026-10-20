@@ -155,6 +155,9 @@ export function createPeopleController({
   let similarItems = [];
   let similarGeneration = 0;
   let showFaceBoxes = true;
+  const contextPreferenceKey = 'nextgallery-people-context-preview';
+  let showContextPreviews = false;
+  try { showContextPreviews = globalThis.localStorage?.getItem(contextPreferenceKey) === '1'; } catch {}
   let lastUndoAction = null;
   let selectMode = false;
   let selectedSubjects = new Set(); // subject ids picked in the list for a bulk action
@@ -394,6 +397,7 @@ export function createPeopleController({
     if (!grid) return;
     grid.replaceChildren();
     grid.classList.toggle('is-selecting', selectMode);
+    grid.classList.toggle('is-context', showContextPreviews);
 
     if (subjects.length === 0) {
       if (emptyState) {
@@ -447,7 +451,7 @@ export function createPeopleController({
         img.alt = '';
         img.loading = 'lazy';
         img.decoding = 'async';
-        img.src = previewUrl(subject.cover_id);
+        img.src = showContextPreviews ? contextPreviewUrl(subject.cover_id) : previewUrl(subject.cover_id);
         img.onerror = () => {
           img.replaceWith(createGenericPersonIcon());
         };
@@ -2010,6 +2014,16 @@ export function createPeopleController({
   if (inspectSelfBtn) {
     inspectSelfBtn.onclick = () => {
       if (selectedSubject) openInspectDialog(selectedSubject);
+    };
+  }
+
+  const contextToggle = $('ch-people-context-previews');
+  if (contextToggle) {
+    contextToggle.checked = showContextPreviews;
+    contextToggle.onchange = () => {
+      showContextPreviews = contextToggle.checked;
+      try { globalThis.localStorage?.setItem(contextPreferenceKey, showContextPreviews ? '1' : '0'); } catch {}
+      renderSubjectsList();
     };
   }
 

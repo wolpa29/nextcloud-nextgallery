@@ -97,6 +97,7 @@ $tr = static fn(string $text): string => $isGerman ? $text : ($english[$text] ??
    <div id="ch-people-list-container">
     <div class="ch-people-list-tools">
      <p id="ch-people-count" class="ch-people-count" role="status"></p>
+     <label class="ch-people-context-toggle" title="<?php p($tr('Ganzes Foto mit markiertem Gesicht statt Gesichtsausschnitt anzeigen')); ?>"><input type="checkbox" id="ch-people-context-previews"> <?php p($tr('Gesamtfoto')); ?></label>
      <button type="button" id="ch-people-select-mode" class="ch-button ch-button-sm" aria-pressed="false" title="<?php p($tr('Mehrere Personen auswählen und gemeinsam verschieben oder ausblenden')); ?>"><?php p($tr('Auswählen')); ?></button>
     </div>
     <div id="ch-people-bulk-bar" class="ch-selection-bar" hidden>
