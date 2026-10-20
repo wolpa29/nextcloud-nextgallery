@@ -47,17 +47,18 @@ try:
     if block_download:
      with patch.object(source,'read',side_effect=AssertionError('cache hit must not download')):result=faces.run(config,source,api,cache,lambda e,**data:events.append(e),lambda:False)
     else:result=faces.run(config,source,api,cache,lambda e,**data:events.append(e),lambda:False)
-   check(result['error']==0 and result['done']==2,'two files published without errors')
+   check(result['error']==0 and result['done']==3,'three files published without errors')
    return api.call('faces-state'),events
-  detector=Mock();detector.process_image.side_effect=[[{'bbox':[.1,.1,.3,.3],'score':.95,'vector':[1.0]+[0.0]*127}],[]]
+  detector=Mock();detector.process_image.side_effect=[[{'bbox':[.1,.1,.3,.3],'score':.95,'sharpness':150.0,'vector':[1.0]+[0.0]*127}],[],[{'bbox':[.1,.1,.02,.02],'score':.95,'sharpness':5.0,'vector':[1.0]+[0.0]*127}]]
   state_owner,events_owner=execute(owner,'owner',detector)
-  check(detector.process_image.call_count==2,'first account infers each file once')
-  hit=reader.call('face-artifacts',body);check(len(hit['detections'])==1 and set(hit['detections'][0])=={'bbox','score','vector'},'cache contains only raw face inference')
+  check(detector.process_image.call_count==3,'first account infers each file once')
+  hit=reader.call('face-artifacts',body);check(len(hit['detections'])==1 and set(hit['detections'][0])=={'bbox','score','vector','sharpness'},'cache contains only raw face inference')
   check(denied(outsider,body)==404,'populated cache does not grant access')
   never=Mock();never.process_image.side_effect=AssertionError('cache hit must not infer')
   state_reader,events_reader=execute(reader,'reader',never,True)
   check(never.process_image.call_count==0,'second account performs zero inference')
-  check(events_reader.count('faces_cache_hit')==2,'face and zero-face files both produce hits')
+  check(events_reader.count('faces_cache_hit')==3,'good, zero-face and weak files all produce hits')
+  check(sum(not d['eligible'] for d in state_owner['items'])==1,'weak face remains inspectable and excluded from anchors')
   a,b=state_owner['items'][0],state_reader['items'][0]
   check(a['id']!=b['id'] and a['group_id']!=b['group_id'],'account detection IDs and groups are independent')
   fixture('revoke');check(denied(reader,body)==404,'new HTTP request denies revoked share immediately')

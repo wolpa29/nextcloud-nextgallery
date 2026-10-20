@@ -8,7 +8,7 @@ export function buildSubjectsQuery({gallery, cursor, limit = 60, filter = 'all'}
   if (gallery) params.set('gallery', gallery);
   if (cursor !== undefined && cursor !== null && cursor !== '') params.set('cursor', String(cursor));
   if (limit) params.set('limit', String(limit));
-  if (filter && ['all', 'hidden', 'review', 'single'].includes(filter)) {
+  if (filter && ['all', 'hidden', 'review', 'single', 'filtered'].includes(filter)) {
     params.set('filter', filter);
   } else {
     params.set('filter', 'all');
@@ -204,6 +204,8 @@ export function createPeopleController({
         if (hint) {
           hint.textContent = filter === 'all'
             ? tr('Starte die Personenerkennung in der KI-Verarbeitung, um Fotos nach Personen zu sortieren.')
+            : filter === 'filtered'
+            ? tr('Keine gefilterten Gesichter gefunden')
             : tr('Keine Personen in dieser Ansicht.');
         }
       }
@@ -237,6 +239,14 @@ export function createPeopleController({
         thumbWrap.append(img);
       } else {
         thumbWrap.append(createGenericPersonIcon());
+      }
+
+      // Filtered badge
+      if (subject.filtered) {
+        const filtBadge = document.createElement('span');
+        filtBadge.className = 'ch-person-badge ch-person-badge-filtered';
+        filtBadge.textContent = tr('Gefiltert');
+        thumbWrap.append(filtBadge);
       }
 
       // Review badge
@@ -301,9 +311,17 @@ export function createPeopleController({
       hideBtn.textContent = subject.hidden ? tr('Einblenden') : tr('Ausblenden');
     }
 
+    const isFiltered = Boolean(subject.filtered || filter === 'filtered');
+    const hasReview = Boolean(subject.review_count && subject.review_count > 0);
     const resolveBtn = $('ch-people-resolve');
     if (resolveBtn) {
-      resolveBtn.hidden = !(subject.review_count && subject.review_count > 0);
+      resolveBtn.hidden = !(hasReview || isFiltered);
+      resolveBtn.textContent = isFiltered ? tr('Bestätigen') : tr('Überprüfung auflösen');
+    }
+
+    const filterNote = $('ch-people-detail-filter-note');
+    if (filterNote) {
+      filterNote.hidden = !isFiltered;
     }
 
     updateSelectionBar();
@@ -334,7 +352,8 @@ export function createPeopleController({
     try {
       const q = new URLSearchParams({
         gallery: reqGallery,
-        limit: '60'
+        limit: '60',
+        filter: filter || 'all'
       });
       if (!reset && subjectCursor) q.set('cursor', String(subjectCursor));
 
@@ -473,7 +492,7 @@ export function createPeopleController({
 
       // After action, refresh view
       selectedDetections.clear();
-      if (['merge', 'hide'].includes(action)) {
+      if (['merge', 'hide'].includes(action) || (action === 'resolve' && filter === 'filtered')) {
         await backToList();
       } else {
         await loadSubjectMedia(true);
@@ -496,6 +515,8 @@ export function createPeopleController({
     const detailWrap = $('ch-people-detail');
     if (detailWrap) detailWrap.hidden = true;
     if (listWrap) listWrap.hidden = false;
+    const filterNote = $('ch-people-detail-filter-note');
+    if (filterNote) filterNote.hidden = true;
     await loadSubjects(true); // reset=true prevents stale groups and duplicates
   }
 

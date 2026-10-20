@@ -53,7 +53,7 @@ script('nextgallery','ai-i18n'); script('nextgallery','ai-workspace'); script('n
      <label>Kosinus-Schwellenwert (Ähnlichkeit)<input type="number" name="faces.cosine_threshold" min="0.3" max="0.95" step="0.01" required><span class="mai-muted">Standard: 0.55 (0.30 bis 0.95; höher = strengere Übereinstimmung)</span></label>
      <label>Erkennungs-Schwellenwert (Konfidenz)<input type="number" name="faces.detection_threshold" min="0.5" max="0.99" step="0.01" required><span class="mai-muted">Standard: 0.90 (0.50 bis 0.99; höher = nur deutliche Gesichter)</span></label>
      <label>Min. Gesichtsgröße (Pixel)<input type="number" name="faces.min_face_size" min="16" max="256" step="1" required><span class="mai-muted">Standard: 32 (16 bis 256; kleinere Gesichter werden ignoriert)</span></label>
-     <label>Min. Gruppengröße<input type="number" name="faces.min_group_size" min="1" max="20" step="1" required><span class="mai-muted">Standard: 2 (1 bis 20; ab wie vielen Fotos eine Person angezeigt wird)</span></label>
+     <label>Min. Gruppengröße<input type="number" name="faces.min_group_size" min="1" max="20" step="1" required><span class="mai-muted">Standard: 3 (1 bis 20; persönliche Personenfilter können diesen Wert überschreiben)</span></label>
      <label>Max. Bildkante (Pixel)<input type="number" name="faces.max_edge" min="640" max="4096" step="1" required><span class="mai-muted">Standard: 2048 (640 bis 4096)</span></label>
     </div>
    </details>

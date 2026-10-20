@@ -11,7 +11,7 @@ use OCP\AppFramework\OCS\OCSBadRequestException;
  */
 class FaceArtifacts {
     public const MODEL_SPACE = Faces::MODEL_SPACE;
-    public const PREPROCESS_VERSION = 'oriented-multiscale-yunet-sface-v1';
+    public const PREPROCESS_VERSION = 'oriented-multiscale-yunet-sface-laplacian112-v2';
     public function __construct(private IDBConnection $db,private IConfig $config,private Settings $settings) {}
     public function enabled():bool {return $this->config->getAppValue('nextgallery','ai_share_results','yes')!=='no';}
     public static function revision(array $config):string {
@@ -36,9 +36,15 @@ class FaceArtifacts {
             if((!is_int($score)&&!is_float($score))||!is_finite((float)$score)||$score<0||$score>1)throw new OCSBadRequestException('Ungültiger Erkennungsscore');
             $vector=$d['vector']??null;
             if(!is_array($vector)||!array_is_list($vector))throw new OCSBadRequestException('Ungültiger Gesichtsvektor');
-            $clean[]=['bbox'=>Faces::validateBbox($d['bbox']??null),'vector'=>Faces::normalizeVector($vector),'score'=>(float)$score];
+            $sharpness=self::sharpness($d['sharpness']??null);
+            $clean[]=['sharpness'=>$sharpness,'bbox'=>Faces::validateBbox($d['bbox']??null),'vector'=>Faces::normalizeVector($vector),'score'=>(float)$score];
         }
         return $clean;
+    }
+    public static function sharpness(mixed $value):?float {
+        if($value===null)return null;
+        if((!is_int($value)&&!is_float($value))||!is_finite((float)$value)||$value<0||$value>1e9)throw new OCSBadRequestException('Ungültiger Schärfewert');
+        return (float)$value;
     }
     private function rows(string $sql,array $params=[]):array {
         $r=$this->db->executeQuery($sql,$params);try{return $r->fetchAll();}finally{$r->closeCursor();}
@@ -68,13 +74,13 @@ class FaceArtifacts {
           ->orderBy('id','DESC')->setMaxResults(5);
         $r=$q->executeQuery();try{$files=$r->fetchAll();}finally{$r->closeCursor();}
         foreach($files as $ff){
-            $dets=$this->rows('SELECT bbox_x,bbox_y,bbox_w,bbox_h,score,vector_data,model_space FROM *PREFIX*nextgallery_faces_detections WHERE user_id=? AND file_id=? AND etag=?',[$ff['user_id'],$fileId,$etag]);
+            $dets=$this->rows('SELECT bbox_x,bbox_y,bbox_w,bbox_h,score,sharpness,vector_data,model_space FROM *PREFIX*nextgallery_faces_detections WHERE user_id=? AND file_id=? AND etag=?',[$ff['user_id'],$fileId,$etag]);
             if(count($dets)!==(int)$ff['face_count']||count($dets)>100)continue;
             $raw=[];
             foreach($dets as $d){
                 $bytes=base64_decode((string)$d['vector_data'],true);
                 if($d['model_space']!==self::MODEL_SPACE||$bytes===false||strlen($bytes)!==512)continue 2;
-                $raw[]=['bbox'=>[(float)$d['bbox_x'],(float)$d['bbox_y'],(float)$d['bbox_w'],(float)$d['bbox_h']],'vector'=>array_values(unpack('g*',$bytes)),'score'=>(float)$d['score']];
+                $raw[]=['sharpness'=>isset($d['sharpness'])?(float)$d['sharpness']:null,'bbox'=>[(float)$d['bbox_x'],(float)$d['bbox_y'],(float)$d['bbox_w'],(float)$d['bbox_h']],'vector'=>array_values(unpack('g*',$bytes)),'score'=>(float)$d['score']];
             }
             try{return self::sanitizeRawDetections($raw);}catch(OCSBadRequestException){}
         }

@@ -12,6 +12,20 @@ NextGallery can group photographs by the people appearing in them. The People vi
 
 Processing currently supports photographs. Video face tracks and individual pet recognition are not included in this release. Existing descriptions and image search can still find animal categories.
 
+## Reduce background faces
+
+Under **My processing → Folders and schedule → People filters**, each account can adjust three independent filters after pausing processing:
+
+- **Minimum face area:** default **0.25%** of the oriented photograph. Smaller faces remain available under **Filtered faces**.
+- **Minimum sharpness:** default **45**, measured as grayscale Laplacian variance on the aligned 112×112 face crop. Zero disables this filter. It is a heuristic for blur, not a guarantee that a face belongs to the main subject.
+- **Minimum photographs:** default **3** for new installations. Existing administrator group-size defaults are retained until the account chooses its own value. People below this count are accessible under **Rare people**.
+
+Small and blurry detections are retained but do not anchor automatic grouping of other photographs. Shared file artifacts retain the raw metric; each account applies its own policy. The main and filtered detail views use the same quality criteria as their overview counts, including groups with a mixture of good and weak detections.
+
+Select a filtered detection and choose **Confirm** to retain that personal assignment despite the quality filters. It can then appear under Rare people until the configured photograph count is reached. Existing manual corrections remain authoritative. Hidden groups remain accessible through the Hidden filter.
+
+Quality settings can be changed without re-running the model when the quality metric is present. Older detections did not record sharpness and are treated as unknown rather than assigned a fabricated score. A deliberately requested People reset clears that account's groups and corrections and allows a complete fresh run with the metric; it does not delete original photographs or other AI stages.
+
 ## Correcting groups
 
 Groups can be merged, selected detections can be separated, and groups can be hidden or shown. Corrections apply immediately and are stored independently of the model vectors. A hidden group is retained; deleting all People data is a separate explicit action.

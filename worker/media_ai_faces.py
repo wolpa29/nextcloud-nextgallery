@@ -55,6 +55,10 @@ DEFAULT_MIN_FACE_SIZE = 32
 DEFAULT_MAX_EDGE = 2048
 MAX_IMAGE_PIXELS = 80_000_000
 
+DEFAULT_MIN_FACE_AREA = 0.0025  # 0.25% of image area (bbox width * height)
+DEFAULT_MIN_SHARPNESS = 45.0   # Laplacian variance of 112x112 aligned face crop
+DEFAULT_MIN_GROUP_PHOTOS = 3   # Server presentation threshold (not anchor quality)
+
 
 class PipelineError(Exception):
     """Recoverable pipeline error."""
@@ -80,6 +84,62 @@ def compute_iou(box_a: list[float], box_b: list[float]) -> float:
     if union_area <= 0.0:
         return 0.0
     return inter_area / union_area
+
+
+def face_sharpness(aligned) -> float:
+    """Laplacian variance of standardized aligned 112x112 face crop in grayscale (OpenCV CV_64F).
+
+    Returns finite non-negative float.
+    """
+    if aligned is None or cv2 is None or np is None:
+        return 0.0
+    try:
+        if isinstance(aligned, np.ndarray):
+            if aligned.ndim == 3 and aligned.shape[2] == 3:
+                gray = cv2.cvtColor(aligned, cv2.COLOR_BGR2GRAY)
+            elif aligned.ndim == 2:
+                gray = aligned
+            else:
+                return 0.0
+        else:
+            return 0.0
+        lap = cv2.Laplacian(gray, cv2.CV_64F)
+        var = float(lap.var())
+        if not math.isfinite(var) or var < 0.0:
+            return 0.0
+        return round(var, 2)
+    except Exception:
+        return 0.0
+
+
+def face_eligible(face: dict, filters: dict | None = None) -> bool:
+    """Check whether a face detection meets quality thresholds for clustering/anchors.
+
+    Area: normalized bbox width * height >= min_face_area.
+    Sharpness: Laplacian variance >= min_sharpness. Null/missing sharpness stays eligible.
+    """
+    if filters is None:
+        filters = {}
+
+    min_area = float(filters.get('min_face_area', DEFAULT_MIN_FACE_AREA))
+    min_sharpness = float(filters.get('min_sharpness', DEFAULT_MIN_SHARPNESS))
+
+    bbox = face.get('bbox')
+    if isinstance(bbox, (list, tuple)) and len(bbox) == 4:
+        area = float(bbox[2]) * float(bbox[3])
+        if area < min_area:
+            return False
+    else:
+        return False
+
+    sharpness = face.get('sharpness')
+    # Null/missing sharpness stays eligible for legacy compatibility
+    if sharpness is not None:
+        if not isinstance(sharpness, bool) and isinstance(sharpness, (int, float)):
+            if float(sharpness) < min_sharpness:
+                return False
+
+    return True
 
 
 class FaceStore:
@@ -121,11 +181,18 @@ class FaceStore:
                 score REAL NOT NULL,
                 group_id TEXT NOT NULL,
                 review INTEGER NOT NULL DEFAULT 0,
+                eligible INTEGER NOT NULL DEFAULT 1,
                 updated_at REAL NOT NULL
             );
             """)
             self.conn.execute("CREATE INDEX IF NOT EXISTS idx_det_file ON detections(file_id, etag);")
             self.conn.execute("CREATE INDEX IF NOT EXISTS idx_det_group ON detections(group_id);")
+
+            # Safe migration for existing databases missing 'eligible' column
+            cur = self.conn.execute("PRAGMA table_info(detections);")
+            columns = [col[1] for col in cur.fetchall()]
+            if 'eligible' not in columns:
+                self.conn.execute("ALTER TABLE detections ADD COLUMN eligible INTEGER NOT NULL DEFAULT 1;")
 
     def get_meta(self, key: str, fallback=None):
         cur = self.conn.execute("SELECT value FROM meta WHERE key = ?", (key,))
@@ -163,9 +230,10 @@ class FaceStore:
                 vec = d['vector']
                 vec_blob = struct.pack(f"{len(vec)}f", *vec) if isinstance(vec, (list, tuple)) else vec
                 bbox_str = json.dumps(d['bbox']) if isinstance(d['bbox'], (list, tuple)) else str(d['bbox'])
+                eligible_val = 0 if (d.get('eligible') is not None and not d['eligible']) else 1
                 self.conn.execute("""
-                INSERT OR REPLACE INTO detections(id, file_id, etag, bbox, vector, score, group_id, review, updated_at)
-                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT OR REPLACE INTO detections(id, file_id, etag, bbox, vector, score, group_id, review, eligible, updated_at)
+                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     d['id'],
                     int(d['file_id']),
@@ -175,6 +243,7 @@ class FaceStore:
                     float(d.get('score', 1.0)),
                     d['group_id'],
                     1 if d.get('review') else 0,
+                    eligible_val,
                     time.time(),
                 ))
 
@@ -187,9 +256,10 @@ class FaceStore:
                 vec = d['vector']
                 vec_blob = struct.pack(f"{len(vec)}f", *vec) if isinstance(vec, (list, tuple)) else vec
                 bbox_str = json.dumps(d['bbox']) if isinstance(d['bbox'], (list, tuple)) else str(d['bbox'])
+                eligible_val = 0 if (d.get('eligible') is not None and not d['eligible']) else 1
                 self.conn.execute("""
-                INSERT OR REPLACE INTO detections(id, file_id, etag, bbox, vector, score, group_id, review, updated_at)
-                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT OR REPLACE INTO detections(id, file_id, etag, bbox, vector, score, group_id, review, eligible, updated_at)
+                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     d['id'],
                     int(d['file_id']),
@@ -199,6 +269,7 @@ class FaceStore:
                     float(d.get('score', 1.0)),
                     d['group_id'],
                     1 if d.get('review') else 0,
+                    eligible_val,
                     time.time(),
                 ))
             if current_ids:
@@ -213,7 +284,7 @@ class FaceStore:
 
     def load_active_vectors(self) -> list[tuple[str, list[float]]]:
         """Load (group_id, vector_128) pairs for active cluster matching."""
-        cur = self.conn.execute("SELECT group_id, vector FROM detections WHERE review = 0")
+        cur = self.conn.execute("SELECT group_id, vector FROM detections WHERE review = 0 AND eligible = 1")
         results = []
         for group_id, blob in cur.fetchall():
             dim = len(blob) // 4
@@ -275,6 +346,11 @@ class FaceClusterIndex:
         self._checkpoint_active = False
 
         for det in canonical_detections:
+            # Canonical eligible is authoritative: default to True if absent from legacy mocks
+            eligible = det.get('eligible')
+            if eligible is not None and not eligible:
+                continue
+
             gid = det.get('group_id')
             vec = det.get('vector')
             if gid and vec:
@@ -519,6 +595,7 @@ class FaceDetector:
             results = []
             for det in unique_detections:
                 aligned = self.recognizer.alignCrop(det['bgr'], det['face_raw'])
+                sharpness = face_sharpness(aligned)
                 feature = self.recognizer.feature(aligned)
 
                 feat_vec = feature.flatten().astype(np.float32)
@@ -534,6 +611,7 @@ class FaceDetector:
                     'bbox': det['norm_box'],
                     'vector': vec_list,
                     'score': round(det['score'], 4),
+                    'sharpness': sharpness,
                 })
 
             return results
@@ -574,7 +652,7 @@ def validate_raw_detections(detections: Any) -> list[dict]:
     Accepts empty list [] (valid 0-face hit).
     Rejects malformed, non-finite, wrong dimension, invalid bbox or score,
     zero vector or norm overflow, zero-size bbox (w/h <= 1e-5), out-of-bounds > 1.0001,
-    bool values, > 100 items, or unexpected keys besides bbox/vector/score.
+    bool values, > 100 items, or unexpected keys besides bbox/vector/score plus optional sharpness.
     """
     if isinstance(detections, bool) or not isinstance(detections, list):
         raise PipelineError('Raw detections payload must be a list')
@@ -587,9 +665,18 @@ def validate_raw_detections(detections: Any) -> list[dict]:
         if isinstance(item, bool) or not isinstance(item, dict):
             raise PipelineError(f'Detection at index {i} is not a dict')
 
-        # Unexpected keys check: must have exactly {'bbox', 'vector', 'score'}
-        if set(item.keys()) != {'bbox', 'vector', 'score'}:
+        # Unexpected keys check: must have exactly {'bbox', 'vector', 'score'} or with optional 'sharpness'
+        keys = set(item.keys())
+        if keys not in ({'bbox', 'vector', 'score'}, {'bbox', 'vector', 'score', 'sharpness'}):
             raise PipelineError(f'Detection at index {i} contains invalid or unexpected keys: {sorted(item.keys())}')
+
+        sharpness_val = None
+        if 'sharpness' in item:
+            s = item['sharpness']
+            if s is not None:
+                if isinstance(s, bool) or not isinstance(s, (int, float)) or not math.isfinite(s) or s < 0.0:
+                    raise PipelineError(f'Detection at index {i} has invalid sharpness: {s}')
+                sharpness_val = float(s)
 
         bbox = item['bbox']
         if isinstance(bbox, bool) or not isinstance(bbox, (list, tuple)) or len(bbox) != 4:
@@ -633,6 +720,7 @@ def validate_raw_detections(detections: Any) -> list[dict]:
             'bbox': bbox_clean,
             'score': float(score),
             'vector': vector_clean,
+            'sharpness': sharpness_val,
         })
 
     return validated
@@ -731,6 +819,13 @@ def run(
     min_size = int(faces_config.get('min_face_size', DEFAULT_MIN_FACE_SIZE))
     max_edge = int(faces_config.get('max_edge', DEFAULT_MAX_EDGE))
 
+    faces_filters = config.get('faces_filters') or faces_config.get('filters') or {}
+    filters = {
+        'min_face_area': float(faces_filters.get('min_face_area', DEFAULT_MIN_FACE_AREA)),
+        'min_sharpness': float(faces_filters.get('min_sharpness', DEFAULT_MIN_SHARPNESS)),
+        'min_group_photos': int(faces_filters.get('min_group_photos', DEFAULT_MIN_GROUP_PHOTOS)),
+    }
+
     store = FaceStore(directory / 'faces.sqlite3')
     cluster_index = FaceClusterIndex(cosine_threshold=cosine_thresh)
     detector = None
@@ -817,17 +912,27 @@ def run(
                     with hold(config.get('_inference_directory'), 'http://127.0.0.1:9379/v1', should_stop):
                         detected_faces = det.process_image(raw_bytes, max_edge=max_edge)
 
-                # Step 4: Assign stable groups with transaction checkpoint
+                # Step 4: Assign stable groups with quality filtering
                 cluster_index.checkpoint()
                 payload_detections = []
                 for face in detected_faces:
-                    group_id = cluster_index.match_or_create(face['vector'])
-                    payload_detections.append({
+                    is_qual = face_eligible(face, filters)
+                    if is_qual:
+                        group_id = cluster_index.match_or_create(face['vector'])
+                    else:
+                        group_id = uuid.uuid4().hex
+
+                    det_payload = {
                         'bbox': face['bbox'],
                         'vector': face['vector'],
                         'score': face['score'],
                         'group_id': group_id,
-                    })
+                    }
+                    if 'sharpness' in face and face['sharpness'] is not None:
+                        det_payload['sharpness'] = face['sharpness']
+                    else:
+                        det_payload['sharpness'] = None
+                    payload_detections.append(det_payload)
 
                 # Step 5: Verify source unchanged before publishing
                 if hasattr(source, 'unchanged') and not source.unchanged(item):
@@ -897,13 +1002,24 @@ def run(
                             cluster_index.checkpoint()
                             payload_detections = []
                             for face in detected_faces:
-                                group_id = cluster_index.match_or_create(face['vector'])
-                                payload_detections.append({
+                                is_qual = face_eligible(face, filters)
+                                if is_qual:
+                                    group_id = cluster_index.match_or_create(face['vector'])
+                                else:
+                                    group_id = uuid.uuid4().hex
+
+                                det_payload = {
                                     'bbox': face['bbox'],
                                     'vector': face['vector'],
                                     'score': face['score'],
                                     'group_id': group_id,
-                                })
+                                }
+                                if 'sharpness' in face and face['sharpness'] is not None:
+                                    det_payload['sharpness'] = face['sharpness']
+                                else:
+                                    det_payload['sharpness'] = None
+                                payload_detections.append(det_payload)
+
                             publish_body['epoch'] = epoch
                             publish_body['generation'] = generation
                             publish_body['rules_revision'] = rules_rev

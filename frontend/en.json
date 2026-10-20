@@ -311,5 +311,18 @@
   "Zur Bestätigung „faces“ eingeben:": "Type “faces” to confirm:",
   "ausgewählt": "selected",
   "{count} zu prüfen": "{count} to review",
-  "Überprüfung": "Review"
+  "Überprüfung": "Review",
+  "Seltene Personen": "Rare persons",
+  "Gefilterte Gesichter": "Filtered faces",
+  "Gefiltert": "Filtered",
+  "Keine gefilterten Gesichter gefunden": "No filtered faces found",
+  "Kleine oder unscharfe Gesichter im Hintergrund werden hier gesammelt und können bestätigt werden.": "Small or blurred background faces are kept here and can be confirmed.",
+  "Personenfilter": "Person filters",
+  "Mindestfläche des Gesichts (%)": "Min. face size (%)",
+  "Anteil an der gesamten Bildfläche (Standard: 0.25 %)": "Filter small background faces (default: 0.25 %)",
+  "Mindestschärfe": "Min. sharpness",
+  "Unscharfe Gesichter filtern (Standard: 45, 0 deaktiviert)": "Filter blurry faces (default: 45, 0 disables)",
+  "Mindestanzahl Fotos in normaler Übersicht": "Min. photos in normal overview",
+  "Weniger Fotos erscheinen unter „Seltene Personen“ (Standard: 3)": "Fewer photos appear under “Rare persons” (default: 3)",
+  "Gefilterte und seltene Personen sind separat einsehbar. Bestätigte Zuweisungen bleiben erhalten.": "Filtered and rare persons can be viewed separately. Confirmed assignments are retained."
 }

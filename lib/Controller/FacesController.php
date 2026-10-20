@@ -66,15 +66,17 @@ class FacesController extends Controller {
         string $id,
         string $gallery = '',
         int $cursor = 0,
-        int $limit = 60
+        int $limit = 60,
+        string $filter = 'all'
     ): DataResponse {
         $uid = $this->uid();
         $gallery = $gallery !== '' ? $gallery : (string)$this->request->getParam('gallery', '');
         $cursor = $cursor !== 0 ? $cursor : (int)$this->request->getParam('cursor', 0);
         $limit = $limit !== 60 ? $limit : (int)$this->request->getParam('limit', 60);
 
+        $filter=$filter!=='all'?$filter:(string)$this->request->getParam('filter','all');
         try {
-            $data = $this->faces->media($uid, $id, $gallery, $cursor, $limit);
+            $data = $this->faces->media($uid, $id, $gallery, $cursor, $limit, $filter);
             $response = new DataResponse($data);
             $response->addHeader('Cache-Control', 'private, no-store');
             return $response;

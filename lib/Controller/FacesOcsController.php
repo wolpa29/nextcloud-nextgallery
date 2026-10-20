@@ -71,14 +71,16 @@ class FacesOcsController extends OCSController {
         string $id,
         string $gallery = '',
         int $cursor = 0,
-        int $limit = 60
+        int $limit = 60,
+        string $filter = 'all'
     ): DataResponse {
         $uid = $this->uid();
         $gallery = $gallery !== '' ? $gallery : (string)$this->request->getParam('gallery', '');
         $cursor = $cursor !== 0 ? $cursor : (int)$this->request->getParam('cursor', 0);
         $limit = $limit !== 60 ? $limit : (int)$this->request->getParam('limit', 60);
 
-        $data = $this->faces->media($uid, $id, $gallery, $cursor, $limit);
+        $filter=$filter!=='all'?$filter:(string)$this->request->getParam('filter','all');
+        $data = $this->faces->media($uid, $id, $gallery, $cursor, $limit, $filter);
         return $this->response($data);
     }
 

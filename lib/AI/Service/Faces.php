@@ -204,6 +204,14 @@ class Faces {
         return [max(0.0, min(1.0, $x)), max(0.0, min(1.0, $y)), max(0.0, min(1.0, $w)), max(0.0, min(1.0, $h))];
     }
 
+    public static function qualityEligible(array $d,array $filters):bool {
+        if(!empty($d['manual']))return true;
+        $box=$d['bbox']??[(float)($d['bbox_x']??0),(float)($d['bbox_y']??0),(float)($d['bbox_w']??0),(float)($d['bbox_h']??0)];
+        if($box[2]*$box[3]<(float)($filters['min_face_area']??0.0025))return false;
+        $sharpness=$d['sharpness']??null;
+        // Older unsigned projections did not record quality; don't invent it.
+        return $sharpness===null||(float)$sharpness>=(float)($filters['min_sharpness']??45.0);
+    }
     public static function iou(array $boxA, array $boxB): float {
         [$ax, $ay, $aw, $ah] = $boxA;
         [$bx, $by, $bw, $bh] = $boxB;
@@ -230,7 +238,7 @@ class Faces {
 
         $q = $this->db->getQueryBuilder();
         $q->select('d.id', 'd.file_id', 'd.etag', 'd.bbox_x', 'd.bbox_y', 'd.bbox_w', 'd.bbox_h',
-                   'd.score', 'd.group_id', 'd.model_space', 'd.vector_data', 'd.review')
+                   'd.score', 'd.sharpness', 'd.manual', 'd.group_id', 'd.model_space', 'd.vector_data', 'd.review')
           ->from('nextgallery_faces_detections', 'd')
           ->innerJoin('d', 'nextgallery_faces_files', 'f', 'f.user_id = d.user_id AND f.file_id = d.file_id AND f.etag = d.etag')
           ->where($q->expr()->eq('d.user_id', $q->createNamedParameter($uid)))
@@ -259,6 +267,7 @@ class Faces {
         }
 
         $fileAccessCache = [];
+        $filters=$this->settings->forUser($uid)->get()['faces_filters'];
         $items = [];
         foreach ($rows as $row) {
             $fid = (int)$row['file_id'];
@@ -284,6 +293,8 @@ class Faces {
                 'score' => (float)$row['score'],
                 'group_id' => (string)$row['group_id'],
                 'review' => (bool)$row['review'],
+                'sharpness' => isset($row['sharpness'])?(float)$row['sharpness']:null,
+                'eligible' => self::qualityEligible($row,$filters),
             ];
         }
 
@@ -426,6 +437,7 @@ class Faces {
             if (!is_finite($score) || $score < 0.0 || $score > 1.0) {
                 throw new OCSBadRequestException('Ungültiger Erkennungsscore');
             }
+            $sharpness=FaceArtifacts::sharpness($d['sharpness']??null);
             $groupId = (string)($d['group_id'] ?? '');
             if (!preg_match('/^[a-f0-9]{32}$/iD', $groupId)) {
                 throw new OCSBadRequestException('Ungültige group_id: 32-stelliger Hex-UUID erforderlich');
@@ -435,6 +447,7 @@ class Faces {
                 'vector' => $vector,
                 'score' => $score,
                 'group_id' => strtolower($groupId),
+                'sharpness' => $sharpness,
             ];
         }
 
@@ -582,6 +595,8 @@ class Faces {
                     'bbox_h' => $det['bbox'][3],
                     'bbox' => $det['bbox'],
                     'score' => $det['score'],
+                    'sharpness' => $det['sharpness'],
+                    'eligible' => self::qualityEligible(['bbox'=>$det['bbox'],'sharpness'=>$det['sharpness'],'manual'=>$manual],$config['faces_filters']),
                     'group_id' => $assignedGroupId,
                     'model_space' => $space,
                     'vector' => $det['vector'],
@@ -625,11 +640,11 @@ class Faces {
 
                 foreach ($canonical as $c) {
                     $this->db->executeStatement(
-                        'INSERT INTO *PREFIX*nextgallery_faces_detections (user_id, id, file_id, etag, bbox_x, bbox_y, bbox_w, bbox_h, score, group_id, model_space, vector_data, review, manual, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                        'INSERT INTO *PREFIX*nextgallery_faces_detections (user_id, id, file_id, etag, bbox_x, bbox_y, bbox_w, bbox_h, score, group_id, model_space, vector_data, review, manual, created_at, updated_at, sharpness) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                         [
                             $uid, $c['id'], $fileId, $etag, $c['bbox_x'], $c['bbox_y'], $c['bbox_w'], $c['bbox_h'],
                             $c['score'], $c['group_id'], $c['model_space'], $c['vector_data'], $c['review'], $c['manual'],
-                            $c['created_at'], $c['updated_at']
+                            $c['created_at'], $c['updated_at'], $c['sharpness']
                         ]
                     );
                 }
@@ -640,6 +655,7 @@ class Faces {
                     'bbox' => $d['bbox'],
                     'vector' => $d['vector'],
                     'score' => $d['score'],
+                    'sharpness' => $d['sharpness'],
                 ], $validated);
                 if ($inferenceRevision !== '') $faceArtifacts?->store($uid, $fileId, $etag, $inferenceRevision, $rawDetections);
 
@@ -656,6 +672,8 @@ class Faces {
                 'bbox' => $c['bbox'],
                 'vector' => $c['vector'],
                 'score' => $c['score'],
+                'sharpness' => $c['sharpness'],
+                'eligible' => $c['eligible'],
                 'group_id' => $c['group_id'],
                 'review' => (bool)$c['review'],
             ], $canonical);
@@ -1041,13 +1059,13 @@ class Faces {
                         if ($cleanDets !== null && !empty($cleanDets)) {
                             foreach ($cleanDets as $did) {
                                 $this->db->executeStatement(
-                                    'UPDATE *PREFIX*nextgallery_faces_detections SET review = 0, updated_at = ? WHERE user_id = ? AND id = ?',
+                                    'UPDATE *PREFIX*nextgallery_faces_detections SET review = 0, manual = 1, updated_at = ? WHERE user_id = ? AND id = ?',
                                     [$now, $uid, $did]
                                 );
                             }
                         } else {
                             $this->db->executeStatement(
-                                'UPDATE *PREFIX*nextgallery_faces_detections SET review = 0, updated_at = ? WHERE user_id = ? AND group_id = ?',
+                                'UPDATE *PREFIX*nextgallery_faces_detections SET review = 0, manual = 1, updated_at = ? WHERE user_id = ? AND group_id = ?',
                                 [$now, $uid, $id]
                             );
                         }
@@ -1084,7 +1102,8 @@ class Faces {
         $cursor = max(0, $cursor);
         $acc = $this->accountState($uid);
         $config = $this->settings->forUser($uid)->get();
-        $minGroupSize = (int)($config['faces']['min_group_size'] ?? 2);
+        $minGroupSize = (int)$config['faces_filters']['min_group_photos'];
+        $qualityFilters=$config['faces_filters'];
 
         // Retrieve requested gallery roots
         $gallerySettings = $this->library->settings($uid, $gallery);
@@ -1113,7 +1132,7 @@ class Faces {
 
         // Fetch all detections with files and media etag matching
         $dq = $this->db->getQueryBuilder();
-        $dq->select('d.id', 'd.group_id', 'd.file_id', 'd.score', 'd.review', 'ff.etag AS face_etag')
+        $dq->select('d.id', 'd.group_id', 'd.file_id', 'd.score', 'd.review', 'd.manual', 'd.sharpness', 'd.bbox_w', 'd.bbox_h', 'ff.etag AS face_etag')
            ->from('nextgallery_faces_detections', 'd')
            ->innerJoin('d', 'nextgallery_faces_files', 'ff', 'ff.user_id = d.user_id AND ff.file_id = d.file_id')
            ->innerJoin('d', 'nextgallery_media', 'm', 'm.user_id = d.user_id AND m.file_id = d.file_id AND m.etag = ff.etag')
@@ -1125,6 +1144,7 @@ class Faces {
         $fileAccessCache = [];
         $validDetsByGroup = [];
         $validFilesByGroup = [];
+        $weakDetsByGroup = [];
 
         foreach ($allDets as $d) {
             $fid = (int)$d['file_id'];
@@ -1145,55 +1165,33 @@ class Faces {
 
             if ($fileAccessCache[$fid]) {
                 $gid = (string)$d['group_id'];
-                $validDetsByGroup[$gid][] = $d;
-                $validFilesByGroup[$gid][$fid] = true;
+                if(self::qualityEligible($d,$qualityFilters)){
+                    $validDetsByGroup[$gid][] = $d;
+                    $validFilesByGroup[$gid][$fid] = true;
+                }else{$weakDetsByGroup[$gid][]=$d;}
             }
         }
 
-        // Filter and compute counts/cover
+        // Quality and rarity are presentation choices, never data deletion.
         $filtered = [];
         foreach ($groups as $g) {
-            $gid = (string)$g['id'];
-            $photoCount = count($validFilesByGroup[$gid] ?? []);
-            if ($photoCount <= 0) {
-                continue;
-            }
-
-            $dets = $validDetsByGroup[$gid] ?? [];
-            $reviewCount = 0;
-            $coverId = null;
-            $coverCandidate = (string)($g['cover_detection_id'] ?? '');
-
-            foreach ($dets as $det) {
-                if ((int)$det['review'] === 1) {
-                    $reviewCount++;
-                }
-                if ($coverCandidate !== '' && (string)$det['id'] === $coverCandidate) {
-                    $coverId = $coverCandidate;
-                }
-            }
-            if ($coverId === null && !empty($dets)) {
-                $coverId = (string)$dets[0]['id'];
-            }
-
-            $hidden = (int)$g['hidden'] === 1;
-            $match = match ($filter) {
-                'hidden' => $hidden,
-                'review' => !$hidden && $reviewCount > 0,
-                'single' => !$hidden && $photoCount < $minGroupSize,
-                default => !$hidden && $photoCount >= $minGroupSize,
+            $gid=(string)$g['id'];$good=$validDetsByGroup[$gid]??[];$weak=$weakDetsByGroup[$gid]??[];
+            $dets=$filter==='filtered'?$weak:(in_array($filter,['review','hidden'],true)?array_merge($good,$weak):$good);
+            $files=[];foreach($dets as $d)$files[(int)$d['file_id']]=true;
+            $photoCount=count($files);if(!$photoCount)continue;
+            $reviewCount=count(array_filter($dets,fn($d)=>(int)$d['review']===1));
+            $hidden=(int)$g['hidden']===1;
+            $match=match($filter){
+                'filtered'=>!$hidden,
+                'hidden'=>$hidden,
+                'review'=>!$hidden&&$reviewCount>0,
+                'single'=>!$hidden&&$photoCount<$minGroupSize,
+                default=>!$hidden&&$photoCount>=$minGroupSize,
             };
-
-            if ($match) {
-                $filtered[] = [
-                    'id' => $gid,
-                    'label' => !empty($g['label']) ? (string)$g['label'] : null,
-                    'photo_count' => $photoCount,
-                    'cover_id' => $coverId,
-                    'hidden' => $hidden,
-                    'review_count' => $reviewCount,
-                ];
-            }
+            if(!$match)continue;
+            usort($dets,fn($a,$b)=>(float)$b['score']<=>(float)$a['score']);
+            $filtered[]=['id'=>$gid,'label'=>null,'photo_count'=>$photoCount,'cover_id'=>(string)$dets[0]['id'],
+                'hidden'=>$hidden,'review_count'=>$reviewCount,'filtered'=>$filter==='filtered','filtered_count'=>count($weak)];
         }
 
         // Paginate after authorized live filtering to avoid skipped empty authorized pages
@@ -1218,7 +1216,8 @@ class Faces {
         string $groupId,
         string $gallery = '',
         int $cursor = 0,
-        int $limit = 60
+        int $limit = 60,
+        string $filter = 'all'
     ): array {
         if (!preg_match('/^[a-f0-9]{32}$/iD', $groupId)) {
             throw new OCSBadRequestException('Ungültige Subjekt-ID');
@@ -1235,7 +1234,7 @@ class Faces {
         // Query media and detections matching detection etag with face_files and media etag
         $q = $this->db->getQueryBuilder();
         $q->select('d.id AS detection_id', 'd.file_id', 'd.bbox_x', 'd.bbox_y', 'd.bbox_w', 'd.bbox_h',
-                   'd.score', 'd.review', 'ff.etag AS face_etag', 'm.payload', 'm.sort_key')
+                   'd.score', 'd.review', 'd.manual', 'd.sharpness', 'ff.etag AS face_etag', 'm.payload', 'm.sort_key')
           ->from('nextgallery_faces_detections', 'd')
           ->innerJoin('d', 'nextgallery_faces_files', 'ff', 'ff.user_id = d.user_id AND ff.file_id = d.file_id')
           ->innerJoin('d', 'nextgallery_media', 'm', 'm.user_id = d.user_id AND m.file_id = d.file_id AND m.etag = ff.etag')
@@ -1248,7 +1247,10 @@ class Faces {
 
         // Validate each file live with Library::file and requested gallery roots
         $filesMap = [];
+        $qualityFilters=$this->settings->forUser($uid)->get()['faces_filters'];
         foreach ($rows as $row) {
+            $eligible=self::qualityEligible($row,$qualityFilters);
+            if($filter==='filtered'?$eligible:(!in_array($filter,['review','hidden'],true)&&!$eligible))continue;
             $fid = (int)$row['file_id'];
             if (!isset($filesMap[$fid])) {
                 try {

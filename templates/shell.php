@@ -36,7 +36,8 @@ $tr = static fn(string $text): string => $isGerman ? $text : ($english[$text] ??
      <select id="ch-people-filter" aria-label="<?php p($tr('Filter')); ?>">
       <option value="all"><?php p($tr('Alle')); ?></option>
       <option value="review"><?php p($tr('Überprüfung')); ?></option>
-      <option value="single"><?php p($tr('Einzelfunde')); ?></option>
+      <option value="single"><?php p($tr('Seltene Personen')); ?></option>
+      <option value="filtered"><?php p($tr('Gefilterte Gesichter')); ?></option>
       <option value="hidden"><?php p($tr('Ausgeblendet')); ?></option>
      </select>
     </div>
@@ -71,6 +72,7 @@ $tr = static fn(string $text): string => $isGerman ? $text : ($english[$text] ??
       <button id="ch-people-resolve" class="ch-button" hidden><?php p($tr('Überprüfung auflösen')); ?></button>
      </div>
     </div>
+    <p id="ch-people-detail-filter-note" class="ch-hint" hidden><?php p($tr('Kleine oder unscharfe Gesichter im Hintergrund werden hier gesammelt und können bestätigt werden.')); ?></p>
     <div id="ch-person-selection-bar" class="ch-selection-bar" hidden>
      <span id="ch-people-selection-count"></span>
      <div class="ch-selection-actions">
@@ -123,7 +125,7 @@ $tr = static fn(string $text): string => $isGerman ? $text : ($english[$text] ??
    <div class="ch-merge-toolbar">
     <div class="ch-segmented" role="radiogroup" aria-label="<?php p($tr('Filter')); ?>">
      <button type="button" class="ch-seg-btn active" data-merge-filter="all"><?php p($tr('Alle')); ?></button>
-     <button type="button" class="ch-seg-btn" data-merge-filter="single"><?php p($tr('Einzelfunde')); ?></button>
+     <button type="button" class="ch-seg-btn" data-merge-filter="single"><?php p($tr('Seltene Personen')); ?></button>
     </div>
     <input type="search" id="ch-people-merge-search" placeholder="<?php p($tr('Personen suchen …')); ?>" aria-label="<?php p($tr('Personen suchen')); ?>">
    </div>

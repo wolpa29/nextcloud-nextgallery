@@ -13,7 +13,7 @@ if($phase==='prepare'){
  $old=$settings->get();$oldShare=$config->getAppValue('nextgallery','ai_share_results','yes');$c=$old;$c['faces']['enabled']=true;$settings->save($c);$config->setAppValue('nextgallery','ai_share_results','yes');
  foreach($uids as $uid)$users->createUser($uid,'SyntheticFaceHttpOnly2026!');
  $session->setUser($users->get($uids[0]));$folder=$root->getUserFolder($uids[0])->newFolder('FaceCacheQa');$files=[];
- foreach(['face.png','empty.png'] as $name){$f=$folder->newFile($name,file_get_contents('/samples/dog.png'));$files[]=['id'=>$f->getId(),'etag'=>$f->getEtag()];}
+ foreach(['face.png','empty.png','small.png'] as $name){$f=$folder->newFile($name,file_get_contents('/samples/dog.png'));$files[]=['id'=>$f->getId(),'etag'=>$f->getEtag()];}
  $share=$shares->newShare()->setNode($folder)->setShareType(\OCP\Share\IShare::TYPE_USER)->setSharedBy($uids[0])->setSharedWith($uids[1])->setPermissions(\OCP\Constants::PERMISSION_READ);$share=$shares->createShare($share);
  foreach($uids as $uid){$session->setUser($users->get($uid));$root->getUserFolder($uid);$selected=$uid===$uids[2]?'/':'/FaceCacheQa';$settings->saveAccount($uid,['folders'=>[$selected],'folder_stages'=>[$selected=>['faces']],'enabled'=>false]);}
  $data=['uids'=>$uids,'files'=>$files,'share'=>$share->getFullId(),'old_settings'=>$old,'old_share'=>$oldShare];file_put_contents($path,json_encode($data,JSON_THROW_ON_ERROR));echo json_encode(['uids'=>$uids,'files'=>$files])."\n";

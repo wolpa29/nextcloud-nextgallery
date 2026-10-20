@@ -10,6 +10,7 @@ class Settings {
     /** Available pipelines and the conservative fallback are intentionally distinct. */
     public const STAGES = ['descriptions','ocr','embeddings','faces'];
     public const DEFAULT_STAGES = ['descriptions','ocr','embeddings'];
+    public const DEFAULT_FACE_FILTERS = ['min_face_area'=>0.0025,'min_sharpness'=>45.0,'min_group_photos'=>3];
     private ?string $account = null;
     public function forUser(string $uid):self { $copy=clone $this;$copy->account=$uid;return $copy; }
     public function __construct(private IConfig $config, private ICrypto $crypto) {}
@@ -18,7 +19,8 @@ class Settings {
     }
     public function defaults(): array {
         return ['enabled' => false, 'analysis_enabled' => true, 'ocr_enabled'=>true, 'embedding' => ['enabled'=>false, 'location'=>'local', 'local_auto_setup'=>true, 'local_profile'=>'lite', 'transport'=>'multimodal', 'family'=>'gemma2', 'model'=>'embeddinggemma-2', 'url'=>'http://10.1.10.78:9379/v1', 'local_model_path'=>'/opt/nextgallery-ai-models/embeddinggemma-2-text-vision-440m.litertlm', 'local_qwen_source'=>'', 'model_revision'=>'', 'max_edge'=>2048, 'video_frames'=>10, 'batch_size'=>1, 'timeout_seconds'=>120], 'user_id' => 'paul', 'folders' => ['/'], 'exclude_folders' => [], 'folder_stages' => [],
-            'faces'=>['enabled'=>false,'model'=>'opencv-yunet-sface-v1','cosine_threshold'=>0.55,'detection_threshold'=>0.9,'min_face_size'=>32,'min_group_size'=>2,'max_edge'=>2048],
+            'faces_filters'=>self::DEFAULT_FACE_FILTERS,
+            'faces'=>['enabled'=>false,'model'=>'opencv-yunet-sface-v1','cosine_threshold'=>0.55,'detection_threshold'=>0.9,'min_face_size'=>32,'min_group_size'=>3,'max_edge'=>2048],
             'schedule_time' => '03:00', 'timezone' => 'Europe/Vienna', 'image_timeout_seconds' => 600, 'log_days' => 30, 'max_download_bytes' => 67108864,
             'max_image_pixels' => 80000000, 'max_video_download_bytes' => 536870912, 'video' => ['frame_count' => 10],
             'vision' => ['url' => 'http://10.1.10.78:1234/v1', 'model' => 'qwen/qwen3.8-27b',
@@ -36,30 +38,51 @@ class Settings {
         $saved = json_decode($this->stored('settings', '{}'), true, 64, JSON_THROW_ON_ERROR);
         $value = array_replace_recursive($this->defaults(), $saved);
         $value['ocr_enabled']=$saved['ocr_enabled']??$value['analysis_enabled'];
+        $value['faces_filters']=self::DEFAULT_FACE_FILTERS;
+        $value['faces_filters']['min_group_photos']=(int)$value['faces']['min_group_size'];
         // Existing installations with a configured model keep their explicit setup.
         if(isset($saved['embedding']['local_model_path'])&&!array_key_exists('local_auto_setup',$saved['embedding'])&&$saved['embedding']['local_model_path']!==$this->defaults()['embedding']['local_model_path'])$value['embedding']['local_auto_setup']=false;
         unset($value['limit'], $value['max_seconds']); // Former batch limits no longer apply.
         if($this->account!==null){
             $uid=$this->account;
             $personal=json_decode($this->config->getUserValue($uid,'nextgallery','ai_processing','{}'),true,64,JSON_THROW_ON_ERROR);
-            $base=$uid===$value['user_id']?$value:['enabled'=>false,'folders'=>['/'],'exclude_folders'=>[],'schedule_time'=>$value['schedule_time'],'timezone'=>$value['timezone']];
-            foreach(['enabled','folders','exclude_folders','folder_stages','schedule_time','timezone'] as $key)$value[$key]=$personal[$key]??$base[$key]??[];
+            $base=$uid===$value['user_id']?$value:['enabled'=>false,'folders'=>['/'],'exclude_folders'=>[],'schedule_time'=>$value['schedule_time'],'timezone'=>$value['timezone'],'faces_filters'=>$value['faces_filters']];
+            foreach(['enabled','folders','exclude_folders','folder_stages','schedule_time','timezone','faces_filters'] as $key)$value[$key]=$personal[$key]??$base[$key]??($key==='faces_filters'?self::DEFAULT_FACE_FILTERS:[]);
             $value['user_id']=$uid;
         }
+        $value['faces_filters']=self::faceFilters($value['faces_filters']??[],false);
         $value['folder_stages']=self::folderStages($value['folder_stages']??[],$value['folders'],false);
         return $value;
     }
     public function saveAccount(string $uid,array $value,?callable $validateFolders=null):array {
         $result=$this->forUser($uid)->get();
-        foreach(['enabled','folders','exclude_folders','folder_stages','schedule_time','timezone'] as $key)if(array_key_exists($key,$value))$result[$key]=$value[$key];
+        foreach(['enabled','folders','exclude_folders','folder_stages','schedule_time','timezone','faces_filters'] as $key)if(array_key_exists($key,$value))$result[$key]=$value[$key];
         if(!is_bool($result['enabled'])||!is_string($result['schedule_time'])||!is_string($result['timezone'])||!preg_match('/^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/D',$result['schedule_time'])||!in_array($result['timezone'],\DateTimeZone::listIdentifiers(),true))throw new OCSBadRequestException('Zeitplan ungültig');
         $result['folders']=$this->paths($result['folders']);$result['exclude_folders']=$this->paths($result['exclude_folders']);
         if(!$result['folders'])throw new OCSBadRequestException('Mindestens einen Ordner auswählen');
         $result['folder_stages']=self::folderStages($result['folder_stages'],$result['folders']);
+        $result['faces_filters']=self::faceFilters($result['faces_filters']);
         if($validateFolders)$validateFolders($result);
-        $safe=array_intersect_key($result,array_flip(['enabled','folders','exclude_folders','folder_stages','schedule_time','timezone']));
+        $safe=array_intersect_key($result,array_flip(['enabled','folders','exclude_folders','folder_stages','schedule_time','timezone','faces_filters']));
         $this->config->setUserValue($uid,'nextgallery','ai_processing',json_encode($safe,JSON_THROW_ON_ERROR));
         return $safe+['user_id'=>$uid];
+    }
+    /** Personal display/anchor filters never change the shared inference revision. */
+    public static function faceFilters(mixed $value,bool $strict=true):array {
+        if(!is_array($value)||array_diff(array_keys($value),array_keys(self::DEFAULT_FACE_FILTERS))){
+            if($strict)throw new OCSBadRequestException('Personenfilter ungültig');
+            return self::DEFAULT_FACE_FILTERS;
+        }
+        $result=self::DEFAULT_FACE_FILTERS;
+        foreach(['min_face_area'=>[0.0,0.1],'min_sharpness'=>[0.0,10000.0],'min_group_photos'=>[1,20]] as $key=>[$min,$max]){
+            $v=$value[$key]??$result[$key];
+            if((!is_int($v)&&!is_float($v))||!is_finite((float)$v)||$v<$min||$v>$max||($key==='min_group_photos'&&!is_int($v))){
+                if($strict)throw new OCSBadRequestException('Personenfilter außerhalb des gültigen Bereichs');
+                continue;
+            }
+            $result[$key]=$key==='min_group_photos'?$v:(float)$v;
+        }
+        return $result;
     }
     private function secret(string $key): string {
         $raw = $this->stored($key, '');
@@ -263,6 +286,7 @@ class Settings {
             $result['faces'][$key]=(float)$number;
         }
         foreach(['min_face_size'=>[16,256],'min_group_size'=>[1,20],'max_edge'=>[640,4096]] as $key=>[$min,$max])$result['faces'][$key]=$this->integer($faces[$key]??$result['faces'][$key],$min,$max,'faces/'.$key);
+        $result['faces_filters']['min_group_photos']=$result['faces']['min_group_size'];
         // Validate the entire form before writing any value or encrypted secret.
         if ($validateFolders !== null) { $validateFolders($result); }
         if (!$persist) { return $result; }

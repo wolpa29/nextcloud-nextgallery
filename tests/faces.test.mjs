@@ -34,6 +34,10 @@ test('buildSubjectsQuery produces correct contract URL parameters', () => {
     buildSubjectsQuery({ filter: 'single' }),
     'limit=60&filter=single'
   );
+  assert.equal(
+    buildSubjectsQuery({ filter: 'filtered' }),
+    'limit=60&filter=filtered'
+  );
   // Invalid filter falls back to 'all'
   assert.equal(
     buildSubjectsQuery({ filter: 'unknown' }),
@@ -187,6 +191,244 @@ test('createPeopleController exposes expected public API interface', () => {
   assert.equal(state.rulesRevision, 0);
 });
 
+function setupMockDOM() {
+  const elements = new Map();
+  function makeEl(id, tag = 'div') {
+    const children = [];
+    const classList = new Set();
+    const el = {
+      id: id || '',
+      tagName: tag.toUpperCase(),
+      hidden: false,
+      disabled: false,
+      textContent: '',
+      value: '',
+      type: 'button',
+      checked: false,
+      dataset: {},
+      children,
+      classList: {
+        add: (...cls) => cls.forEach(c => classList.add(c)),
+        remove: (...cls) => cls.forEach(c => classList.delete(c)),
+        toggle: (c, force) => {
+          if (force === true) classList.add(c);
+          else if (force === false) classList.delete(c);
+          else if (classList.has(c)) classList.delete(c);
+          else classList.add(c);
+        },
+        contains: (c) => classList.has(c)
+      },
+      get className() { return Array.from(classList).join(' '); },
+      set className(val) {
+        classList.clear();
+        if (val) val.split(/\s+/).filter(Boolean).forEach(c => classList.add(c));
+      },
+      append: (...nodes) => {
+        for (const n of nodes) {
+          if (typeof n === 'string') {
+            const txt = makeEl('', 'span');
+            txt.textContent = n;
+            children.push(txt);
+          } else if (n) {
+            children.push(n);
+          }
+        }
+      },
+      replaceChildren: (...nodes) => {
+        children.length = 0;
+        if (nodes.length) el.append(...nodes);
+      },
+      setAttribute: (k, v) => { el[k] = v; },
+      getAttribute: (k) => el[k] ?? null,
+      querySelector: (sel) => {
+        for (const c of children) {
+          if (sel.startsWith('#') && c.id === sel.slice(1)) return c;
+          if (sel.startsWith('.') && c.classList?.contains(sel.slice(1))) return c;
+          const found = c.querySelector?.(sel);
+          if (found) return found;
+        }
+        return null;
+      },
+      querySelectorAll: (sel) => {
+        const res = [];
+        function walk(node) {
+          if (sel.startsWith('.') && node.classList?.contains(sel.slice(1))) res.push(node);
+          for (const c of (node.children || [])) walk(c);
+        }
+        walk(el);
+        return res;
+      },
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => true,
+      focus: () => {},
+      showModal: () => { el.open = true; },
+      close: () => { el.open = false; }
+    };
+    if (id) elements.set(id, el);
+    return el;
+  }
+
+  globalThis.document = {
+    createElement: (tag) => makeEl('', tag),
+    getElementById: (id) => elements.get(id) || null,
+    querySelector: (sel) => elements.get(sel.replace('#', '')) || null,
+    querySelectorAll: () => []
+  };
+
+  const ids = [
+    'ch-people-view', 'ch-people-filter', 'ch-people-refresh', 'ch-people-reset',
+    'ch-people-error', 'ch-people-loading', 'ch-people-list-container', 'ch-people-grid',
+    'ch-people-more-wrap', 'ch-people-more', 'ch-people-empty', 'ch-people-empty-hint',
+    'ch-person-detail', 'ch-people-back', 'ch-people-detail-title', 'ch-people-detail-count',
+    'ch-people-toggle-hide', 'ch-people-merge', 'ch-people-resolve',
+    'ch-people-detail-filter-note', 'ch-person-selection-bar', 'ch-people-selection-count',
+    'ch-people-split-selected', 'ch-people-remove-selected', 'ch-people-resolve-selected',
+    'ch-people-clear-selected', 'ch-person-media-grid', 'ch-people-media-more-wrap',
+    'ch-people-media-more', 'ch-people-reset-dialog', 'ch-people-reset-confirm-input',
+    'ch-people-reset-cancel', 'ch-people-reset-ok', 'ch-people-merge-dialog',
+    'ch-people-merge-targets', 'ch-people-merge-more-wrap', 'ch-people-merge-more',
+    'ch-people-merge-cancel', 'ch-people-merge-ok', 'ch-people-merge-search',
+    'ch-people-action-dialog', 'ch-people-action-title', 'ch-people-action-text',
+    'ch-people-action-cancel', 'ch-people-action-ok'
+  ];
+  for (const id of ids) makeEl(id);
+
+  const root = elements.get('ch-people-view');
+  root.querySelector = (sel) => {
+    if (sel.startsWith('#')) return elements.get(sel.slice(1)) || null;
+    return null;
+  };
+  root.querySelectorAll = () => [];
+
+  return { root, elements, makeEl };
+}
+
+test('DOM: Detail media request carries filter query parameter matching active filter', async () => {
+  const { root } = setupMockDOM();
+  const apiCalls = [];
+  const controller = createPeopleController({
+    root,
+    dialogRoot: root,
+    api: async (endpoint) => {
+      apiCalls.push(endpoint);
+      if (endpoint.includes('subjects?')) {
+        return { items: [{ id: 'subj-1', photo_count: 2, filtered: true }] };
+      }
+      if (endpoint.includes('/media?')) {
+        return { items: [{ id: 101, name: 'weak_face.jpg', face_detection_ids: ['d101'] }] };
+      }
+      return { items: [] };
+    },
+    getGallery: () => 'default'
+  });
+
+  // Set filter to 'filtered'
+  controller.setFilter('filtered');
+  await new Promise((r) => setTimeout(r, 10));
+
+  // Open subject detail
+  await controller.openSubject({ id: 'subj-1', photo_count: 2, filtered: true });
+
+  const mediaCall = apiCalls.find(c => c.includes('/media?'));
+  assert.ok(mediaCall, 'media request was made');
+  const url = new URL('https://example.com/' + mediaCall);
+  assert.equal(url.searchParams.get('filter'), 'filtered', 'media request carries filter=filtered');
+  assert.equal(url.searchParams.get('gallery'), 'default', 'media request carries gallery');
+});
+
+test('DOM: Filtered subject displays restrained badge in list and confirm button + filter note in detail', async () => {
+  const { root, elements } = setupMockDOM();
+  const apiCalls = [];
+  const controller = createPeopleController({
+    root,
+    dialogRoot: root,
+    api: async (endpoint, options = {}) => {
+      apiCalls.push({ endpoint, options });
+      if (endpoint.includes('subjects?')) {
+        return { items: [{ id: 'subj-f1', photo_count: 3, filtered: true, review_count: 0 }] };
+      }
+      if (endpoint.includes('/media?')) {
+        return { items: [{ id: 201, name: 'weak.jpg', face_detection_ids: ['det-1'] }] };
+      }
+      if (endpoint.includes('/action')) {
+        return { ok: true };
+      }
+      return { items: [] };
+    },
+    getGallery: () => 'default'
+  });
+
+  controller.setFilter('filtered');
+  await new Promise((r) => setTimeout(r, 10));
+
+  // Verify card has restrained "Gefiltert" badge
+  const grid = elements.get('ch-people-grid');
+  assert.equal(grid.children.length, 1, '1 card rendered in grid');
+  const badge = grid.children[0].querySelector('.ch-person-badge-filtered');
+  assert.ok(badge, 'filtered badge rendered on card');
+  assert.equal(badge.textContent, 'Gefiltert', 'badge text is Gefiltert');
+
+  // Open subject detail
+  await controller.openSubject({ id: 'subj-f1', photo_count: 3, filtered: true, review_count: 0 });
+
+  const resolveBtn = elements.get('ch-people-resolve');
+  const filterNote = elements.get('ch-people-detail-filter-note');
+  assert.equal(resolveBtn.hidden, false, 'Resolve button is visible for filtered subject even without review_count');
+  assert.equal(resolveBtn.textContent, 'Bestätigen', 'Resolve button text is Bestätigen');
+  assert.equal(filterNote.hidden, false, 'Filter explanatory note is visible in filtered view');
+
+  // Click top resolve button
+  await resolveBtn.onclick();
+  const actionCall = apiCalls.find(c => c.endpoint.includes('/action'));
+  assert.ok(actionCall, 'action request was made');
+  assert.equal(actionCall.endpoint, 'subjects/subj-f1/action');
+  const payload = JSON.parse(actionCall.options.body);
+  assert.equal(payload.action, 'resolve', 'Resolve action sent to backend');
+  assert.equal(payload.rules_revision, 0, 'Rules revision included');
+});
+
+test('DOM: Regular subject in all view hides confirm button (without review_count) and hides filter note', async () => {
+  const { root, elements } = setupMockDOM();
+  const controller = createPeopleController({
+    root,
+    dialogRoot: root,
+    api: async (endpoint) => {
+      if (endpoint.includes('/media?')) {
+        return { items: [{ id: 301, name: 'photo.jpg', face_detection_ids: ['det-reg'] }] };
+      }
+      return { items: [] };
+    },
+    getGallery: () => 'default'
+  });
+
+  controller.setFilter('all');
+  await controller.openSubject({ id: 'subj-regular', photo_count: 8, filtered: false, review_count: 0 });
+
+  const resolveBtn = elements.get('ch-people-resolve');
+  const filterNote = elements.get('ch-people-detail-filter-note');
+  assert.equal(resolveBtn.hidden, true, 'Resolve button hidden for regular subject with 0 review_count');
+  assert.equal(filterNote.hidden, true, 'Filter explanatory note hidden for regular subject');
+});
+
+test('DOM: Empty state renders specific hint for filtered view', async () => {
+  const { root, elements } = setupMockDOM();
+  const controller = createPeopleController({
+    root,
+    dialogRoot: root,
+    api: async () => ({ items: [] }),
+    getGallery: () => 'default'
+  });
+
+  controller.setFilter('filtered');
+  await new Promise((r) => setTimeout(r, 10));
+
+  const emptyWrap = elements.get('ch-people-empty');
+  const emptyHint = elements.get('ch-people-empty-hint');
+  assert.equal(emptyWrap.hidden, false, 'Empty state wrap is visible');
+  assert.equal(emptyHint.textContent, 'Keine gefilterten Gesichter gefunden', 'Filtered empty hint matches contract');
+});
+
 // Real DOM & Browser Interaction Tests via Playwright
 let chromium = null;
 try {
@@ -204,12 +446,14 @@ const HTML_SHELL = `<!DOCTYPE html>
           <select id="ch-people-filter">
             <option value="all">Alle</option>
             <option value="review">Überprüfung</option>
-            <option value="single">Einzelfunde</option>
+            <option value="single">Seltene Personen</option>
+            <option value="filtered">Gefilterte Gesichter</option>
             <option value="hidden">Ausgeblendet</option>
           </select>
           <button data-people-filter="all" class="active">Alle</button>
           <button data-people-filter="review">Überprüfung</button>
-          <button data-people-filter="single">Einzelfunde</button>
+          <button data-people-filter="single">Seltene Personen</button>
+          <button data-people-filter="filtered">Gefilterte Gesichter</button>
           <button data-people-filter="hidden">Ausgeblendet</button>
         </div>
         <div class="ch-people-top-actions">
@@ -241,6 +485,7 @@ const HTML_SHELL = `<!DOCTYPE html>
             <button id="ch-people-merge">Zusammenführen</button>
             <button id="ch-people-resolve" hidden>Überprüfung auflösen</button>
           </div>
+          <p id="ch-people-detail-filter-note" class="ch-hint" hidden>Kleine oder unscharfe Gesichter im Hintergrund werden hier gesammelt und können bestätigt werden.</p>
         </div>
         <div id="ch-person-selection-bar" hidden>
           <span id="ch-people-selection-count"></span>
@@ -276,7 +521,7 @@ const HTML_SHELL = `<!DOCTYPE html>
       <div class="ch-merge-toolbar">
         <div class="ch-segmented">
           <button type="button" class="ch-seg-btn active" data-merge-filter="all">Alle</button>
-          <button type="button" class="ch-seg-btn" data-merge-filter="single">Einzelfunde</button>
+          <button type="button" class="ch-seg-btn" data-merge-filter="single">Seltene Personen</button>
         </div>
         <input type="search" id="ch-people-merge-search" placeholder="Personen suchen …">
       </div>
@@ -607,6 +852,98 @@ test('Real DOM: Multi-detection selection is honest and merge dialog renders hum
   // Close merge dialog
   await page.locator('#ch-people-merge-cancel').click();
   assert.equal(await page.evaluate(() => document.getElementById('ch-people-merge-dialog').open), false, 'Merge dialog closed');
+
+  await browser.close();
+});
+
+test('Real DOM: Filtered view carries filter to media, shows confirm button and note, resolves weak faces', async (t) => {
+  if (!chromium) {
+    t.skip('Playwright not available');
+    return;
+  }
+
+  const browser = await chromium.launch({
+    executablePath: process.env.PLAYWRIGHT_EXECUTABLE || undefined,
+    headless: true,
+    args: ['--no-sandbox']
+  });
+  const context = await browser.newContext();
+  const page = await context.newPage();
+
+  await page.route('**/faces.mjs', (route) => {
+    route.fulfill({
+      status: 200,
+      contentType: 'application/javascript',
+      body: facesMjsContent
+    });
+  });
+
+  await page.setContent(HTML_SHELL);
+
+  await page.evaluate(async (modUrl) => {
+    const { createPeopleController } = await import(modUrl);
+    window.recordedCalls = [];
+    window.actionCalls = [];
+    window.controller = createPeopleController({
+      root: document.getElementById('ch-people-view'),
+      dialogRoot: document.getElementById('nextgallery'),
+      api: async (endpoint, options = {}) => {
+        window.recordedCalls.push({ endpoint, options });
+        if (endpoint.includes('subjects?')) {
+          return {
+            items: [
+              { id: 'subj-filt-1', photo_count: 2, filtered: true, review_count: 0, cover_id: 'c1' }
+            ]
+          };
+        }
+        if (endpoint.includes('/media?')) {
+          return {
+            items: [
+              { id: 501, name: 'weak1.jpg', face_detection_ids: ['d501'] }
+            ]
+          };
+        }
+        if (endpoint.includes('/action')) {
+          window.actionCalls.push(JSON.parse(options.body));
+          return { ok: true };
+        }
+        return { items: [] };
+      },
+      getGallery: () => 'default'
+    });
+
+    window.controller.setFilter('filtered');
+  }, facesMjsDataUri);
+
+  await page.waitForFunction(() => document.querySelectorAll('#ch-people-grid .ch-person-card').length === 1);
+
+  // Badge Gefiltert is visible on card
+  const badgeText = await page.locator('#ch-people-grid .ch-person-badge-filtered').textContent();
+  assert.equal(badgeText.trim(), 'Gefiltert', 'Badge text is Gefiltert');
+
+  // Click card to open detail
+  await page.locator('#ch-people-grid .ch-person-card').click();
+  await page.waitForFunction(() => !document.getElementById('ch-person-detail').hidden);
+
+  // Filter note is visible
+  const noteVisible = await page.evaluate(() => !document.getElementById('ch-people-detail-filter-note').hidden);
+  assert.equal(noteVisible, true, 'Filter explanatory note is visible in detail view');
+
+  // Top resolve button is visible and says Bestätigen even with review_count: 0
+  const resolveVisible = await page.evaluate(() => !document.getElementById('ch-people-resolve').hidden);
+  assert.equal(resolveVisible, true, 'Top confirm button visible for filtered subject');
+  const resolveText = await page.locator('#ch-people-resolve').textContent();
+  assert.equal(resolveText.trim(), 'Bestätigen', 'Confirm button text is Bestätigen');
+
+  // Check media request carried filter=filtered
+  const mediaCall = await page.evaluate(() => window.recordedCalls.find(c => c.endpoint.includes('/media?')));
+  assert.ok(mediaCall.endpoint.includes('filter=filtered'), 'Media call carried filter=filtered');
+
+  // Click confirm button
+  await page.locator('#ch-people-resolve').click();
+  await page.waitForFunction(() => window.actionCalls.length > 0);
+  const action = await page.evaluate(() => window.actionCalls[0]);
+  assert.equal(action.action, 'resolve', 'Resolve action sent');
 
   await browser.close();
 });
