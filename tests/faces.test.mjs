@@ -1376,6 +1376,78 @@ test('Real DOM: Suggestion badges mark cards and "Nächster Vorschlag" works thr
   await browser.close();
 });
 
+test('Real DOM: "Kenne ich nicht" while working through suggestions opens the next one', async (t) => {
+  if (!chromium) {
+    t.skip('Playwright not available');
+    return;
+  }
+
+  const browser = await chromium.launch({
+    executablePath: process.env.PLAYWRIGHT_EXECUTABLE || undefined,
+    headless: true,
+    args: ['--no-sandbox']
+  });
+  const page = await (await browser.newContext()).newPage();
+  await page.route('**/faces.mjs', (route) => {
+    route.fulfill({ status: 200, contentType: 'application/javascript', body: facesMjsContent });
+  });
+  await page.setContent(HTML_SHELL);
+
+  await page.evaluate(async (modUrl) => {
+    const { createPeopleController } = await import(modUrl);
+    window.actionCalls = [];
+    window.gone = new Set();
+    const all = [
+      { id: 's-1', photo_count: 1, cover_id: 'c1', suggestion_count: 1 },
+      { id: 's-2', photo_count: 1, cover_id: 'c2', suggestion_count: 1 },
+      { id: 'plain', photo_count: 1, cover_id: 'c3', suggestion_count: 0 }
+    ];
+    window.controller = createPeopleController({
+      root: document.getElementById('ch-people-view'),
+      dialogRoot: document.getElementById('nextgallery'),
+      api: async (endpoint, options = {}) => {
+        if (endpoint.includes('subjects?')) return { items: all.filter((s) => !window.gone.has(s.id)), rules_revision: 3 };
+        if (endpoint.includes('/similar?')) {
+          const id = endpoint.split('/')[1];
+          return { items: id === 'plain' ? [] : [{ id: 'known', label: 'Max', photo_count: 12, cover_id: 'k1', similarity: 0.7 }], rules_revision: 3 };
+        }
+        if (endpoint.includes('/media?')) return { items: [] };
+        if (endpoint.includes('/action')) {
+          const id = endpoint.split('/')[1];
+          window.actionCalls.push({ id, body: JSON.parse(options.body) });
+          window.gone.add(id);
+          return { success: true, rules_revision: 4, stranger: true };
+        }
+        return { items: [] };
+      },
+      getGallery: () => 'default'
+    });
+    window.controller.setFilter('single');
+  }, facesMjsDataUri);
+
+  await page.waitForFunction(() => document.querySelectorAll('#ch-people-grid .ch-person-card').length === 3);
+  await page.locator('#ch-people-grid .ch-person-card[data-id="s-1"]').click();
+  await page.waitForFunction(() => !document.getElementById('ch-person-detail').hidden);
+
+  await page.locator('#ch-people-toggle-stranger').click();
+  await page.waitForFunction(() => window.controller.getSelectedSubject()?.id === 's-2');
+  assert.deepEqual(await page.evaluate(() => window.actionCalls.map((c) => [c.id, c.body.action])), [['s-1', 'stranger']]);
+  assert.equal(await page.evaluate(() => !document.getElementById('ch-people-undo-bar').hidden), true, 'Undo stays available');
+
+  // The last person with a suggestion goes back to the overview.
+  await page.locator('#ch-people-toggle-stranger').click();
+  await page.waitForFunction(() => window.actionCalls.length === 2 && document.getElementById('ch-person-detail').hidden);
+  assert.equal(await page.evaluate(() => window.controller.getSelectedSubject()), null);
+
+  // A person without suggestions also returns to the overview.
+  await page.locator('#ch-people-grid .ch-person-card[data-id="plain"]').click();
+  await page.waitForFunction(() => !document.getElementById('ch-person-detail').hidden);
+  await page.locator('#ch-people-toggle-stranger').click();
+  await page.waitForFunction(() => window.actionCalls.length === 3 && document.getElementById('ch-person-detail').hidden);
+
+  await browser.close();
+});
+
 test('Real DOM: Merge dialog card selection shows active state, badge, and live preview bar with inspect trigger', async (t) => {
   if (!chromium) {
     t.skip('Playwright not available');

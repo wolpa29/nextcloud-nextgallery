@@ -641,6 +641,13 @@ export function createPeopleController({
     if (btn) btn.hidden = !selectedSubject || !nextSuggestedSubject(selectedSubject.id);
   }
 
+  // A person left the list. While working through suggestions, continue with the next one.
+  async function leaveSubject() {
+    const hadSuggestions = Boolean(selectedSubject) && (Number(selectedSubject.suggestion_count) > 0 || similarItems.length > 0);
+    if (hadSuggestions) await openNextSuggestion();
+    else await backToList();
+  }
+
   // Work through suggestions: refresh the list (counts change after every decision), then open the next one.
   async function openNextSuggestion() {
     const fromId = selectedSubject ? selectedSubject.id : null;
@@ -1157,7 +1164,7 @@ export function createPeopleController({
       // After action, refresh view
       selectedDetections.clear();
       if (['merge', 'hide', 'stranger', 'unstranger'].includes(action) || (action === 'resolve' && filter === 'filtered')) {
-        await backToList();
+        await leaveSubject();
       } else if (action === 'rename') {
         selectedSubject.label = res?.label ?? (label ? label.trim() : null);
         renderDetailHeader();
