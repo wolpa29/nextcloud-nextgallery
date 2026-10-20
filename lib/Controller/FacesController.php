@@ -112,17 +112,39 @@ class FacesController extends Controller {
 
     #[NoAdminRequired]
     #[NoCSRFRequired]
-    public function preview(string $detectionId, string $gallery = ''): Bytes {
+    public function previewPeople(string $detectionId, array $roots = []): Bytes {
+        $roots = $roots !== [] ? $roots : (array)$this->request->getParam('roots', []);
+        if (empty($roots)) {
+            return new Bytes('', 'text/plain', 404, ['Cache-Control' => 'no-store']);
+        }
+        return $this->preview($detectionId, '', $roots);
+    }
+
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
+    public function preview(string $detectionId, string $gallery = '', array $roots = []): Bytes {
         $uid = $this->uid();
         $gallery = $gallery !== '' ? $gallery : (string)$this->request->getParam('gallery', '');
+        $roots = $roots !== [] ? $roots : (array)$this->request->getParam('roots', []);
 
         $det = $this->faces->getDetection($uid, $detectionId);
         if (!$det) {
             return new Bytes('', 'text/plain', 404, ['Cache-Control' => 'no-store']);
         }
 
+        if ($roots !== []) {
+            try {
+                [$home, $selected] = \OCA\Nextgallery\Service\NativePeople::validateFolders($this->rootFolder, $uid, $roots);
+                $effectiveRoots = array_keys($selected);
+            } catch (\InvalidArgumentException) {
+                return new Bytes('', 'text/plain', 404, ['Cache-Control' => 'no-store']);
+            }
+        } else {
+            $effectiveRoots = $this->library->settings($uid, $gallery)['roots'] ?? [];
+        }
+
         // Current read access, gallery scope and file version; fails closed without a home folder.
-        $live = $this->faces->authorizedFile($uid, (int)$det['file_id'], (string)$det['etag'], $this->library->settings($uid, $gallery)['roots'] ?? []);
+        $live = $this->faces->authorizedFile($uid, (int)$det['file_id'], (string)$det['etag'], $effectiveRoots);
         if ($live === null) {
             return new Bytes('', 'text/plain', 404, ['Cache-Control' => 'no-store']);
         }

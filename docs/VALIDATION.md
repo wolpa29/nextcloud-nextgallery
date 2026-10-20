@@ -1,3 +1,16 @@
+# Native Android People integration — 20 October 2026
+
+NextGallery Server **0.4.24** is installed on Nextcloud34.0.5.1/MariaDB. Android0.8.0 uses explicit mobile folder roots for person browsing, optional offline assignment snapshots and person-filtered text/image search. Recognition workers, model spaces and canonical data formats are unchanged.
+
+- **79** real Nextcloud People contracts passed directly against the installable PHP classes, including scope, access, quality, hidden groups, file versions, date-aware paging, fresh/frozen snapshots, invalidation and native search filtering, including real sqlite-vec person/motif intersection and cross-person token rejection. The temporary duplicated-class test bundle was removed; it is not the verification source.
+- **97** existing native lexical/vector search, permissions and pagination contracts passed. **49** existing Faces storage/account/API contracts passed. **6** independent snapshot-expiry/erasure assertions passed. All changed PHP files pass syntax checks. The extracted worker package guard and its SQLite/FTS5/vector/transport checks pass; no worker code is changed by this release.
+- Seven production HTTP checks used a temporary ordinary account and an empty synthetic folder: person list/snapshot/final token/search-filter echo, invalid roots400, unauthenticated401 and missing crop404. TLS used the configured CA. The account and its data were removed. No private photographs were accessed.
+- Before/after installation, all **14** protected SQL/settings summaries were byte-identical by hash. All worker process IDs and controls were identical. Only **12** PHP/routing/package metadata files were installed; no worker restart, reset or reanalysis was requested. Backup: `/root/nextgallery-backups/native-people-0424-20261020-132620`.
+
+Evidence is in ignored `artifacts/native-people-0424/` and the local task verification files. Native Android signed-package, distribution and update-policy evidence is recorded in the separate Android repository. Synthetic fixtures do not measure person-recognition accuracy in a private library.
+
+---
+
 # Merge suggestions and scoped People listing — 2026-10-20
 
 NextGallery **0.4.23** was validated on the disposable Nextcloud **34.0.5 / MariaDB** instance and installed on production **34.0.5.1 / MariaDB** on 2026-10-20 from commit `eb6de9d`.

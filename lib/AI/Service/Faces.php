@@ -729,6 +729,11 @@ class Faces {
         }
     }
 
+    /** Remove expired derived native downloads, or every snapshot of an erased account. */
+    public function cleanupNativeSnapshots(?string $uid = null): void {
+        if ($this->state !== null) \OCA\Nextgallery\Service\NativePeopleSnapshots::cleanup($this->state->rootDirectory(), $uid);
+    }
+
     public function reset(string $uid): array {
         $this->lock($uid);
         try {
@@ -762,6 +767,7 @@ class Faces {
             }
 
             $this->clearWorkingCache($uid);
+            $this->cleanupNativeSnapshots($uid);
             return ['reset' => true, 'generation' => $newGeneration];
         } finally {
             $this->unlock($uid);
@@ -794,6 +800,7 @@ class Faces {
                 throw $error;
             }
             $this->clearWorkingCache($uid);
+            $this->cleanupNativeSnapshots($uid);
         } finally {
             $this->unlock($uid);
         }

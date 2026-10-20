@@ -9,7 +9,8 @@ use OCA\Nextgallery\AI\Service\{Settings,EmbeddingClient};
 
 /** Read-only mobile search, scoped to readable Android folders, independent of web galleries. */
 class NativeSearch {
- public function __construct(private IDBConnection $db,private IRootFolder $root,private IFilesMetadataManager $metadata,private Settings $settings,private EmbeddingClient $client,private ?SearchIndex $index=null) {}
+ public function __construct(private IDBConnection $db,private IRootFolder $root,private IFilesMetadataManager $metadata,private Settings $settings,private EmbeddingClient $client,private ?SearchIndex $index=null,private ?NativePeople $people=null) {}
+ private function peopleService(): NativePeople {return $this->people??=\OCP\Server::get(NativePeople::class);}
 
  private function folders(string $uid,array $roots):array {
   if(!array_is_list($roots)||count($roots)>32)throw new \InvalidArgumentException('Maximal 32 Ordner auswählen.');
@@ -26,13 +27,15 @@ class NativeSearch {
   return [$home,$selected];
  }
  private function engine():SearchIndex {return $this->index??=\OCP\Server::get(SearchIndex::class);}
- public function search(string $uid,string $query,array $roots,string $kind='',int $offset=0,int $limit=60,string $phase='hybrid',string $period='',string $mode='folder',string $timezone='UTC',string $search_token='',bool $vectorOnly=false):array {
+ public function search(string $uid,string $query,array $roots,string $kind='',int $offset=0,int $limit=60,string $phase='hybrid',string $period='',string $mode='folder',string $timezone='UTC',string $search_token='',bool $vectorOnly=false,string $subjectId=''):array {
   if(!in_array($phase,['text','hybrid'],true)||!in_array($kind,['','image','video'],true)||$offset<0||$limit<1||$limit>200||mb_strlen($query)>200||($period!==''&&!preg_match('/^\d{4}(?:-\d{2})?(?:-\d{2})?$/D',$period)))throw new \InvalidArgumentException('Suchanfrage ungültig.');
   if(!in_array($mode,['folder','metadata','filename'],true)||!in_array($timezone,\DateTimeZone::listIdentifiers(),true))throw new \InvalidArgumentException('Datumseinstellung ungültig.');
   if($search_token!==''&&!preg_match('/^[a-f0-9]{32}$/D',$search_token))throw new \InvalidArgumentException('Suchseite ungültig.');
+  if($subjectId!==''){if(!preg_match('/^[a-f0-9]{32}$/iD',$subjectId))throw new \InvalidArgumentException('Subjekt ungültig.');$subjectId=strtolower($subjectId);}
   [$home,$folders]=$this->folders($uid,$roots);$roots=array_keys($folders);
-  if(!trim($query)||!$roots)return ['items'=>[],'next'=>null,'more'=>false,'mode'=>'lexical','embedding_state'=>'not_indexed','search_backend'=>'sqlite','index_state'=>'ready'];
-  $config=$this->settings->workerConfig()['embedding'];$request=['query'=>trim($query),'roots'=>$roots,'kind'=>$kind,'offset'=>$offset,'limit'=>$limit,'phase'=>'text','period'=>$period,'mode'=>$mode,'timezone'=>$timezone,'embedding_enabled'=>$config['enabled'],'vector_only'=>$vectorOnly,'context'=>Settings::embeddingSignature(['user_id'=>$uid,'embedding'=>$config])];
+  if(!trim($query)||!$roots)return ['items'=>[],'next'=>null,'more'=>false,'mode'=>'lexical','embedding_state'=>'not_indexed','search_backend'=>'sqlite','index_state'=>'ready']+($subjectId!==''?['subject_id'=>$subjectId]:[]);
+  $config=$this->settings->workerConfig()['embedding'];$context=Settings::embeddingSignature(['user_id'=>$uid,'embedding'=>$config]).($subjectId!==''?':subject:'.$subjectId:'');
+  $request=['query'=>trim($query),'roots'=>$roots,'kind'=>$kind,'offset'=>$offset,'limit'=>$limit,'phase'=>'text','period'=>$period,'mode'=>$mode,'timezone'=>$timezone,'embedding_enabled'=>$config['enabled'],'vector_only'=>$vectorOnly,'context'=>$context];
   if($search_token!==''){$request['search_token']=$search_token;$request['phase']=$phase;}
   $index=$this->engine();
   try{$result=$index->query($uid,$request);}catch(\InvalidArgumentException $e){throw $e;}catch(\Throwable $e){if($search_token!=='')throw $e;$result=$index->fallback($uid,$request);}
@@ -43,12 +46,15 @@ class NativeSearch {
    try{$result=$index->query($uid,$request);}catch(\Throwable){$result=$index->fallback($uid,$request);}
   }
   $request['search_token']=$result['search_token']??'';
+  $subjectFileIds=$subjectId!==''?$this->peopleService()->subjectFileIds($uid,$subjectId,$roots):[];
   $items=[];$cursor=$offset;$bytes=0;$total=(int)($result['total']??0);$page=$result;
   do{
    foreach($page['items'] as $hit){
     $position=$cursor;$cursor++;
+    if($subjectId!==''&&!isset($subjectFileIds[(int)$hit['file_id']]))continue;
     try{$file=$home->get($hit['path']);}catch(\OCP\Files\NotFoundException|\OCP\Files\NotPermittedException){continue;}
     if(!$file instanceof File||!$file->isReadable()||$file->getId()!==(int)$hit['file_id']||!hash_equals($file->getEtag(),$hit['etag']))continue;
+    if($subjectId!==''&&!hash_equals($subjectFileIds[$file->getId()],$file->getEtag()))continue;
     $path='/'.ltrim($home->getRelativePath($file->getPath()),'/');
     if($path!==$hit['path']||!array_filter($roots,fn($root)=>$root==='/'||str_starts_with($path,$root.'/')))continue;
     $meta=$index->metadata($file);$date=Dates::resolve($path,$meta['capture']??null,$file->getMTime(),$mode,$timezone);
@@ -79,6 +85,6 @@ class NativeSearch {
    if($cursor>=$total||!$page['items'])break;
    $request['offset']=$cursor;$request['limit']=$limit-count($items);$page=($result['index_state']??'ready')==='unavailable'?$index->fallback($uid,$request):$index->query($uid,$request);$total=(int)$page['total'];
   }while(count($items)<$limit);
-  return ['items'=>$items,'next'=>$cursor<$total?$cursor:null,'more'=>$cursor<$total,'mode'=>$result['mode'],'embedding_state'=>$result['embedding_state'],'search_backend'=>$result['search_backend']??'sqlite','index_state'=>$result['index_state']??'ready','search_token'=>$result['search_token']??null];
+  return ['items'=>$items,'next'=>$cursor<$total?$cursor:null,'more'=>$cursor<$total,'mode'=>$result['mode'],'embedding_state'=>$result['embedding_state'],'search_backend'=>$result['search_backend']??'sqlite','index_state'=>$result['index_state']??'ready','search_token'=>$result['search_token']??null]+($subjectId!==''?['subject_id'=>$subjectId]:[]);
  }
 }

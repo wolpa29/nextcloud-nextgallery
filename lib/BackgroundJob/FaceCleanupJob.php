@@ -21,6 +21,8 @@ class FaceCleanupJob extends TimedJob {
 
     protected function run($argument): void {
         $deadline = microtime(true) + 30;
+        try { $this->faces->cleanupNativeSnapshots(); }
+        catch (\Throwable $e) { $this->logger?->warning('NextGallery native People download cleanup failed', ['exception' => $e]); }
         $users = array_values(array_unique(array_merge($this->library->users(), $this->faces->accounts())));
         foreach ($users as $uid) {
             try {
