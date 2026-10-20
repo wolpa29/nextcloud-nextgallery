@@ -1,3 +1,16 @@
+# Merge suggestions and scoped People listing — 2026-10-20
+
+NextGallery **0.4.23** was validated on the disposable Nextcloud **34.0.5 / MariaDB** test instance only. It has **not** been installed on the production server.
+
+- **372 Python tests** passed in the base environment (13 optional-runtime skips); all **63 face tests**, including eight new suggestion tests, passed in the OpenCV/NumPy runtime.
+- All standalone PHP suites passed, including **92 face assertions** and **50 new assertions** for the separate face-reuse switch, index-scoped listing, fail-closed access without a home folder, suggestion upload guards, dismissal, split/merge behaviour and cleanup.
+- The real Nextcloud upgrade to 0.4.23 created both new tables. **49 People**, **43 shared-artifact** and **30 quality** contracts passed unchanged, and **22 new MariaDB contracts** covered the switch fallback, gallery-scoped counts and suggestions, the constraint join, merges, cleanup and reset. All contracts passed twice in a row.
+- All **28 Node tests** passed, including the five Chromium real-DOM tests and three new suggestion-panel tests.
+- Synthetic scale check: 50,000 detections in 2,000 groups, one overview request about **0.7 s**; per-file live checks for all files would have taken at least about 14 s.
+- Not validated: the HTTP worker integration with the real face models, and suggestion quality on a real library. The suggestion thresholds are provisional.
+
+---
+
 # Face quality filtering release — 2026-10-20
 
 NextGallery **0.4.22** was installed on Nextcloud **34.0.5.1 / MariaDB**. Personal area, sharpness and photograph-count filters reduce background detections in the main People view. Weak detections remain available for explicit confirmation and cannot anchor automatic clustering. Raw file inference remains shareable; personal filtering and corrections remain account-specific.

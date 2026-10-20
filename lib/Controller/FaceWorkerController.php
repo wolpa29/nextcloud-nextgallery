@@ -177,6 +177,29 @@ class FaceWorkerController extends Controller {
         }
     }
 
+    /** Merge suggestions computed by the worker; replaced as a whole per account. */
+    #[PublicPage]
+    #[NoCSRFRequired]
+    public function suggestions(string $epoch = '', int $generation = 0, array $pairs = []): DataResponse {
+        if ($denied = $this->denied()) {
+            return $denied;
+        }
+        $uid = $this->settings->get()['user_id'];
+        try {
+            $stored = $this->faces->publishSuggestions($uid, $epoch, $generation, $pairs);
+            $response = new DataResponse(['stored' => $stored]);
+            $response->addHeader('Cache-Control', 'no-store');
+            return $response;
+        } catch (FaceConflictException $e) {
+            return new DataResponse(['error' => $e->getMessage()], 409);
+        } catch (OCSBadRequestException $e) {
+            return new DataResponse(['error' => $e->getMessage()], 400);
+        } catch (\Throwable $e) {
+            $this->logger?->error('FaceWorkerController suggestions error: ' . $e->getMessage(), ['exception' => $e]);
+            return new DataResponse(['error' => 'Interner Serverfehler'], 500);
+        }
+    }
+
     #[PublicPage]
     #[NoCSRFRequired]
     public function reset(): DataResponse {

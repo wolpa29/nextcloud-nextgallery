@@ -8,7 +8,7 @@ export function buildSubjectsQuery({gallery, cursor, limit = 60, filter = 'all'}
   if (gallery) params.set('gallery', gallery);
   if (cursor !== undefined && cursor !== null && cursor !== '') params.set('cursor', String(cursor));
   if (limit) params.set('limit', String(limit));
-  if (filter && ['all', 'hidden', 'review', 'single', 'filtered'].includes(filter)) {
+  if (filter && ['all', 'suggested', 'hidden', 'review', 'single', 'filtered'].includes(filter)) {
     params.set('filter', filter);
   } else {
     params.set('filter', 'all');
@@ -17,7 +17,7 @@ export function buildSubjectsQuery({gallery, cursor, limit = 60, filter = 'all'}
 }
 
 export function buildActionPayload({action, target_id, detection_ids, rules_revision}) {
-  const allowed = ['hide', 'show', 'merge', 'split', 'remove', 'resolve'];
+  const allowed = ['hide', 'show', 'merge', 'split', 'remove', 'resolve', 'dismiss'];
   if (!allowed.includes(action)) {
     throw new Error(`Invalid action "${action}". Allowed: ${allowed.join(', ')}`);
   }
@@ -103,6 +103,8 @@ export function createPeopleController({
   let currentGallery = getGallery();
   let activeGeneration = 0;
   let currentAbort = null;
+  let similarItems = [];
+  let similarGeneration = 0;
 
   function setLoading(isLoading) {
     loading = isLoading;
@@ -204,6 +206,8 @@ export function createPeopleController({
         if (hint) {
           hint.textContent = filter === 'all'
             ? tr('Starte die Personenerkennung in der KI-Verarbeitung, um Fotos nach Personen zu sortieren.')
+            : filter === 'suggested'
+            ? tr('Keine offenen Vorschläge. Neue Vorschläge entstehen nach dem nächsten Lauf der Personenerkennung.')
             : filter === 'filtered'
             ? tr('Keine gefilterten Gesichter gefunden')
             : tr('Keine Personen in dieser Ansicht.');
@@ -325,7 +329,134 @@ export function createPeopleController({
     }
 
     updateSelectionBar();
+    similarItems = [];
+    renderSimilar();
     await loadSubjectMedia(true);
+    await loadSimilar();
+  }
+
+  // Suggestions only apply to the main person view, not to filtered, review or hidden lists.
+  function similarApplies() {
+    return Boolean(selectedSubject) && ['all', 'single', 'suggested'].includes(filter);
+  }
+
+  async function loadSimilar() {
+    const reqGen = ++similarGeneration;
+    if (!similarApplies()) {
+      similarItems = [];
+      renderSimilar();
+      return;
+    }
+    const subjectId = selectedSubject.id;
+    try {
+      const q = new URLSearchParams({ gallery: getGallery() });
+      const data = await api(`subjects/${encodeURIComponent(subjectId)}/similar?` + q.toString());
+      if (reqGen !== similarGeneration || !selectedSubject || selectedSubject.id !== subjectId) return;
+      similarItems = Array.isArray(data.items) ? data.items : [];
+      if (typeof data.rules_revision === 'number') rulesRevision = data.rules_revision;
+      const count = Number(data.subject?.photo_count);
+      if (count > 0) {
+        selectedSubject.photo_count = count;
+        const countEl = $('ch-people-detail-count');
+        if (countEl) countEl.textContent = formatPhotoCount(count, tr, locale);
+      }
+    } catch (err) {
+      if (reqGen !== similarGeneration) return;
+      similarItems = []; // Suggestions are optional; the person view stays usable.
+    }
+    renderSimilar();
+  }
+
+  function renderSimilar() {
+    const section = $('ch-people-similar');
+    const list = $('ch-people-similar-list');
+    if (!section || !list) return;
+    list.replaceChildren();
+    section.hidden = similarItems.length === 0;
+    for (const other of similarItems) {
+      const item = document.createElement('div');
+      item.className = 'ch-people-similar-item';
+      item.setAttribute('role', 'listitem');
+      item.dataset.id = other.id;
+
+      const thumb = document.createElement('div');
+      thumb.className = 'ch-person-thumb-wrap';
+      if (other.cover_id) {
+        const img = document.createElement('img');
+        img.className = 'ch-person-thumb';
+        img.alt = '';
+        img.loading = 'lazy';
+        img.decoding = 'async';
+        img.src = previewUrl(other.cover_id);
+        img.onerror = () => img.replaceWith(createGenericPersonIcon());
+        thumb.append(img);
+      } else {
+        thumb.append(createGenericPersonIcon());
+      }
+      item.append(thumb);
+
+      const count = document.createElement('span');
+      count.className = 'ch-person-count';
+      count.textContent = formatPhotoCount(other.photo_count, tr, locale);
+      item.append(count);
+
+      const actions = document.createElement('div');
+      actions.className = 'ch-people-similar-actions';
+      const merge = document.createElement('button');
+      merge.type = 'button';
+      merge.className = 'ch-button ch-primary';
+      merge.textContent = tr('Zusammenführen');
+      merge.onclick = () => mergeSuggestion(other);
+      const dismiss = document.createElement('button');
+      dismiss.type = 'button';
+      dismiss.className = 'ch-button';
+      dismiss.textContent = tr('Andere Person');
+      dismiss.title = tr('Nicht mehr vorschlagen');
+      dismiss.onclick = () => dismissSuggestion(other);
+      actions.append(merge, dismiss);
+      item.append(actions);
+      list.append(item);
+    }
+  }
+
+  async function suggestionAction(sourceId, payload) {
+    clearError();
+    try {
+      const result = await api(`subjects/${encodeURIComponent(sourceId)}/action`, {
+        method: 'POST',
+        body: JSON.stringify(buildActionPayload({ ...payload, rules_revision: rulesRevision }))
+      });
+      if (typeof result?.rules_revision === 'number') rulesRevision = result.rules_revision;
+      return true;
+    } catch (err) {
+      showError(err);
+      return false;
+    }
+  }
+
+  async function mergeSuggestion(other) {
+    if (!selectedSubject) return;
+    const ok = await showActionConfirm(
+      tr('Person zusammenführen?'),
+      tr('Die vorgeschlagene Person wird mit dieser Person zusammengelegt.'),
+      tr('Zusammenführen'),
+      false
+    );
+    if (!ok) return;
+    // The suggestion moves into the open person, so this view and its ID remain valid.
+    await suggestionAction(other.id, { action: 'merge', target_id: selectedSubject.id });
+    await loadSubjectMedia(true);
+    await loadSimilar();
+  }
+
+  async function dismissSuggestion(other) {
+    if (!selectedSubject) return;
+    if (await suggestionAction(selectedSubject.id, { action: 'dismiss', target_id: other.id })) {
+      similarItems = similarItems.filter((item) => item.id !== other.id);
+      renderSimilar();
+    } else {
+      await loadSimilar();
+    }
   }
 
   async function loadSubjectMedia(reset = true) {
@@ -496,6 +627,7 @@ export function createPeopleController({
         await backToList();
       } else {
         await loadSubjectMedia(true);
+        await loadSimilar();
       }
     } catch (err) {
       showError(err);
@@ -509,6 +641,9 @@ export function createPeopleController({
 
   async function backToList() {
     selectedSubject = null;
+    similarItems = [];
+    similarGeneration++;
+    renderSimilar();
     selectedDetections.clear();
     clearError();
     const listWrap = $('ch-people-list-container');
@@ -941,6 +1076,9 @@ export function createPeopleController({
     }
     selectedSubject = null;
     subjectMedia = [];
+    similarItems = [];
+    similarGeneration++;
+    renderSimilar();
     selectedDetections.clear();
     cursor = null;
     subjects = [];
@@ -983,9 +1121,7 @@ export function createPeopleController({
         loadSubjects(true);
       }
     },
-    openSubject: (subject) => {
-      openSubject(subject);
-    },
+    openSubject: (subject) => openSubject(subject),
     closeDetail: () => {
       backToList();
     },

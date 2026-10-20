@@ -42,6 +42,8 @@ script('nextgallery','ai-i18n'); script('nextgallery','ai-workspace'); script('n
   <details id="mai-faces-settings" class="mai-model"><summary>Personenerkennung · Gesichter</summary>
    <label class="mai-check"><input type="checkbox" name="faces.enabled">Für Benutzer aktivieren</label>
    <p class="mai-muted">Fotos nach Gesichtern durchsuchen und Personen zuordnen. Vollständig lokale Erkennung auf dem Server.</p>
+   <label class="mai-check"><input type="checkbox" name="faces.share_inference">Gesichtserkennung zwischen Konten wiederverwenden</label>
+   <p class="mai-muted">Dürfen mehrere Konten dieselbe Datei lesen, wird sie nur einmal analysiert. Wiederverwendet werden nur Gesichtspositionen und Merkmalsvektoren dieser Datei; Personengruppen und Korrekturen bleiben privat. Unabhängig von der Wiederverwendung für Beschreibungen, OCR und Bildsuche. Ausschalten entfernt den gemeinsamen Zwischenspeicher beim nächsten stündlichen Aufräumen.</p>
    <div class="mai-model-requirements" role="note">
     <strong>Modell-Herkunft und Lizenzen:</strong> YuNet (Gesichtserkennung: MIT-Lizenz) und SFace (Gesichtswiedererkennung: Apache-2.0-Lizenz) als ONNX-Modelle aus dem <a href="https://github.com/opencv/opencv_zoo" target="_blank" rel="noopener noreferrer">OpenCV Model Zoo</a>. OpenCV-Laufzeit unter Apache 2.0. Der genaue Trainingsdatensatz des SFace-Checkpoints ist im Upstream nicht näher spezifiziert (keine uneingeschränkte Rechtefreigabe). Vollständig lokale Ausführung auf dem Nextcloud-Server in isolierter Python-Umgebung.
    </div>

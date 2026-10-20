@@ -13,7 +13,8 @@ class FaceArtifacts {
     public const MODEL_SPACE = Faces::MODEL_SPACE;
     public const PREPROCESS_VERSION = 'oriented-multiscale-yunet-sface-laplacian112-v2';
     public function __construct(private IDBConnection $db,private IConfig $config,private Settings $settings) {}
-    public function enabled():bool {return $this->config->getAppValue('nextgallery','ai_share_results','yes')!=='no';}
+    /** Separate from description/OCR/vector reuse; see Settings for the legacy fallback. */
+    public function enabled():bool {return (bool)($this->settings->get()['faces']['share_inference']??true);}
     public static function revision(array $config):string {
         $faces=$config['faces']??$config;
         $manifest=json_decode(file_get_contents(dirname(__DIR__,3).'/worker/faces_models.json'),true,64,JSON_THROW_ON_ERROR);
@@ -131,6 +132,12 @@ class FaceArtifacts {
     }
     /** Caller holds the same global mutation lock as publication and deletion. */
     public function globalCleanup():void {
+        // Turning reuse off withdraws the shared cache; account projections are unaffected.
+        if(!$this->enabled()){
+            $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_artifact_refs');
+            $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_artifacts');
+            return;
+        }
         $q=$this->db->getQueryBuilder();$q->select('a.id')->from('nextgallery_faces_artifacts','a')->leftJoin('a','filecache','f','a.file_id=f.fileid')
           ->where($q->expr()->orX($q->expr()->isNull('f.fileid'),$q->expr()->neq('f.etag','a.etag')))->setMaxResults(500);
         $r=$q->executeQuery();try{$rows=$r->fetchAll();}finally{$r->closeCursor();}

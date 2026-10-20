@@ -30,15 +30,23 @@ Quality settings can be changed without re-running the model when the quality me
 
 Groups can be merged, selected detections can be separated, and groups can be hidden or shown. Corrections apply immediately and are stored independently of the model vectors. A hidden group is retained; deleting all People data is a separate explicit action.
 
+### Merge suggestions
+
+Automatic grouping never joins two groups once both exist, so a person split early in a run stays split. After each complete People run the worker therefore compares the average face of every group with at least two faces against all other groups, including rare ones. Pairs whose similarity lies at most 0.15 below the configured assignment threshold (default 0.55, so from 0.40; never below 0.30) are offered under **Possibly the same person** in the person's detail view and through the **Suggestions** filter. At most eight neighbours per group and 5,000 pairs per account are kept.
+
+Nothing is merged automatically. **Merge** moves the suggested group into the open person; **Different person** stores a decision that later runs cannot override. Splitting or removing photos counts as the same decision for the affected groups. Decisions follow a group when it is merged into another. Suggestions only refer to groups that still exist, are not hidden and have a currently readable photograph in the requested gallery. The thresholds are provisional until measured against a real library.
+
 The model is not guaranteed to recognize every appearance. Side views, small or blurred faces, occlusion, children growing up, and very similar people may require correction. Model benchmarks and small public-image smoke tests do not establish the accuracy of a private photo library.
 
 ## Data ownership and deletion
 
 Published detections, vectors, processed-file versions, stable groups and correction rules belong to the account in NextGallery's tables inside the configured Nextcloud database. Worker `faces.sqlite3` is a derived working cache. It is not the source of user corrections.
 
-Face inference is reusable for the same Nextcloud file ID, current ETag and inference revision. Its dedicated cache contains only normalized face positions, detection scores and vectors. Accounts with current read access and an explicit People folder selection can reuse these results without downloading or analyzing the image again. Separate copies with different file IDs are processed separately. The administrator's existing result-sharing setting also controls this reuse.
+Face inference is reusable for the same Nextcloud file ID, current ETag and inference revision. Its dedicated cache contains only normalized face positions, detection scores and vectors. Accounts with current read access and an explicit People folder selection can reuse these results without downloading or analyzing the image again. Separate copies with different file IDs are processed separately. An administrator controls this reuse with its own switch (**Reuse face detection between accounts**); until that choice is saved it follows the general result-sharing setting. Turning it off removes the shared face cache at the next hourly cleanup.
 
-Groups, detection IDs, hidden status, reviews, merge/split decisions and correction rules remain private to each account. Reused detections are assigned to that account's own groups. Gallery scope, live file access and file version are checked before returning groups, counts, media or thumbnails. Cropped thumbnails are generated on demand and are not stored as separate permanent image files.
+Groups, detection IDs, hidden status, reviews, merge/split decisions and correction rules remain private to each account. Reused detections are assigned to that account's own groups. Groups, counts and media are taken from the gallery index for the requested gallery, the same source as the timeline counts. Every returned photograph and every cover or face crop is checked live for read access, gallery scope and file version first; without a verifiable home folder nothing is returned. A count can therefore lag briefly behind a revoked share until the next index sweep, but no file or face crop of it is shown. Cropped thumbnails are generated on demand and are not stored as separate permanent image files.
+
+Merge suggestions and "different person" decisions are account data like corrections: reset, account deletion and cleanup remove them, and a suggestion upload is accepted only for the account's current epoch and generation.
 
 An account reset changes its publication generation. Results calculated for an older generation cannot restore deleted data. Reset and account deletion remove the account's cache references; an artifact is removed when no account retains a reference. Other accounts' existing results and corrections are retained. Periodic cleanup also withdraws references whose source is no longer accessible or opted in, and removes obsolete file versions. Restarting a reset account can reuse an artifact still retained by another account, while creating fresh personal groups. Original photographs, descriptions, OCR and visual image-search vectors are separate from a People reset.
 
@@ -56,11 +64,13 @@ The OpenCV Zoo publishes YuNet under MIT and SFace under Apache 2.0. License not
 
 ## API
 
-The versioned subject list and subject-media APIs use the signed-in account, gallery/folder scope and cursor pagination. Public responses contain group IDs, counts, cover-detection IDs and permitted media, never face vectors. Corrections carry a rules revision so stale client operations cannot silently overwrite newer changes.
+The versioned subject list and subject-media APIs use the signed-in account, gallery/folder scope and cursor pagination. Public responses contain group IDs, counts, cover-detection IDs and permitted media, never face vectors. `subjects/{id}/similar` returns up to eight suggested groups with count, cover and similarity, and `filter=suggested` lists main groups that have open suggestions; `action=dismiss` with `target_id` records "different person". Corrections carry a rules revision so stale client operations cannot silently overwrite newer changes.
 
 Worker publication additionally carries the account epoch, data generation, rules revision, file version and model space. The server validates them within the account publication transaction. Search and clustering caches are rebuildable projections of this authoritative state.
 
 ## Scale and validation limits
+
+The People overview reads detections from the gallery index and checks only the returned page live. With 50,000 synthetic detections in 2,000 groups on the Nextcloud 34/MariaDB test instance, one overview request took about 0.7 s; checking every file live, as before 0.4.23, would have taken at least about 14 s per request at the measured 0.28 ms per lookup of a missing file (existing files cost more).
 
 Grouping uses exact cosine nearest-neighbor comparison over a contiguous vector matrix, with a small buffer for newly committed detections. It does not allocate a face-by-face distance matrix. A synthetic 100,000-vector check found the known nearest identity in all 500 perturbed queries, taking about 3 ms per query on the development host; peak process memory was about 673 MiB. This measures the search mechanism, not recognition accuracy or total processing time. Hardware, the photo decoder and the number of detected faces affect real workloads.
 

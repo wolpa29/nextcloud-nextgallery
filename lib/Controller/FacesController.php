@@ -93,6 +93,24 @@ class FacesController extends Controller {
     }
 
     #[NoAdminRequired]
+    public function similar(string $id, string $gallery = ''): DataResponse {
+        $uid = $this->uid();
+        $gallery = $gallery !== '' ? $gallery : (string)$this->request->getParam('gallery', '');
+        try {
+            $response = new DataResponse($this->faces->similar($uid, $id, $gallery));
+            $response->addHeader('Cache-Control', 'private, no-store');
+            return $response;
+        } catch (OCSBadRequestException $e) {
+            return new DataResponse(['error' => $e->getMessage()], 400);
+        } catch (OCSNotFoundException $e) {
+            return new DataResponse(['error' => $e->getMessage()], 404);
+        } catch (\Throwable $e) {
+            $this->logger?->error('Faces similar error: ' . $e->getMessage(), ['exception' => $e]);
+            return new DataResponse(['error' => 'Interner Serverfehler'], 500);
+        }
+    }
+
+    #[NoAdminRequired]
     #[NoCSRFRequired]
     public function preview(string $detectionId, string $gallery = ''): Bytes {
         $uid = $this->uid();
@@ -103,24 +121,12 @@ class FacesController extends Controller {
             return new Bytes('', 'text/plain', 404, ['Cache-Control' => 'no-store']);
         }
 
-        try {
-            $file = $this->library->file($uid, (int)$det['file_id']);
-        } catch (\Throwable) {
+        // Current read access, gallery scope and file version; fails closed without a home folder.
+        $live = $this->faces->authorizedFile($uid, (int)$det['file_id'], (string)$det['etag'], $this->library->settings($uid, $gallery)['roots'] ?? []);
+        if ($live === null) {
             return new Bytes('', 'text/plain', 404, ['Cache-Control' => 'no-store']);
         }
-
-        // Validate requested gallery roots
-        $gallerySettings = $this->library->settings($uid, $gallery);
-        $home = $this->rootFolder?->getUserFolder($uid);
-        $relPath = $home ? ('/' . ltrim($home->getRelativePath($file->getPath()), '/')) : '';
-        if ($relPath !== '' && !Faces::inRoots($relPath, $gallerySettings['roots'] ?? [])) {
-            return new Bytes('', 'text/plain', 404, ['Cache-Control' => 'no-store']);
-        }
-
-        // Validate etag match (avoid showing stale face detections on changed photos)
-        if ($file->getEtag() !== $det['etag']) {
-            return new Bytes('', 'text/plain', 404, ['Cache-Control' => 'no-store']);
-        }
+        $file = $live['file'];
 
         $img = null;
         if ($this->previews !== null) {

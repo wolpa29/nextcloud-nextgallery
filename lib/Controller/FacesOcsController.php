@@ -86,6 +86,14 @@ class FacesOcsController extends OCSController {
 
     #[NoAdminRequired]
     #[NoCSRFRequired]
+    public function similar(string $id, string $gallery = ''): DataResponse {
+        $uid = $this->uid();
+        $gallery = $gallery !== '' ? $gallery : (string)$this->request->getParam('gallery', '');
+        return $this->response($this->faces->similar($uid, $id, $gallery));
+    }
+
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function action(
         string $id,
         string $action = '',

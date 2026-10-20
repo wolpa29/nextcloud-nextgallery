@@ -64,8 +64,10 @@ return ['routes' => [
  ['name'=>'face_worker#publish', 'url'=>'/ai/worker/publish-faces', 'verb'=>'POST'],
  ['name'=>'face_worker#reset', 'url'=>'/ai/worker/reset-faces', 'verb'=>'POST'],
  ['name'=>'face_worker#artifactLookup', 'url'=>'/ai/worker/face-artifacts', 'verb'=>'POST'],
+ ['name'=>'face_worker#suggestions', 'url'=>'/ai/worker/faces-suggestions', 'verb'=>'POST'],
  ['name'=>'faces#subjects', 'url'=>'/api/v1/subjects', 'verb'=>'GET'],
  ['name'=>'faces#media', 'url'=>'/api/v1/subjects/{id}/media', 'verb'=>'GET'],
+ ['name'=>'faces#similar', 'url'=>'/api/v1/subjects/{id}/similar', 'verb'=>'GET'],
  ['name'=>'faces#preview', 'url'=>'/api/v1/subjects/preview/{detectionId}', 'verb'=>'GET'],
  ['name'=>'faces#action', 'url'=>'/api/v1/subjects/{id}/action', 'verb'=>'POST'],
  ['name'=>'faces#reset', 'url'=>'/api/v1/subjects/reset', 'verb'=>'POST'],
@@ -77,6 +79,7 @@ return ['routes' => [
  ['name'=>'ai_metadata#show', 'url'=>'/ai/api/v1/metadata', 'verb'=>'GET'],
  ['name'=>'faces_ocs#subjects', 'url'=>'/api/v1/subjects', 'verb'=>'GET'],
  ['name'=>'faces_ocs#media', 'url'=>'/api/v1/subjects/{id}/media', 'verb'=>'GET'],
+ ['name'=>'faces_ocs#similar', 'url'=>'/api/v1/subjects/{id}/similar', 'verb'=>'GET'],
  ['name'=>'faces_ocs#action', 'url'=>'/api/v1/subjects/{id}/action', 'verb'=>'POST'],
  ['name'=>'faces_ocs#reset', 'url'=>'/api/v1/subjects/reset', 'verb'=>'POST'],
 ]];

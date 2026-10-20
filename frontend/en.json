@@ -324,5 +324,13 @@
   "Unscharfe Gesichter filtern (Standard: 45, 0 deaktiviert)": "Filter blurry faces (default: 45, 0 disables)",
   "Mindestanzahl Fotos in normaler Übersicht": "Min. photos in normal overview",
   "Weniger Fotos erscheinen unter „Seltene Personen“ (Standard: 3)": "Fewer photos appear under “Rare persons” (default: 3)",
-  "Gefilterte und seltene Personen sind separat einsehbar. Bestätigte Zuweisungen bleiben erhalten.": "Filtered and rare persons can be viewed separately. Confirmed assignments are retained."
+  "Gefilterte und seltene Personen sind separat einsehbar. Bestätigte Zuweisungen bleiben erhalten.": "Filtered and rare persons can be viewed separately. Confirmed assignments are retained.",
+  "Vorschläge": "Suggestions",
+  "Vielleicht dieselbe Person": "Possibly the same person",
+  "Vorschläge aus ähnlichen Gesichtern. Zusammengeführt wird nur, was du bestätigst.": "Suggestions from similar faces. Only what you confirm is merged.",
+  "Andere Person": "Different person",
+  "Nicht mehr vorschlagen": "Do not suggest again",
+  "Die vorgeschlagene Person wird mit dieser Person zusammengelegt.": "The suggested person will be merged into this person.",
+  "Keine offenen Vorschläge. Neue Vorschläge entstehen nach dem nächsten Lauf der Personenerkennung.": "No open suggestions. New suggestions appear after the next People recognition run.",
+  "Erkennungen, die andere Konten für dieselben Dateien wiederverwenden, bleiben für diese Konten erhalten.": "Detections that other accounts reuse for the same files remain available to those accounts."
 }

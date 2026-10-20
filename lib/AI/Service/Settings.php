@@ -20,7 +20,7 @@ class Settings {
     public function defaults(): array {
         return ['enabled' => false, 'analysis_enabled' => true, 'ocr_enabled'=>true, 'embedding' => ['enabled'=>false, 'location'=>'local', 'local_auto_setup'=>true, 'local_profile'=>'lite', 'transport'=>'multimodal', 'family'=>'gemma2', 'model'=>'embeddinggemma-2', 'url'=>'http://10.1.10.78:9379/v1', 'local_model_path'=>'/opt/nextgallery-ai-models/embeddinggemma-2-text-vision-440m.litertlm', 'local_qwen_source'=>'', 'model_revision'=>'', 'max_edge'=>2048, 'video_frames'=>10, 'batch_size'=>1, 'timeout_seconds'=>120], 'user_id' => 'paul', 'folders' => ['/'], 'exclude_folders' => [], 'folder_stages' => [],
             'faces_filters'=>self::DEFAULT_FACE_FILTERS,
-            'faces'=>['enabled'=>false,'model'=>'opencv-yunet-sface-v1','cosine_threshold'=>0.55,'detection_threshold'=>0.9,'min_face_size'=>32,'min_group_size'=>3,'max_edge'=>2048],
+            'faces'=>['enabled'=>false,'share_inference'=>true,'model'=>'opencv-yunet-sface-v1','cosine_threshold'=>0.55,'detection_threshold'=>0.9,'min_face_size'=>32,'min_group_size'=>3,'max_edge'=>2048],
             'schedule_time' => '03:00', 'timezone' => 'Europe/Vienna', 'image_timeout_seconds' => 600, 'log_days' => 30, 'max_download_bytes' => 67108864,
             'max_image_pixels' => 80000000, 'max_video_download_bytes' => 536870912, 'video' => ['frame_count' => 10],
             'vision' => ['url' => 'http://10.1.10.78:1234/v1', 'model' => 'qwen/qwen3.8-27b',
@@ -38,6 +38,8 @@ class Settings {
         $saved = json_decode($this->stored('settings', '{}'), true, 64, JSON_THROW_ON_ERROR);
         $value = array_replace_recursive($this->defaults(), $saved);
         $value['ocr_enabled']=$saved['ocr_enabled']??$value['analysis_enabled'];
+        // Until an administrator chooses separately, face reuse follows the general sharing switch.
+        if(!is_bool($saved['faces']['share_inference']??null))$value['faces']['share_inference']=$this->config->getAppValue('nextgallery','ai_share_results','yes')!=='no';
         $value['faces_filters']=self::DEFAULT_FACE_FILTERS;
         $value['faces_filters']['min_group_photos']=(int)$value['faces']['min_group_size'];
         // Existing installations with a configured model keep their explicit setup.
@@ -280,6 +282,10 @@ class Settings {
         $faces=$value['faces']??$result['faces'];
         if(!is_array($faces)||!is_bool($faces['enabled']??false))throw new OCSBadRequestException('Personenerkennung ungültig');
         $result['faces']['enabled']=$faces['enabled']??false;
+        // A client that does not know this switch must not silently enable cross-account reuse.
+        $share=$faces['share_inference']??$this->get()['faces']['share_inference'];
+        if(!is_bool($share))throw new OCSBadRequestException('Freigabe der Personenerkennung ungültig');
+        $result['faces']['share_inference']=$share;
         foreach(['cosine_threshold'=>[0.3,0.95],'detection_threshold'=>[0.5,0.99]] as $key=>[$min,$max]){
             $number=$faces[$key]??$result['faces'][$key];
             if(!is_numeric($number)||!is_finite((float)$number)||$number<$min||$number>$max)throw new OCSBadRequestException('Schwellwert der Personenerkennung ungültig');

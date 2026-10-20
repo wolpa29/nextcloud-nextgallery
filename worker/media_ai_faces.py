@@ -59,6 +59,12 @@ DEFAULT_MIN_FACE_AREA = 0.0025  # 0.25% of image area (bbox width * height)
 DEFAULT_MIN_SHARPNESS = 45.0   # Laplacian variance of 112x112 aligned face crop
 DEFAULT_MIN_GROUP_PHOTOS = 3   # Server presentation threshold (not anchor quality)
 
+# Merge suggestions: group centroids that are close, but were not joined automatically.
+SUGGESTION_MARGIN = 0.15        # below the automatic assignment threshold
+MIN_SUGGESTION_SIMILARITY = 0.30
+SUGGESTIONS_PER_GROUP = 8
+SUGGESTION_LIMIT = 5000         # server bound per account
+
 
 class PipelineError(Exception):
     """Recoverable pipeline error."""
@@ -726,6 +732,65 @@ def validate_raw_detections(detections: Any) -> list[dict]:
     return validated
 
 
+def merge_suggestions(items, cosine_threshold: float = DEFAULT_COSINE_THRESHOLD,
+                      per_group: int = SUGGESTIONS_PER_GROUP, limit: int = SUGGESTION_LIMIT) -> list[dict]:
+    """Pairs of groups whose mean faces are similar, most similar first.
+
+    Online assignment never joins two groups once both exist, so a person split early
+    stays split. Only groups with at least two faces anchor a comparison; single faces
+    are matched against anchors, never against each other. Chunked: no group-by-group matrix.
+    """
+    if np is None or not items:
+        return []
+    threshold = max(MIN_SUGGESTION_SIMILARITY, float(cosine_threshold) - SUGGESTION_MARGIN)
+    index: dict[str, int] = {}
+    sums: list = []
+    counts: list[int] = []
+    for group_id, vector in items:
+        i = index.setdefault(group_id, len(sums))
+        if i == len(sums):
+            sums.append(np.zeros(len(vector), dtype=np.float64))
+            counts.append(0)
+        sums[i] += np.asarray(vector, dtype=np.float64)
+        counts[i] += 1
+    ids = list(index)
+    matrix = np.vstack(sums)
+    norms = np.linalg.norm(matrix, axis=1)
+    usable = norms > 1e-9
+    centroids = np.zeros_like(matrix, dtype=np.float32)
+    centroids[usable] = (matrix[usable] / norms[usable, None]).astype(np.float32)
+    anchors = np.flatnonzero((np.asarray(counts) >= 2) & usable)
+    k = min(per_group, len(ids) - 1)
+    best: dict[tuple[str, str], float] = {}
+    if k <= 0:
+        return []
+    for start in range(0, len(anchors), 512):
+        rows = anchors[start:start + 512]
+        sims = centroids[rows] @ centroids.T
+        sims[np.arange(len(rows)), rows] = -np.inf
+        sims[:, ~usable] = -np.inf
+        top = np.argpartition(-sims, k - 1, axis=1)[:, :k]
+        for r, row in enumerate(rows):
+            for j in top[r]:
+                similarity = float(sims[r, j])
+                if similarity < threshold:
+                    continue
+                key = tuple(sorted((ids[row], ids[int(j)])))
+                if similarity > best.get(key, -2.0):
+                    best[key] = similarity
+    ranked = sorted(best.items(), key=lambda pair: (-pair[1], pair[0]))[:limit]
+    return [{'a': a, 'b': b, 'similarity': round(similarity, 4)} for (a, b), similarity in ranked]
+
+
+def publish_suggestions(api, store: FaceStore, epoch: str, generation: int, cosine_threshold: float, observe) -> None:
+    """Best effort after a complete run; the server drops pairs of groups changed since."""
+    if np is None:
+        return
+    pairs = merge_suggestions(store.load_active_vectors(), cosine_threshold)
+    response = api.call('faces-suggestions', {'epoch': epoch, 'generation': generation, 'pairs': pairs})
+    observe('faces_suggestions', computed=len(pairs), stored=int(response.get('stored', 0)) if isinstance(response, dict) else 0)
+
+
 def sync_backend_state(api, store: FaceStore, cluster_index: FaceClusterIndex, observe) -> tuple[str, int, int, str]:
     """Synchronize authoritative account state from backend across pages with consistency check."""
     cursor = 0
@@ -1062,6 +1127,11 @@ def run(
                 err_msg = str(error)[:300]
                 store.record_file(file_id, item.etag, 'error', error=err_msg)
                 observe('faces_error', file_id=file_id, path=item.path, error=err_msg)
+
+        try:
+            publish_suggestions(api, store, epoch, generation, cosine_thresh, observe)
+        except Exception as error:  # Suggestions never fail a finished processing run.
+            observe('faces_suggestions_error', level='warning', error=str(error)[:300])
 
         return {
             'state': 'finished',

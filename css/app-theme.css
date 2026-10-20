@@ -263,11 +263,22 @@
 .ch-people-merge-choice:hover{border-color:var(--ng-accent)}
 .ch-people-merge-choice.active{border-color:var(--ng-accent);background:var(--ng-soft);outline:2px solid var(--ng-accent);outline-offset:1px}
 
+/* Merge suggestions in the person detail view */
+.ch-people-similar{border:1px solid var(--ng-line);border-radius:16px;padding:12px 16px;background:var(--ng-surface)}
+.ch-people-similar h3{margin:0 0 4px;font-size:14px;font-weight:700}
+.ch-people-similar>.ch-hint{margin:0 0 12px}
+.ch-people-similar-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.ch-people-similar-item{display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--ng-line);border-radius:12px;background:var(--ng-surface);text-align:center}
+.ch-people-similar-item .ch-person-thumb-wrap{margin-bottom:0}
+.ch-people-similar-actions{display:flex;flex-direction:column;gap:6px}
+.ch-people-similar-actions button{min-height:30px;padding:4px 8px;font-size:12.5px;border-radius:10px}
+
 @media(max-width:700px){
  .ch-people-grid{grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:10px}
  .ch-person-card{border-radius:12px;padding:6px}
  .ch-person-thumb-wrap{border-radius:8px}
  .ch-person-media-grid{grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px}
+ .ch-people-similar-list{grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px}
 }
 #nextgallery .ch-people-toolbar .ch-filters{background:transparent;padding:0;min-width:180px}
 #nextgallery #ch-people-filter{width:100%;min-height:44px;margin:0}

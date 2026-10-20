@@ -947,3 +947,85 @@ test('Real DOM: Filtered view carries filter to media, shows confirm button and 
 
   await browser.close();
 });
+
+test('Suggestions: query filter and dismiss action are part of the contract', () => {
+  assert.equal(new URLSearchParams(buildSubjectsQuery({ filter: 'suggested' })).get('filter'), 'suggested');
+  assert.deepEqual(
+    buildActionPayload({ action: 'dismiss', target_id: 'other', rules_revision: 4 }),
+    { action: 'dismiss', target_id: 'other', rules_revision: 4 }
+  );
+});
+
+test('DOM: Detail view offers suggestions, merges into the open person and dismisses pairs', async () => {
+  const { root, elements, makeEl } = setupMockDOM();
+  makeEl('ch-people-similar');
+  makeEl('ch-people-similar-list');
+  const calls = [];
+  let suggestions = [
+    { id: 'other-1', photo_count: 1, cover_id: 'c1', similarity: 0.7 },
+    { id: 'other-2', photo_count: 4, cover_id: 'c2', similarity: 0.5 }
+  ];
+  const controller = createPeopleController({
+    root,
+    dialogRoot: root,
+    api: async (endpoint, options = {}) => {
+      calls.push({ endpoint, options });
+      if (endpoint.includes('/similar?')) return { items: suggestions, rules_revision: 5, subject: { id: 'subj-1', photo_count: 6 } };
+      if (endpoint.includes('/action')) return { success: true, rules_revision: 6 };
+      return { items: [] };
+    },
+    getGallery: () => 'default'
+  });
+
+  controller.setFilter('all');
+  await controller.openSubject({ id: 'subj-1', photo_count: 3 });
+  const section = elements.get('ch-people-similar');
+  const list = elements.get('ch-people-similar-list');
+  assert.equal(section.hidden, false, 'suggestion panel is shown');
+  assert.equal(list.children.length, 2, 'one card per suggestion');
+  assert.equal(elements.get('ch-people-detail-count').textContent, '6 Fotos', 'count refreshed from the server');
+  const similarUrl = new URL('https://example.com/' + calls.find((c) => c.endpoint.includes('/similar?')).endpoint);
+  assert.equal(similarUrl.pathname, '/subjects/subj-1/similar');
+  assert.equal(similarUrl.searchParams.get('gallery'), 'default');
+
+  // "Different person" is sent for the open person and removes only that card.
+  const [first] = list.children;
+  const [, dismiss] = first.querySelector('.ch-people-similar-actions').children;
+  await dismiss.onclick();
+  const dismissCall = calls.find((c) => c.endpoint.endsWith('/action'));
+  assert.equal(dismissCall.endpoint, 'subjects/subj-1/action');
+  assert.deepEqual(JSON.parse(dismissCall.options.body), { action: 'dismiss', target_id: 'other-1', rules_revision: 5 });
+  assert.equal(list.children.length, 1);
+
+  // Merging moves the suggested group into the open person after confirmation.
+  suggestions = [];
+  const [merge] = list.children[0].querySelector('.ch-people-similar-actions').children;
+  const pending = merge.onclick();
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(elements.get('ch-people-action-dialog').open, true, 'merge asks for confirmation');
+  elements.get('ch-people-action-ok').onclick();
+  await pending;
+  const mergeCall = calls.filter((c) => c.endpoint.endsWith('/action')).at(-1);
+  assert.equal(mergeCall.endpoint, 'subjects/other-2/action');
+  assert.deepEqual(JSON.parse(mergeCall.options.body), { action: 'merge', target_id: 'subj-1', rules_revision: 6 });
+  assert.equal(section.hidden, true, 'panel hides when no suggestions remain');
+  assert.equal(controller.getSelectedSubject().id, 'subj-1', 'the open person stays open');
+});
+
+test('DOM: Suggestions are not requested for filtered, review or hidden lists', async () => {
+  const { root, makeEl } = setupMockDOM();
+  makeEl('ch-people-similar');
+  makeEl('ch-people-similar-list');
+  const calls = [];
+  const controller = createPeopleController({
+    root,
+    dialogRoot: root,
+    api: async (endpoint) => { calls.push(endpoint); return { items: [] }; },
+    getGallery: () => 'default'
+  });
+  for (const filter of ['filtered', 'review', 'hidden']) {
+    controller.setFilter(filter);
+    await controller.openSubject({ id: 'subj-' + filter, photo_count: 2 });
+  }
+  assert.equal(calls.filter((c) => c.includes('/similar')).length, 0);
+});

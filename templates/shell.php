@@ -35,6 +35,7 @@ $tr = static fn(string $text): string => $isGerman ? $text : ($english[$text] ??
     <div class="ch-filters" role="group" aria-label="<?php p($tr('Filter')); ?>">
      <select id="ch-people-filter" aria-label="<?php p($tr('Filter')); ?>">
       <option value="all"><?php p($tr('Alle')); ?></option>
+      <option value="suggested"><?php p($tr('Vorschläge')); ?></option>
       <option value="review"><?php p($tr('Überprüfung')); ?></option>
       <option value="single"><?php p($tr('Seltene Personen')); ?></option>
       <option value="filtered"><?php p($tr('Gefilterte Gesichter')); ?></option>
@@ -73,6 +74,11 @@ $tr = static fn(string $text): string => $isGerman ? $text : ($english[$text] ??
      </div>
     </div>
     <p id="ch-people-detail-filter-note" class="ch-hint" hidden><?php p($tr('Kleine oder unscharfe Gesichter im Hintergrund werden hier gesammelt und können bestätigt werden.')); ?></p>
+    <section id="ch-people-similar" class="ch-people-similar" aria-labelledby="ch-people-similar-title" hidden>
+     <h3 id="ch-people-similar-title"><?php p($tr('Vielleicht dieselbe Person')); ?></h3>
+     <p class="ch-hint"><?php p($tr('Vorschläge aus ähnlichen Gesichtern. Zusammengeführt wird nur, was du bestätigst.')); ?></p>
+     <div id="ch-people-similar-list" class="ch-people-similar-list" role="list"></div>
+    </section>
     <div id="ch-person-selection-bar" class="ch-selection-bar" hidden>
      <span id="ch-people-selection-count"></span>
      <div class="ch-selection-actions">
@@ -112,6 +118,7 @@ $tr = static fn(string $text): string => $isGerman ? $text : ($english[$text] ??
   <dialog id="ch-people-reset-dialog" aria-labelledby="ch-people-reset-title">
    <form method="dialog" class="ch-dialog-head"><h2 id="ch-people-reset-title"><?php p($tr('Personenerkennung zurücksetzen?')); ?></h2><button aria-label="<?php p($tr('Schließen')); ?>" class="ch-dialog-close"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></form>
    <p><?php p($tr('Alle erkannten Gesichter, Zuordnungen und Korrekturen werden gelöscht. Originaldateien bleiben erhalten.')); ?></p>
+   <p class="ch-hint"><?php p($tr('Erkennungen, die andere Konten für dieselben Dateien wiederverwenden, bleiben für diese Konten erhalten.')); ?></p>
    <label for="ch-people-reset-confirm-input"><?php p($tr('Zur Bestätigung „faces“ eingeben:')); ?></label>
    <input type="text" id="ch-people-reset-confirm-input" placeholder="faces" autocomplete="off">
    <div class="ch-confirm-actions">

@@ -297,6 +297,8 @@ namespace {
             $this->pdo->exec('CREATE TABLE nextgallery_faces_constraints(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, kind TEXT, detection_id TEXT, group_id TEXT, created_at INTEGER, UNIQUE(user_id, detection_id, group_id))');
             $this->pdo->exec('CREATE TABLE nextgallery_media(user_id TEXT, file_id INTEGER, sort_key TEXT, period TEXT, kind TEXT, etag TEXT, generation TEXT, latitude REAL, longitude REAL, payload TEXT, name_text TEXT, path_text TEXT, PRIMARY KEY(user_id, file_id))');
             $this->pdo->exec('CREATE TABLE filecache(fileid INTEGER PRIMARY KEY, storage INTEGER, path TEXT, etag TEXT, size INTEGER, mimetype INTEGER)');
+            $this->pdo->exec('CREATE TABLE nextgallery_faces_suggestions(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, group_a TEXT, group_b TEXT, similarity REAL, created_at INTEGER)');
+            $this->pdo->exec('CREATE TABLE nextgallery_faces_dismissed(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, group_a TEXT, group_b TEXT, created_at INTEGER, UNIQUE(user_id, group_a, group_b))');
         }
 
         public function getQueryBuilder(): TestQueryBuilder {
@@ -347,14 +349,22 @@ namespace {
     }
 
     class TestMockFile implements \OCP\Files\File {
-        public function __construct(public int $id, public string $etag, public int $size = 100, public string $mime = 'image/jpeg') {}
+        public function __construct(public int $id, public string $etag, public int $size = 100, public string $mime = 'image/jpeg', public string $path = '/Synthetic/photo.jpg') {}
         public function getId(): int { return $this->id; }
         public function getEtag(): string { return $this->etag; }
         public function getSize(): int { return $this->size; }
         public function getMTime(): int { return 1700000000; }
         public function getMimeType(): string { return $this->mime; }
         public function fopen(string $mode) { return fopen('php://memory', 'r+'); }
-        public function getPath(): string { return '/Synthetic/photo.jpg'; }
+        public function getPath(): string { return $this->path; }
+    }
+
+    class TestHomeFolder {
+        public function getRelativePath(string $path): string { return $path; }
+    }
+
+    class TestRootFolder implements \OCP\Files\IRootFolder {
+        public function getUserFolder(string $uid): TestHomeFolder { return new TestHomeFolder(); }
     }
 
     class TestInventory extends Inventory {
@@ -400,7 +410,8 @@ namespace {
     $inventory = new TestInventory();
     $library = new TestLibrary($db);
     $lock = new TestLock();
-    $faces = new Faces($db, $settings, $inventory, $library, $lock);
+    $rootFolder = new TestRootFolder();
+    $faces = new Faces($db, $settings, $inventory, $library, $lock, rootFolder: $rootFolder);
 
     // 4. Account State and Generation
     $acc = $faces->accountState('alice');
@@ -648,7 +659,7 @@ namespace {
     $mediaPayload = json_encode([
         'id' => 101,
         'name' => 'photo.jpg',
-        'path' => '/synthetic/photo.jpg',
+        'path' => '/Synthetic/photo.jpg',
         'kind' => 'image',
         'mime' => 'image/jpeg',
         'etag' => 'etag_v1',
@@ -674,7 +685,7 @@ namespace {
     $mediaPayload2 = json_encode([
         'id' => 103,
         'name' => 'photo2.jpg',
-        'path' => '/synthetic/photo2.jpg',
+        'path' => '/Synthetic/photo2.jpg',
         'kind' => 'image',
         'mime' => 'image/jpeg',
         'etag' => 'etag_v3',
@@ -685,7 +696,7 @@ namespace {
         'INSERT INTO *PREFIX*nextgallery_media (user_id, file_id, sort_key, period, kind, etag, generation, payload, name_text, path_text) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         ['alice', 103, '20261020000001', '2026-10', 'image', 'etag_v3', 'gen1', $mediaPayload2, 'photo2.jpg', '/synthetic/photo2.jpg']
     );
-    $invFile3 = new TestMockFile(103, 'etag_v3');
+    $invFile3 = new TestMockFile(103, 'etag_v3', path: '/Synthetic/photo2.jpg');
     $inventory->files[103] = $invFile3;
     $library->media[103] = $invFile3;
     $detSecond = [
