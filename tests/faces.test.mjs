@@ -9,6 +9,7 @@ import {
   buildResetPayload,
   buildBulkActionPayload,
   bulkActionsForFilter,
+  coverBoxStyle,
   formatPhotoCount,
   formatPeopleCount,
   createPeopleController
@@ -140,6 +141,18 @@ test('buildResetPayload requires typed confirmation faces', () => {
   assert.throws(() => {
     buildResetPayload('');
   }, /confirmation must be "faces"/);
+});
+
+test('coverBoxStyle maps a whole-photo face box onto a square cover-cropped tile', () => {
+  // Square photo: nothing is cropped.
+  assert.deepEqual(coverBoxStyle([0.1, 0.2, 0.3, 0.4], 400, 400), { left: '10%', top: '20%', width: '30%', height: '40%' });
+  // 4:3 landscape: the tile shows the middle 75% of the width.
+  assert.deepEqual(coverBoxStyle([0.125, 0.5, 0.25, 0.2], 400, 300), { left: '0%', top: '50%', width: '33.33%', height: '20%' });
+  assert.deepEqual(coverBoxStyle([0.5, 0.1, 0.1, 0.1], 400, 300), { left: '50%', top: '10%', width: '13.33%', height: '10%' });
+  // 2:3 portrait: the tile shows the middle two thirds of the height.
+  assert.deepEqual(coverBoxStyle([0.4, 0.5, 0.2, 0.1], 200, 300), { left: '40%', top: '50%', width: '20%', height: '15%' });
+  // Unknown size (preview not loaded yet) falls back to the uncropped placement.
+  assert.deepEqual(coverBoxStyle([0.1, 0.2, 0.3, 0.4], 0, 0), { left: '10%', top: '20%', width: '30%', height: '40%' });
 });
 
 test('buildBulkActionPayload validates group flag actions and deduplicates ids', () => {

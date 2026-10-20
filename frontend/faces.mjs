@@ -76,6 +76,22 @@ export function buildResetPayload(confirmation) {
   return { confirmation: 'faces' };
 }
 
+// Face box in percent of a square tile that shows the image with object-fit: cover.
+// The image is scaled until it fills the tile and centred, so the longer side is cropped.
+export function coverBoxStyle(box, imageWidth, imageHeight) {
+  const [bx, by, bw, bh] = box.map(Number);
+  const ratio = imageWidth > 0 && imageHeight > 0 ? imageWidth / imageHeight : 1;
+  const sx = Math.max(1, ratio);
+  const sy = Math.max(1, 1 / ratio);
+  const pct = (v) => `${Math.round(v * 10000) / 100}%`;
+  return {
+    left: pct(0.5 + (bx - 0.5) * sx),
+    top: pct(0.5 + (by - 0.5) * sy),
+    width: pct(Math.max(0.02, bw * sx)),
+    height: pct(Math.max(0.02, bh * sy))
+  };
+}
+
 export function formatPhotoCount(n, tr = (k, v) => (v && v.count !== undefined ? k.replace('{count}', String(v.count)) : k), locale = 'de') {
   const num = Number(n) || 0;
   if (num === 1) return tr('1 Foto');
@@ -990,19 +1006,22 @@ export function createPeopleController({
         )
       );
 
+      const boxEls = [];
       for (const f of facesList) {
         if (Array.isArray(f.box) && f.box.length === 4) {
-          const [bx, by, bw, bh] = f.box;
           const boxEl = document.createElement('span');
           boxEl.className = 'ch-face-box-overlay';
           if (f.review) boxEl.classList.add('is-review');
-          boxEl.style.left = `${Math.max(0, Math.min(100, bx * 100))}%`;
-          boxEl.style.top = `${Math.max(0, Math.min(100, by * 100))}%`;
-          boxEl.style.width = `${Math.max(2, Math.min(100, bw * 100))}%`;
-          boxEl.style.height = `${Math.max(2, Math.min(100, bh * 100))}%`;
+          boxEls.push([boxEl, f.box]);
           tile.append(boxEl);
         }
       }
+      // Boxes are relative to the whole photo; place them once the cropped preview's real size is known.
+      const placeBoxes = () => {
+        for (const [boxEl, box] of boxEls) Object.assign(boxEl.style, coverBoxStyle(box, img.naturalWidth, img.naturalHeight));
+      };
+      placeBoxes();
+      img.addEventListener('load', placeBoxes);
 
       if (isCurrentCover) {
         const covBadge = document.createElement('span');
