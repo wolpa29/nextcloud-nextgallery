@@ -1,3 +1,17 @@
+# Shared face inference release — 2026-10-20
+
+NextGallery **0.4.21** was installed on Nextcloud **34.0.5.1 / MariaDB**. Face inference is now reusable by file ID, ETag and inference revision, while account groups and corrections remain independent.
+
+- **352 Python tests** passed in the base environment (three optional-runtime skips); the installed OpenCV/NumPy development runtime passed all **43 face tests**. All **20 Node/browser tests** passed.
+- Existing standalone PHP suites passed, including **92 face assertions**. Five additional fault/contention checks verified that the shared mutation lock survives until commit/rollback, releases on errors and rejects competing account mutations without leaking locks.
+- A real Nextcloud 34/MariaDB upgrade and **43 shared-inference database/controller contracts** passed, alongside the existing **49 People contracts**. They cover independent corrections, zero-face hits, exact inference revisions, opt-in and read access, reset references, last-reference deletion, stale publication and explicit legacy provenance.
+- **12 full HTTP/worker checks** used an actual folder share between disposable accounts. The first account inferred two synthetic files; the second performed zero image downloads and zero detector calls, published its own groups and handled the empty-face result as a hit. A fresh request after share revocation was denied. Detection outputs were mocked synthetic data for this contract, not a recognition-quality evaluation.
+- The existing **24 full HTTP integration checks** also passed with the real models and rights-documented public portraits. An extracted package verified the bundled SDK transport and SQLite FTS/vector runtime. No private images were opened for validation.
+- A scoped production backup was retained. All eight existing AI/People tables, non-derived settings, worker cache logical contents and unrelated controls matched before/after fingerprints. Only the People worker restarted; the other three worker PIDs remained identical. The prior running People control was restored without resetting results.
+- Unversioned legacy data is not automatically assigned current settings on arbitrary upgrades. On this host, the original activation snapshot, unchanged inference configuration, still-uninterrupted first run and file/model metadata verified the original run's provenance; an explicit signature pin permits lazy reuse of those results. Existing rows and groups were retained unchanged.
+
+---
+
 # People release validation — 2026-10-20
 
 NextGallery **0.4.20** was tested and installed on Nextcloud **34.0.5.1** with MariaDB. A separate Nextcloud 34/MariaDB instance verified the upgrade from 0.4.19 without changing existing descriptions, OCR, visual vectors or shared results. Real Nextcloud 35/SQLite contracts were also exercised.
@@ -11,7 +25,7 @@ NextGallery **0.4.20** was tested and installed on Nextcloud **34.0.5.1** with M
 - Live Web/OCS responses, served JavaScript bytes, four worker heartbeats, model setup and maintenance state were verified with a disposable account. Account deletion also removed its synthetic face-cache files.
 - Existing canonical AI rows, worker cache contents and controls matched before/after fingerprints. Normal gallery-scan progress continued. A scoped backup and runtime rollback copy were retained on the server.
 
-Person recognition remains globally disabled, with no folders opted in, and all pipelines retain their paused state. The four-portrait smoke check does not establish family-photo accuracy, recognition of children over time or individual pet recognition. Public fixture provenance and reproducible commands are in [benchmarks/faces](../benchmarks/faces/README.md).
+At the initial installation, person recognition remained globally disabled, with no folders opted in, and all pipelines retained their paused state. It was subsequently enabled for the owner's two existing selected folders at the owner's request. The four-portrait smoke check does not establish family-photo accuracy, recognition of children over time or individual pet recognition. Public fixture provenance and reproducible commands are in [benchmarks/faces](../benchmarks/faces/README.md).
 
 ---
 

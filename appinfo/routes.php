@@ -63,6 +63,7 @@ return ['routes' => [
  ['name'=>'face_worker#state', 'url'=>'/ai/worker/faces-state', 'verb'=>'GET'],
  ['name'=>'face_worker#publish', 'url'=>'/ai/worker/publish-faces', 'verb'=>'POST'],
  ['name'=>'face_worker#reset', 'url'=>'/ai/worker/reset-faces', 'verb'=>'POST'],
+ ['name'=>'face_worker#artifactLookup', 'url'=>'/ai/worker/face-artifacts', 'verb'=>'POST'],
  ['name'=>'faces#subjects', 'url'=>'/api/v1/subjects', 'verb'=>'GET'],
  ['name'=>'faces#media', 'url'=>'/api/v1/subjects/{id}/media', 'verb'=>'GET'],
  ['name'=>'faces#preview', 'url'=>'/api/v1/subjects/preview/{detectionId}', 'verb'=>'GET'],

@@ -45,6 +45,8 @@ class MockAPI:
         self.publish_error = None
         self.on_publish_error = None
         self.canonical_group_override = None
+        self.face_artifacts_response = None
+        self.face_artifacts_error = None
 
     def call(self, endpoint: str, body: dict = None):
         if endpoint.startswith('faces-state'):
@@ -56,6 +58,20 @@ class MockAPI:
                 'items': [],
                 'next': None,
                 'more': False,
+            }
+        if endpoint == 'face-artifacts':
+            if self.face_artifacts_error:
+                err = self.face_artifacts_error
+                self.face_artifacts_error = None
+                raise err
+            if self.face_artifacts_response is not None:
+                if callable(self.face_artifacts_response):
+                    return self.face_artifacts_response(body)
+                return self.face_artifacts_response
+            return {
+                'detections': None,
+                'inference_revision': 'a' * 64,
+                'disabled': False,
             }
         if endpoint == 'publish-faces':
             if self.publish_error:

@@ -12,11 +12,13 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 import sqlite3
 import struct
 import sys
 import time
 import uuid
+from typing import Any
 
 from PIL import Image, ImageOps
 
@@ -566,6 +568,76 @@ def load_media_bytes(source, item, max_bytes: int = 64 * 1024 * 1024) -> bytes:
     raise AttributeError('Source object has no recognized download/read method')
 
 
+def validate_raw_detections(detections: Any) -> list[dict]:
+    """Validate and sanitize raw detections from face-artifacts cache.
+
+    Accepts empty list [] (valid 0-face hit).
+    Rejects malformed, non-finite, wrong dimension, invalid bbox or score,
+    zero vector or norm overflow, zero-size bbox (w/h <= 1e-5), out-of-bounds > 1.0001,
+    bool values, > 100 items, or unexpected keys besides bbox/vector/score.
+    """
+    if isinstance(detections, bool) or not isinstance(detections, list):
+        raise PipelineError('Raw detections payload must be a list')
+
+    if len(detections) > 100:
+        raise PipelineError('Raw detections payload exceeds maximum of 100 faces')
+
+    validated = []
+    for i, item in enumerate(detections):
+        if isinstance(item, bool) or not isinstance(item, dict):
+            raise PipelineError(f'Detection at index {i} is not a dict')
+
+        # Unexpected keys check: must have exactly {'bbox', 'vector', 'score'}
+        if set(item.keys()) != {'bbox', 'vector', 'score'}:
+            raise PipelineError(f'Detection at index {i} contains invalid or unexpected keys: {sorted(item.keys())}')
+
+        bbox = item['bbox']
+        if isinstance(bbox, bool) or not isinstance(bbox, (list, tuple)) or len(bbox) != 4:
+            raise PipelineError(f'Detection at index {i} has invalid bbox shape')
+        bbox_clean = []
+        for v in bbox:
+            if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
+                raise PipelineError(f'Detection at index {i} has non-finite or boolean bbox coordinate')
+            bbox_clean.append(float(v))
+
+        x, y, w, h = bbox_clean
+        # Zero-size boxes check: w/h <= 1e-5
+        if w <= 1e-5 or h <= 1e-5:
+            raise PipelineError(f'Detection at index {i} has zero-size bbox: w={w}, h={h}')
+
+        # Bounds check: out-of-bounds > 1.0001 (not 1.05)
+        if x < -1e-4 or y < -1e-4 or (x + w) > 1.0001 or (y + h) > 1.0001:
+            raise PipelineError(f'Detection at index {i} has out-of-bounds bbox: [{x}, {y}, {w}, {h}]')
+
+        score = item['score']
+        if isinstance(score, bool) or not isinstance(score, (int, float)) or not math.isfinite(score):
+            raise PipelineError(f'Detection at index {i} has non-finite or boolean score')
+        if score < 0.0 or score > 1.0:
+            raise PipelineError(f'Detection at index {i} has invalid score: {score}')
+
+        vector = item['vector']
+        if isinstance(vector, bool) or not isinstance(vector, (list, tuple)) or len(vector) != 128:
+            raise PipelineError(f'Detection at index {i} has invalid vector dimension')
+        vector_clean = []
+        for val in vector:
+            if isinstance(val, bool) or not isinstance(val, (int, float)) or not math.isfinite(val):
+                raise PipelineError(f'Detection at index {i} has non-finite or boolean vector value')
+            vector_clean.append(float(val))
+
+        # Zero vector / norm overflow check
+        norm = math.sqrt(sum(v * v for v in vector_clean))
+        if not math.isfinite(norm) or norm <= 1e-4 or norm > 10.0:
+            raise PipelineError(f'Detection at index {i} has invalid vector norm: {norm}')
+
+        validated.append({
+            'bbox': bbox_clean,
+            'score': float(score),
+            'vector': vector_clean,
+        })
+
+    return validated
+
+
 def sync_backend_state(api, store: FaceStore, cluster_index: FaceClusterIndex, observe) -> tuple[str, int, int, str]:
     """Synchronize authoritative account state from backend across pages with consistency check."""
     cursor = 0
@@ -626,6 +698,7 @@ def run(
     observe,
     should_stop,
     retry_errors: bool = False,
+    shared=None,
 ) -> dict:
     """Execute face processing pipeline.
 
@@ -645,9 +718,6 @@ def run(
             'seconds': 0.0,
         }
 
-    if cv2 is None:
-        raise PipelineError('OpenCV (cv2) is not installed in the faces worker runtime')
-
     # Resolve model paths
     models = faces_setup.model_paths(config.get('_model_directory', directory.parent))
     detector_path = models['detector']
@@ -663,7 +733,15 @@ def run(
 
     store = FaceStore(directory / 'faces.sqlite3')
     cluster_index = FaceClusterIndex(cosine_threshold=cosine_thresh)
-    detector = FaceDetector(detector_path, recognizer_path, detection_threshold=det_thresh, min_face_size=min_size)
+    detector = None
+
+    def get_detector() -> FaceDetector:
+        nonlocal detector
+        if detector is None:
+            if cv2 is None:
+                raise PipelineError('OpenCV (cv2) is not installed in the faces worker runtime')
+            detector = FaceDetector(detector_path, recognizer_path, detection_threshold=det_thresh, min_face_size=min_size)
+        return detector
 
     done_count = 0
     error_count = 0
@@ -713,14 +791,33 @@ def run(
             observe('file_start', file_id=file_id, path=item.path, stage='faces')
 
             try:
-                # Step 3: Download media bytes
-                raw_bytes = load_media_bytes(source, item, max_bytes=config.get('max_download_bytes', 64 * 1024 * 1024))
+                # Step 3: Check shared per-file face artifacts cache before downloading or inferring
+                artifact_resp = api.call('face-artifacts', {'file_id': file_id, 'etag': item.etag})
+                if isinstance(artifact_resp, bool) or not isinstance(artifact_resp, dict):
+                    raise PipelineError('Invalid face-artifacts response format')
+                if artifact_resp.get('denied') or artifact_resp.get('error'):
+                    raise PipelineError(str(artifact_resp.get('error') or 'Access denied to face artifacts'))
 
-                # Step 4: Inference with inference_gate
-                with hold(config.get('_inference_directory'), 'http://127.0.0.1:9379/v1', should_stop):
-                    detected_faces = detector.process_image(raw_bytes, max_edge=max_edge)
+                inference_rev = artifact_resp.get('inference_revision')
+                if not isinstance(inference_rev, str) or not re.fullmatch(r'[0-9a-f]{64}', inference_rev):
+                    raise PipelineError('Invalid or missing inference revision from face artifacts')
 
-                # Step 5: Assign stable groups with transaction checkpoint
+                disabled = bool(artifact_resp.get('disabled', False))
+                cached_raw = artifact_resp.get('detections')
+
+                if (not disabled) and (cached_raw is not None):
+                    # Cache HIT: validate payload (empty list [] is valid 0-face hit)
+                    detected_faces = validate_raw_detections(cached_raw)
+                    observe('faces_cache_hit', file_id=file_id, path=item.path)
+                else:
+                    # Cache MISS: download media and run inference
+                    observe('faces_cache_miss', file_id=file_id, path=item.path)
+                    raw_bytes = load_media_bytes(source, item, max_bytes=config.get('max_download_bytes', 64 * 1024 * 1024))
+                    det = get_detector()
+                    with hold(config.get('_inference_directory'), 'http://127.0.0.1:9379/v1', should_stop):
+                        detected_faces = det.process_image(raw_bytes, max_edge=max_edge)
+
+                # Step 4: Assign stable groups with transaction checkpoint
                 cluster_index.checkpoint()
                 payload_detections = []
                 for face in detected_faces:
@@ -732,11 +829,11 @@ def run(
                         'group_id': group_id,
                     })
 
-                # Step 6: Verify source unchanged before publishing
+                # Step 5: Verify source unchanged before publishing
                 if hasattr(source, 'unchanged') and not source.unchanged(item):
                     raise PipelineError('Media changed during face processing')
 
-                # Step 7: Publish to backend with 409 retry handling
+                # Step 6: Publish to backend with 409 retry handling
                 publish_body = {
                     'file_id': file_id,
                     'etag': item.etag,
@@ -744,6 +841,7 @@ def run(
                     'generation': generation,
                     'rules_revision': rules_rev,
                     'space': space,
+                    'inference_revision': inference_rev,
                     'detections': payload_detections,
                 }
 
@@ -766,12 +864,24 @@ def run(
                             fresh_gen = int(st.get('generation', 0))
                             fresh_rules_rev = int(st.get('rules_revision', 0))
                             fresh_space = st.get('model_space', space)
+                            fresh_infer_rev = st.get('inference_revision')
                         except Exception as fetch_err:
                             raise pub_error from fetch_err
 
                         if (fresh_epoch != epoch) or (fresh_gen != generation):
                             # Reset / generation change: abort cycle, clear cache, pause. Never retry old inference across reset!
                             store.clear_all()
+                            return {
+                                'state': 'paused',
+                                'stats': {'done': done_count, 'pending': pending_count, 'error': error_count},
+                                'done': done_count,
+                                'pending': pending_count,
+                                'error': error_count,
+                                'model_space': space,
+                                'seconds': round(time.monotonic() - started, 3),
+                            }
+                        elif fresh_space != space or (fresh_infer_rev and fresh_infer_rev != inference_rev):
+                            # Inference config revision changed: stop/pause to retry later, do not mark new raw with old revision
                             return {
                                 'state': 'paused',
                                 'stats': {'done': done_count, 'pending': pending_count, 'error': error_count},
@@ -798,6 +908,7 @@ def run(
                             publish_body['generation'] = generation
                             publish_body['rules_revision'] = rules_rev
                             publish_body['space'] = space
+                            publish_body['inference_revision'] = inference_rev
                             publish_body['detections'] = payload_detections
                             pub_response = api.call('publish-faces', publish_body)
                         else:

@@ -11,7 +11,7 @@ use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\OCS\{OCSBadRequestException, OCSNotFoundException};
 use OCA\Nextgallery\Exception\FaceConflictException;
-use OCA\Nextgallery\AI\Service\{Settings, Inventory, Faces, State};
+use OCA\Nextgallery\AI\Service\{Settings, Inventory, Faces, State, FaceArtifacts};
 use Psr\Log\LoggerInterface;
 
 class FaceWorkerController extends Controller {
@@ -22,7 +22,8 @@ class FaceWorkerController extends Controller {
         private Faces $faces,
         private ?IUserManager $userManager = null,
         private ?State $state = null,
-        private ?LoggerInterface $logger = null
+        private ?LoggerInterface $logger = null,
+        private ?FaceArtifacts $faceArtifacts = null
     ) {
         parent::__construct('nextgallery', $request);
     }
@@ -60,6 +61,64 @@ class FaceWorkerController extends Controller {
 
     #[PublicPage]
     #[NoCSRFRequired]
+    public function artifactLookup(int $file_id = 0, string $etag = ''): DataResponse {
+        if ($denied = $this->denied()) {
+            return $denied;
+        }
+        $uid = $this->settings->get()['user_id'];
+        $fileId = $file_id !== 0 ? $file_id : (int)$this->request->getParam('file_id', 0);
+        $fileEtag = $etag !== '' ? $etag : (string)$this->request->getParam('etag', '');
+
+        if ($fileId <= 0 || $fileEtag === '' || strlen($fileEtag) > 255) {
+            return new DataResponse(['error' => 'Ungültige Dateiparameter'], 400);
+        }
+
+        $config = $this->settings->get();
+        if (!($config['faces']['enabled'] ?? false)) {
+            return new DataResponse(['error' => 'Personenerkennung nicht aktiviert'], 400);
+        }
+
+        try {
+            $file = $this->inventory->allowedFile($fileId, 'faces');
+        } catch (OCSNotFoundException | \OCP\Files\NotFoundException | \OCP\Files\NotPermittedException) {
+            return new DataResponse(['error' => 'Datei nicht gefunden oder Ordner nicht aktiviert'], 404);
+        } catch (\Throwable) {
+            return new DataResponse(['error' => 'Zugriff verweigert oder Datei nicht verfügbar'], 404);
+        }
+
+        if ($file->getEtag() !== $fileEtag) {
+            return new DataResponse(['error' => 'Bilddatei geändert (ETag-Konflikt)'], 409);
+        }
+
+        $mime = $file->getMimetype();
+        if (!str_starts_with($mime, 'image/')) {
+            return new DataResponse(['error' => 'Keine Bilddatei'], 400);
+        }
+
+        $faceArtifacts = $this->faceArtifacts ?? \OCP\Server::get(FaceArtifacts::class);
+        $currentRev = $faceArtifacts->currentRevision();
+
+        if (!$faceArtifacts->enabled()) {
+            $resp = new DataResponse([
+                'detections' => null,
+                'inference_revision' => $currentRev,
+                'disabled' => true,
+            ]);
+            $resp->addHeader('Cache-Control', 'no-store');
+            return $resp;
+        }
+
+        $cached = $faceArtifacts->find($fileId, $fileEtag, $currentRev);
+        $resp = new DataResponse([
+            'detections' => $cached,
+            'inference_revision' => $currentRev,
+        ]);
+        $resp->addHeader('Cache-Control', 'no-store');
+        return $resp;
+    }
+
+    #[PublicPage]
+    #[NoCSRFRequired]
     public function publish(
         int $file_id = 0,
         string $etag = '',
@@ -67,7 +126,8 @@ class FaceWorkerController extends Controller {
         int $generation = 0,
         int $rules_revision = 0,
         string $space = '',
-        array $detections = []
+        array $detections = [],
+        string $inference_revision = ''
     ): DataResponse {
         if ($denied = $this->denied()) {
             return $denied;
@@ -80,6 +140,11 @@ class FaceWorkerController extends Controller {
         $fileRules = $rules_revision !== 0 ? $rules_revision : (int)$this->request->getParam('rules_revision', 0);
         $fileSpace = $space !== '' ? $space : (string)$this->request->getParam('space', '');
         $dets = !empty($detections) ? $detections : (array)$this->request->getParam('detections', []);
+        $inferenceRev = $inference_revision !== '' ? $inference_revision : (string)$this->request->getParam('inference_revision', '');
+
+        if ($inferenceRev !== '' && $inferenceRev !== FaceArtifacts::revision($this->settings->get())) {
+            return new DataResponse(['error' => 'Inference-Revision veraltet'], 409);
+        }
 
         try {
             $canonical = $this->faces->publish(
@@ -90,7 +155,8 @@ class FaceWorkerController extends Controller {
                 $fileGen,
                 $fileRules,
                 $fileSpace,
-                $dets
+                $dets,
+                $inferenceRev
             );
             $response = new DataResponse([
                 'stored' => true,

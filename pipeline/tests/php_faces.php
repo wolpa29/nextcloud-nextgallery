@@ -133,12 +133,13 @@ namespace {
     require_once $lib . 'AI/Service/Files.php';
     require_once $lib . 'AI/Service/Inventory.php';
     require_once $lib . 'Service/Library.php';
+    require_once $lib . 'AI/Service/FaceArtifacts.php';
     require_once $lib . 'AI/Service/Faces.php';
     require_once $lib . 'Controller/FaceWorkerController.php';
     require_once $lib . 'Controller/FacesController.php';
     require_once $lib . 'Controller/FacesOcsController.php';
 
-    use OCA\Nextgallery\AI\Service\{Settings, Inventory, Faces};
+    use OCA\Nextgallery\AI\Service\{Settings, Inventory, Faces, FaceArtifacts};
     use OCA\Nextgallery\Service\Library;
     use OCA\Nextgallery\Controller\{FaceWorkerController, FacesController, FacesOcsController};
     use OCA\Nextgallery\Exception\FaceConflictException;
@@ -288,7 +289,9 @@ namespace {
             $this->pdo = new \PDO('sqlite::memory:');
             $this->pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
             $this->pdo->exec('CREATE TABLE nextgallery_faces_account(user_id TEXT PRIMARY KEY, epoch TEXT, generation INTEGER, rules_revision INTEGER, updated_at INTEGER)');
-            $this->pdo->exec('CREATE TABLE nextgallery_faces_files(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, file_id INTEGER, etag TEXT, face_count INTEGER, updated_at INTEGER, UNIQUE(user_id, file_id))');
+            $this->pdo->exec('CREATE TABLE nextgallery_faces_files(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, file_id INTEGER, etag TEXT, face_count INTEGER, updated_at INTEGER, inference_revision TEXT DEFAULT \'legacy\', UNIQUE(user_id, file_id))');
+            $this->pdo->exec('CREATE TABLE nextgallery_faces_artifacts(id INTEGER PRIMARY KEY AUTOINCREMENT, file_id INTEGER, etag TEXT, inference_revision TEXT, face_count INTEGER, detections_json TEXT, created_at INTEGER, UNIQUE(file_id, etag, inference_revision))');
+            $this->pdo->exec('CREATE TABLE nextgallery_faces_artifact_refs(id INTEGER PRIMARY KEY AUTOINCREMENT, artifact_id INTEGER, user_id TEXT, file_id INTEGER, etag TEXT, created_at INTEGER, UNIQUE(artifact_id, user_id))');
             $this->pdo->exec('CREATE TABLE nextgallery_faces_groups(user_id TEXT, id TEXT, hidden INTEGER, created_at INTEGER, updated_at INTEGER, PRIMARY KEY(user_id, id))');
             $this->pdo->exec('CREATE TABLE nextgallery_faces_detections(user_id TEXT, id TEXT, file_id INTEGER, etag TEXT, bbox_x REAL, bbox_y REAL, bbox_w REAL, bbox_h REAL, score REAL, group_id TEXT, model_space TEXT, vector_data TEXT, review INTEGER, manual INTEGER, created_at INTEGER, updated_at INTEGER, PRIMARY KEY(user_id, id))');
             $this->pdo->exec('CREATE TABLE nextgallery_faces_constraints(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, kind TEXT, detection_id TEXT, group_id TEXT, created_at INTEGER, UNIQUE(user_id, detection_id, group_id))');

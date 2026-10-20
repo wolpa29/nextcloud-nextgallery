@@ -24,7 +24,8 @@ class Faces {
         private ?Files $files = null,
         private ?State $state = null,
         private ?IUserManager $userManager = null,
-        private ?IRootFolder $rootFolder = null
+        private ?IRootFolder $rootFolder = null,
+        private ?FaceArtifacts $faceArtifacts = null
     ) {}
 
     public function forUser(string $uid): self {
@@ -38,19 +39,27 @@ class Faces {
     }
 
     private function lock(string $uid): void {
+        if ($this->locks === null) return;
         $key = hash('sha256', 'nextgallery:faces:' . $uid);
+        $accountLocked = false;
         try {
-            $this->locks?->acquireLock($key, ILockingProvider::LOCK_EXCLUSIVE);
-        } catch (LockedException) {
-            throw new FaceConflictException('Konto wird gerade verarbeitet, bitte warten (Lock-Konflikt)');
+            $this->locks->acquireLock($key, ILockingProvider::LOCK_EXCLUSIVE);
+            $accountLocked = true;
+            // All cross-account artifact mutations share this lock until the
+            // parent transaction commits. Never release it within store/forget.
+            $this->locks->acquireLock(hash('sha256', 'nextgallery:faces:artifacts'), ILockingProvider::LOCK_EXCLUSIVE);
+        } catch (\Throwable $error) {
+            if ($accountLocked) $this->locks->releaseLock($key, ILockingProvider::LOCK_EXCLUSIVE);
+            if ($error instanceof LockedException) throw new FaceConflictException('Personendaten werden gerade verarbeitet, bitte erneut versuchen');
+            throw $error;
         }
     }
 
     private function unlock(string $uid): void {
-        $key = hash('sha256', 'nextgallery:faces:' . $uid);
-        try {
-            $this->locks?->releaseLock($key, ILockingProvider::LOCK_EXCLUSIVE);
-        } catch (\Throwable) {}
+        if ($this->locks === null) return;
+        foreach ([hash('sha256', 'nextgallery:faces:artifacts'), hash('sha256', 'nextgallery:faces:' . $uid)] as $key) {
+            $this->locks->releaseLock($key, ILockingProvider::LOCK_EXCLUSIVE);
+        }
     }
 
     /**
@@ -283,6 +292,7 @@ class Faces {
             'generation' => $acc['generation'],
             'rules_revision' => $acc['rules_revision'],
             'model_space' => self::MODEL_SPACE,
+            'inference_revision' => FaceArtifacts::revision($this->settings->get()),
             'items' => $items,
             'next' => $next,
             'more' => $more,
@@ -381,7 +391,8 @@ class Faces {
         int $generation,
         int $rulesRevision,
         string $space,
-        array $detections
+        array $detections,
+        string $inferenceRevision = ''
     ): array {
         if ($fileId < 1 || strlen($etag) < 1 || strlen($etag) > 255) {
             throw new OCSBadRequestException('Ungültige Datei-Parameter');
@@ -443,6 +454,12 @@ class Faces {
             }
             if ($rulesRevision !== $acc['rules_revision']) {
                 throw new FaceConflictException('Rules revision mismatch: Worker muss aktualisieren und wiederholen');
+            }
+
+            if ($inferenceRevision !== '') {
+                if ($inferenceRevision !== FaceArtifacts::revision($this->settings->get())) {
+                    throw new FaceConflictException('Inference-Revision veraltet');
+                }
             }
 
             $existing = $this->getExistingDetections($uid, $fileId, $etag);
@@ -576,6 +593,12 @@ class Faces {
                 ];
             }
 
+            $liveConfig = $this->settings->forUser($uid)->get();
+            if (empty($liveConfig['faces']['enabled'])) throw new FaceConflictException('Personenerkennung wurde deaktiviert');
+            $liveFile = $this->inventory->forUser($uid)->allowedFile($fileId, 'faces');
+            if (!hash_equals($liveFile->getEtag(), $etag)) throw new FaceConflictException('Bilddatei geändert (ETag-Konflikt)');
+            if ($inferenceRevision !== '' && $inferenceRevision !== FaceArtifacts::revision($liveConfig)) throw new FaceConflictException('Inference-Revision veraltet');
+
             // Atomic database write
             $this->db->beginTransaction();
             try {
@@ -585,8 +608,8 @@ class Faces {
                     [$uid, $fileId]
                 );
                 $this->db->executeStatement(
-                    'INSERT INTO *PREFIX*nextgallery_faces_files (user_id, file_id, etag, face_count, updated_at) VALUES (?, ?, ?, ?, ?)',
-                    [$uid, $fileId, $etag, count($canonical), $now]
+                    'INSERT INTO *PREFIX*nextgallery_faces_files (user_id, file_id, etag, face_count, updated_at, inference_revision) VALUES (?, ?, ?, ?, ?, ?)',
+                    [$uid, $fileId, $etag, count($canonical), $now, $inferenceRevision !== '' ? $inferenceRevision : 'unknown']
                 );
 
                 // Ensure groups exist
@@ -610,6 +633,15 @@ class Faces {
                         ]
                     );
                 }
+
+                // Atomically store shared face inference artifact and user ref
+                $faceArtifacts = $this->faceArtifacts;
+                $rawDetections = array_map(fn($d) => [
+                    'bbox' => $d['bbox'],
+                    'vector' => $d['vector'],
+                    'score' => $d['score'],
+                ], $validated);
+                if ($inferenceRevision !== '') $faceArtifacts?->store($uid, $fileId, $etag, $inferenceRevision, $rawDetections);
 
                 $this->db->commit();
             } catch (\Throwable $e) {
@@ -699,6 +731,8 @@ class Faces {
                 $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_groups WHERE user_id = ?', [$uid]);
                 $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_files WHERE user_id = ?', [$uid]);
                 $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_constraints WHERE user_id = ?', [$uid]);
+                $faceArtifacts = $this->faceArtifacts;
+                $faceArtifacts?->forget($uid);
                 $this->db->commit();
             } catch (\Throwable $e) {
                 $this->db->rollBack();
@@ -729,6 +763,7 @@ class Faces {
                 $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_files WHERE user_id = ?', [$uid]);
                 $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_constraints WHERE user_id = ?', [$uid]);
                 $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_account WHERE user_id = ?', [$uid]);
+                $this->faceArtifacts?->forget($uid);
                 $this->db->commit();
             } catch (\Throwable $error) {
                 $this->db->rollBack();
@@ -787,6 +822,11 @@ class Faces {
                     [$uid, $uid, $uid]
                 );
 
+                $this->faceArtifacts?->cleanupUser($uid, function(int $fid, string $etag) use ($uid): bool {
+                    try { return hash_equals($etag, $this->inventory->forUser($uid)->allowedFile($fid, 'faces')->getEtag()); }
+                    catch (\OCP\AppFramework\OCS\OCSNotFoundException|\OCP\Files\NotFoundException|\OCP\Files\NotPermittedException) { return false; }
+                });
+                $this->faceArtifacts?->globalCleanup();
                 $this->db->commit();
             } catch (\Throwable $e) {
                 $this->db->rollBack();
