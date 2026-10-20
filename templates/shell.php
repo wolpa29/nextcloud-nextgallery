@@ -33,13 +33,16 @@ $tr = static fn(string $text): string => $isGerman ? $text : ($english[$text] ??
   <section id="ch-people-view" class="ch-panel" hidden>
    <div class="ch-people-toolbar">
     <div class="ch-filters ch-people-filter-group" role="group" aria-label="<?php p($tr('Filter')); ?>">
-     <div class="ch-people-filter-pills">
+     <div class="ch-people-filter-pills" role="tablist" aria-label="<?php p($tr('Filter')); ?>">
       <button type="button" data-people-filter="all" class="ch-people-pill active"><?php p($tr('Alle')); ?></button>
       <button type="button" data-people-filter="suggested" class="ch-people-pill"><?php p($tr('Vorschläge')); ?></button>
       <button type="button" data-people-filter="strangers" class="ch-people-pill"><?php p($tr('Unbekannte Personen')); ?></button>
       <button type="button" data-people-filter="single" class="ch-people-pill"><?php p($tr('Seltene Personen')); ?></button>
+      <button type="button" data-people-filter="review" class="ch-people-pill" hidden><?php p($tr('Überprüfung')); ?></button>
+      <button type="button" data-people-filter="filtered" class="ch-people-pill"><?php p($tr('Gefilterte Gesichter')); ?></button>
+      <button type="button" data-people-filter="hidden" class="ch-people-pill" hidden><?php p($tr('Ausgeblendet')); ?></button>
      </div>
-     <select id="ch-people-filter" aria-label="<?php p($tr('Ansicht wählen')); ?>">
+     <select id="ch-people-filter" aria-label="<?php p($tr('Ansicht wählen')); ?>" hidden>
       <option value="all"><?php p($tr('Alle')); ?></option>
       <option value="suggested"><?php p($tr('Vorschläge')); ?></option>
       <option value="strangers"><?php p($tr('Unbekannte Personen')); ?></option>

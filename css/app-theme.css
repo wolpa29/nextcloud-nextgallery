@@ -282,7 +282,7 @@
 }
 #nextgallery .ch-people-toolbar{background:var(--ng-surface);border:1px solid var(--ng-line);border-radius:16px;padding:12px 16px;box-shadow:0 2px 8px rgba(0,0,0,.02)}
 #nextgallery .ch-people-toolbar .ch-filters{background:transparent;padding:0;min-width:180px}
-#nextgallery #ch-people-filter{width:100%;min-height:44px;margin:0}
+#nextgallery #ch-people-filter{display:none!important}
 #nextgallery .ch-people-toolbar-actions{display:flex;align-items:center;gap:8px}
 #nextgallery :is(#ch-people-view,#ch-search-view){padding:12px 28px 40px}
 #nextgallery #ch-search-form{max-width:760px;background:var(--ng-surface);border:1px solid var(--ng-line);border-radius:18px;padding:12px 16px;box-shadow:0 2px 10px rgba(0,0,0,.03)}
@@ -313,9 +313,10 @@
 #nextgallery #ch-people-view:has(#ch-person-detail:not([hidden])) :is(#ch-people-filter-explainer,#ch-people-guide){display:none}
 #nextgallery .ch-people-filter-group{display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex:1}
 #nextgallery .ch-people-filter-pills{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-#nextgallery button.ch-people-pill{min-height:36px;padding:6px 12px;border-radius:999px;font-size:13px;font-weight:600;border:1px solid var(--ng-line);background:var(--ng-low);color:var(--ng-text)}
+#nextgallery button.ch-people-pill{min-height:36px;padding:6px 12px;border-radius:999px;font-size:13px;font-weight:600;border:1px solid var(--ng-line);background:var(--ng-low);color:var(--ng-text);cursor:pointer;transition:background .12s ease,border-color .12s ease}
+#nextgallery button.ch-people-pill:hover:not(.active){border-color:var(--ng-muted);background:var(--ng-soft)}
 #nextgallery button.ch-people-pill.active{background:var(--ng-selected);color:var(--ng-on-selected);border-color:var(--ng-accent)}
-#nextgallery #ch-people-filter{width:auto;min-width:190px;min-height:38px;margin:0}
+#nextgallery #ch-people-filter{display:none!important}
 #nextgallery .ch-people-explainer{margin:10px 0 14px;padding:10px 14px;border-radius:12px;border:1px solid var(--ng-line);background:var(--ng-low);color:var(--ng-muted);font-size:13px;line-height:1.45}
 #nextgallery .ch-people-guide{margin:0 0 16px;padding:14px 16px;border-radius:16px;border:1px solid color-mix(in srgb,var(--ng-accent) 35%,var(--ng-line));background:var(--ng-surface)}
 #nextgallery .ch-people-guide-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}

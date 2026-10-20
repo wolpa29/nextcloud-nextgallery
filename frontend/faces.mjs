@@ -166,7 +166,11 @@ export function createPeopleController({
     $$('[data-people-filter]').forEach((btn) => {
       const key = btn.dataset?.peopleFilter;
       if (baseLabels[key] !== undefined && typeof filterCounts[key] === 'number') {
-        btn.textContent = filterCounts[key] > 0 ? `${baseLabels[key]} (${filterCounts[key]})` : baseLabels[key];
+        const cnt = filterCounts[key];
+        btn.textContent = cnt > 0 ? `${baseLabels[key]} (${cnt})` : baseLabels[key];
+        if (key === 'review' || key === 'hidden') {
+          btn.hidden = (cnt === 0 && filter !== key);
+        }
       }
     });
   }
