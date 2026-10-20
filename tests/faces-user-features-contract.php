@@ -107,6 +107,19 @@ $detA1 = (string)$db->executeQuery('SELECT id FROM *PREFIX*nextgallery_faces_det
 $detA2 = (string)$db->executeQuery('SELECT id FROM *PREFIX*nextgallery_faces_detections WHERE user_id=? AND group_id=? AND file_id=? LIMIT 1', [$aliceUid, $gidA, $aliceFiles[2]->getId()])->fetchOne();
 $detB = (string)$db->executeQuery('SELECT id FROM *PREFIX*nextgallery_faces_detections WHERE user_id=? AND group_id=? AND file_id=? LIMIT 1', [$aliceUid, $gidB, $aliceFiles[4]->getId()])->fetchOne();
 
+// Reject self-split without changing assignments, revisions or correction constraints.
+$beforeSelfSplit = $faces->accountState($aliceUid)['rules_revision'];
+$constraintsBefore = (int)$db->executeQuery('SELECT COUNT(*) FROM *PREFIX*nextgallery_faces_constraints WHERE user_id=?', [$aliceUid])->fetchOne();
+try {
+    $faces->action($aliceUid, $gidA, 'split', strtoupper($gidA), [$detA1], $beforeSelfSplit);
+    expectFeat(false, 'Self-split must fail');
+} catch (OCSBadRequestException) {
+    expectFeat(true, 'Self-split rejected including case-normalized target');
+}
+expectFeat($faces->accountState($aliceUid)['rules_revision'] === $beforeSelfSplit, 'Rejected self-split preserves rule revision');
+expectFeat((int)$db->executeQuery('SELECT COUNT(*) FROM *PREFIX*nextgallery_faces_constraints WHERE user_id=?', [$aliceUid])->fetchOne() === $constraintsBefore, 'Rejected self-split creates no constraints');
+expectFeat($db->executeQuery('SELECT group_id FROM *PREFIX*nextgallery_faces_detections WHERE user_id=? AND id=?', [$aliceUid, $detA1])->fetchOne() === $gidA, 'Rejected self-split preserves group membership');
+
 // 1. Check filter_counts in subjects()
 $subjAll = $faces->subjects($aliceUid, '', 0, 60, 'all');
 expectFeat(isset($subjAll['filter_counts']), 'filter_counts dictionary present in subjects response');

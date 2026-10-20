@@ -402,6 +402,37 @@ try {
     $cOn['faces']['enabled'] = true;
     $settings->save($cOn);
 
+    // Native live queries and offline snapshots honor the same personal sorting.
+    $faces->action($ownerUid, $gid1, 'rename', null, null, $faces->accountState($ownerUid)['rules_revision'], 'Synthetic name');
+    $coverDetection = (string)$db->executeQuery('SELECT id FROM *PREFIX*nextgallery_faces_detections WHERE user_id=? AND group_id=? AND file_id=?', [$ownerUid, $gid1, $files['multi']->getId()])->fetchOne();
+    $faces->action($ownerUid, $gid1, 'set_cover', $coverDetection, null, $faces->accountState($ownerUid)['rules_revision']);
+    $liveNamed = array_column($nativePeople->subjects($ownerUid, ['/Photos'])['items'], null, 'id')[$gid1];
+    peopleCheck($liveNamed['label'] === 'Synthetic name', 'Live native overview retains manual name');
+    peopleCheck($liveNamed['cover_id'] === $coverDetection, 'Live native overview prefers selected cover over a higher-score face');
+    $namedSnapshot = array_column($nativePeople->snapshot($ownerUid, ['/Photos'])['subjects'], null, 'id')[$gid1];
+    peopleCheck($namedSnapshot['label'] === $liveNamed['label'] && $namedSnapshot['cover_id'] === $liveNamed['cover_id'], 'Live native name and cover match offline snapshot');
+
+    $faces->action($ownerUid, $gid5, 'rename', null, null, $faces->accountState($ownerUid)['rules_revision'], 'One photo');
+    $namedSmall = $nativePeople->subjects($ownerUid, ['/Private']);
+    peopleCheck(count($namedSmall['items']) === 1 && $namedSmall['items'][0]['label'] === 'One photo', 'Named one-photo person appears below minimum photo count');
+    peopleCheck(count($nativePeople->media($ownerUid, $gid5, ['/Private'])['items']) === 1, 'Named one-photo person has live native media');
+    peopleCheck(count($nativePeople->media($ownerUid, $gid5, ['/Photos'])['items']) === 0, 'Naming never bypasses root scope');
+    $smallSnapshot = $nativePeople->snapshot($ownerUid, ['/Private']);
+    peopleCheck(count($smallSnapshot['subjects']) === 1 && $smallSnapshot['subjects'][0]['label'] === 'One photo', 'Named one-photo person matches offline overview');
+    $faces->action($ownerUid, $gid5, 'rename', null, null, $faces->accountState($ownerUid)['rules_revision'], '');
+    peopleCheck($nativePeople->subjects($ownerUid, ['/Private'])['items'] === [] && $nativePeople->media($ownerUid, $gid5, ['/Private'])['items'] === [], 'Removing name reinstates rarity policy in overview and media');
+
+    $faces->action($ownerUid, $gid2, 'rename', null, null, $faces->accountState($ownerUid)['rules_revision'], 'Weak face');
+    peopleCheck(!in_array($gid2, array_column($nativePeople->subjects($ownerUid, ['/Photos'])['items'], 'id'), true), 'Naming does not bypass face quality policy');
+    peopleCheck($nativePeople->media($ownerUid, $gid2, ['/Photos'])['items'] === [], 'Named person with no eligible face returns empty media safely');
+
+    $faces->action($ownerUid, $gid4, 'stranger', null, null, $faces->accountState($ownerUid)['rules_revision']);
+    peopleCheck(!in_array($gid4, array_column($nativePeople->subjects($ownerUid, ['/Photos'])['items'], 'id'), true), 'Unknown people stay out of native overview');
+    peopleCheck($nativePeople->media($ownerUid, $gid4, ['/Photos'])['items'] === [], 'Unknown people stay out of native subject media');
+    peopleCheck(!in_array($gid4, array_column($nativePeople->snapshot($ownerUid, ['/Photos'])['subjects'], 'id'), true), 'Unknown people also stay out of offline snapshot');
+    $faces->action($ownerUid, $gid4, 'unstranger', null, null, $faces->accountState($ownerUid)['rules_revision']);
+    peopleCheck(in_array($gid4, array_column($nativePeople->subjects($ownerUid, ['/Photos'])['items'], 'id'), true), 'Marking known restores native visibility');
+
     // Stale ETag check: modify a file's content in Nextcloud, so its ETag changes
     $p1aFile = $files['p1-a'];
     $p1aId = $p1aFile->getId();

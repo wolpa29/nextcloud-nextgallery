@@ -420,7 +420,7 @@ class NativePeople {
 
         // Fresh live group overview query
         $gq = $this->db->getQueryBuilder();
-        $gq->select('id', 'hidden', 'updated_at')
+        $gq->select('id', 'hidden', 'stranger', 'label', 'cover_id', 'updated_at')
            ->from('nextgallery_faces_groups')
            ->where($gq->expr()->eq('user_id', $gq->createNamedParameter($uid)))
            ->orderBy('updated_at', 'DESC')
@@ -429,7 +429,7 @@ class NativePeople {
 
         $hiddenGroups = [];
         foreach ($groups as $g) {
-            if ((int)$g['hidden'] === 1) {
+            if ((int)$g['hidden'] === 1 || (int)$g['stranger'] === 1) {
                 $hiddenGroups[(string)$g['id']] = true;
             }
         }
@@ -461,7 +461,8 @@ class NativePeople {
                 $distinctFiles[(int)$d['file_id']] = true;
             }
             $photoCount = count($distinctFiles);
-            if ($photoCount < $minGroupPhotos) {
+            $label = isset($g['label']) && trim((string)$g['label']) !== '' ? trim((string)$g['label']) : null;
+            if ($photoCount < $minGroupPhotos && $label === null) {
                 continue;
             }
             usort($dets, fn($a, $b) => (float)$b['score'] <=> (float)$a['score']);
@@ -469,6 +470,8 @@ class NativePeople {
                 'id' => $gid,
                 'photo_count' => $photoCount,
                 'dets' => $dets,
+                'label' => $label,
+                'preferred_cover' => $g['cover_id'] ?? null,
             ];
         }
 
@@ -478,6 +481,10 @@ class NativePeople {
         $access = [];
         foreach ($slice as $entry) {
             // Live-validate cover on returned page only
+            if ($entry['preferred_cover'] !== null) {
+                $preferred = (string)$entry['preferred_cover'];
+                usort($entry['dets'], static fn($a, $b) => ((string)$b['id'] === $preferred) <=> ((string)$a['id'] === $preferred));
+            }
             $cover = $this->readableDetection($uid, $home, $entry['dets'], $canonicalRoots, $access);
             if ($cover === null) {
                 continue;
@@ -486,7 +493,7 @@ class NativePeople {
                 'id' => $entry['id'],
                 'cover_id' => $cover,
                 'photo_count' => $entry['photo_count'],
-                'label' => null,
+                'label' => $entry['label'],
             ];
         }
 
@@ -547,11 +554,11 @@ class NativePeople {
 
         // Verify group exists and is not hidden
         $gq = $this->db->getQueryBuilder();
-        $gq->select('hidden')->from('nextgallery_faces_groups')
+        $gq->select('hidden', 'stranger', 'label')->from('nextgallery_faces_groups')
            ->where($gq->expr()->eq('user_id', $gq->createNamedParameter($uid)))
            ->andWhere($gq->expr()->eq('id', $gq->createNamedParameter($subjectId)));
         $groupRow = $gq->executeQuery()->fetch();
-        if (!$groupRow || (int)$groupRow['hidden'] === 1) {
+        if (!$groupRow || (int)$groupRow['hidden'] === 1 || (int)$groupRow['stranger'] === 1) {
             return [
                 'items' => [],
                 'next' => null,
@@ -582,7 +589,8 @@ class NativePeople {
             ];
         }
 
-        if (count($files) < $minGroupPhotos) {
+        $hasName = trim((string)($groupRow['label'] ?? '')) !== '';
+        if (!$files || (count($files) < $minGroupPhotos && !$hasName)) {
             return [
                 'items' => [],
                 'next' => null,

@@ -2064,3 +2064,186 @@ test('Real DOM: Toggle face frames button state and interactive zoom in context 
 
   await browser.close();
 });
+
+test('DOM: A failed refresh preserves existing people and a filter change clears the old context', async () => {
+  const { root, elements } = setupMockDOM();
+  let fail = false;
+  const controller = createPeopleController({ root, dialogRoot: root, api: async () => {
+    if (fail) throw Error('Connection lost');
+    return {items: [{id:'existing', photo_count:4}], filter_counts:{all:1}};
+  }});
+  controller.refresh();
+  await new Promise(r => setTimeout(r, 0));
+  assert.equal(elements.get('ch-people-grid').children.length, 1);
+  fail = true;
+  controller.refresh();
+  await new Promise(r => setTimeout(r, 0));
+  assert.equal(elements.get('ch-people-grid').children[0].dataset.id, 'existing');
+  assert.equal(elements.get('ch-people-error').textContent, 'Connection lost');
+  await controller.setFilter('single');
+  assert.equal(elements.get('ch-people-grid').children.length, 0, 'Other filter never shows old people');
+  assert.equal(elements.get('ch-people-empty').hidden, true, 'Failed request is not an empty result');
+});
+
+test('DOM: A late media response cannot reopen the previous detail after changing filters', async () => {
+  const { root, elements } = setupMockDOM();
+  let resolveMedia;
+  const controller = createPeopleController({ root, dialogRoot: root, api: async endpoint => {
+    if (endpoint.includes('/media?')) return new Promise(resolve => {resolveMedia=resolve;});
+    return {items:[]};
+  }});
+  const opening=controller.openSubject({id:'old',photo_count:3});
+  await controller.setFilter('hidden');
+  resolveMedia({items:[{id:1,face_detection_ids:['d1']}],subject:{label:'Old name'}});
+  await opening;
+  assert.equal(controller.getSelectedSubject(), null);
+  assert.equal(elements.get('ch-person-detail').hidden, true);
+  assert.equal(elements.get('ch-people-list-container').hidden, false);
+});
+
+test('DOM: Suggestion failures are visible and retryable without losing photos', async () => {
+  const { root, elements, makeEl } = setupMockDOM();
+  for (const id of ['ch-people-similar','ch-people-similar-list','ch-people-similar-status','ch-people-similar-message','ch-people-similar-retry']) makeEl(id);
+  let fail = true;
+  const controller = createPeopleController({ root, dialogRoot: root, api: async endpoint => {
+    if (endpoint.includes('/similar?') && fail) throw Error('Offline');
+    if (endpoint.includes('/similar?')) return {items:[{id:'other',photo_count:2}]};
+    return {items:[{id:1,face_detection_ids:['d1']}]};
+  }});
+  await controller.openSubject({id:'person',photo_count:3});
+  assert.equal(elements.get('ch-people-similar-status').hidden, false);
+  assert.equal(elements.get('ch-person-media-grid').children.length, 1);
+  fail = false;
+  await elements.get('ch-people-similar-retry').onclick();
+  assert.equal(elements.get('ch-people-similar-status').hidden, true);
+  assert.equal(elements.get('ch-people-similar-list').children.length, 1);
+});
+
+test('DOM: Failed undo remains available and hiding a person is reversible', async () => {
+  const { root, elements, makeEl } = setupMockDOM();
+  for (const id of ['ch-people-undo-bar','ch-people-undo-text','ch-people-undo-btn']) makeEl(id);
+  const actions=[];
+  let failUndo=true;
+  const controller=createPeopleController({root,dialogRoot:root,api:async(endpoint,options={})=>{
+    if (endpoint.endsWith('/action')) {
+      const action=JSON.parse(options.body).action;actions.push(action);
+      if (action==='show'&&failUndo) throw Error('Temporary failure');
+      return {rules_revision:actions.length};
+    }
+    return {items:[]};
+  }});
+  await controller.openSubject({id:'person',photo_count:3});
+  await elements.get('ch-people-toggle-hide').onclick();
+  assert.equal(elements.get('ch-people-undo-bar').hidden,false);
+  await elements.get('ch-people-undo-btn').onclick();
+  assert.equal(elements.get('ch-people-undo-bar').hidden,false,'Failed undo stays retryable');
+  failUndo=false;
+  await elements.get('ch-people-undo-btn').onclick();
+  assert.equal(elements.get('ch-people-undo-bar').hidden,true);
+  assert.deepEqual(actions,['hide','show','show']);
+});
+
+test('DOM: Double clicks send only one correction and conflicts remain visible after synchronization', async () => {
+  const {root,elements}=setupMockDOM();
+  let release,actions=0;
+  const controller=createPeopleController({root,dialogRoot:root,api:async(endpoint)=>{
+    if(endpoint.endsWith('/action')){actions++;await new Promise(resolve=>{release=resolve;});throw Object.assign(Error('Sorting changed. Please retry.'),{status:409});}
+    return {items:[]};
+  }});
+  await controller.openSubject({id:'person',photo_count:3});
+  const first=elements.get('ch-people-toggle-hide').onclick();
+  await elements.get('ch-people-toggle-hide').onclick();
+  assert.equal(actions,1);
+  release();await first;
+  assert.equal(elements.get('ch-people-error').hidden,false);
+  assert.equal(elements.get('ch-people-error').textContent,'Sorting changed. Please retry.');
+});
+
+test('Real template: People workspace remains usable at 320, 390 and 1360 pixels in both themes', async t => {
+  if(!chromium){t.skip('Playwright not available');return;}
+  const {mkdir}=await import('node:fs/promises');
+  const browser=await chromium.launch({executablePath:process.env.PLAYWRIGHT_EXECUTABLE||undefined,headless:true,args:['--no-sandbox']});
+  try{
+    const page=await browser.newPage();
+    const errors=[];page.on('pageerror',e=>errors.push(e.message));
+    const shell=readFileSync(resolve(ROOT,'templates/shell.php'),'utf8')
+      .replace(/<\?php p\(\$tr\('([^']*)'\)\); \?>/g,(_,text)=>text)
+      .replace(/<\?php[\s\S]*?\?>/g,'');
+    const css=readFileSync(resolve(ROOT,'css/main.css'),'utf8');
+    await page.setContent(`<html><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{height:100%;margin:0}${css}</style>${shell}</html>`);
+    await page.evaluate(async mod=>{
+      const {createPeopleController}=await import(mod);
+      document.querySelectorAll('main>section').forEach(s=>s.hidden=s.id!=='ch-people-view');
+      document.getElementById('ch-title').textContent='Personen';
+      document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view==='people'));
+      document.getElementById('ch-source-count').textContent='Nur synthetische Testbilder';
+      document.querySelector('#ch-people-refresh [data-icon]').innerHTML='<svg class="ch-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10a8 8 0 1 0-2 8M20 3v7h-7"/></svg>';
+      for(const id of ['ch-count','ch-header-search','ch-refresh'])document.getElementById(id).hidden=true;
+      document.getElementById('ch-gallery-name').textContent='Synthetische Galerie';
+      const art='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#c9d6c2"/><circle cx="50" cy="35" r="20" fill="#f7e8db"/><path d="M10 100a40 40 0 0 1 80 0" fill="#36564d"/></svg>');
+      const persons=[{id:'first',cover_id:'cover',photo_count:6,suggestion_count:1},{id:'second',cover_id:'cover',photo_count:4}];
+      window.realTemplateController=createPeopleController({root:document.getElementById('ch-people-view'),dialogRoot:document.getElementById('nextgallery'),previewUrl:()=>art,imageURL:async()=>art,api:async endpoint=>endpoint.includes('/similar?')?{items:[persons[1]]}:endpoint.includes('/media?')?{items:[{id:1,name:'Synthetic image',face_detection_ids:['d1']}]}:{items:persons,filter_counts:{all:2,suggested:1,single:0,filtered:0,strangers:0,hidden:0,review:0}}});
+      window.realTemplateController.show();
+    },facesMjsDataUri);
+    await page.locator('#ch-people-grid button').first().waitFor();
+    const out=resolve(ROOT,'artifacts/people-workspace-ui');await mkdir(out,{recursive:true});
+    for(const theme of ['light','dark'])for(const width of [320,390,1360]){
+      await page.setViewportSize({width,height:900});
+      await page.locator('body').evaluate((el,theme)=>el.dataset.theme=theme,theme);
+      const overflow=await page.evaluate(()=>[...document.querySelectorAll('#nextgallery,#ch-people-view')].some(el=>el.scrollWidth>el.clientWidth+1));
+      assert.equal(overflow,false,`List has no horizontal overflow: ${width}/${theme}`);
+      assert.equal(await page.locator('#ch-people-reset').isVisible(),false,'Reset is in management menu');
+      await page.locator('#ch-people-options summary').click();
+      assert.equal(await page.locator('#ch-people-reset').isVisible(),true,'Reset stays discoverable');
+      await page.locator('#ch-people-options summary').click();
+      await page.locator('#ch-people-grid button').first().click();
+      await page.locator('#ch-people-similar').waitFor({state:'visible'});
+      assert.equal(await page.locator('#ch-person-detail').evaluate(el=>el.scrollWidth>el.clientWidth+1),false,`Detail fits: ${width}/${theme}`);
+      const compare=page.locator('#ch-people-similar-list .ch-person-thumb-clickable');
+      assert.equal(await compare.evaluate(el=>el.tagName),'BUTTON','Context is keyboard accessible');
+      await page.locator('#ch-people-similar>summary').click();
+      assert.equal(await compare.isVisible(),false,'Suggestions can collapse to reach photos');
+      await page.locator('#ch-people-similar>summary').click();
+      await page.screenshot({path:`${out}/detail-${theme}-${width}.png`,fullPage:true});
+      await page.locator('#ch-people-back').click();
+      await page.locator('#ch-people-grid button').first().waitFor();
+      await page.screenshot({path:`${out}/overview-${theme}-${width}.png`,fullPage:true});
+    }
+    assert.deepEqual(errors,[],'No browser errors in real template');
+  }finally{await browser.close();}
+});
+
+test('DOM: A failed merge suggestion stays visible as an error instead of being cleared by media refresh', async () => {
+  const {root,elements,makeEl}=setupMockDOM();
+  makeEl('ch-people-similar');makeEl('ch-people-similar-list');
+  const controller=createPeopleController({root,dialogRoot:root,api:async endpoint=>{
+    if(endpoint.endsWith('/action'))throw Error('Merge failed');
+    return {items:endpoint.includes('/similar?')?[{id:'other',photo_count:2}]:[]};
+  }});
+  await controller.openSubject({id:'person',photo_count:3});
+  const merge=elements.get('ch-people-similar-list').children[0].querySelector('.ch-people-similar-actions').children[0];
+  const pending=merge.onclick();
+  elements.get('ch-people-action-ok').onclick();
+  await pending;
+  assert.equal(elements.get('ch-people-error').textContent,'Merge failed');
+  assert.equal(elements.get('ch-people-error').hidden,false);
+  assert.equal(controller.getSelectedSubject().id,'person');
+});
+
+test('DOM: A correction finishing after a gallery switch cannot overwrite the new view', async () => {
+  const {root,elements}=setupMockDOM();
+  let gallery='A',release;
+  const controller=createPeopleController({root,dialogRoot:root,getGallery:()=>gallery,api:async endpoint=>{
+    if(endpoint.endsWith('/action'))return new Promise(resolve=>{release=resolve;});
+    return {items:[]};
+  }});
+  await controller.openSubject({id:'old',photo_count:3});
+  const action=elements.get('ch-people-toggle-hide').onclick();
+  gallery='B';controller.onGalleryChange('B');
+  await new Promise(r=>setTimeout(r,0));
+  release({rules_revision:99});await action;
+  assert.equal(controller.getState().gallery,'B');
+  assert.equal(controller.getSelectedSubject(),null);
+  assert.notEqual(controller.getRulesRevision(),99);
+  assert.equal(elements.get('ch-person-detail').hidden,true);
+});

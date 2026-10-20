@@ -289,10 +289,10 @@
  .ch-person-media-grid{grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px}
  .ch-people-similar-list{grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px}
 }
-#nextgallery .ch-people-toolbar{background:var(--ng-surface);border:1px solid var(--ng-line);border-radius:16px;padding:12px 16px;box-shadow:0 2px 8px rgba(0,0,0,.02)}
+#nextgallery .ch-people-toolbar{background:var(--ng-surface);border:1px solid var(--ng-line);border-radius:16px;padding:12px 16px;align-items:flex-start;gap:16px;margin-bottom:12px}
 #nextgallery .ch-people-toolbar .ch-filters{background:transparent;padding:0;min-width:180px}
 #nextgallery #ch-people-filter{display:none!important}
-#nextgallery .ch-people-toolbar-actions{display:flex;align-items:center;gap:8px}
+#nextgallery .ch-people-toolbar-actions{display:flex;align-items:center;gap:8px;flex-shrink:0}
 #nextgallery :is(#ch-people-view,#ch-search-view){padding:12px 28px 40px}
 #nextgallery #ch-search-form{max-width:760px;background:var(--ng-surface);border:1px solid var(--ng-line);border-radius:18px;padding:12px 16px;box-shadow:0 2px 10px rgba(0,0,0,.03)}
 #nextgallery .ch-search-tile{background:var(--ng-surface);border:1px solid var(--ng-line);border-radius:14px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.02);transition:transform .12s ease,border-color .15s ease,box-shadow .15s ease}
@@ -326,7 +326,7 @@
 #nextgallery button.ch-people-pill:hover:not(.active){border-color:var(--ng-muted);background:var(--ng-soft)}
 #nextgallery button.ch-people-pill.active{background:var(--ng-selected);color:var(--ng-on-selected);border-color:var(--ng-accent)}
 #nextgallery #ch-people-filter{display:none!important}
-#nextgallery .ch-people-explainer{margin:10px 0 14px;padding:10px 14px;border-radius:12px;border:1px solid var(--ng-line);background:var(--ng-low);color:var(--ng-muted);font-size:13px;line-height:1.45}
+#nextgallery .ch-people-explainer{margin:0 0 20px;padding:0 2px;color:var(--ng-muted);font-size:13px;line-height:1.6;max-width:80ch}
 #nextgallery .ch-people-guide{margin:0 0 16px;padding:14px 16px;border-radius:16px;border:1px solid color-mix(in srgb,var(--ng-accent) 35%,var(--ng-line));background:var(--ng-surface)}
 #nextgallery .ch-people-guide-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
 #nextgallery .ch-people-guide-card{padding:10px 12px;border-radius:12px;background:var(--ng-low);border:1px solid var(--ng-line)}
@@ -348,7 +348,7 @@
 #nextgallery button#ch-people-toggle-boxes.active{background:var(--ng-accent);border-color:var(--ng-accent);color:var(--ng-on-accent);font-weight:600}
 #nextgallery button#ch-people-toggle-boxes:not(.active){background:var(--ng-surface);border:1px solid var(--ng-line);color:var(--ng-muted)}
 #nextgallery button#ch-people-toggle-boxes:not(.active):hover{color:var(--ng-text);border-color:var(--ng-muted)}
-#nextgallery .ch-person-media-select{opacity:.82;background:rgba(255,255,255,.85);border-radius:5px;box-shadow:0 1px 4px rgba(0,0,0,.35)}
+#nextgallery .ch-person-media-select{opacity:.82;background:rgba(255,255,255,.85);border-radius:5px;box-shadow:0 1px 4px rgba(0,0,0,.35);width:24px;height:24px}
 #nextgallery .ch-face-box-overlay{position:absolute;border:2px solid #00d2ff;box-shadow:0 0 0 1.5px rgba(0,0,0,.55),inset 0 0 0 1px rgba(255,255,255,.65);border-radius:6px;pointer-events:none;z-index:1;opacity:0;transition:opacity .15s ease}
 #nextgallery .ch-face-box-overlay.is-review{border-color:#ff9800}
 #nextgallery .ch-face-box-overlay.is-prominent,#nextgallery .ch-person-media-grid.show-face-boxes .ch-face-box-overlay,#nextgallery .ch-person-media-tile:hover .ch-face-box-overlay{opacity:1}
@@ -400,3 +400,66 @@
 #nextgallery .ch-people-share-list{display:flex;flex-direction:column;gap:8px;margin:8px 0 14px}
 #nextgallery .ch-people-share-item{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:10px 14px;border-radius:12px;border:1px solid var(--ng-line);background:var(--ng-surface)}
 #nextgallery .ch-people-share-info p{margin:2px 0 0;font-size:12.5px}
+
+/* People workspace: everyday browsing first, occasional management in a disclosure. */
+#nextgallery .ch-people-intro{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin:0 0 20px}
+#nextgallery .ch-people-intro p{margin:0;color:var(--ng-muted);font-size:14px;line-height:1.6}
+#nextgallery .ch-people-intro a{font-size:13px;min-height:40px}
+#nextgallery #ch-people-view:has(#ch-person-detail:not([hidden])) .ch-people-intro{display:none}
+#nextgallery .ch-people-options{position:relative;margin:0;padding:0;border:0;z-index:5}
+#nextgallery .ch-people-options summary{display:flex;align-items:center;gap:12px;list-style:none;cursor:pointer;min-height:40px;padding:8px 14px;border:1px solid var(--ng-line);border-radius:12px;background:var(--ng-low);font-size:13px;box-sizing:border-box}
+#nextgallery .ch-people-options summary::-webkit-details-marker{display:none}
+#nextgallery .ch-people-options[open] summary{background:var(--ng-selected);color:var(--ng-on-selected)}
+#nextgallery .ch-people-options-panel{position:absolute;right:0;top:calc(100% + 8px);width:240px;max-width:calc(100vw - 48px);padding:6px;border:1px solid var(--ng-line);border-radius:14px;background:var(--ng-surface);box-shadow:0 10px 30px #0002;display:flex;flex-direction:column;gap:4px}
+#nextgallery .ch-people-options-panel button{width:100%;text-align:left;justify-content:flex-start;min-height:44px;border:0;background:transparent}
+#nextgallery .ch-people-options-panel #ch-people-reset{border-top:1px solid var(--ng-line);border-radius:0 0 10px 10px;color:var(--ng-danger)}
+#nextgallery .ch-people-list-tools{align-items:center;justify-content:space-between;gap:12px;margin:0 0 16px;min-height:40px}
+#nextgallery .ch-people-count{margin:0;font-variant-numeric:tabular-nums}
+#nextgallery .ch-people-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:20px}
+#nextgallery .ch-person-card{min-width:0;padding:12px;border-radius:16px;box-shadow:none;transition:background .15s,border-color .15s}
+#nextgallery .ch-person-card:hover{transform:none;background:var(--ng-low)}
+#nextgallery .ch-person-card:focus-visible,#nextgallery .ch-people-options summary:focus-visible,#nextgallery .ch-person-thumb-clickable:focus-visible{outline:3px solid var(--ng-accent);outline-offset:3px}
+#nextgallery .ch-person-badge{max-width:calc(100% - 12px);white-space:normal;line-height:1.3;text-align:center;font-size:11px}
+#nextgallery .ch-person-detail-bar{align-items:center;gap:12px;padding-bottom:16px;border-bottom:1px solid var(--ng-line);margin-bottom:20px}
+#nextgallery .ch-person-detail-actions{flex-wrap:wrap;gap:8px}
+#nextgallery .ch-people-similar{padding:20px;border-radius:16px;background:var(--ng-low);margin-bottom:20px}
+#nextgallery .ch-people-similar-head .ch-hint{font-size:13px;line-height:1.6;margin:6px 0 16px;max-width:70ch}
+#nextgallery .ch-people-similar-list{grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:12px}
+#nextgallery .ch-people-similar-item{padding:14px;gap:10px;min-width:0;background:var(--ng-surface)}
+#nextgallery button.ch-person-thumb-clickable{display:block;align-self:center;width:min(100%,120px);aspect-ratio:1;padding:0;min-height:0;border:0;border-radius:50%;overflow:hidden;background:var(--ng-soft)}
+#nextgallery .ch-people-similar-actions{gap:6px}
+#nextgallery .ch-people-similar-actions button{min-height:40px;font-size:13px}
+#nextgallery .ch-people-similar-status{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:14px;border:1px solid var(--ng-line);border-radius:12px;margin-bottom:16px;color:var(--ng-muted);font-size:13px}
+#nextgallery .ch-person-media-toolbar{padding:12px 0;background:transparent;border:0;gap:12px}
+#nextgallery .ch-selection-bar{position:sticky;top:0;z-index:4;box-shadow:0 4px 12px #0001}
+#nextgallery .ch-person-media-tile:focus-within{outline:3px solid var(--ng-accent);outline-offset:2px}
+@media(max-width:700px){
+ #nextgallery .ch-people-intro{margin-bottom:14px;gap:8px}
+ #nextgallery .ch-people-toolbar{padding:12px;gap:12px}
+ #nextgallery .ch-people-filter-group{min-width:0;width:100%}
+ #nextgallery .ch-people-toolbar-actions{margin-left:auto}
+ #nextgallery button.ch-people-pill{min-height:44px;font-size:12px;padding:6px 10px}
+ #nextgallery .ch-people-grid{grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}
+ #nextgallery .ch-person-detail-bar{gap:10px}
+ #nextgallery .ch-person-detail-actions{width:100%}
+ #nextgallery .ch-person-detail-actions button{flex:1 1 auto;min-height:44px}
+ #nextgallery .ch-people-similar{padding:12px}
+ #nextgallery .ch-people-similar-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ #nextgallery .ch-people-similar-item{padding:10px}
+ #nextgallery .ch-selection-actions{width:100%;gap:6px}
+ #nextgallery .ch-selection-actions button{min-height:44px;flex:1 1 auto;white-space:normal}
+ #nextgallery .ch-person-media-quick{opacity:1;pointer-events:auto}
+}
+@media(prefers-reduced-motion:reduce){#nextgallery .ch-person-card,#nextgallery .ch-person-media-quick{transition:none}}
+#nextgallery .ch-people-similar-head{display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;list-style:none;min-height:32px}
+#nextgallery .ch-people-similar-head::-webkit-details-marker{display:none}
+#nextgallery .ch-people-similar-head h3{margin:0}
+#nextgallery .ch-people-similar>.ch-hint{margin:6px 0 16px;line-height:1.6;font-size:13px}
+#nextgallery .ch-people-similar-list{grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+#nextgallery .ch-people-similar-item{display:grid;grid-template-columns:64px minmax(0,1fr);gap:8px 12px;text-align:left;align-content:start}
+#nextgallery .ch-people-similar-item button.ch-person-thumb-clickable{width:64px;grid-column:1;grid-row:1/span 2}
+#nextgallery .ch-people-similar-item>.ch-person-name,#nextgallery .ch-people-similar-item>.ch-person-count{grid-column:2;align-self:center;white-space:normal}
+#nextgallery .ch-people-similar-actions{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;margin-top:4px}
+#nextgallery .ch-people-similar-actions .ch-people-inspect-btn{grid-column:1/-1;grid-row:1}
+#nextgallery .ch-people-similar-actions button{white-space:normal;font-size:12px;padding:6px 8px}
+@media(max-width:700px){#nextgallery .ch-people-similar-list{grid-template-columns:1fr}#nextgallery .ch-people-similar-actions{grid-template-columns:1fr 1fr 1fr}#nextgallery .ch-people-similar-actions .ch-people-inspect-btn{grid-column:auto;grid-row:auto;order:-1}}

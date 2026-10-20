@@ -158,6 +158,36 @@ export function createPeopleController({
   let lastUndoAction = null;
   let selectMode = false;
   let selectedSubjects = new Set(); // subject ids picked in the list for a bulk action
+  let renderedFilter = null;
+  let renderedGallery = null;
+  let similarError = false;
+  let mutationPending = false;
+
+  // Keep one correction in flight. A double click must not send the same revision twice.
+  async function withMutation(work) {
+    if (mutationPending) return null;
+    mutationPending = true;
+    const controls = [...$$('button, input, select')].map(el => [el, el.disabled]);
+    controls.forEach(([el]) => { el.disabled = true; });
+    root.setAttribute?.('aria-busy', 'true');
+    try {
+      return await work();
+    } finally {
+      mutationPending = false;
+      controls.forEach(([el, disabled]) => { if (el.isConnected !== false) el.disabled = disabled; });
+      setLoading(loading);
+    }
+  }
+
+  function performSubjectAction(...args) { return withMutation(() => executePerformSubjectAction(...args)); }
+
+  function performBulkAction(...args) { return withMutation(() => executePerformBulkAction(...args)); }
+
+  function performUndo(...args) { return withMutation(() => executePerformUndo(...args)); }
+
+  function mergeSuggestion(...args) { return withMutation(() => executeMergeSuggestion(...args)); }
+
+  function dismissSuggestion(...args) { return withMutation(() => executeDismissSuggestion(...args)); }
 
   function contextPreviewUrl(detectionId) {
     const u = previewUrl(detectionId);
@@ -175,21 +205,20 @@ export function createPeopleController({
     const exp = $('ch-people-filter-explainer');
     if (!exp) return;
     const descriptions = {
-      all: tr('Hauptansicht aller erkannten Personen (ab der eingestellten Mindestanzahl an Fotos oder mit Namen). Tipp: Zusammenführungen und Korrekturen verbessern zukünftige Vorschläge und Zuordnungen automatisch.'),
+      all: tr('Personen mit mehreren Fotos oder einem Namen. Weitere Treffer findest du unter „Seltene Personen“ und „Gefilterte Gesichter“.'),
       suggested: tr('Personen, für die ähnliche Gesichter gefunden wurden. Öffne eine Person, um die Vorschläge im vollen Bildkontext zu prüfen und zusammenzuführen.'),
       strangers: tr('Sammelordner für Personen, die du nicht kennst (z. B. Passanten oder Hintergrundgäste). Sie bleiben hier gesammelt und halten deine Hauptansicht sauber.'),
       single: tr('Seltene Personen, die bisher nur auf wenigen Fotos (unter der Mindestanzahl) erkannt wurden. Du kannst sie mit bekannten Personen zusammenführen, benennen oder in „Unbekannte Personen“ verschieben.'),
-      review: tr('Gesichter mit unsicherer Zuordnung. Prüfe die Fotos dieser Person und klicke auf „Überprüfung auflösen“ oder trenne falsche Fotos ab.'),
-      filtered: tr('Sehr kleine oder unscharfe Gesichter im Hintergrund, die automatisch aussortiert wurden. Einzelne Treffer kannst du bei Bedarf bestätigen.'),
+      review: tr('Diese Zuordnungen sind unsicher. Prüfe die Fotos und bestätige passende Treffer oder trenne falsche Zuordnungen ab.'),
+      filtered: tr('Gesichter unter deinen eingestellten Qualitätsgrenzen. Sie können auch bekannte Personen zeigen. Prüfe die Fotos, bevor du sie bestätigst oder zuordnest.'),
       hidden: tr('Ausgeblendete Personen, die in den normalen Ansichten nicht angezeigt werden.')
     };
     exp.textContent = descriptions[filter] || descriptions.all;
   }
 
   function updateFilterCountsUI() {
-    if (!filterCounts) return;
     const baseLabels = {
-      all: tr('Alle'),
+      all: tr('Übersicht'),
       suggested: tr('Vorschläge'),
       strangers: tr('Unbekannte Personen'),
       review: tr('Überprüfung'),
@@ -201,15 +230,15 @@ export function createPeopleController({
     if (sel && sel.children) {
       for (const opt of sel.children) {
         const key = opt.value;
-        if (baseLabels[key] !== undefined && typeof filterCounts[key] === 'number') {
-          opt.textContent = `${baseLabels[key]} (${filterCounts[key]})`;
+        if (baseLabels[key] !== undefined) {
+          opt.textContent = typeof filterCounts?.[key] === 'number' ? `${baseLabels[key]} (${filterCounts[key]})` : baseLabels[key];
         }
       }
     }
     $$('[data-people-filter]').forEach((btn) => {
       const key = btn.dataset?.peopleFilter;
-      if (baseLabels[key] !== undefined && typeof filterCounts[key] === 'number') {
-        const cnt = filterCounts[key];
+      if (baseLabels[key] !== undefined) {
+        const cnt = filterCounts?.[key] || 0;
         btn.textContent = cnt > 0 ? `${baseLabels[key]} (${cnt})` : baseLabels[key];
         if (key === 'review' || key === 'hidden') {
           btn.hidden = (cnt === 0 && filter !== key);
@@ -228,22 +257,36 @@ export function createPeopleController({
       txt.textContent = '';
       return;
     }
+    const undoBtn = $('ch-people-undo-btn');
+    if (undoBtn) undoBtn.textContent = undoConfig.targetId ? tr('Fotos wieder abtrennen') : tr('Rückgängig machen');
     txt.textContent = undoConfig.text || tr('Aktion ausgeführt.');
     bar.hidden = false;
   }
 
   function setLoading(isLoading) {
     loading = isLoading;
+    const blocked = isLoading || mutationPending;
+    root.setAttribute?.('aria-busy', String(blocked));
     const loadEl = $('ch-people-loading');
     if (loadEl) loadEl.hidden = !isLoading;
     const refreshBtn = $('ch-people-refresh');
-    if (refreshBtn) refreshBtn.disabled = isLoading;
+    if (refreshBtn) refreshBtn.disabled = blocked;
     const resetBtn = $('ch-people-reset');
-    if (resetBtn) resetBtn.disabled = isLoading;
+    if (resetBtn) resetBtn.disabled = blocked;
     const moreBtn = $('ch-people-more');
-    if (moreBtn) moreBtn.disabled = isLoading;
-    $$('[data-people-filter]').forEach((b) => { b.disabled = isLoading; });
+    if (moreBtn) moreBtn.disabled = blocked;
+    $$('[data-people-filter]').forEach((b) => { b.disabled = blocked; });
     updateBulkBar();
+  }
+
+  function updateFilterButtons() {
+    $$('[data-people-filter]').forEach((btn) => {
+      const active = btn.dataset.peopleFilter === filter;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-pressed', String(active));
+    });
+    const sel = $('ch-people-filter');
+    if (sel) sel.value = filter;
   }
 
   function showError(msg) {
@@ -277,11 +320,22 @@ export function createPeopleController({
     updateFilterExplainer();
 
     if (reset) {
-      cursor = null;
-      subjects = [];
       selectedSubjects.clear();
-      const grid = $('ch-people-grid');
-      if (grid) grid.replaceChildren();
+      // A refresh keeps usable results visible, including when the request fails.
+      // A different filter/gallery must never show the previous context's results.
+      if (renderedFilter !== filter || renderedGallery !== reqGallery) {
+        subjects = [];
+        cursor = null;
+        more = false;
+        const grid = $('ch-people-grid');
+        if (grid) grid.replaceChildren();
+        const empty = $('ch-people-empty');
+        if (empty) empty.hidden = true;
+        const moreWrap = $('ch-people-more-wrap');
+        if (moreWrap) moreWrap.hidden = true;
+        const count = $('ch-people-count');
+        if (count) count.textContent = '';
+      }
     }
 
     try {
@@ -296,6 +350,8 @@ export function createPeopleController({
       if (reqGen !== activeGeneration || reqGallery !== getGallery()) return;
 
       const newItems = Array.isArray(data.items) ? data.items : [];
+      renderedFilter = filter;
+      renderedGallery = reqGallery;
       subjects = reset ? newItems : [...subjects, ...newItems];
       cursor = data.next ?? null;
       more = Boolean(data.more);
@@ -330,6 +386,11 @@ export function createPeopleController({
     if (listWrap) listWrap.hidden = false;
 
     updateBulkBar();
+    const count = $('ch-people-count');
+    const total = filterCounts?.[filter];
+    if (count) count.textContent = more
+      ? tr('{loaded} von {total} geladen', { loaded: formatPeopleCount(subjects.length, tr, locale), total: typeof total === 'number' ? new Intl.NumberFormat(locale).format(total) : '…' })
+      : formatPeopleCount(subjects.length, tr, locale);
     if (!grid) return;
     grid.replaceChildren();
     grid.classList.toggle('is-selecting', selectMode);
@@ -337,10 +398,12 @@ export function createPeopleController({
     if (subjects.length === 0) {
       if (emptyState) {
         emptyState.hidden = false;
+        const title = $('ch-people-empty-title');
+        if (title) title.textContent = tr(filter === 'all' ? 'Noch keine Personen in der Übersicht' : filter === 'suggested' ? 'Keine offenen Vorschläge' : 'Keine Personen in dieser Ansicht');
         const hint = $('ch-people-empty-hint');
         if (hint) {
           hint.textContent = filter === 'all'
-            ? tr('Starte die Personenerkennung in der KI-Verarbeitung, um Fotos nach Personen zu sortieren.')
+            ? tr('Prüfe auch „Seltene Personen“. In „Erkennung verwalten“ kannst du Ordner auswählen und die Personenerkennung starten.')
             : filter === 'suggested'
             ? tr('Keine offenen Vorschläge. Neue Vorschläge entstehen nach dem nächsten Lauf der Personenerkennung.')
             : filter === 'strangers'
@@ -361,10 +424,9 @@ export function createPeopleController({
       card.type = 'button';
       card.className = 'ch-person-card';
       card.dataset.id = subject.id;
-      card.setAttribute('role', 'listitem');
       const countStr = formatPhotoCount(subject.photo_count, tr, locale);
       const hasName = typeof subject.label === 'string' && subject.label.trim() !== '';
-      card.setAttribute('aria-label', hasName ? `${subject.label.trim()} · ${countStr}` : countStr);
+      card.setAttribute('aria-label', `${subjectDisplayName(subject)} · ${countStr}`);
       if (selectMode) {
         const locked = bulkLocked(subject);
         card.classList.toggle('is-selected', selectedSubjects.has(subject.id));
@@ -512,7 +574,7 @@ export function createPeopleController({
       const btn = $('ch-people-bulk-' + action);
       if (!btn) continue;
       btn.hidden = !offered.includes(action);
-      btn.disabled = count === 0 || loading;
+      btn.disabled = count === 0 || loading || mutationPending;
     }
     const selectable = subjects.filter((s) => !bulkLocked(s));
     const allBtn = $('ch-people-bulk-all');
@@ -548,7 +610,7 @@ export function createPeopleController({
     return res;
   }
 
-  async function performBulkAction(action) {
+  async function executePerformBulkAction(action) {
     const ids = [...selectedSubjects];
     if (ids.length === 0 || loading) return;
     clearError();
@@ -564,6 +626,7 @@ export function createPeopleController({
       showUndoBar({ bulkAction: BULK_INVERSE[action], bulkIds: ids, text: texts[action] });
     } catch (err) {
       showError(err);
+      return;
     }
     await loadSubjects(true);
   }
@@ -620,7 +683,7 @@ export function createPeopleController({
     const resolveBtn = $('ch-people-resolve');
     if (resolveBtn) {
       resolveBtn.hidden = !(hasReview || isFiltered);
-      resolveBtn.textContent = isFiltered ? tr('Bestätigen') : tr('Überprüfung auflösen');
+      resolveBtn.textContent = isFiltered ? tr('Bestätigen') : tr('Zuordnung bestätigen');
     }
 
     const filterNote = $('ch-people-detail-filter-note');
@@ -671,7 +734,14 @@ export function createPeopleController({
   }
 
   async function openSubject(subject) {
+    similarGeneration++;
     selectedSubject = { ...subject };
+    subjectMedia = [];
+    subjectCursor = null;
+    subjectMore = false;
+    $('ch-people-media-grid')?.replaceChildren();
+    const mediaMore = $('ch-people-media-more-wrap');
+    if (mediaMore) mediaMore.hidden = true;
     selectedDetections.clear();
     clearError();
 
@@ -687,9 +757,9 @@ export function createPeopleController({
     updateToggleBoxesBtn();
     updateSelectionBar();
     similarItems = [];
+    similarError = false;
     renderSimilar();
-    await loadSubjectMedia(true);
-    await loadSimilar();
+    await Promise.all([loadSubjectMedia(true), loadSimilar()]);
   }
 
   // Suggestions apply to the main person view and to groups made only of filtered faces,
@@ -702,16 +772,19 @@ export function createPeopleController({
 
   async function loadSimilar() {
     const reqGen = ++similarGeneration;
+    similarError = false;
+    renderSimilarStatus();
     if (!similarApplies()) {
       similarItems = [];
       renderSimilar();
       return;
     }
     const subjectId = selectedSubject.id;
+    const gallery = getGallery();
     try {
-      const q = new URLSearchParams({ gallery: getGallery() });
+      const q = new URLSearchParams({ gallery });
       const data = await api(`subjects/${encodeURIComponent(subjectId)}/similar?` + q.toString());
-      if (reqGen !== similarGeneration || !selectedSubject || selectedSubject.id !== subjectId) return;
+      if (reqGen !== similarGeneration || gallery !== getGallery() || !selectedSubject || selectedSubject.id !== subjectId) return;
       similarItems = Array.isArray(data.items) ? data.items : [];
       if (typeof data.rules_revision === 'number') rulesRevision = data.rules_revision;
       const count = Number(filter === 'filtered' ? data.subject?.filtered_count : data.subject?.photo_count);
@@ -725,13 +798,21 @@ export function createPeopleController({
         renderDetailHeader();
       }
     } catch (err) {
-      if (reqGen !== similarGeneration) return;
-      similarItems = []; // Suggestions are optional; the person view stays usable.
+      if (reqGen !== similarGeneration || gallery !== getGallery() || selectedSubject?.id !== subjectId) return;
+      similarError = true;
     }
     renderSimilar();
   }
 
+  function renderSimilarStatus() {
+    const status = $('ch-people-similar-status');
+    if (status) status.hidden = !similarError || !selectedSubject;
+    const message = $('ch-people-similar-message');
+    if (message) message.textContent = similarError ? tr('Vorschläge konnten nicht geladen werden. Deine Fotos bleiben verfügbar.') : '';
+  }
+
   function renderSimilar() {
+    renderSimilarStatus();
     const section = $('ch-people-similar');
     const list = $('ch-people-similar-list');
     if (!section || !list) return;
@@ -743,8 +824,10 @@ export function createPeopleController({
       item.setAttribute('role', 'listitem');
       item.dataset.id = other.id;
 
-      const thumb = document.createElement('div');
+      const thumb = document.createElement('button');
+      thumb.type = 'button';
       thumb.className = 'ch-person-thumb-wrap ch-person-thumb-clickable';
+      thumb.setAttribute('aria-label', tr('Fotos von {person} vergleichen', { person: subjectDisplayName(other) }));
       thumb.title = tr('Klicken, um das ganze Bild mit markiertem Gesicht und alle Fotos dieser Person anzusehen');
       if (other.cover_id) {
         const img = document.createElement('img');
@@ -808,12 +891,13 @@ export function createPeopleController({
       if (typeof result?.rules_revision === 'number') rulesRevision = result.rules_revision;
       return result || true;
     } catch (err) {
+      if (err.status === 409) await loadSimilar();
       showError(err);
       return false;
     }
   }
 
-  async function mergeSuggestion(other) {
+  async function executeMergeSuggestion(other) {
     if (!selectedSubject) return;
     const otherDesc = other.label
       ? `„${other.label}“ (${formatPhotoCount(other.photo_count, tr, locale)})`
@@ -824,13 +908,14 @@ export function createPeopleController({
     }
     const ok = await showActionConfirm(
       tr('Person zusammenführen?'),
-      tr('Die vorgeschlagene Person ({other}) wird mit dieser Person zusammengelegt. Die Erkennung lernt daraus für künftige Vorschläge.', { other: otherDesc }),
+      tr('Die vorgeschlagene Person ({other}) wird dieser Person zugeordnet. Du kannst die verschobenen Fotos anschließend wieder abtrennen.', { other: otherDesc }),
       tr('Zusammenführen'),
       false
     );
     if (!ok) return;
     // The suggestion moves into the open person, so this view and its ID remain valid.
     const res = await suggestionAction(other.id, { action: 'merge', target_id: selectedSubject.id });
+    if (!res) return;
     if (res && Array.isArray(res.merged_detection_ids) && res.merged_detection_ids.length > 0) {
       showUndoBar({
         targetId: selectedSubject.id,
@@ -867,7 +952,7 @@ export function createPeopleController({
     await openNextSuggestion();
   }
 
-  async function dismissSuggestion(other) {
+  async function executeDismissSuggestion(other) {
     if (!selectedSubject) return;
     if (await suggestionAction(selectedSubject.id, { action: 'dismiss', target_id: other.id })) {
       similarItems = similarItems.filter((item) => item.id !== other.id);
@@ -887,16 +972,10 @@ export function createPeopleController({
     const signal = currentAbort.signal;
     const reqGen = ++activeGeneration;
     const reqGallery = getGallery();
+    const reqSubjectId = selectedSubject.id;
 
     setLoading(true);
     clearError();
-
-    if (reset) {
-      subjectCursor = null;
-      subjectMedia = [];
-      const grid = $('ch-people-media-grid');
-      if (grid) grid.replaceChildren();
-    }
 
     try {
       const q = new URLSearchParams({
@@ -906,8 +985,8 @@ export function createPeopleController({
       });
       if (!reset && subjectCursor) q.set('cursor', String(subjectCursor));
 
-      const data = await api(`subjects/${encodeURIComponent(selectedSubject.id)}/media?` + q.toString(), { signal });
-      if (reqGen !== activeGeneration || reqGallery !== getGallery()) return;
+      const data = await api(`subjects/${encodeURIComponent(reqSubjectId)}/media?` + q.toString(), { signal });
+      if (reqGen !== activeGeneration || reqGallery !== getGallery() || selectedSubject?.id !== reqSubjectId) return;
 
       const newItems = Array.isArray(data.items) ? data.items : [];
       subjectMedia = reset ? newItems : [...subjectMedia, ...newItems];
@@ -1118,13 +1197,16 @@ export function createPeopleController({
     renderSubjectMedia();
   }
 
-  async function performSubjectAction(action, { target_id, detection_ids, label, confirmTitle, confirmText, confirmOkLabel, isDestructive = false } = {}) {
+  async function executePerformSubjectAction(action, { target_id, detection_ids, label, confirmTitle, confirmText, confirmOkLabel, isDestructive = false } = {}) {
     if (!selectedSubject) return null;
+    const sourceId = selectedSubject.id;
+    const sourceGallery = getGallery();
 
     if (isDestructive && confirmTitle) {
       const ok = await showActionConfirm(confirmTitle, confirmText, confirmOkLabel || tr('Bestätigen'), true);
       if (!ok) return null; // Fail closed if cancelled or dialog missing
     }
+    if (sourceGallery !== getGallery() || selectedSubject?.id !== sourceId) return null;
 
     clearError();
     try {
@@ -1141,6 +1223,7 @@ export function createPeopleController({
         method: 'POST',
         body: JSON.stringify(payload)
       });
+      if (sourceGallery !== getGallery() || selectedSubject?.id !== sourceId) return res;
       if (typeof res?.rules_revision === 'number') {
         rulesRevision = res.rules_revision;
       }
@@ -1154,16 +1237,23 @@ export function createPeopleController({
             text: tr('Personen wurden zusammengeführt ({count}).', { count: formatPhotoCount(mergedIds.length, tr, locale) })
           });
         }
-      } else if (action === 'stranger') {
+      } else if (['stranger', 'unstranger', 'hide', 'show'].includes(action)) {
+        const undoTexts = {
+          stranger: tr('Person wurde in „Unbekannte Personen“ verschoben.'),
+          unstranger: tr('Person als bekannt markiert.'),
+          hide: tr('Person ausgeblendet.'),
+          show: tr('Person eingeblendet.')
+        };
         showUndoBar({
-          strangerGroupId: sourceSubject.id,
-          text: tr('Person wurde in „Unbekannte Personen“ verschoben.')
+          subjectId: sourceSubject.id,
+          action: BULK_INVERSE[action],
+          text: undoTexts[action]
         });
       }
 
       // After action, refresh view
       selectedDetections.clear();
-      if (['merge', 'hide', 'stranger', 'unstranger'].includes(action) || (action === 'resolve' && filter === 'filtered')) {
+      if (['merge', 'hide', 'show', 'stranger', 'unstranger'].includes(action) || (action === 'resolve' && filter === 'filtered')) {
         await leaveSubject();
       } else if (action === 'rename') {
         selectedSubject.label = res?.label ?? (label ? label.trim() : null);
@@ -1174,28 +1264,28 @@ export function createPeopleController({
       }
       return res || { ok: true };
     } catch (err) {
-      showError(err);
+      if (sourceGallery !== getGallery() || selectedSubject?.id !== sourceId) return null;
       if (err.retryable || err.status === 409) {
         // rules_revision conflict: reload to synchronize authoritative state
         if (selectedSubject) await loadSubjectMedia(true);
         else await loadSubjects(true);
       }
+      showError(err);
       return null;
     }
   }
 
-  async function performUndo() {
+  async function executePerformUndo() {
     if (!lastUndoAction) return;
     const undo = lastUndoAction;
-    showUndoBar(null);
     clearError();
     try {
       if (undo.bulkAction && Array.isArray(undo.bulkIds) && undo.bulkIds.length > 0) {
         await postBulkAction(undo.bulkAction, undo.bulkIds);
-      } else if (undo.strangerGroupId) {
-        const res = await api(`subjects/${encodeURIComponent(undo.strangerGroupId)}/action`, {
+      } else if (undo.subjectId) {
+        const res = await api(`subjects/${encodeURIComponent(undo.subjectId)}/action`, {
           method: 'POST',
-          body: JSON.stringify(buildActionPayload({ action: 'unstranger', rules_revision: rulesRevision }))
+          body: JSON.stringify(buildActionPayload({ action: undo.action, rules_revision: rulesRevision }))
         });
         if (typeof res?.rules_revision === 'number') rulesRevision = res.rules_revision;
       } else if (undo.targetId && Array.isArray(undo.detectionIds) && undo.detectionIds.length > 0) {
@@ -1209,6 +1299,7 @@ export function createPeopleController({
         });
         if (typeof res?.rules_revision === 'number') rulesRevision = res.rules_revision;
       }
+      showUndoBar(null);
       if (selectedSubject) {
         await loadSubjectMedia(true);
         await loadSimilar();
@@ -1234,6 +1325,24 @@ export function createPeopleController({
     const filterNote = $('ch-people-detail-filter-note');
     if (filterNote) filterNote.hidden = true;
     await loadSubjects(true); // reset=true prevents stale groups and duplicates
+  }
+
+  function setFilter(nextFilter) {
+    if (!['all', 'suggested', 'strangers', 'hidden', 'review', 'single', 'filtered'].includes(nextFilter)) nextFilter = 'all';
+    filter = nextFilter;
+    selectedSubject = null;
+    similarItems = [];
+    similarError = false;
+    similarGeneration++;
+    selectedDetections.clear();
+    updateFilterButtons();
+    updateFilterCountsUI();
+    renderSimilar();
+    const detail = $('ch-people-detail');
+    if (detail) detail.hidden = true;
+    const list = $('ch-people-list-container');
+    if (list) list.hidden = false;
+    return loadSubjects(true);
   }
 
   function showActionConfirm(title, text, okLabel, isDanger = false) {
@@ -1757,11 +1866,7 @@ export function createPeopleController({
     btn.onclick = () => {
       const targetFilter = btn.dataset.peopleFilter;
       if (filter === targetFilter) return;
-      filter = targetFilter;
-      $$('[data-people-filter]').forEach((b) => b.classList.toggle('active', b === btn));
-      const sel = $('ch-people-filter');
-      if (sel) sel.value = filter;
-      loadSubjects(true);
+      setFilter(targetFilter);
     };
   });
 
@@ -1770,9 +1875,7 @@ export function createPeopleController({
     filterSelect.onchange = () => {
       const targetFilter = filterSelect.value;
       if (filter === targetFilter) return;
-      filter = targetFilter;
-      $$('[data-people-filter]').forEach((b) => b.classList.toggle('active', b.dataset.peopleFilter === filter));
-      loadSubjects(true);
+      setFilter(targetFilter);
     };
   }
 
@@ -1806,6 +1909,15 @@ export function createPeopleController({
   const shareSortingBtn = $('ch-people-share-sorting');
   if (shareSortingBtn) {
     shareSortingBtn.onclick = () => openShareSortingDialog();
+  }
+
+  const retrySimilar = $('ch-people-similar-retry');
+  if (retrySimilar) retrySimilar.onclick = () => loadSimilar();
+  for (const id of ['ch-people-share-sorting', 'ch-people-help-toggle', 'ch-people-reset']) {
+    $(id)?.addEventListener('click', () => {
+      const options = $('ch-people-options');
+      if (options) options.open = false;
+    });
   }
 
   const undoBtn = $('ch-people-undo-btn');
@@ -2203,7 +2315,7 @@ export function createPeopleController({
           await performSubjectAction('merge', {
             target_id: selectedTargetId,
             confirmTitle: tr('Person zusammenführen?'),
-            confirmText: tr('Diese Person wird mit {target} zusammengelegt. Du kannst dies anschließend oben rückgängig machen.', { target: targetLabel }),
+            confirmText: tr('Diese Person wird mit {target} zusammengelegt. Du kannst die verschobenen Fotos anschließend wieder abtrennen.', { target: targetLabel }),
             confirmOkLabel: tr('Zusammenführen'),
             isDestructive: true
           });
@@ -2277,9 +2389,9 @@ export function createPeopleController({
       if (ids.length === 0) return;
       await performSubjectAction('remove', {
         detection_ids: ids,
-        confirmTitle: tr('Ausgewählte Fotos entfernen?'),
-        confirmText: tr('Die ausgewählten Fotos werden von dieser Person entfernt.'),
-        confirmOkLabel: tr('Entfernen'),
+        confirmTitle: tr('Zuordnung entfernen?'),
+        confirmText: tr('Die ausgewählten Gesichtserkennungen werden von dieser Person getrennt und einzeln einsortiert. Die Originalfotos bleiben in deiner Galerie erhalten.'),
+        confirmOkLabel: tr('Zuordnung entfernen'),
         isDestructive: true
       });
     };
@@ -2373,6 +2485,12 @@ export function createPeopleController({
     showUndoBar(null);
     cursor = null;
     subjects = [];
+    filterCounts = null;
+    updateFilterCountsUI();
+    renderedGallery = null;
+    renderedFilter = null;
+    selectMode = false;
+    selectedSubjects.clear();
     loading = false;
     clearError();
     const listWrap = $('ch-people-list-container');
@@ -2383,6 +2501,7 @@ export function createPeopleController({
   }
 
   updateFilterExplainer();
+  updateFilterButtons();
 
   return {
     show: () => {
@@ -2418,15 +2537,7 @@ export function createPeopleController({
     closeDetail: () => {
       backToList();
     },
-    setFilter: (f) => {
-      filter = f;
-      $$('[data-people-filter]').forEach((b) => b.classList.toggle('active', b.dataset.peopleFilter === filter));
-      const sel = $('ch-people-filter');
-      if (sel) sel.value = filter;
-      subjects = [];
-      cursor = null;
-      loadSubjects(true);
-    },
+    setFilter,
     getFilter: () => filter,
     getRulesRevision: () => rulesRevision,
     getSelectedSubject: () => selectedSubject,

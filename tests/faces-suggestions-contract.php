@@ -161,7 +161,9 @@ try {
     expectSuggestion($stored === 3, 'Unknown groups are not stored');
     expectSuggestion(array_column($faces->similar($uid, $A, 'default')['items'], 'id') === [$B, $C], 'Similar groups respect gallery scope and order');
     expectSuggestion(array_column($faces->similar($uid, $A, $other)['items'], 'id') === [$E], 'Similar groups of another gallery');
-    expectSuggestion(count($faces->subjects($uid, 'default', 0, 60, 'suggested')['items']) === 2, 'Suggested filter lists main groups with open suggestions');
+    expectSuggestion(count($faces->subjects($uid, 'default', 0, 60, 'suggested')['items']) === 3, 'Suggested filter lists main and rare groups with open suggestions');
+    $suggestedPage = $faces->subjects($uid, 'default', 0, 60, 'suggested');
+    expectSuggestion(in_array($B, array_column($suggestedPage['items'], 'id'), true) && $suggestedPage['filter_counts']['suggested'] === 3, 'Rare suggested person and suggestion counter agree');
     $faces->action($uid, $A, 'dismiss', $C, null, $faces->accountState($uid)['rules_revision']);
     expectSuggestion(array_column($faces->similar($uid, $A, 'default')['items'], 'id') === [$B], 'Dismissed pair is hidden');
     $faces->action($uid, $C, 'merge', $E, null, $faces->accountState($uid)['rules_revision']);

@@ -1195,6 +1195,9 @@ class Faces {
                             throw new OCSBadRequestException('Detections für Aufteilung erforderlich');
                         }
                         $destGroup = ($targetId && preg_match('/^[a-f0-9]{32}$/iD', $targetId)) ? strtolower($targetId) : bin2hex(random_bytes(16));
+                        if ($destGroup === $id) {
+                            throw new OCSBadRequestException('Zielgruppe muss sich von Quellgruppe unterscheiden');
+                        }
                         $this->ensureGroup($uid, $destGroup);
 
                         foreach ($cleanDets as $did) {
@@ -1493,7 +1496,7 @@ class Faces {
             $rawLabel = isset($g['label']) && trim((string)$g['label']) !== '' ? trim((string)$g['label']) : null;
             $preferredCover = isset($g['cover_id']) && trim((string)$g['cover_id']) !== '' ? strtolower(trim((string)$g['cover_id'])) : null;
 
-            $hasOpenSuggestion = !$hidden && !$stranger && $goodCount >= $minGroupSize && !empty(array_filter(
+            $hasOpenSuggestion = !$hidden && !$stranger && $goodCount > 0 && !empty(array_filter(
                 array_keys($open[$gid] ?? []),
                 fn($other) => !isset($hiddenGroups[$other]) && !isset($strangerGroups[$other]) && !empty($stats[$other]['good'])
             ));

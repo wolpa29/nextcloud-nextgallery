@@ -34,7 +34,7 @@ Groups can be merged, selected detections can be separated, and groups can be hi
 
 ### Merge suggestions
 
-Automatic grouping never joins two groups once both exist, so a person split early in a run stays split. After each complete People run the worker therefore compares the average face of every group with at least two faces against all other groups, including rare ones. Pairs whose similarity lies at most 0.15 below the configured assignment threshold (default 0.55, so from 0.40; never below 0.30) are offered under **Possibly the same person** in the person's detail view and through the **Suggestions** filter. At most eight neighbours per group and 5,000 pairs per account are kept.
+Automatic grouping never joins two groups once both exist, so a person split early in a run stays split. After each complete People run the worker therefore compares the average face of every group with at least two faces against all other groups, including rare ones. Pairs whose similarity lies at most 0.15 below the configured assignment threshold (default 0.55, so from 0.40; never below 0.30) are offered under **Possibly the same person** in the person's detail view and through the **Suggestions** filter, including rare groups with good faces. At most eight neighbours per group and 5,000 pairs per account are kept.
 
 Nothing is merged automatically. **Merge** moves the suggested group into the open person; **Different person** stores a decision that later runs cannot override. Splitting or removing photos counts as the same decision for the affected groups. Decisions follow a group when it is merged into another. Suggestions only refer to groups that still exist, are not hidden and have a currently readable photograph in the requested gallery. The thresholds are provisional until measured against a real library.
 
@@ -89,3 +89,16 @@ The release smoke evaluation uses four rights-documented public portraits and a 
 The native app uses authenticated POST endpoints `people/subjects`, `people/media` and `people/snapshot` under the versioned OCS API. Requests provide the Android gallery's explicit `roots`; web-gallery IDs are not reused. Face crops use authenticated `people/preview/{detectionId}` with the same explicit scope. The normal native search accepts an optional `subject_id` and combines that person with lexical and image-vector candidates. Responses echo the filter so older servers cannot silently ignore it. Hidden groups, quality exclusions, current file ETags and live read access remain enforced.
 
 Offline People is a separate, initially disabled download option in Android. It saves existing anonymous assignments and small face crops for its saved catalogue. Every download starts a fresh materialized snapshot; subsequent pages use its account/scope-bound token. Recognition may continue while that snapshot is downloaded. Manual changes, reset, changed filters or roots invalidate it. Snapshots are private, limited to three per account and expire after one hour; the existing hourly cleanup removes expired files, and People reset/account erasure removes all that account's snapshots. No recognition run, reset or vector migration is triggered by a mobile request.
+
+
+### People workspace (0.4.33)
+
+The main list is called **Overview**, because rare and quality-filtered detections have separate views. A loaded-people counter makes pagination explicit. **Manage recognition** opens processing; sharing, help and the account-wide reset sit under **Manage**. The reset confirmation explains that it affects all galleries in the account. Names are optional.
+
+Suggestion cards provide keyboard-accessible photo context and can be collapsed to reach the person's photos on smaller screens. Failures loading suggestions have their own retry action. Existing results remain visible during a same-context refresh or connection error. Changing gallery or filter clears stale content, and late requests cannot reopen the previous detail view. Correction submissions are guarded against double clicks.
+
+Hiding/showing and known/unknown flags can be undone immediately; a failed undo remains retryable. Separating a merge is explicitly labelled **Separate photos again**: this creates a new person and does not restore historical names or covers. Ordinary separation records that the groups should remain distinct. Original photos are never removed by these correction controls. The API rejects moving selected detections back into their own group.
+
+The processing counter counts checked photos, including photos without a detected face. A failed run alone does not establish that a model service is unavailable. File errors distinguish empty/unreadable images, incomplete files, memory/pixel limits and unreadable processing responses, with the original technical message available separately.
+
+Live native People lists and media use the same names, preferred cover and visibility policy as offline snapshots: named groups may have fewer than the overview minimum; unknown/hidden groups stay excluded; names never bypass quality, current-file or selected-root checks.

@@ -116,6 +116,8 @@ const configData = {
   description_count: 12,
   ocr_count: 7,
   embedding_count: 15,
+  faces_enabled: true,
+  faces_count: 3,
   analysis_enabled: true,
   ocr_enabled: true,
   embedding_enabled: true,
@@ -125,6 +127,7 @@ const configData = {
 };
 
 let pipelineStates = {
+  faces: {online:true,state:"running",control:{paused:false,requested:false},stats:{done:3,pending:2,error:1},last_run:{processed:3,seconds:10}},
   descriptions: {
     online: true,
     state: 'running',
@@ -193,7 +196,7 @@ async function getButtonSnapshot(page) {
   await page.mouse.move(0, 0);
   return await page.evaluate(() => {
     const cards = {};
-    for (const kind of ['descriptions', 'ocr', 'embeddings']) {
+    for (const kind of ['descriptions', 'ocr', 'embeddings', 'faces']) {
       const card = {};
       const start = document.querySelector(`[data-start="${kind}"]`);
       if (start) {
@@ -237,7 +240,7 @@ async function getButtonSnapshot(page) {
 }
 
 function assertOtherPipelinesMatch(currentSnapshot, beforeSnapshot, targetKind, stageLabel) {
-  for (const kind of ['descriptions', 'ocr', 'embeddings']) {
+  for (const kind of ['descriptions', 'ocr', 'embeddings', 'faces']) {
     if (kind === targetKind) continue;
     for (const btnKey of Object.keys(beforeSnapshot[kind])) {
       const before = beforeSnapshot[kind][btnKey];
@@ -334,7 +337,7 @@ try {
   check(await page.locator('#mai-nav-status').textContent() === 'Bereit', 'Nav status synchronized');
   await page.screenshot({ path: `${outDir}/01-initial-overview.png`, fullPage: true });
 
-  const pipelines = ['descriptions', 'ocr', 'embeddings'];
+  const pipelines = ['descriptions', 'ocr', 'embeddings', 'faces'];
 
   // Test Phase 1: Test all 3 pipelines for PAUSE with held GET davor and held POST
   for (const kind of pipelines) {
@@ -532,6 +535,26 @@ try {
     return resume && !resume.hidden && !resume.disabled;
   });
   check(staleStatusServed && getRefreshCounts.config > oldRefreshCount, 'A fresh status request replaces a stale overlapping poll after mutation');
+
+  // A failed People run does not establish that a remote model service is unavailable.
+  pipelineStates.faces.state = 'error';
+  await page.evaluate(() => window.syntheticPoll());
+  await page.waitForFunction(() => document.getElementById('mai-faces-queue-hint').textContent.includes('Fehlermeldungen'));
+  check(!(await page.locator('#mai-faces-queue-hint').innerText()).includes('Modelldienst'), 'People errors do not invent an unavailable model service');
+  const counts={total:3,done:0,changed:0,pending:0,publishing:0,error:0,ocr_done:0,ocr_pending:0,ocr_error:0,embedded:0,embedding_pending:0,embedding_error:0,faces_done:0,faces_pending:0,faces_error:3};
+  await page.route('**/apps/nextgallery/ai/account/library?**',route=>route.fulfill({json:{folder:{counts},folders:[],matched:3,next_offset:null,files:[
+    {file_id:1,name:'synthetic-empty.jpg',mime:'image/jpeg',faces_error:'Image data is empty (0 bytes)',faces_status:'error'},
+    {file_id:2,name:'synthetic-large.jpg',mime:'image/jpeg',faces_error:'Image exceeds max pixel guard',faces_status:'error'},
+    {file_id:3,name:'synthetic-response.jpg',mime:'image/jpeg',faces_error:'Expecting value: line 1 column 1 (char 0)',faces_status:'error'}
+  ]}}));
+  await page.locator('[data-nav-target="mai-library"]').click();
+  await page.waitForFunction(()=>document.querySelectorAll('.mai-file-error').length===3);
+  const messages=await page.locator('.mai-file-error>p').allTextContents();
+  check(messages[0].includes('leer')&&messages[1].includes('Pixelgrenze')&&messages[2].includes('Verarbeitungsantwort'),'People file errors explain three distinct causes');
+  check(!(await page.locator('.mai-file-error code').first().isVisible()),'Raw processing errors are initially collapsed');
+  await page.locator('.mai-file-error summary').first().click();
+  check(await page.locator('.mai-file-error code').first().isVisible(),'Original technical details remain accessible');
+  await page.screenshot({path:`${outDir}/07-people-file-errors.png`,fullPage:true});
 
   // Verify no unexpected browser errors
   check(errors.length === 0, `No uncaught browser errors: ${errors.join('; ')}`);

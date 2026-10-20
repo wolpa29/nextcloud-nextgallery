@@ -1,5 +1,16 @@
 # Native Android People integration — 20 October 2026
 
+## 0.4.33 People workspace and native consistency — 21 October 2026
+
+The People workspace now has a clearly labelled overview, management disclosure, compact/collapsible suggestions, keyboard-accessible context controls and explicit loaded counts. Same-context refresh failures preserve existing cards/photos; failed suggestion requests can be retried independently. Correction requests reject duplicate submissions, stale-view results cannot overwrite another gallery, and correction/conflict failures remain visible. Hide/show and known/unknown flags support retryable undo. Merge separation is honestly labelled and documented: it does not restore historical names/covers. Processing errors distinguish image corruption, limits and response failures without claiming an unverified model-service outage.
+
+Rare groups with good faces and open suggestions now appear in the Suggestions filter. Self-splits are rejected without changing constraints or revisions. Native live lists/media preserve names and preferred covers, include named small groups and exclude unknown/hidden groups consistently with offline snapshots; quality/roots/ETag/token protections remain enforced.
+
+Validation: 48 JavaScript/browser tests, 70 face-pipeline tests, 79 four-lane browser-control assertions, 49 real MariaDB feature assertions, 37 suggestion assertions, 93 native People assertions and six snapshot-cleanup assertions passed. The actual template was tested at 320/390/1360px in light/dark themes, with no overflow or uncaught browser errors. The extracted install package passed SDK/transport/SQLite/search checks.
+
+After explicit owner approval, 0.4.33 was installed by atomic app exchange with rollback available. All 1,047 installed runtime hashes match package SHA-256 `510e08510cf038c06ec3d448a42828f2a58b5db0ef48d1f327d2414815aae818`. Fourteen protected SQL/settings summaries, five logical worker databases, all controls/schedules and all five worker PIDs are identical before/after. Worker code is unchanged and no worker restart, People reset, reanalysis or original-file change was performed. Nextcloud reports maintenance=false and no pending app upgrade; the authenticated live browser confirms 0.4.33 and the new controls. The existing 16 People file errors were retained, not represented as recovered. Backup: `/root/nextgallery-backups/people-ux-0433-20261020-220549` (server UTC timestamp). Evidence: ignored `artifacts/deploy-0.4.33/`, with synthetic visual tests under `artifacts/people-workspace-ui/`.
+
+
 NextGallery Server **0.4.24** is installed on Nextcloud34.0.5.1/MariaDB. Android0.8.0 uses explicit mobile folder roots for person browsing, optional offline assignment snapshots and person-filtered text/image search. Recognition workers, model spaces and canonical data formats are unchanged.
 
 - **79** real Nextcloud People contracts passed directly against the installable PHP classes, including scope, access, quality, hidden groups, file versions, date-aware paging, fresh/frozen snapshots, invalidation and native search filtering, including real sqlite-vec person/motif intersection and cross-person token rejection. The temporary duplicated-class test bundle was removed; it is not the verification source.
