@@ -410,7 +410,7 @@
   "Ausgewählte Fotos als eigene neue Person herauslösen": "Split selected photos off into a new person",
   "Ausgewählte Fotos einer anderen bestehenden Person zuordnen": "Assign selected photos to another existing person",
   "Zu Person verschieben": "Move to person",
-  "Wähle die Person aus, mit der diese zusammengelegt werden soll. Über „🔍 Fotos & Kontext“ kannst du dir das ganze Bild mit markiertem Gesicht und alle Fotos einer Person ansehen.": "Choose the person to merge this one with. “🔍 Photos & context” shows the whole image with the face marked and all photos of a person.",
+  "Wähle die Person aus, mit der diese zusammengelegt werden soll. Über „Fotos & Kontext“ kannst du dir das ganze Bild mit markiertem Gesicht und alle Fotos einer Person ansehen.": "Choose the person to merge this one with. “Photos & context” shows the whole image with the face marked and all photos of a person.",
   "Nach Name oder Fotoanzahl suchen …": "Search by name or photo count …",
   "Bildkontext & Fotos prüfen": "Check image context & photos",
   "Das erkannte Gesicht ist im vollen Bildbereich farbig markiert. Klicke unten auf ein weiteres Foto dieser Person, um es hier zu prüfen.": "The detected face is highlighted in the full image. Click another photo of this person below to check it here.",
@@ -419,5 +419,17 @@
   "Standardmäßig werden nur die rohen Gesichtserkennungen gemeinsam genutzt, während Zusammenführungen und Namen pro Konto getrennt sind. Hier kannst du deine Sortierung für Mitbenutzer derselben Galerie-Ordner freigeben oder deren Sortierung übernehmen.": "By default only raw face detections are shared, while merges and names stay separate per account. Here you can share your sorting with users of the same gallery folders or adopt theirs.",
   "Meine Sortierung für Mitbenutzer freigeben": "Share my sorting with other users",
   "Andere Konten können deine Zusammenführungen, Namen, Titelbilder und „Unbekannte Personen“ nur für Fotos übernehmen, auf die sie in Nextcloud selbst Lesezugriff haben.": "Other accounts can adopt your merges, names, covers and “Unknown people” only for photos they can read in Nextcloud themselves.",
-  "Freigegebene Sortierungen für diese Galerie": "Shared sortings for this gallery"
+  "Freigegebene Sortierungen für diese Galerie": "Shared sortings for this gallery",
+  "✓ Gesichtsrahmen an": "✓ Face frames on",
+  "Gesichtsrahmen aus": "Face frames off",
+  "Gesichtsrahmen auf Fotos ausblenden": "Hide face frames on photos",
+  "Gesichtsrahmen auf Fotos einblenden": "Show face frames on photos",
+  "Zoom-Steuerung": "Zoom controls",
+  "Vergrößern": "Zoom in",
+  "Verkleinern": "Zoom out",
+  "Auf 100% zurücksetzen": "Reset to 100%",
+  "Fokus Gesicht": "Focus face",
+  "Auf das erkannte Gesicht zoomen": "Zoom into the detected face",
+  "Kein Gesichtsrahmen verfügbar": "No face frame available",
+  "Ansicht zurücksetzen": "Reset view"
 }

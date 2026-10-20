@@ -129,7 +129,7 @@ $tr = static fn(string $text): string => $isGerman ? $text : ($english[$text] ??
     </section>
     <div class="ch-person-media-toolbar">
      <p class="ch-hint"><?php p($tr('Tipp: Wähle Fotos über das Kästchen oben links aus, um falsche Zuordnungen abzutrennen oder zu einer anderen Person zu verschieben. Über „★ Titelbild“ auf einem Foto änderst du das Vorschaubild dieser Person.')); ?></p>
-     <button type="button" id="ch-people-toggle-boxes" class="ch-button ch-button-sm" aria-pressed="true"><?php p($tr('Gesichtsrahmen anzeigen')); ?></button>
+     <button type="button" id="ch-people-toggle-boxes" class="ch-button ch-button-sm active" aria-pressed="true"><?php p($tr('✓ Gesichtsrahmen an')); ?></button>
     </div>
     <div id="ch-person-selection-bar" class="ch-selection-bar" hidden>
      <span id="ch-people-selection-count"></span>
@@ -182,7 +182,7 @@ $tr = static fn(string $text): string => $isGerman ? $text : ($english[$text] ??
   </dialog>
   <dialog id="ch-people-merge-dialog" aria-labelledby="ch-people-merge-title">
    <form method="dialog" class="ch-dialog-head"><h2 id="ch-people-merge-title"><?php p($tr('Person zusammenführen')); ?></h2><button aria-label="<?php p($tr('Schließen')); ?>" class="ch-dialog-close"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></form>
-   <p id="ch-people-merge-subtitle"><?php p($tr('Wähle die Person aus, mit der diese zusammengelegt werden soll. Über „🔍 Fotos & Kontext“ kannst du dir das ganze Bild mit markiertem Gesicht und alle Fotos einer Person ansehen.')); ?></p>
+   <p id="ch-people-merge-subtitle"><?php p($tr('Wähle die Person aus, mit der diese zusammengelegt werden soll. Über „Fotos & Kontext“ kannst du dir das ganze Bild mit markiertem Gesicht und alle Fotos einer Person ansehen.')); ?></p>
    <div class="ch-merge-toolbar">
     <div class="ch-segmented" role="radiogroup" aria-label="<?php p($tr('Filter')); ?>">
      <button type="button" class="ch-seg-btn active" data-merge-filter="all"><?php p($tr('Alle')); ?></button>

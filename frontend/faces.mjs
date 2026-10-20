@@ -449,6 +449,19 @@ export function createPeopleController({
     }
   }
 
+  function updateToggleBoxesBtn() {
+    const btn = $('ch-people-toggle-boxes');
+    if (!btn) return;
+    btn.setAttribute('aria-pressed', String(showFaceBoxes));
+    btn.classList.toggle('active', showFaceBoxes);
+    btn.textContent = showFaceBoxes ? ('✓ ' + tr('Gesichtsrahmen an')) : tr('Gesichtsrahmen aus');
+    btn.title = showFaceBoxes
+      ? tr('Gesichtsrahmen auf Fotos ausblenden')
+      : tr('Gesichtsrahmen auf Fotos einblenden');
+    const grid = $('ch-people-media-grid');
+    if (grid) grid.classList.toggle('show-face-boxes', showFaceBoxes);
+  }
+
   async function openSubject(subject) {
     selectedSubject = { ...subject };
     selectedDetections.clear();
@@ -463,6 +476,7 @@ export function createPeopleController({
     if (renameBar) renameBar.hidden = true;
 
     renderDetailHeader();
+    updateToggleBoxesBtn();
     updateSelectionBar();
     similarItems = [];
     renderSimilar();
@@ -564,7 +578,7 @@ export function createPeopleController({
       const inspect = document.createElement('button');
       inspect.type = 'button';
       inspect.className = 'ch-button ch-people-inspect-btn';
-      inspect.textContent = '🔍 ' + tr('Fotos & Kontext');
+      inspect.textContent = tr('Fotos & Kontext');
       inspect.title = tr('Vollen Bildbereich mit markiertem Gesicht und alle Fotos dieser Person anschauen');
       inspect.onclick = () => openInspectDialog(other, { canMerge: true, onMerge: () => mergeSuggestion(other) });
       actions.append(merge, dismiss, inspect);
@@ -800,7 +814,7 @@ export function createPeopleController({
         const inspectBtn = document.createElement('button');
         inspectBtn.type = 'button';
         inspectBtn.className = 'ch-person-media-quick-btn';
-        inspectBtn.textContent = '🔍 ' + tr('Ausschnitt');
+        inspectBtn.textContent = tr('Ausschnitt');
         inspectBtn.title = tr('Volles Foto mit markiertem Gesichtsausschnitt ansehen');
         inspectBtn.onclick = (e) => {
           e.stopPropagation();
@@ -1050,40 +1064,257 @@ export function createPeopleController({
       const stageGrid = document.createElement('div');
       stageGrid.className = 'ch-people-inspect-comparison';
 
-      // 1. Full context image with marked face bounding box
+      // 1. Full context image with marked face bounding box + interactive zoom
       const fullCard = document.createElement('div');
       fullCard.className = 'ch-people-inspect-full-card';
+
+      const fullCardHead = document.createElement('div');
+      fullCardHead.className = 'ch-people-inspect-full-card-head';
+
       const fullLabel = document.createElement('span');
       fullLabel.className = 'ch-people-inspect-card-label';
       fullLabel.textContent = tr('Voller Bildbereich mit markiertem Gesicht');
-      fullCard.append(fullLabel);
+      fullCardHead.append(fullLabel);
+
+      const zoomBar = document.createElement('div');
+      zoomBar.className = 'ch-people-inspect-zoom-bar';
+      zoomBar.setAttribute('role', 'toolbar');
+      zoomBar.setAttribute('aria-label', tr('Zoom-Steuerung'));
+
+      const zoomOutBtn = document.createElement('button');
+      zoomOutBtn.type = 'button';
+      zoomOutBtn.className = 'ch-button ch-button-sm ch-people-inspect-zoom-btn';
+      zoomOutBtn.textContent = '−';
+      zoomOutBtn.title = tr('Verkleinern');
+      zoomOutBtn.setAttribute('aria-label', tr('Verkleinern'));
+
+      const zoomLevelBtn = document.createElement('button');
+      zoomLevelBtn.type = 'button';
+      zoomLevelBtn.className = 'ch-button ch-button-sm ch-people-inspect-zoom-badge';
+      zoomLevelBtn.textContent = '100%';
+      zoomLevelBtn.title = tr('Auf 100% zurücksetzen');
+
+      const zoomInBtn = document.createElement('button');
+      zoomInBtn.type = 'button';
+      zoomInBtn.className = 'ch-button ch-button-sm ch-people-inspect-zoom-btn';
+      zoomInBtn.textContent = '+';
+      zoomInBtn.title = tr('Vergrößern');
+      zoomInBtn.setAttribute('aria-label', tr('Vergrößern'));
+
+      const zoomFocusBtn = document.createElement('button');
+      zoomFocusBtn.type = 'button';
+      zoomFocusBtn.className = 'ch-button ch-button-sm ch-people-inspect-zoom-face';
+      zoomFocusBtn.textContent = tr('Fokus Gesicht');
+      zoomFocusBtn.title = tr('Auf das erkannte Gesicht zoomen');
+
+      const zoomResetBtn = document.createElement('button');
+      zoomResetBtn.type = 'button';
+      zoomResetBtn.className = 'ch-button ch-button-sm ch-people-inspect-zoom-btn';
+      zoomResetBtn.textContent = '⟲';
+      zoomResetBtn.title = tr('Ansicht zurücksetzen');
+      zoomResetBtn.setAttribute('aria-label', tr('Ansicht zurücksetzen'));
+
+      zoomBar.append(zoomOutBtn, zoomLevelBtn, zoomInBtn, zoomFocusBtn, zoomResetBtn);
+      fullCardHead.append(zoomBar);
+      fullCard.append(fullCardHead);
 
       const fullImgWrap = document.createElement('div');
       fullImgWrap.className = 'ch-people-inspect-full-wrap';
+      fullImgWrap.tabIndex = 0;
+      fullImgWrap.setAttribute('role', 'region');
+      fullImgWrap.setAttribute('aria-label', tr('Voller Bildbereich'));
+
+      const imgHolder = document.createElement('div');
+      imgHolder.className = 'ch-people-inspect-img-holder';
+
       const fullImg = document.createElement('img');
       fullImg.className = 'ch-people-inspect-full-img';
       fullImg.alt = mediaItem?.name || tr('Voller Bildbereich');
       if (detId) {
         fullImg.src = contextPreviewUrl(detId);
       }
+      imgHolder.append(fullImg);
+
+      function attachOverlay(b) {
+        if (Array.isArray(b) && b.length === 4) {
+          imgHolder.querySelectorAll('.ch-face-box-overlay').forEach((el) => el.remove());
+          const [bx, by, bw, bh] = b;
+          const overlay = document.createElement('span');
+          overlay.className = 'ch-face-box-overlay is-prominent';
+          overlay.style.left = `${Math.max(0, Math.min(100, bx * 100))}%`;
+          overlay.style.top = `${Math.max(0, Math.min(100, by * 100))}%`;
+          overlay.style.width = `${Math.max(2, Math.min(100, bw * 100))}%`;
+          overlay.style.height = `${Math.max(2, Math.min(100, bh * 100))}%`;
+          imgHolder.append(overlay);
+        }
+      }
+
       if (mediaItem) {
         imageURL(mediaItem).then((url) => {
           if (url && fullImgWrap.isConnected) {
             fullImg.src = url;
-            if (Array.isArray(box) && box.length === 4) {
-              const [bx, by, bw, bh] = box;
-              const overlay = document.createElement('span');
-              overlay.className = 'ch-face-box-overlay is-prominent';
-              overlay.style.left = `${Math.max(0, Math.min(100, bx * 100))}%`;
-              overlay.style.top = `${Math.max(0, Math.min(100, by * 100))}%`;
-              overlay.style.width = `${Math.max(2, Math.min(100, bw * 100))}%`;
-              overlay.style.height = `${Math.max(2, Math.min(100, bh * 100))}%`;
-              fullImgWrap.append(overlay);
-            }
+            attachOverlay(box || mediaItem?.faces?.[0]?.box || subject?.cover_box);
           }
         }).catch(() => {});
       }
-      fullImgWrap.append(fullImg);
+
+      // Zoom & Pan state
+      let currentZoom = 1;
+      let panX = 0;
+      let panY = 0;
+      let isDragging = false;
+      let dragStartX = 0;
+      let dragStartY = 0;
+
+      function updateTransform(animate = true) {
+        imgHolder.style.transition = animate ? 'transform 0.15s ease-out' : 'none';
+        imgHolder.style.transform = `translate(${Math.round(panX)}px, ${Math.round(panY)}px) scale(${currentZoom.toFixed(3)})`;
+        zoomLevelBtn.textContent = `${Math.round(currentZoom * 100)}%`;
+        fullImgWrap.classList.toggle('is-zoomed', currentZoom > 1.01);
+        zoomOutBtn.disabled = currentZoom <= 1.001;
+        zoomInBtn.disabled = currentZoom >= 4.99;
+      }
+
+      function clampPan() {
+        if (currentZoom <= 1.001) {
+          panX = 0;
+          panY = 0;
+          return;
+        }
+        const w = imgHolder.offsetWidth || fullImg.offsetWidth || 300;
+        const h = imgHolder.offsetHeight || fullImg.offsetHeight || 300;
+        const vw = fullImgWrap.clientWidth || 300;
+        const vh = fullImgWrap.clientHeight || 300;
+        const maxPanX = Math.max(0, (w * currentZoom - vw) / 2) + 120;
+        const maxPanY = Math.max(0, (h * currentZoom - vh) / 2) + 120;
+        panX = Math.max(-maxPanX, Math.min(maxPanX, panX));
+        panY = Math.max(-maxPanY, Math.min(maxPanY, panY));
+      }
+
+      function setZoom(newZoom) {
+        const clampedZoom = Math.max(1, Math.min(5, newZoom));
+        if (clampedZoom <= 1.001) {
+          currentZoom = 1;
+          panX = 0;
+          panY = 0;
+        } else {
+          currentZoom = clampedZoom;
+          clampPan();
+        }
+        updateTransform(true);
+      }
+
+      function getEffectiveBox() {
+        if (Array.isArray(box) && box.length === 4) return box;
+        if (Array.isArray(mediaItem?.faces?.[0]?.box) && mediaItem.faces[0].box.length === 4) return mediaItem.faces[0].box;
+        if (Array.isArray(subject?.cover_box) && subject.cover_box.length === 4) return subject.cover_box;
+        return null;
+      }
+
+      function focusOnFace() {
+        const b = getEffectiveBox();
+        if (!b) {
+          setZoom(2.2);
+          return;
+        }
+        const [bx, by, bw, bh] = b;
+        currentZoom = 2.6;
+        const w = imgHolder.offsetWidth || fullImg.offsetWidth || 360;
+        const h = imgHolder.offsetHeight || fullImg.offsetHeight || 360;
+        const faceCenterX = bx + bw / 2;
+        const faceCenterY = by + bh / 2;
+        const deltaNormX = faceCenterX - 0.5;
+        const deltaNormY = faceCenterY - 0.5;
+        panX = -deltaNormX * w * currentZoom;
+        panY = -deltaNormY * h * currentZoom;
+        clampPan();
+        updateTransform(true);
+      }
+
+      if (!getEffectiveBox()) {
+        zoomFocusBtn.disabled = true;
+        zoomFocusBtn.title = tr('Kein Gesichtsrahmen verfügbar');
+      }
+
+      zoomOutBtn.onclick = () => setZoom(currentZoom / 1.35);
+      zoomInBtn.onclick = () => setZoom(currentZoom * 1.35);
+      zoomLevelBtn.onclick = () => setZoom(1);
+      zoomResetBtn.onclick = () => setZoom(1);
+      zoomFocusBtn.onclick = () => focusOnFace();
+
+      fullImg.addEventListener('load', () => {
+        clampPan();
+        updateTransform(false);
+      });
+
+      fullImgWrap.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const factor = e.deltaY < 0 ? 1.18 : (1 / 1.18);
+        setZoom(currentZoom * factor);
+      }, { passive: false });
+
+      fullImgWrap.addEventListener('dblclick', (e) => {
+        e.preventDefault();
+        if (currentZoom > 1.2) {
+          setZoom(1);
+        } else {
+          focusOnFace();
+        }
+      });
+
+      fullImgWrap.addEventListener('pointerdown', (e) => {
+        if (currentZoom <= 1.001) return;
+        isDragging = true;
+        dragStartX = e.clientX - panX;
+        dragStartY = e.clientY - panY;
+        fullImgWrap.classList.add('is-dragging');
+        try { fullImgWrap.setPointerCapture(e.pointerId); } catch {}
+      });
+
+      fullImgWrap.addEventListener('pointermove', (e) => {
+        if (!isDragging) return;
+        panX = e.clientX - dragStartX;
+        panY = e.clientY - dragStartY;
+        clampPan();
+        updateTransform(false);
+      });
+
+      const endDrag = (e) => {
+        if (!isDragging) return;
+        isDragging = false;
+        fullImgWrap.classList.remove('is-dragging');
+        try { fullImgWrap.releasePointerCapture(e.pointerId); } catch {}
+        clampPan();
+        updateTransform(true);
+      };
+      fullImgWrap.addEventListener('pointerup', endDrag);
+      fullImgWrap.addEventListener('pointercancel', endDrag);
+
+      fullImgWrap.addEventListener('keydown', (e) => {
+        if (e.key === '+' || e.key === '=') {
+          e.preventDefault();
+          setZoom(currentZoom * 1.25);
+        } else if (e.key === '-' || e.key === '_') {
+          e.preventDefault();
+          setZoom(currentZoom / 1.25);
+        } else if (e.key === '0') {
+          e.preventDefault();
+          setZoom(1);
+        } else if (e.key === 'f' || e.key === 'F') {
+          e.preventDefault();
+          focusOnFace();
+        } else if (currentZoom > 1.001) {
+          const step = 40;
+          if (e.key === 'ArrowLeft') { panX += step; clampPan(); updateTransform(false); e.preventDefault(); }
+          else if (e.key === 'ArrowRight') { panX -= step; clampPan(); updateTransform(false); e.preventDefault(); }
+          else if (e.key === 'ArrowUp') { panY += step; clampPan(); updateTransform(false); e.preventDefault(); }
+          else if (e.key === 'ArrowDown') { panY -= step; clampPan(); updateTransform(false); e.preventDefault(); }
+        }
+      });
+
+      updateTransform(false);
+
+      fullImgWrap.append(imgHolder);
       fullCard.append(fullImgWrap);
 
       // 2. Close-up face crop
@@ -1405,12 +1636,10 @@ export function createPeopleController({
 
   const toggleBoxesBtn = $('ch-people-toggle-boxes');
   if (toggleBoxesBtn) {
+    updateToggleBoxesBtn();
     toggleBoxesBtn.onclick = () => {
       showFaceBoxes = !showFaceBoxes;
-      toggleBoxesBtn.setAttribute('aria-pressed', String(showFaceBoxes));
-      toggleBoxesBtn.classList.toggle('active', showFaceBoxes);
-      const grid = $('ch-people-media-grid');
-      if (grid) grid.classList.toggle('show-face-boxes', showFaceBoxes);
+      updateToggleBoxesBtn();
     };
   }
 
@@ -1532,7 +1761,7 @@ export function createPeopleController({
       const inspectTargetBtn = document.createElement('button');
       inspectTargetBtn.type = 'button';
       inspectTargetBtn.className = 'ch-button ch-button-sm';
-      inspectTargetBtn.textContent = '🔍 ' + tr('Ganzes Bild & Fotos prüfen');
+      inspectTargetBtn.textContent = tr('Ganzes Bild & Fotos prüfen');
       inspectTargetBtn.onclick = () => openInspectDialog(selectedTarget, { canMerge: false });
 
       bar.append(srcChip, arrow, tgtChip, inspectTargetBtn);

@@ -564,7 +564,7 @@ const HTML_SHELL = `<!DOCTYPE html>
           <div id="ch-people-similar-list" class="ch-people-similar-list" role="list"></div>
         </section>
         <div class="ch-person-media-toolbar">
-          <button type="button" id="ch-people-toggle-boxes">Gesichtsrahmen anzeigen</button>
+          <button type="button" id="ch-people-toggle-boxes" class="ch-button ch-button-sm active" aria-pressed="true">✓ Gesichtsrahmen an</button>
         </div>
         <div id="ch-person-selection-bar" hidden>
           <span id="ch-people-selection-count"></span>
@@ -1507,6 +1507,133 @@ test('Real DOM: Shared sorting dialog opens, toggles share_sorting, and adopts s
   // Close share dialog
   await page.locator('#ch-people-share-close').click();
   await page.waitForFunction(() => !document.getElementById('ch-people-share-dialog').open);
+
+  await browser.close();
+});
+
+test('Real DOM: Toggle face frames button state and interactive zoom in context inspection', async (t) => {
+  if (!chromium) {
+    t.skip('Playwright not available');
+    return;
+  }
+
+  const browser = await chromium.launch({
+    executablePath: process.env.PLAYWRIGHT_EXECUTABLE || undefined,
+    headless: true,
+    args: ['--no-sandbox']
+  });
+  const context = await browser.newContext();
+  const page = await context.newPage();
+
+  await page.setContent(HTML_SHELL);
+
+  await page.evaluate(async (modUrl) => {
+    const { createPeopleController } = await import(modUrl);
+    window.controller = createPeopleController({
+      root: document.getElementById('ch-people-view'),
+      dialogRoot: document.getElementById('nextgallery'),
+      api: async (endpoint) => {
+        if (endpoint.includes('subjects?')) {
+          return {
+            items: [
+              { id: 'subj-1', photo_count: 3, label: 'Lukas', cover_id: 'c1', cover_box: [0.2, 0.2, 0.3, 0.3] },
+              { id: 'subj-2', photo_count: 5, label: 'Julia', cover_id: 'c2', cover_box: [0.4, 0.3, 0.2, 0.2] }
+            ],
+            filter_counts: { all: 2, suggested: 0, single: 0, review: 0, strangers: 0, filtered: 0, hidden: 0 }
+          };
+        }
+        if (endpoint.includes('/media?')) {
+          return {
+            items: [
+              {
+                id: 101,
+                name: 'lukas_pic1.jpg',
+                face_detection_ids: ['d1'],
+                faces: [{ id: 'd1', box: [0.25, 0.25, 0.3, 0.3] }]
+              }
+            ]
+          };
+        }
+        return { items: [] };
+      },
+      getGallery: () => 'default'
+    });
+    window.controller.refresh();
+  }, facesMjsDataUri);
+
+  await page.waitForFunction(() => document.querySelectorAll('#ch-people-grid .ch-person-card').length === 2);
+
+  // Open person Lukas
+  await page.locator('#ch-people-grid .ch-person-card[data-id="subj-1"]').click();
+  await page.waitForFunction(() => !document.getElementById('ch-person-detail').hidden);
+
+  // 1. Verify Toggle Face Frames button initial active state
+  const toggleBtn = page.locator('#ch-people-toggle-boxes');
+  assert.equal(await toggleBtn.getAttribute('aria-pressed'), 'true', 'Toggle button starts with aria-pressed="true"');
+  assert.ok((await toggleBtn.textContent()).includes('✓ Gesichtsrahmen an'), 'Initial button text shows active checkmark');
+  assert.equal(await toggleBtn.evaluate(el => el.classList.contains('active')), true, 'Initial button has active class');
+
+  // Toggle off
+  await toggleBtn.click();
+  assert.equal(await toggleBtn.getAttribute('aria-pressed'), 'false', 'Toggled button has aria-pressed="false"');
+  assert.equal(await toggleBtn.textContent(), 'Gesichtsrahmen aus', 'Toggled button text shows Gesichtsrahmen aus');
+  assert.equal(await toggleBtn.evaluate(el => el.classList.contains('active')), false, 'Toggled button does not have active class');
+
+  // Toggle on again
+  await toggleBtn.click();
+  assert.equal(await toggleBtn.getAttribute('aria-pressed'), 'true', 'Button re-activated with aria-pressed="true"');
+  assert.ok((await toggleBtn.textContent()).includes('✓ Gesichtsrahmen an'), 'Button re-activated text shows checkmark');
+  assert.equal(await toggleBtn.evaluate(el => el.classList.contains('active')), true, 'Button re-activated has active class');
+
+  // 2. Open merge dialog to test merge preview inspect button and no emoji
+  await page.locator('#ch-people-merge').click();
+  await page.waitForFunction(() => document.getElementById('ch-people-merge-dialog').open);
+  await page.waitForFunction(() => document.querySelectorAll('#ch-people-merge-targets .ch-people-merge-choice').length === 1);
+
+  // Select target person Julia
+  await page.locator('#ch-people-merge-targets .ch-people-merge-choice').click();
+  const inspectBtn = page.locator('#ch-people-merge-selection-preview button.ch-button');
+  const inspectBtnText = await inspectBtn.textContent();
+  assert.ok(!inspectBtnText.includes('🔍'), 'Inspect button text must not contain magnifying glass emoji: ' + inspectBtnText);
+  assert.ok(inspectBtnText.includes('Ganzes Bild & Fotos prüfen'), 'Inspect button has clean text: Ganzes Bild & Fotos prüfen');
+
+  // Open inspect dialog
+  await inspectBtn.click();
+  await page.waitForFunction(() => document.getElementById('ch-people-inspect-dialog').open);
+
+  // 3. Inspect Zoom Functionality
+  const zoomBar = page.locator('#ch-people-inspect-stage .ch-people-inspect-zoom-bar');
+  assert.equal(await zoomBar.isVisible(), true, 'Zoom toolbar is visible in inspect dialog');
+
+  const badge = page.locator('#ch-people-inspect-stage .ch-people-inspect-zoom-badge');
+  assert.equal(await badge.textContent(), '100%', 'Initial zoom badge is 100%');
+
+  const fullWrap = page.locator('#ch-people-inspect-stage .ch-people-inspect-full-wrap');
+  assert.equal(await fullWrap.evaluate(el => el.classList.contains('is-zoomed')), false, 'Initially not zoomed');
+
+  // Click Zoom In (+)
+  const zoomInBtn = page.locator('#ch-people-inspect-stage button[aria-label="Vergrößern"]');
+  await zoomInBtn.click();
+  const zoomedText = await badge.textContent();
+  assert.ok(zoomedText.includes('135%'), 'Zoom badge shows 135% after zoom in');
+  assert.equal(await fullWrap.evaluate(el => el.classList.contains('is-zoomed')), true, 'fullWrap has is-zoomed class');
+
+  // Click Fokus Gesicht
+  const focusBtn = page.locator('#ch-people-inspect-stage .ch-people-inspect-zoom-face');
+  await focusBtn.click();
+  const focusedText = await badge.textContent();
+  assert.ok(focusedText.includes('260%'), 'Zoom badge shows 260% after Fokus Gesicht');
+
+  // Click Reset (100% badge)
+  await badge.click();
+  assert.equal(await badge.textContent(), '100%', 'Zoom reset back to 100% on badge click');
+  assert.equal(await fullWrap.evaluate(el => el.classList.contains('is-zoomed')), false, 'is-zoomed class removed after reset');
+
+  // Close dialogs
+  await page.locator('#ch-people-inspect-close').click();
+  await page.waitForFunction(() => !document.getElementById('ch-people-inspect-dialog').open);
+  await page.locator('#ch-people-merge-cancel').click();
+  await page.waitForFunction(() => !document.getElementById('ch-people-merge-dialog').open);
 
   await browser.close();
 });
