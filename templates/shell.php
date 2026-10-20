@@ -114,6 +114,7 @@ $tr = static fn(string $text): string => $isGerman ? $text : ($english[$text] ??
    <div id="ch-person-detail" class="ch-person-detail" hidden>
     <div class="ch-person-detail-bar">
      <button id="ch-people-back" class="ch-button">← <?php p($tr('Alle Personen')); ?></button>
+     <button type="button" id="ch-people-next-suggestion" class="ch-button" title="<?php p($tr('Nächste Person mit offenem Vorschlag in dieser Liste öffnen')); ?>" hidden><?php p($tr('Nächster Vorschlag')); ?> →</button>
      <div id="ch-people-detail-avatar" class="ch-people-detail-avatar"></div>
      <div class="ch-people-detail-title-wrap">
       <div class="ch-people-detail-title-row">

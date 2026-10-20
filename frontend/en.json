@@ -446,5 +446,9 @@
   "{count} in „Unbekannte Personen“ verschoben.": "Moved {count} to “Unknown people”.",
   "{count} als bekannt markiert.": "Marked {count} as known.",
   "{count} ausgeblendet.": "Hid {count}.",
-  "{count} eingeblendet.": "Showed {count}."
+  "{count} eingeblendet.": "Showed {count}.",
+  "Vorschlag": "Suggestion",
+  "{count} Vorschläge": "{count} suggestions",
+  "Nächster Vorschlag": "Next suggestion",
+  "Nächste Person mit offenem Vorschlag in dieser Liste öffnen": "Open the next person with an open suggestion in this list"
 }

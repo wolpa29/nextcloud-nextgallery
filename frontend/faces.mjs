@@ -386,6 +386,15 @@ export function createPeopleController({
         thumbWrap.append(filtBadge);
       }
 
+      if (Number(subject.suggestion_count) > 0) {
+        const sugBadge = document.createElement('span');
+        sugBadge.className = 'ch-person-badge ch-person-badge-suggestion';
+        sugBadge.textContent = subject.suggestion_count > 1
+          ? tr('{count} Vorschläge', { count: subject.suggestion_count })
+          : tr('Vorschlag');
+        thumbWrap.append(sugBadge);
+      }
+
       // Stranger badge
       if (subject.stranger) {
         const strBadge = document.createElement('span');
@@ -602,6 +611,27 @@ export function createPeopleController({
     if (filterNote) {
       filterNote.hidden = !isFiltered;
     }
+    updateNextSuggestionBtn();
+  }
+
+  function nextSuggestedSubject(fromId, order = subjects.map((s) => s.id)) {
+    const candidates = subjects.filter((s) => Number(s.suggestion_count) > 0 && s.id !== fromId);
+    const fromIndex = order.indexOf(fromId);
+    return candidates.find((s) => order.indexOf(s.id) > fromIndex) || candidates[0] || null;
+  }
+
+  function updateNextSuggestionBtn() {
+    const btn = $('ch-people-next-suggestion');
+    if (btn) btn.hidden = !selectedSubject || !nextSuggestedSubject(selectedSubject.id);
+  }
+
+  // Work through suggestions: refresh the list (counts change after every decision), then open the next one.
+  async function openNextSuggestion() {
+    const fromId = selectedSubject ? selectedSubject.id : null;
+    const order = subjects.map((s) => s.id);
+    await backToList();
+    const next = nextSuggestedSubject(fromId, order);
+    if (next) await openSubject(next);
   }
 
   function updateToggleBoxesBtn() {
@@ -811,7 +841,7 @@ export function createPeopleController({
         text: tr('Gesichter wurden zugeordnet ({count}).', { count: formatPhotoCount(res.merged_detection_ids.length, tr, locale) })
       });
     }
-    await backToList();
+    await openNextSuggestion();
   }
 
   async function dismissSuggestion(other) {
@@ -1793,6 +1823,11 @@ export function createPeopleController({
   const backBtn = $('ch-people-back');
   if (backBtn) {
     backBtn.onclick = () => backToList();
+  }
+
+  const nextSuggestionBtn = $('ch-people-next-suggestion');
+  if (nextSuggestionBtn) {
+    nextSuggestionBtn.onclick = () => openNextSuggestion();
   }
 
   // Rename controls

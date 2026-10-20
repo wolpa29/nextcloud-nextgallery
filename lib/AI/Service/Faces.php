@@ -1498,6 +1498,25 @@ class Faces {
                 fn($other) => !isset($hiddenGroups[$other]) && !isset($strangerGroups[$other]) && !empty($stats[$other]['good'])
             ));
 
+            // Mirrors similar(): what the detail view would offer for this group in this list.
+            $weakSource = !$good && $weak;
+            $offersSuggestions = !$hidden && !$stranger && match ($filter) {
+                'filtered' => $weakSource && $rawLabel === null,
+                'all', 'single', 'suggested' => true,
+                default => false,
+            };
+            $suggestionCount = 0;
+            $bestSimilarity = 0.0;
+            if ($offersSuggestions) {
+                $minGood = $weakSource ? self::STRONG_GROUP_FACES : 1;
+                foreach ($open[$gid] ?? [] as $other => $similarity) {
+                    $other = (string)$other;
+                    if (isset($hiddenGroups[$other]) || isset($strangerGroups[$other]) || count($stats[$other]['good'] ?? []) < $minGood) continue;
+                    $suggestionCount++;
+                    $bestSimilarity = max($bestSimilarity, (float)$similarity);
+                }
+            }
+
             if ($hidden && $allCount > 0) $filterCounts['hidden']++;
             if (!$hidden && !$stranger && $weakCount > 0) $filterCounts['filtered']++;
             if (!$hidden && !$stranger && $allCount > 0 && count(array_filter($allDets, fn($d) => (int)$d['review'] === 1)) > 0) $filterCounts['review']++;
@@ -1533,7 +1552,16 @@ class Faces {
                 'filtered' => $filter === 'filtered',
                 'filtered_count' => count($weak),
                 'good_count' => $goodCount,
+                'suggestion_count' => $suggestionCount,
+                'best_similarity' => round($bestSimilarity, 3),
             ];
+        }
+
+        // Lists that are worked through put people with open suggestions first, most similar first.
+        if (in_array($filter, ['filtered', 'single', 'suggested'], true)) {
+            $position = array_flip(array_column($filtered, 'id'));
+            usort($filtered, fn($a, $b) => [$b['suggestion_count'] > 0, $b['best_similarity'], $position[$a['id']]]
+                <=> [$a['suggestion_count'] > 0, $a['best_similarity'], $position[$b['id']]]);
         }
 
         $total = count($filtered);

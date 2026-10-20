@@ -123,6 +123,10 @@ try {
         ['a' => $A, 'b' => $W, 'similarity' => 0.7], ['a' => $B, 'b' => $W, 'similarity' => 0.8],
     ]);
     expectSuggestion(in_array($W, array_column($faces->subjects($uid, 'default', 0, 60, 'filtered')['items'], 'id'), true), 'Weak group is listed as filtered');
+    $weakItem = array_column($faces->subjects($uid, 'default', 0, 60, 'filtered')['items'], null, 'id')[$W];
+    expectSuggestion($weakItem['suggestion_count'] === 1 && $weakItem['best_similarity'] === 0.7, 'Filtered card counts only the suggestions its detail view offers');
+    $mainItems = array_column($faces->subjects($uid, 'default')['items'], null, 'id');
+    expectSuggestion($mainItems[$A]['suggestion_count'] === 0, 'A known person gets no badge for a filtered group');
     $weak = $faces->similar($uid, $W, 'default');
     expectSuggestion(array_column($weak['items'], 'id') === [$A], 'A filtered group is offered only groups with two good faces');
     expectSuggestion($weak['subject']['photo_count'] === 0 && $weak['subject']['filtered_count'] === 1, 'Source reports its filtered faces');

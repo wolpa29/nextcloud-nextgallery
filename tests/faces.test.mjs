@@ -565,6 +565,7 @@ const HTML_SHELL = `<!DOCTYPE html>
       <div id="ch-person-detail" hidden>
         <div class="ch-people-detail-head">
           <button id="ch-people-back">← Alle Personen</button>
+          <button type="button" id="ch-people-next-suggestion" hidden>Nächster Vorschlag →</button>
           <div id="ch-people-detail-avatar" class="ch-people-detail-avatar"></div>
           <div class="ch-people-detail-title-wrap">
             <div class="ch-people-detail-title-row">
@@ -1275,6 +1276,89 @@ test('Real DOM: Filtered person shows "Vielleicht dieselbe Person" and is assign
   assert.equal(call.endpoint, 'subjects/weak-1/action');
   assert.deepEqual(call.body, { action: 'merge', target_id: 'known-1', rules_revision: 3 });
   await page.waitForFunction(() => document.getElementById('ch-person-detail').hidden);
+
+  await browser.close();
+});
+
+test('Real DOM: Suggestion badges mark cards and "Nächster Vorschlag" works through filtered people', async (t) => {
+  if (!chromium) {
+    t.skip('Playwright not available');
+    return;
+  }
+
+  const browser = await chromium.launch({
+    executablePath: process.env.PLAYWRIGHT_EXECUTABLE || undefined,
+    headless: true,
+    args: ['--no-sandbox']
+  });
+  const page = await (await browser.newContext()).newPage();
+  await page.route('**/faces.mjs', (route) => {
+    route.fulfill({ status: 200, contentType: 'application/javascript', body: facesMjsContent });
+  });
+  await page.setContent(HTML_SHELL);
+
+  await page.evaluate(async (modUrl) => {
+    const { createPeopleController } = await import(modUrl);
+    window.actionCalls = [];
+    window.assigned = new Set();
+    const all = [
+      { id: 'weak-1', photo_count: 1, filtered: true, good_count: 0, cover_id: 'c1', suggestion_count: 1 },
+      { id: 'weak-2', photo_count: 1, filtered: true, good_count: 0, cover_id: 'c2', suggestion_count: 2 },
+      { id: 'plain', photo_count: 1, filtered: true, good_count: 0, cover_id: 'c3', suggestion_count: 0 }
+    ];
+    window.controller = createPeopleController({
+      root: document.getElementById('ch-people-view'),
+      dialogRoot: document.getElementById('nextgallery'),
+      api: async (endpoint, options = {}) => {
+        if (endpoint.includes('subjects?')) {
+          return { items: all.filter((s) => !window.assigned.has(s.id)), rules_revision: 3 };
+        }
+        if (endpoint.includes('/similar?')) {
+          const id = endpoint.split('/')[1];
+          return {
+            items: [{ id: 'known-' + id, label: 'Max', photo_count: 12, cover_id: 'k1', similarity: 0.7 }],
+            rules_revision: 3,
+            subject: { id, photo_count: 0, filtered_count: 1 }
+          };
+        }
+        if (endpoint.includes('/media?')) return { items: [{ id: 601, name: 'crowd.jpg', face_detection_ids: ['d601'] }] };
+        if (endpoint.includes('/action')) {
+          const id = endpoint.split('/')[1];
+          window.actionCalls.push({ endpoint, body: JSON.parse(options.body) });
+          window.assigned.add(id);
+          return { success: true, rules_revision: 4, merged_detection_ids: ['d601'] };
+        }
+        return { items: [] };
+      },
+      getGallery: () => 'default'
+    });
+    window.controller.setFilter('filtered');
+  }, facesMjsDataUri);
+
+  await page.waitForFunction(() => document.querySelectorAll('#ch-people-grid .ch-person-card').length === 3);
+  const badges = await page.evaluate(() => [...document.querySelectorAll('#ch-people-grid .ch-person-card')]
+    .map((c) => c.querySelector('.ch-person-badge-suggestion')?.textContent || ''));
+  assert.deepEqual(badges, ['Vorschlag', '2 Vorschläge', ''], 'Only cards with open suggestions carry the badge');
+
+  await page.locator('#ch-people-grid .ch-person-card[data-id="weak-1"]').click();
+  await page.waitForFunction(() => !document.getElementById('ch-person-detail').hidden);
+  assert.equal(await page.locator('#ch-people-next-suggestion').isVisible(), true, 'Next button offered while another suggestion is open');
+
+  await page.locator('#ch-people-next-suggestion').click();
+  await page.waitForFunction(() => window.controller.getSelectedSubject()?.id === 'weak-2');
+  await page.waitForFunction(() => !document.getElementById('ch-people-similar').hidden);
+
+  // Assigning moves straight on to the remaining person with a suggestion.
+  await page.locator('#ch-people-similar .ch-people-similar-actions .ch-primary').click();
+  await page.waitForFunction(() => document.getElementById('ch-people-action-dialog').open);
+  await page.locator('#ch-people-action-ok').click();
+  await page.waitForFunction(() => window.actionCalls.length === 1);
+  const call = await page.evaluate(() => window.actionCalls[0]);
+  assert.equal(call.endpoint, 'subjects/weak-2/action');
+  assert.deepEqual(call.body, { action: 'merge', target_id: 'known-weak-2', rules_revision: 3 });
+  await page.waitForFunction(() => window.controller.getSelectedSubject()?.id === 'weak-1');
+  assert.equal(await page.evaluate(() => document.getElementById('ch-person-detail').hidden), false, 'Next person opened after assigning');
+  assert.equal(await page.locator('#ch-people-next-suggestion').isVisible(), false, 'No next button when nothing else is open');
 
   await browser.close();
 });

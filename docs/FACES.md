@@ -42,6 +42,8 @@ Nothing is merged automatically. **Merge** moves the suggested group into the op
 
 Here **Assign** moves the filtered faces into the known person, never the other way round, and closes the filtered group. Merging sets the moved detections to manual exactly like **Confirm**: they pass the quality filter from then on, count as that person's photographs and anchor later grouping. The confirmation dialog says so. Undo separates them into a new group, where they stay confirmed; **Different person** works as for other suggestions.
 
+People cards with open suggestions carry a **Suggestion** badge with their number. It counts exactly what the detail view of that list would offer, so a known person gets no badge for a filtered group. The filtered, rare and **Suggestions** lists put people with open suggestions first, most similar first, and otherwise keep their order. **Next suggestion** in the person view opens the next person with an open suggestion in the current list; after **Assign** the view moves on to it automatically.
+
 The model is not guaranteed to recognize every appearance. Side views, small or blurred faces, occlusion, children growing up, and very similar people may require correction. Model benchmarks and small public-image smoke tests do not establish the accuracy of a private photo library.
 
 ## Data ownership and deletion
@@ -70,7 +72,7 @@ The OpenCV Zoo publishes YuNet under MIT and SFace under Apache 2.0. License not
 
 ## API
 
-The versioned subject list and subject-media APIs use the signed-in account, gallery/folder scope and cursor pagination. Public responses contain group IDs, counts, cover-detection IDs and permitted media, never face vectors. `subjects/{id}/similar` returns up to eight suggested groups with count, cover and similarity (for a group with only filtered faces, only strong groups; `subject.filtered_count` gives its filtered photo count), and `filter=suggested` lists main groups that have open suggestions; `action=dismiss` with `target_id` records "different person". `subjects/bulk-action` takes `action` (`stranger`, `unstranger`, `hide` or `show`), up to 500 `ids` and the current `rules_revision`; it applies to all listed groups or, if any is unknown, to none. Corrections carry a rules revision so stale client operations cannot silently overwrite newer changes.
+The versioned subject list and subject-media APIs use the signed-in account, gallery/folder scope and cursor pagination. Public responses contain group IDs, counts, cover-detection IDs and permitted media, never face vectors. `subjects/{id}/similar` returns up to eight suggested groups with count, cover and similarity (for a group with only filtered faces, only strong groups; `subject.filtered_count` gives its filtered photo count), and `filter=suggested` lists main groups that have open suggestions; subject lists return `suggestion_count` and `best_similarity` per group; `action=dismiss` with `target_id` records "different person". `subjects/bulk-action` takes `action` (`stranger`, `unstranger`, `hide` or `show`), up to 500 `ids` and the current `rules_revision`; it applies to all listed groups or, if any is unknown, to none. Corrections carry a rules revision so stale client operations cannot silently overwrite newer changes.
 
 Worker publication additionally carries the account epoch, data generation, rules revision, file version and model space. The server validates them within the account publication transaction. Search and clustering caches are rebuildable projections of this authoritative state.
 
