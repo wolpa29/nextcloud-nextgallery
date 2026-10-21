@@ -46,8 +46,8 @@ export function buildActionPayload({action, target_id, detection_ids, rules_revi
 
 export const BULK_ACTIONS = ['stranger', 'unstranger', 'hide', 'show'];
 
-export function buildBulkActionPayload({action, ids, rules_revision}) {
-  if (!BULK_ACTIONS.includes(action)) {
+export function buildBulkActionPayload({action, ids, rules_revision, target_id}) {
+  if (![...BULK_ACTIONS, 'merge'].includes(action)) {
     throw new Error(`Invalid bulk action "${action}". Allowed: ${BULK_ACTIONS.join(', ')}`);
   }
   if (typeof rules_revision !== 'number') {
@@ -56,6 +56,11 @@ export function buildBulkActionPayload({action, ids, rules_revision}) {
   const unique = [...new Set((Array.isArray(ids) ? ids : []).filter(Boolean).map(String))];
   if (unique.length === 0) {
     throw new Error('At least one subject id is required');
+  }
+  if (action === 'merge') {
+    if (!target_id || unique.includes(String(target_id))) throw new Error('A separate merge target is required');
+    if (unique.length > 500) throw new Error('Too many merge sources (maximum 500)');
+    return { action, ids: unique, rules_revision, target_id: String(target_id) };
   }
   return { action, ids: unique, rules_revision };
 }
@@ -165,6 +170,8 @@ export function createPeopleController({
   let renderedGallery = null;
   let similarError = false;
   let mutationPending = false;
+  let mergeDialogGeneration = 0;
+  let closeMergeDialog = null;
 
   // Keep one correction in flight. A double click must not send the same revision twice.
   async function withMutation(work) {
@@ -188,7 +195,10 @@ export function createPeopleController({
 
   function performUndo(...args) { return withMutation(() => executePerformUndo(...args)); }
 
-  function mergeSuggestion(...args) { return withMutation(() => executeMergeSuggestion(...args)); }
+  function mergeSuggestion(other) {
+    if (!selectedSubject || mutationPending) return;
+    return openMergeDialog({ participants: [{ ...selectedSubject }, other], initialTarget: filter === 'filtered' ? other : selectedSubject });
+  }
 
   function dismissSuggestion(...args) { return withMutation(() => executeDismissSuggestion(...args)); }
 
@@ -251,6 +261,7 @@ export function createPeopleController({
   }
 
   function showUndoBar(undoConfig) {
+    if (undoConfig) undoConfig.gallery = getGallery();
     lastUndoAction = undoConfig;
     const bar = $('ch-people-undo-bar');
     const txt = $('ch-people-undo-text');
@@ -379,6 +390,7 @@ export function createPeopleController({
   }
 
   function renderSubjectsList() {
+    syncContextPreference();
     const listWrap = $('ch-people-list-container');
     const detailWrap = $('ch-people-detail');
     const emptyState = $('ch-people-empty');
@@ -574,6 +586,8 @@ export function createPeopleController({
         : formatPeopleCount(count, tr, locale) + ' ' + tr('ausgewählt');
     }
     const offered = bulkActionsForFilter(filter);
+    const merge = $('ch-people-bulk-merge');
+    if (merge) merge.disabled = count < 2 || count > 500 || loading || mutationPending;
     for (const action of BULK_ACTIONS) {
       const btn = $('ch-people-bulk-' + action);
       if (!btn) continue;
@@ -899,61 +913,6 @@ export function createPeopleController({
       showError(err);
       return false;
     }
-  }
-
-  async function executeMergeSuggestion(other) {
-    if (!selectedSubject) return;
-    const otherDesc = other.label
-      ? `„${other.label}“ (${formatPhotoCount(other.photo_count, tr, locale)})`
-      : formatPhotoCount(other.photo_count, tr, locale);
-    if (filter === 'filtered') {
-      await mergeFilteredInto(other, otherDesc);
-      return;
-    }
-    const ok = await showActionConfirm(
-      tr('Person zusammenführen?'),
-      tr('Die vorgeschlagene Person ({other}) wird dieser Person zugeordnet. Du kannst die verschobenen Fotos anschließend wieder abtrennen.', { other: otherDesc }),
-      tr('Zusammenführen'),
-      false
-    );
-    if (!ok) return;
-    // The suggestion moves into the open person, so this view and its ID remain valid.
-    const res = await suggestionAction(other.id, { action: 'merge', target_id: selectedSubject.id });
-    if (!res) return;
-    if (res && Array.isArray(res.merged_detection_ids) && res.merged_detection_ids.length > 0) {
-      showUndoBar({
-        targetId: selectedSubject.id,
-        detectionIds: res.merged_detection_ids,
-        text: tr('Vorschlag wurde zusammengeführt ({count}).', { count: formatPhotoCount(res.merged_detection_ids.length, tr, locale) })
-      });
-    }
-    await loadSubjectMedia(true);
-    await loadSimilar();
-  }
-
-  // Filtered faces never anchor a person: they move into the known one, never the reverse.
-  // The merge confirms them, so afterwards they count like that person's other photos.
-  async function mergeFilteredInto(other, otherDesc) {
-    const ok = await showActionConfirm(
-      tr('Gesichter zuordnen?'),
-      tr('Die gefilterten Gesichter werden der vorgeschlagenen Person ({other}) zugeordnet und damit bestätigt. Sie zählen danach wie ihre übrigen Fotos.', { other: otherDesc }),
-      tr('Zuordnen'),
-      false
-    );
-    if (!ok) return;
-    const res = await suggestionAction(selectedSubject.id, { action: 'merge', target_id: other.id });
-    if (!res) {
-      await loadSimilar();
-      return;
-    }
-    if (Array.isArray(res.merged_detection_ids) && res.merged_detection_ids.length > 0) {
-      showUndoBar({
-        targetId: other.id,
-        detectionIds: res.merged_detection_ids,
-        text: tr('Gesichter wurden zugeordnet ({count}).', { count: formatPhotoCount(res.merged_detection_ids.length, tr, locale) })
-      });
-    }
-    await openNextSuggestion();
   }
 
   async function executeDismissSuggestion(other) {
@@ -1292,6 +1251,23 @@ export function createPeopleController({
           body: JSON.stringify(buildActionPayload({ action: undo.action, rules_revision: rulesRevision }))
         });
         if (typeof res?.rules_revision === 'number') rulesRevision = res.rules_revision;
+      } else if (undo.targetId && Array.isArray(undo.groups) && undo.groups.length > 0) {
+        // Split each original source separately; keep completed chunks out of retries.
+        while (undo.groups.length) {
+          const group = undo.groups[0];
+          while (group.detection_ids.length) {
+            const batch = group.detection_ids.slice(0, 500);
+            const res = await api(`subjects/${encodeURIComponent(undo.targetId)}/action`, {
+              method: 'POST', body: JSON.stringify(buildActionPayload({ action: 'split',
+                target_id: group.restoredTarget, detection_ids: batch, rules_revision: rulesRevision }))
+            });
+            if (undo.gallery !== getGallery()) return;
+            if (typeof res?.rules_revision === 'number') rulesRevision = res.rules_revision;
+            group.restoredTarget = res.target_id;
+            group.detection_ids.splice(0, batch.length);
+          }
+          undo.groups.shift();
+        }
       } else if (undo.targetId && Array.isArray(undo.detectionIds) && undo.detectionIds.length > 0) {
         const res = await api(`subjects/${encodeURIComponent(undo.targetId)}/action`, {
           method: 'POST',
@@ -2018,13 +1994,27 @@ export function createPeopleController({
   }
 
   const contextToggle = $('ch-people-context-previews');
+  function syncContextPreference() {
+    const toggle = $('ch-people-context-previews');
+    if (toggle) {
+      toggle.checked = showContextPreviews;
+      toggle.defaultChecked = showContextPreviews;
+    }
+  }
   if (contextToggle) {
-    contextToggle.checked = showContextPreviews;
+    syncContextPreference();
     contextToggle.onchange = () => {
       showContextPreviews = contextToggle.checked;
       try { globalThis.localStorage?.setItem(contextPreferenceKey, showContextPreviews ? '1' : '0'); } catch {}
       renderSubjectsList();
     };
+  }
+  // Browsers may restore form values after script initialization on back/forward navigation.
+  const preferenceWindow = root.ownerDocument?.defaultView;
+  if (preferenceWindow) {
+    if (root.peoplePreviewRestore) preferenceWindow.removeEventListener('pageshow', root.peoplePreviewRestore);
+    root.peoplePreviewRestore = () => { syncContextPreference(); };
+    preferenceWindow.addEventListener('pageshow', root.peoplePreviewRestore);
   }
 
   const toggleBoxesBtn = $('ch-people-toggle-boxes');
@@ -2069,287 +2059,245 @@ export function createPeopleController({
   if (mergeBtn) {
     mergeBtn.onclick = () => openMergeDialog({ mode: 'merge_person' });
   }
+  const bulkMergeBtn = $('ch-people-bulk-merge');
+  if (bulkMergeBtn) bulkMergeBtn.onclick = () => {
+    const participants = subjects.filter(s => selectedSubjects.has(s.id) && !bulkLocked(s));
+    if (participants.length >= 2) return openMergeDialog({ participants });
+  };
 
-  async function openMergeDialog({ mode = 'merge_person', detectionIds = null } = {}) {
-    if (!selectedSubject) return;
+  async function openMergeDialog({ mode = 'merge_person', detectionIds = null, participants = null, initialTarget = null } = {}) {
+    if (mutationPending || (!participants?.length && !selectedSubject)) return;
+    closeMergeDialog?.();
     const dialog = $d('ch-people-merge-dialog');
-    const titleEl = $d('ch-people-merge-title');
     const container = $d('ch-people-merge-targets');
     const selectionPreview = $d('ch-people-merge-selection-preview');
+    const picked = $d('ch-people-merge-picked');
+    const error = $d('ch-people-merge-error');
     const okBtn = $d('ch-people-merge-ok');
     const cancelBtn = $d('ch-people-merge-cancel');
     const searchInput = $d('ch-people-merge-search');
     const moreWrap = $d('ch-people-merge-more-wrap');
     const moreBtn = $d('ch-people-merge-more');
-    if (!dialog || !container || !okBtn) {
-      console.error('Merge dialog not found; failing closed');
-      return;
-    }
-
-    const isMoveMode = mode === 'move_photos' && Array.isArray(detectionIds) && detectionIds.length > 0;
-    if (titleEl) {
-      titleEl.textContent = isMoveMode
-        ? tr('Ausgewählte Fotos zu Person verschieben')
-        : tr('Person zusammenführen');
-    }
-    okBtn.textContent = isMoveMode ? tr('Fotos verschieben') : tr('Zusammenführen');
-
-    let mergeFilter = 'all';
-    let mergeCursor = null;
-    let mergeMore = false;
-    let mergeTargets = [];
-    let selectedTarget = null;
-    let selectedTargetId = null;
-    let mergeLoading = false;
-
-    okBtn.disabled = true;
+    if (!dialog || !container || !okBtn) return;
+    const session = ++mergeDialogGeneration;
+    const gallery = getGallery();
+    const basePeople = (participants || [selectedSubject]).map(s => ({ ...s }));
+    const isMove = mode === 'move_photos' && detectionIds?.length > 0;
+    const revision = rulesRevision;
+    const browse = $d('ch-people-merge-browse');
+    if (browse) browse.open = isMove || basePeople.length === 1;
+    let partner = null;
+    let target = initialTarget ? { ...initialTarget } : null;
+    let mergeFilter = 'all', next = null, hasMore = false, fetching = false, request = 0;
+    let targets = [], busy = false, closed = false;
+    const valid = () => !closed && session === mergeDialogGeneration && gallery === getGallery();
+    const people = () => partner ? [...basePeople, partner] : basePeople;
+    const sources = () => people().filter(s => s.id !== target?.id);
+    const title = $d('ch-people-merge-title');
+    if (title) title.textContent = tr(isMove ? 'Ausgewählte Fotos zu Person verschieben' : 'Personen zusammenführen');
+    const subtitle = $d('ch-people-merge-subtitle');
+    if (subtitle) subtitle.textContent = isMove
+      ? tr('Wähle die Person, der die ausgewählten Fotos zugeordnet werden sollen.')
+      : tr('Wähle, welche Person bestehen bleibt. Die anderen Gruppen werden ihr zugeordnet.');
     if (searchInput) searchInput.value = '';
+    if (error) error.hidden = true;
+    const controls = () => [...dialog.querySelectorAll('button, input')];
 
-    function renderSelectionPreview() {
+    function finish() {
+      if (closed) return;
+      closed = true;
+      request++;
+      if (closeMergeDialog === finish) closeMergeDialog = null;
+      if (dialog.open) dialog.close();
+    }
+    closeMergeDialog = finish;
+    dialog.onclose = () => { if (!dialog.open) finish(); };
+    dialog.oncancel = e => { e.preventDefault(); if (!busy) finish(); };
+    if (cancelBtn) cancelBtn.onclick = finish;
+    const dismiss = dialog.querySelector('.ch-dialog-close');
+    if (dismiss) dismiss.onclick = e => { e.preventDefault(); if (!busy) finish(); };
+
+    function description(person) {
+      return `${subjectDisplayName(person)} · ${formatPhotoCount(person.photo_count, tr, locale)}`;
+    }
+    function chip(person, label) {
+      const el = document.createElement('div');
+      el.className = 'ch-people-merge-chip';
+      if (person.cover_id) {
+        const img = document.createElement('img'); img.src = previewUrl(person.cover_id); img.alt = ''; el.append(img);
+      }
+      const copy = document.createElement('span'); copy.textContent = `${label}: ${description(person)}`; el.append(copy);
+      return el;
+    }
+    function choose(person, external = false) {
+      if (!valid() || busy) return;
+      if (external) partner = person;
+      target = person;
+      renderPicked(); renderTargets(); renderPreview();
+    }
+    function choice(person, external = false) {
+      const button = document.createElement('button');
+      button.type = 'button'; button.className = 'ch-people-merge-choice'; button.dataset.targetId = person.id;
+      const active = target?.id === person.id;
+      button.classList.toggle('active', active); button.setAttribute('aria-pressed', String(active));
+      button.setAttribute('aria-label', `${tr('Bleibt bestehen')}: ${description(person)}`);
+      const thumb = document.createElement('div'); thumb.className = 'ch-person-thumb-wrap';
+      if (person.cover_id) {
+        const img = document.createElement('img'); img.className = 'ch-person-thumb'; img.alt = ''; img.loading = 'lazy';
+        img.src = previewUrl(person.cover_id); img.onerror = () => img.replaceWith(createGenericPersonIcon()); thumb.append(img);
+      } else thumb.append(createGenericPersonIcon());
+      const name = document.createElement('strong'); name.className = 'ch-person-name'; name.textContent = subjectDisplayName(person);
+      const count = document.createElement('span'); count.className = 'ch-person-count'; count.textContent = formatPhotoCount(person.photo_count, tr, locale);
+      const badge = document.createElement('span'); badge.className = 'ch-people-merge-selected-badge';
+      badge.textContent = tr('Bleibt bestehen'); badge.hidden = !active;
+      button.append(thumb, name, count, badge); button.onclick = () => choose(person, external);
+      return button;
+    }
+    function renderPicked() {
+      if (!picked) return;
+      picked.hidden = isMove;
+      picked.replaceChildren();
+      if (!isMove) for (const person of people()) picked.append(choice(person));
+    }
+    function renderPreview() {
+      okBtn.disabled = busy || !target || (!isMove && sources().length === 0) || sources().length > 500;
+      okBtn.textContent = tr(isMove ? 'Fotos verschieben' : 'Jetzt zusammenführen');
       if (!selectionPreview) return;
       selectionPreview.replaceChildren();
-      if (!selectedTarget) {
-        const hint = document.createElement('p');
-        hint.className = 'ch-hint';
-        hint.textContent = isMoveMode
-          ? tr('Bitte oben eine Zielperson anklicken, der die ausgewählten Fotos zugeordnet werden sollen.')
-          : tr('Bitte oben eine Person anklicken, mit der zusammengeführt werden soll.');
-        selectionPreview.append(hint);
-        return;
+      if (!target) {
+        const hint = document.createElement('p'); hint.className = 'ch-hint';
+        hint.textContent = tr('Tippe auf die Person, die bestehen bleiben soll.'); selectionPreview.append(hint); return;
       }
-
-      const bar = document.createElement('div');
-      bar.className = 'ch-people-merge-compare-bar';
-
-      const srcChip = document.createElement('div');
-      srcChip.className = 'ch-people-merge-chip';
-      if (selectedSubject.cover_id) {
-        const sImg = document.createElement('img');
-        sImg.src = previewUrl(selectedSubject.cover_id);
-        sImg.alt = '';
-        srcChip.append(sImg);
+      const bar = document.createElement('div'); bar.className = 'ch-people-merge-compare-bar';
+      const incoming = document.createElement('div'); incoming.className = 'ch-people-merge-sources';
+      if (isMove) incoming.textContent = formatPhotoCount(detectionIds.length, tr, locale);
+      else for (const source of sources()) incoming.append(chip(source, tr('Wird hinzugefügt')));
+      const arrow = document.createElement('span'); arrow.className = 'ch-people-merge-arrow'; arrow.textContent = '→'; arrow.setAttribute('aria-hidden', 'true');
+      const kept = chip(target, tr('Bleibt bestehen')); kept.classList.add('is-target');
+      bar.append(incoming, arrow, kept); selectionPreview.append(bar);
+      const note = document.createElement('p'); note.className = 'ch-hint';
+      note.textContent = isMove ? tr('Nur die ausgewählten Fotos wechseln die Zuordnung.')
+        : tr('Name und Titelbild der Zielperson haben Vorrang. Fehlende Angaben werden aus den anderen Gruppen ergänzt. Die Zuordnung gilt für dein Konto in allen Galerien. Originalfotos bleiben erhalten.');
+      selectionPreview.append(note);
+      if (!isMove && (target.hidden || target.stranger)) {
+        const state = document.createElement('p'); state.className = 'ch-hint';
+        state.textContent = target.hidden ? tr('Die Zielperson bleibt ausgeblendet.') : tr('Die Zielperson bleibt unter „Unbekannte Personen“.');
+        selectionPreview.append(state);
       }
-      const sTxt = document.createElement('span');
-      sTxt.textContent = isMoveMode
-        ? formatPhotoCount(detectionIds.length, tr, locale)
-        : `${subjectDisplayName(selectedSubject)} (${formatPhotoCount(selectedSubject.photo_count, tr, locale)})`;
-      srcChip.append(sTxt);
-
-      const arrow = document.createElement('span');
-      arrow.className = 'ch-people-merge-arrow';
-      arrow.textContent = '➔';
-
-      const tgtChip = document.createElement('div');
-      tgtChip.className = 'ch-people-merge-chip is-target';
-      if (selectedTarget.cover_id) {
-        const tImg = document.createElement('img');
-        tImg.src = previewUrl(selectedTarget.cover_id);
-        tImg.alt = '';
-        tgtChip.append(tImg);
+      if (!isMove) {
+        const undoNote = document.createElement('p'); undoNote.className = 'ch-hint';
+        undoNote.textContent = tr('Du kannst die hinzugefügten Fotos anschließend wieder abtrennen. Frühere Namen und Titelbilder werden dabei nicht wiederhergestellt.');
+        selectionPreview.append(undoNote);
       }
-      const tTxt = document.createElement('strong');
-      tTxt.textContent = `${tr('Ausgewählt')}: ${subjectDisplayName(selectedTarget)} (${formatPhotoCount(selectedTarget.photo_count, tr, locale)})`;
-      tgtChip.append(tTxt);
-
-      const inspectTargetBtn = document.createElement('button');
-      inspectTargetBtn.type = 'button';
-      inspectTargetBtn.className = 'ch-button ch-button-sm';
-      inspectTargetBtn.textContent = tr('Ganzes Bild & Fotos prüfen');
-      inspectTargetBtn.onclick = () => openInspectDialog(selectedTarget, { canMerge: false });
-
-      bar.append(srcChip, arrow, tgtChip, inspectTargetBtn);
-      selectionPreview.append(bar);
+      const actions = document.createElement('div'); actions.className = 'ch-people-merge-preview-actions';
+      const inspect = document.createElement('button'); inspect.type = 'button'; inspect.className = 'ch-button';
+      inspect.textContent = tr('Ganzes Bild & Fotos prüfen'); inspect.onclick = () => openInspectDialog(target, { canMerge: false }); actions.append(inspect);
+      if (!isMove && people().length === 2 && sources().length === 1) {
+        const swap = document.createElement('button'); swap.type = 'button'; swap.className = 'ch-button'; swap.id = 'ch-people-merge-swap';
+        swap.textContent = tr('Richtung umkehren'); swap.onclick = () => choose(sources()[0]); actions.append(swap);
+      }
+      selectionPreview.append(actions);
     }
-
-    renderSelectionPreview();
-
-    const filterBtns = dialog.querySelectorAll('[data-merge-filter]');
-    filterBtns.forEach((btn) => {
-      btn.classList.toggle('active', btn.dataset.mergeFilter === mergeFilter);
+    function renderTargets() {
+      container.replaceChildren();
+      const q = (searchInput?.value || '').trim().toLocaleLowerCase();
+      const shown = targets.filter(s => !basePeople.some(b => b.id === s.id)).filter(s =>
+        !q || description(s).toLocaleLowerCase().includes(q) || String(s.photo_count).includes(q));
+      for (const person of shown) container.append(choice(person, true));
+      if (!shown.length) {
+        const empty = document.createElement('p'); empty.className = 'ch-hint';
+        empty.textContent = fetching ? tr('Personen werden geladen …') : tr('Keine Personen in den geladenen Ergebnissen gefunden.'); container.append(empty);
+      }
+      if (moreWrap) moreWrap.hidden = !hasMore;
+      if (moreBtn) moreBtn.disabled = fetching;
+    }
+    async function load(reset = true) {
+      if (!valid() || (fetching && !reset)) return;
+      const req = ++request;
+      fetching = true;
+      if (reset) { next = null; targets = []; hasMore = false; }
+      renderTargets();
+      try {
+        const data = await api('subjects?' + buildSubjectsQuery({ gallery, cursor: next, limit: 60, filter: mergeFilter }));
+        if (!valid() || req !== request) return;
+        targets = reset ? (data.items || []) : [...targets, ...(data.items || [])];
+        targets = [...new Map(targets.map(s => [s.id, s])).values()];
+        next = data.next ?? null; hasMore = Boolean(data.more);
+      } catch (err) {
+        if (!valid() || req !== request) return;
+        if (error) { error.textContent = err.message || tr('Fehler beim Laden'); error.hidden = false; }
+      } finally {
+        if (valid() && req === request) { fetching = false; renderTargets(); }
+      }
+    }
+    const filters = dialog.querySelectorAll('[data-merge-filter]');
+    filters.forEach(btn => {
+      const active = btn.dataset.mergeFilter === mergeFilter;
+      btn.classList.toggle('active', active); btn.setAttribute('aria-pressed', String(active));
       btn.onclick = () => {
-        if (mergeFilter === btn.dataset.mergeFilter) return;
+        if (busy || mergeFilter === btn.dataset.mergeFilter) return;
         mergeFilter = btn.dataset.mergeFilter;
-        filterBtns.forEach((b) => b.classList.toggle('active', b === btn));
-        loadMergeTargets(true);
+        filters.forEach(b => { b.classList.toggle('active', b === btn); b.setAttribute('aria-pressed', String(b === btn)); });
+        load(true);
       };
     });
-
-    async function loadMergeTargets(reset = true) {
-      if (mergeLoading && !reset) return;
-      mergeLoading = true;
-      if (reset) {
-        mergeCursor = null;
-        mergeTargets = [];
-        container.replaceChildren();
-        const loadingP = document.createElement('p');
-        loadingP.className = 'ch-hint';
-        loadingP.textContent = tr('Personen werden geladen …');
-        container.append(loadingP);
-      }
-
-      try {
-        const gallery = getGallery();
-        const query = buildSubjectsQuery({
-          gallery,
-          cursor: reset ? '' : mergeCursor,
-          limit: 60,
-          filter: mergeFilter
-        });
-        const data = await api('subjects?' + query);
-        const items = Array.isArray(data.items) ? data.items : [];
-        const filtered = items.filter((s) => s.id !== selectedSubject.id);
-        mergeTargets = reset ? filtered : [...mergeTargets, ...filtered];
-        mergeCursor = data.next ?? null;
-        mergeMore = Boolean(data.more);
-        renderMergeTargets();
-      } catch (err) {
-        container.replaceChildren();
-        const errP = document.createElement('p');
-        errP.className = 'ch-error-banner';
-        errP.textContent = err.message || tr('Fehler beim Laden');
-        container.append(errP);
-      } finally {
-        mergeLoading = false;
-      }
-    }
-
-    function renderMergeTargets() {
-      container.replaceChildren();
-      const q = (searchInput?.value || '').trim().toLowerCase();
-      const visibleTargets = mergeTargets.filter((t) => {
-        if (!q) return true;
-        const countText = formatPhotoCount(t.photo_count, tr, locale).toLowerCase();
-        const labelText = (t.label || '').toLowerCase();
-        return labelText.includes(q) || countText.includes(q) || String(t.photo_count).includes(q);
+    if (searchInput) searchInput.oninput = renderTargets;
+    if (moreBtn) moreBtn.onclick = () => load(false);
+    okBtn.onclick = async () => {
+      if (!valid() || okBtn.disabled || busy) return;
+      busy = true;
+      controls().forEach(el => { el.disabled = true; });
+      if (error) error.hidden = true;
+      const result = await withMutation(async () => {
+        if (!valid()) return null;
+        try {
+          const payload = isMove
+            ? buildActionPayload({ action: 'split', target_id: target.id, detection_ids: detectionIds, rules_revision: revision })
+            : buildBulkActionPayload({ action: 'merge', ids: sources().map(s => s.id), target_id: target.id, rules_revision: revision });
+          const res = await api(isMove ? `subjects/${encodeURIComponent(basePeople[0].id)}/action` : 'subjects/bulk-action', { method: 'POST', body: JSON.stringify(payload) });
+          if (!valid()) {
+            // A completed server mutation still invalidates the list when navigation closed the dialog.
+            if (gallery === getGallery()) {
+              subjects = []; selectedSubjects.clear(); selectMode = false;
+              selectedSubject = null; subjectMedia = []; selectedDetections.clear();
+              if (!root.hidden) await loadSubjects(true);
+            }
+            return res;
+          }
+          if (typeof res?.rules_revision === 'number') rulesRevision = res.rules_revision;
+          if (!isMove && res?.merged_detection_ids?.length) {
+            showUndoBar({ targetId: target.id, groups: res.merged_groups, detectionIds: res.merged_detection_ids,
+              text: tr('Die ausgewählten Gruppen wurden zusammengeführt. Du kannst die hinzugefügten Fotos wieder abtrennen.') });
+          }
+          finish();
+          selectedDetections.clear(); selectedSubjects.clear(); selectMode = false;
+          if (selectedSubject?.id === target.id || isMove) {
+            await loadSubjectMedia(true); await loadSimilar();
+          } else if (selectedSubject) await leaveSubject();
+          else await loadSubjects(true);
+          return res || { success: true };
+        } catch (err) {
+          if (!valid()) return null;
+          if (error) { error.textContent = err.message || tr('Die Anfrage konnte nicht abgeschlossen werden.'); error.hidden = false; }
+          if (err.status === 409) {
+            // Keep the explanation visible; synchronize only after the user closes the stale dialog.
+            finish();
+            if (selectedSubject) await loadSubjectMedia(true); else await loadSubjects(true);
+            showError(err);
+          }
+          return null;
+        }
       });
-
-      if (visibleTargets.length === 0) {
-        const empty = document.createElement('p');
-        empty.className = 'ch-hint';
-        empty.textContent = tr('Keine Personen gefunden');
-        container.append(empty);
-      } else {
-        for (const target of visibleTargets) {
-          const item = document.createElement('button');
-          item.type = 'button';
-          item.className = 'ch-people-merge-choice';
-          item.dataset.targetId = target.id;
-          const isSelected = target.id === selectedTargetId;
-          if (isSelected) item.classList.add('active');
-          item.setAttribute('aria-pressed', String(isSelected));
-
-          const thumb = document.createElement('div');
-          thumb.className = 'ch-person-thumb-wrap';
-          if (target.cover_id) {
-            const img = document.createElement('img');
-            img.className = 'ch-person-thumb';
-            img.alt = '';
-            img.loading = 'lazy';
-            img.src = previewUrl(target.cover_id);
-            img.onerror = () => img.replaceWith(createGenericPersonIcon());
-            thumb.append(img);
-          } else {
-            thumb.append(createGenericPersonIcon());
-          }
-          item.append(thumb);
-
-          if (target.label) {
-            const nameEl = document.createElement('strong');
-            nameEl.className = 'ch-person-name';
-            nameEl.textContent = target.label;
-            item.append(nameEl);
-          }
-
-          // Human readable label - NEVER show code UUID string
-          const count = document.createElement('span');
-          count.className = 'ch-person-count';
-          count.textContent = formatPhotoCount(target.photo_count, tr, locale);
-          item.append(count);
-
-          const checkBadge = document.createElement('span');
-          checkBadge.className = 'ch-people-merge-selected-badge';
-          checkBadge.textContent = '✓ ' + tr('Ausgewählt');
-          checkBadge.hidden = !isSelected;
-          item.append(checkBadge);
-
-          if (target.review_count && target.review_count > 0) {
-            const badge = document.createElement('span');
-            badge.className = 'ch-person-badge ch-person-badge-review';
-            badge.textContent = tr('{count} zu prüfen', { count: target.review_count });
-            item.append(badge);
-          }
-
-          item.onclick = () => {
-            selectedTarget = target;
-            selectedTargetId = target.id;
-            okBtn.disabled = false;
-            container.querySelectorAll('.ch-people-merge-choice').forEach((b) => {
-              const active = b === item;
-              b.classList.toggle('active', active);
-              b.setAttribute('aria-pressed', String(active));
-              const sb = b.querySelector('.ch-people-merge-selected-badge');
-              if (sb) sb.hidden = !active;
-            });
-            renderSelectionPreview();
-          };
-          container.append(item);
-        }
-      }
-
-      if (moreWrap) {
-        moreWrap.hidden = !mergeMore;
-      }
-    }
-
-    if (searchInput) {
-      searchInput.oninput = () => renderMergeTargets();
-    }
-    if (moreBtn) {
-      moreBtn.onclick = () => {
-        if (mergeMore && !mergeLoading) loadMergeTargets(false);
-      };
-    }
-
-    let settled = false;
-    const done = async (confirmed) => {
-      if (settled) return;
-      settled = true;
-      dialog.close();
-      if (confirmed && selectedTargetId) {
-        const targetLabel = selectedTarget
-          ? `${subjectDisplayName(selectedTarget)} (${formatPhotoCount(selectedTarget.photo_count, tr, locale)})`
-          : tr('der ausgewählten Person');
-        if (isMoveMode) {
-          await performSubjectAction('split', {
-            target_id: selectedTargetId,
-            detection_ids: detectionIds,
-            isDestructive: false
-          });
-        } else {
-          await performSubjectAction('merge', {
-            target_id: selectedTargetId,
-            confirmTitle: tr('Person zusammenführen?'),
-            confirmText: tr('Diese Person wird mit {target} zusammengelegt. Du kannst die verschobenen Fotos anschließend wieder abtrennen.', { target: targetLabel }),
-            confirmOkLabel: tr('Zusammenführen'),
-            isDestructive: true
-          });
-        }
-      }
+      busy = false;
+      if (valid()) { controls().forEach(el => { el.disabled = false; }); renderPreview(); }
+      return result;
     };
-
-    okBtn.onclick = () => done(true);
-    if (cancelBtn) cancelBtn.onclick = () => done(false);
-    dialog.oncancel = (e) => {
-      e.preventDefault();
-      done(false);
-    };
-
-    await loadMergeTargets(true);
+    renderPicked(); renderPreview();
     dialog.showModal();
-    if (cancelBtn) cancelBtn.focus();
+    cancelBtn?.focus();
+    await load(true);
   }
 
-  // Selection actions: Cover, Split, Move, Remove, Resolve, Clear
   function getSelectedDetectionIds() {
     const ids = [];
     for (const detIds of selectedDetections.values()) {
@@ -2484,6 +2432,7 @@ export function createPeopleController({
   }
 
   function onGalleryChange(newGallery) {
+    closeMergeDialog?.();
     currentGallery = newGallery || getGallery();
     activeGeneration++;
     if (currentAbort) {
@@ -2519,6 +2468,7 @@ export function createPeopleController({
 
   return {
     show: () => {
+      syncContextPreference();
       root.hidden = false;
       const gallery = getGallery();
       if (gallery !== currentGallery) {
@@ -2532,6 +2482,7 @@ export function createPeopleController({
       }
     },
     hide: () => {
+      closeMergeDialog?.();
       root.hidden = true;
       activeGeneration++;
       if (currentAbort) {

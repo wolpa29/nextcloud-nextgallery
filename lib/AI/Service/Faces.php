@@ -1099,87 +1099,10 @@ class Faces {
                         }
                         $this->ensureGroup($uid, $targetId);
 
-                        // Record source detection IDs before moving so caller can offer 1-click undo
-                        $srcDetRows = $this->db->executeQuery(
-                            'SELECT id FROM *PREFIX*nextgallery_faces_detections WHERE user_id = ? AND group_id = ?',
-                            [$uid, $id]
-                        );
-                        $mergedDetectionIds = [];
-                        try {
-                            while ($dr = $srcDetRows->fetch()) {
-                                $mergedDetectionIds[] = (string)$dr['id'];
-                            }
-                        } finally {
-                            $srcDetRows->closeCursor();
-                        }
-
-                        // Preserve source label/cover if target group does not have one
-                        $tq = $this->db->executeQuery(
-                            'SELECT label, cover_id FROM *PREFIX*nextgallery_faces_groups WHERE user_id = ? AND id = ?',
-                            [$uid, $targetId]
-                        );
-                        $targetRow = $tq->fetch() ?: [];
-                        $tq->closeCursor();
-                        $srcLabel = isset($groupRow['label']) && trim((string)$groupRow['label']) !== '' ? (string)$groupRow['label'] : null;
-                        $tgtLabel = isset($targetRow['label']) && trim((string)$targetRow['label']) !== '' ? (string)$targetRow['label'] : null;
-                        $srcCover = isset($groupRow['cover_id']) && trim((string)$groupRow['cover_id']) !== '' ? (string)$groupRow['cover_id'] : null;
-                        $tgtCover = isset($targetRow['cover_id']) && trim((string)$targetRow['cover_id']) !== '' ? (string)$targetRow['cover_id'] : null;
-
-                        $mergedLabel = $tgtLabel ?? $srcLabel;
-                        $mergedCover = $tgtCover ?? $srcCover;
-                        $this->db->executeStatement(
-                            'UPDATE *PREFIX*nextgallery_faces_groups SET label = ?, cover_id = ?, updated_at = ? WHERE user_id = ? AND id = ?',
-                            [$mergedLabel, $mergedCover, $now, $uid, $targetId]
-                        );
-
-                        // Move detections from source group to target group
-                        $this->db->executeStatement(
-                            'UPDATE *PREFIX*nextgallery_faces_detections SET group_id = ?, manual = 1, updated_at = ? WHERE user_id = ? AND group_id = ?',
-                            [$targetId, $now, $uid, $id]
-                        );
-
-                        // Remap cannot-link constraints from old group to target group
-                        $cq = $this->db->getQueryBuilder();
-                        $cq->select('id', 'detection_id', 'kind')->from('nextgallery_faces_constraints')
-                           ->where($cq->expr()->eq('user_id', $cq->createNamedParameter($uid)))
-                           ->andWhere($cq->expr()->eq('group_id', $cq->createNamedParameter($id)));
-                        $crows = $cq->executeQuery()->fetchAll();
-                        foreach ($crows as $crow) {
-                            // Idempotent remapping: check if target constraint already exists
-                            $chk = $this->db->getQueryBuilder();
-                            $chk->select('id')->from('nextgallery_faces_constraints')
-                                ->where($chk->expr()->eq('user_id', $chk->createNamedParameter($uid)))
-                                ->andWhere($chk->expr()->eq('detection_id', $chk->createNamedParameter($crow['detection_id'])))
-                                ->andWhere($chk->expr()->eq('group_id', $chk->createNamedParameter($targetId)))
-                                ->andWhere($chk->expr()->eq('kind', $chk->createNamedParameter($crow['kind'])));
-                            if ($chk->executeQuery()->fetchOne()) {
-                                $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_constraints WHERE id = ?', [$crow['id']]);
-                            } else {
-                                $this->db->executeStatement(
-                                    'UPDATE *PREFIX*nextgallery_faces_constraints SET group_id = ? WHERE id = ?',
-                                    [$targetId, $crow['id']]
-                                );
-                            }
-                        }
-
-                        // Remove explicit merge contradictions (cannot-link to own new group)
-                        $this->db->executeStatement(
-                            'DELETE FROM *PREFIX*nextgallery_faces_constraints WHERE user_id = ? AND group_id = ? AND detection_id IN (
-                                SELECT id FROM *PREFIX*nextgallery_faces_detections WHERE user_id = ? AND group_id = ?
-                            )',
-                            [$uid, $targetId, $uid, $targetId]
-                        );
-
-                        $this->remapPairs($uid, $id, $targetId, $now);
-
-                        // Delete old source group
-                        $this->db->executeStatement(
-                            'DELETE FROM *PREFIX*nextgallery_faces_groups WHERE user_id = ? AND id = ?',
-                            [$uid, $id]
-                        );
+                        $mergeResult = $this->executeMerge($uid, [$id], $targetId, $now, [$id => $groupRow]);
                         $extraResponse['target_id'] = $targetId;
-                        $extraResponse['merged_detection_ids'] = $mergedDetectionIds;
-                        $extraResponse['label'] = $mergedLabel;
+                        $extraResponse['merged_detection_ids'] = $mergeResult['merged_detection_ids'];
+                        $extraResponse['label'] = $mergeResult['label'];
                         break;
 
                     case 'dismiss':
@@ -1302,9 +1225,149 @@ class Faces {
     }
 
     /**
-     * Apply one group-level flag action to many groups in a single transaction and rules revision.
+     * Merge one or more source groups into a target group within an active transaction.
+     * Moves detections, remaps cannot-link constraints, updates suggestions/dismissals,
+     * preserves target label/cover with source fallback, removes contradiction constraints,
+     * and deletes source groups.
+     *
+     * @param string $uid
+     * @param string[] $sourceIds Clean lowercased source group IDs
+     * @param string $targetId Clean lowercased target group ID
+     * @param int $now Current timestamp
+     * @param array<string, array{label: ?string, cover_id: ?string}> $preloadedSources Optional cached rows by group ID
+     * @return array{merged_detection_ids: string[], merged_groups: array<int, array{source_id: string, detection_ids: string[]}>, label: ?string, cover_id: ?string}
      */
-    public function bulkAction(string $uid, array $ids, string $action, int $rulesRevision = 0): array {
+    private function executeMerge(
+        string $uid,
+        array $sourceIds,
+        string $targetId,
+        int $now,
+        array $preloadedSources = []
+    ): array {
+        // Read current target group metadata
+        $tq = $this->db->executeQuery(
+            'SELECT label, cover_id FROM *PREFIX*nextgallery_faces_groups WHERE user_id = ? AND id = ?',
+            [$uid, $targetId]
+        );
+        $targetRow = $tq->fetch() ?: [];
+        $tq->closeCursor();
+
+        $mergedLabel = isset($targetRow['label']) && trim((string)$targetRow['label']) !== '' ? (string)$targetRow['label'] : null;
+        $mergedCover = isset($targetRow['cover_id']) && trim((string)$targetRow['cover_id']) !== '' ? (string)$targetRow['cover_id'] : null;
+
+        $allMergedDetectionIds = [];
+        $mergedGroups = [];
+
+        foreach ($sourceIds as $sourceId) {
+            $srcRow = $preloadedSources[$sourceId] ?? null;
+            if ($srcRow === null) {
+                $sq = $this->db->executeQuery(
+                    'SELECT label, cover_id FROM *PREFIX*nextgallery_faces_groups WHERE user_id = ? AND id = ?',
+                    [$uid, $sourceId]
+                );
+                $srcRow = $sq->fetch() ?: [];
+                $sq->closeCursor();
+            }
+
+            // Target label/cover preferred, source fallback (first non-empty source used)
+            $srcLabel = isset($srcRow['label']) && trim((string)$srcRow['label']) !== '' ? (string)$srcRow['label'] : null;
+            $srcCover = isset($srcRow['cover_id']) && trim((string)$srcRow['cover_id']) !== '' ? (string)$srcRow['cover_id'] : null;
+            if ($mergedLabel === null && $srcLabel !== null) {
+                $mergedLabel = $srcLabel;
+            }
+            if ($mergedCover === null && $srcCover !== null) {
+                $mergedCover = $srcCover;
+            }
+
+            // Record source detection IDs before moving so caller can offer 1-click undo / group-wise split
+            $srcDetRows = $this->db->executeQuery(
+                'SELECT id FROM *PREFIX*nextgallery_faces_detections WHERE user_id = ? AND group_id = ?',
+                [$uid, $sourceId]
+            );
+            $srcDets = [];
+            try {
+                while ($dr = $srcDetRows->fetch()) {
+                    $srcDets[] = (string)$dr['id'];
+                }
+            } finally {
+                $srcDetRows->closeCursor();
+            }
+
+            $mergedGroups[] = [
+                'source_id' => $sourceId,
+                'detection_ids' => $srcDets,
+            ];
+            foreach ($srcDets as $did) {
+                $allMergedDetectionIds[] = $did;
+            }
+
+            // Move detections from source group to target group
+            $this->db->executeStatement(
+                'UPDATE *PREFIX*nextgallery_faces_detections SET group_id = ?, manual = 1, updated_at = ? WHERE user_id = ? AND group_id = ?',
+                [$targetId, $now, $uid, $sourceId]
+            );
+
+            // Remap cannot-link constraints from old group to target group
+            $cq = $this->db->getQueryBuilder();
+            $cq->select('id', 'detection_id', 'kind')->from('nextgallery_faces_constraints')
+               ->where($cq->expr()->eq('user_id', $cq->createNamedParameter($uid)))
+               ->andWhere($cq->expr()->eq('group_id', $cq->createNamedParameter($sourceId)));
+            $crows = $cq->executeQuery()->fetchAll();
+            foreach ($crows as $crow) {
+                // Idempotent remapping: check if target constraint already exists
+                $chk = $this->db->getQueryBuilder();
+                $chk->select('id')->from('nextgallery_faces_constraints')
+                    ->where($chk->expr()->eq('user_id', $chk->createNamedParameter($uid)))
+                    ->andWhere($chk->expr()->eq('detection_id', $chk->createNamedParameter($crow['detection_id'])))
+                    ->andWhere($chk->expr()->eq('group_id', $chk->createNamedParameter($targetId)))
+                    ->andWhere($chk->expr()->eq('kind', $chk->createNamedParameter($crow['kind'])));
+                if ($chk->executeQuery()->fetchOne()) {
+                    $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_constraints WHERE id = ?', [$crow['id']]);
+                } else {
+                    $this->db->executeStatement(
+                        'UPDATE *PREFIX*nextgallery_faces_constraints SET group_id = ? WHERE id = ?',
+                        [$targetId, $crow['id']]
+                    );
+                }
+            }
+
+            // Remap suggestions and dismissed pairs
+            $this->remapPairs($uid, $sourceId, $targetId, $now);
+
+            // Delete old source group
+            $this->db->executeStatement(
+                'DELETE FROM *PREFIX*nextgallery_faces_groups WHERE user_id = ? AND id = ?',
+                [$uid, $sourceId]
+            );
+        }
+
+        // Apply merged label & cover to target group
+        $this->db->executeStatement(
+            'UPDATE *PREFIX*nextgallery_faces_groups SET label = ?, cover_id = ?, updated_at = ? WHERE user_id = ? AND id = ?',
+            [$mergedLabel, $mergedCover, $now, $uid, $targetId]
+        );
+
+        // Remove explicit merge contradictions (cannot-link to own new group)
+        $this->db->executeStatement(
+            'DELETE FROM *PREFIX*nextgallery_faces_constraints WHERE user_id = ? AND group_id = ? AND detection_id IN (
+                SELECT id FROM *PREFIX*nextgallery_faces_detections WHERE user_id = ? AND group_id = ?
+            )',
+            [$uid, $targetId, $uid, $targetId]
+        );
+
+        return [
+            'merged_detection_ids' => $allMergedDetectionIds,
+            'merged_groups' => $mergedGroups,
+            'label' => $mergedLabel,
+            'cover_id' => $mergedCover,
+        ];
+    }
+
+    /**
+     * Apply one group-level flag action to many groups in a single transaction and rules revision,
+     * or atomically merge multiple source groups into a target group.
+     */
+    public function bulkAction(string $uid, array $ids, string $action, int $rulesRevision = 0, ?string $targetId = null): array {
         $this->ensureSchema();
         $updates = [
             'stranger' => ['stranger' => 1, 'hidden' => 0],
@@ -1312,7 +1375,7 @@ class Faces {
             'hide' => ['hidden' => 1],
             'show' => ['hidden' => 0],
         ];
-        if (!isset($updates[$action])) {
+        if ($action !== 'merge' && !isset($updates[$action])) {
             throw new OCSBadRequestException('Unbekannte Sammelaktion: ' . $action);
         }
         $clean = [];
@@ -1330,6 +1393,76 @@ class Faces {
             throw new OCSBadRequestException('Zu viele Personen (maximal 500)');
         }
 
+        if ($action === 'merge') {
+            if (!$targetId || !is_string($targetId) || !preg_match('/^[a-f0-9]{32}$/iD', $targetId)) {
+                throw new OCSBadRequestException('Ziel-ID für Zusammenführung erforderlich');
+            }
+            $targetId = strtolower($targetId);
+            if (in_array($targetId, $clean, true)) {
+                throw new OCSBadRequestException('Zielgruppe darf nicht in den Quellgruppen enthalten sein');
+            }
+
+            $this->lock($uid);
+            try {
+                $acc = $this->accountState($uid);
+                if ($rulesRevision !== $acc['rules_revision']) {
+                    throw new FaceConflictException('Regelstand veraltet, bitte Ansicht aktualisieren');
+                }
+
+                // Target group must exist and belong to user
+                $tq = $this->db->getQueryBuilder();
+                $tq->select('id', 'label', 'cover_id')->from('nextgallery_faces_groups')
+                   ->where($tq->expr()->eq('user_id', $tq->createNamedParameter($uid)))
+                   ->andWhere($tq->expr()->eq('id', $tq->createNamedParameter($targetId)));
+                $targetRow = $tq->executeQuery()->fetch();
+                if (!$targetRow) {
+                    throw new OCSNotFoundException('Gruppe nicht gefunden');
+                }
+
+                // All source groups must exist and belong to user
+                $sq = $this->db->getQueryBuilder();
+                $sq->select('id', 'label', 'cover_id')->from('nextgallery_faces_groups')
+                   ->where($sq->expr()->eq('user_id', $sq->createNamedParameter($uid)))
+                   ->andWhere($sq->expr()->in('id', $sq->createNamedParameter($clean, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_STR_ARRAY)));
+                $srcRows = $sq->executeQuery()->fetchAll();
+                if (count($srcRows) !== count($clean)) {
+                    throw new OCSNotFoundException('Gruppe nicht gefunden');
+                }
+                $preloaded = [];
+                foreach ($srcRows as $sr) {
+                    $preloaded[(string)$sr['id']] = $sr;
+                }
+
+                $this->db->beginTransaction();
+                try {
+                    $now = time();
+                    $mergeResult = $this->executeMerge($uid, $clean, $targetId, $now, $preloaded);
+
+                    $newRevision = $acc['rules_revision'] + 1;
+                    $this->db->executeStatement(
+                        'UPDATE *PREFIX*nextgallery_faces_account SET rules_revision = ?, updated_at = ? WHERE user_id = ?',
+                        [$newRevision, $now, $uid]
+                    );
+                    $this->db->commit();
+                } catch (\Throwable $e) {
+                    $this->db->rollBack();
+                    throw $e;
+                }
+                $this->cleanupNativeSnapshots($uid);
+                return [
+                    'success' => true,
+                    'rules_revision' => $newRevision,
+                    'target_id' => $targetId,
+                    'ids' => $clean,
+                    'merged_detection_ids' => $mergeResult['merged_detection_ids'],
+                    'merged_groups' => $mergeResult['merged_groups'],
+                ];
+            } finally {
+                $this->unlock($uid);
+            }
+        }
+
+        // Flag actions (stranger, unstranger, hide, show)
         $this->lock($uid);
         try {
             $acc = $this->accountState($uid);

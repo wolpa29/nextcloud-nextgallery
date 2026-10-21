@@ -123,12 +123,13 @@ class FacesOcsController extends OCSController {
 
     #[NoAdminRequired]
     #[NoCSRFRequired]
-    public function bulkAction(string $action = '', ?array $ids = null, int $rules_revision = 0): DataResponse {
+    public function bulkAction(string $action = '', ?array $ids = null, int $rules_revision = 0, ?string $target_id = null): DataResponse {
         $uid = $this->uid();
         $actionName = $action !== '' ? $action : (string)$this->request->getParam('action', '');
         $groupIds = $ids !== null ? $ids : $this->request->getParam('ids', []);
         $rulesRev = $rules_revision !== 0 ? $rules_revision : (int)$this->request->getParam('rules_revision', 0);
-        return $this->response($this->faces->bulkAction($uid, is_array($groupIds) ? $groupIds : [], $actionName, $rulesRev));
+        $targetId = $target_id !== null && $target_id !== '' ? $target_id : (string)($this->request->getParam('target_id', '') ?: $this->request->getParam('target', ''));
+        return $this->response($this->faces->bulkAction($uid, is_array($groupIds) ? $groupIds : [], $actionName, $rulesRev, $targetId !== '' ? $targetId : null));
     }
 
     #[NoAdminRequired]

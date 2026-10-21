@@ -208,6 +208,9 @@ class FacesController extends Controller {
             $cropH = max(1, min((int)round(($y1 - $y0) * $h), $h - $cropY));
 
             $cropped = imagecrop($img, ['x' => $cropX, 'y' => $cropY, 'width' => $cropW, 'height' => $cropH]);
+            if ($cropped === false) {
+                return new Bytes('', 'text/plain', 415, ['Cache-Control' => 'no-store']);
+            }
             $targetSize = 256;
             $ratio = min($targetSize / $cropW, $targetSize / $cropH);
             $targetWidth = max(1, (int)round($cropW * $ratio));
@@ -215,11 +218,11 @@ class FacesController extends Controller {
             $thumb = imagecreatetruecolor($targetWidth, $targetHeight);
             imagecopyresampled(
                 $thumb,
-                $cropped ?: $img,
+                $cropped,
                 0, 0, 0, 0,
                 $targetWidth, $targetHeight,
-                $cropped ? $cropW : $w,
-                $cropped ? $cropH : $h
+                $cropW,
+                $cropH
             );
         }
 
@@ -277,14 +280,15 @@ class FacesController extends Controller {
     }
 
     #[NoAdminRequired]
-    public function bulkAction(string $action = '', ?array $ids = null, int $rules_revision = 0): DataResponse {
+    public function bulkAction(string $action = '', ?array $ids = null, int $rules_revision = 0, ?string $target_id = null): DataResponse {
         $uid = $this->uid();
         $actionName = $action !== '' ? $action : (string)$this->request->getParam('action', '');
         $groupIds = $ids !== null ? $ids : $this->request->getParam('ids', []);
         $rulesRev = $rules_revision !== 0 ? $rules_revision : (int)$this->request->getParam('rules_revision', 0);
+        $targetId = $target_id !== null && $target_id !== '' ? $target_id : (string)($this->request->getParam('target_id', '') ?: $this->request->getParam('target', ''));
 
         try {
-            $response = new DataResponse($this->faces->bulkAction($uid, is_array($groupIds) ? $groupIds : [], $actionName, $rulesRev));
+            $response = new DataResponse($this->faces->bulkAction($uid, is_array($groupIds) ? $groupIds : [], $actionName, $rulesRev, $targetId !== '' ? $targetId : null));
             $response->addHeader('Cache-Control', 'private, no-store');
             return $response;
         } catch (FaceConflictException $e) {

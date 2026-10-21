@@ -160,7 +160,7 @@ test('buildBulkActionPayload validates group flag actions and deduplicates ids',
     buildBulkActionPayload({ action: 'stranger', ids: ['a', 'b', 'a', ''], rules_revision: 4 }),
     { action: 'stranger', ids: ['a', 'b'], rules_revision: 4 }
   );
-  assert.throws(() => buildBulkActionPayload({ action: 'merge', ids: ['a'], rules_revision: 1 }), /Invalid bulk action/);
+  assert.throws(() => buildBulkActionPayload({ action: 'merge', ids: ['a'], rules_revision: 1 }), /separate merge target/);
   assert.throws(() => buildBulkActionPayload({ action: 'hide', ids: [], rules_revision: 1 }), /At least one subject id/);
   assert.throws(() => buildBulkActionPayload({ action: 'hide', ids: ['a'] }), /rules_revision must be an integer/);
   assert.deepEqual(bulkActionsForFilter('single'), ['stranger', 'hide']);
@@ -348,7 +348,7 @@ function setupMockDOM() {
     'ch-people-clear-selected', 'ch-person-media-grid', 'ch-people-media-more-wrap',
     'ch-people-media-more', 'ch-people-reset-dialog', 'ch-people-reset-confirm-input',
     'ch-people-reset-cancel', 'ch-people-reset-ok', 'ch-people-merge-dialog',
-    'ch-people-merge-targets', 'ch-people-merge-more-wrap', 'ch-people-merge-more',
+    'ch-people-merge-picked', 'ch-people-merge-error', 'ch-people-merge-selection-preview', 'ch-people-merge-targets', 'ch-people-merge-more-wrap', 'ch-people-merge-more',
     'ch-people-merge-cancel', 'ch-people-merge-ok', 'ch-people-merge-search',
     'ch-people-action-dialog', 'ch-people-action-title', 'ch-people-action-text',
     'ch-people-action-cancel', 'ch-people-action-ok'
@@ -558,7 +558,7 @@ const HTML_SHELL = `<!DOCTYPE html>
         <div class="ch-people-list-tools"><button type="button" id="ch-people-select-mode" aria-pressed="false">Auswählen</button></div>
         <div id="ch-people-bulk-bar" hidden>
           <span id="ch-people-bulk-count"></span>
-          <button type="button" id="ch-people-bulk-all">Alle geladenen auswählen</button>
+          <button type="button" id="ch-people-bulk-merge" disabled>Zusammenführen</button><button type="button" id="ch-people-bulk-all">Alle geladenen auswählen</button>
           <button type="button" id="ch-people-bulk-stranger" disabled>Kenne ich nicht</button>
           <button type="button" id="ch-people-bulk-unstranger" hidden disabled>Als bekannt markieren</button>
           <button type="button" id="ch-people-bulk-hide" disabled>Ausblenden</button>
@@ -648,7 +648,7 @@ const HTML_SHELL = `<!DOCTYPE html>
         </div>
         <input type="search" id="ch-people-merge-search" placeholder="Personen suchen …">
       </div>
-      <div id="ch-people-merge-targets" class="ch-people-merge-list"></div>
+      <div id="ch-people-merge-picked"></div><p id="ch-people-merge-error" hidden></p><div id="ch-people-merge-targets" class="ch-people-merge-list"></div>
       <div id="ch-people-merge-more-wrap" hidden>
         <button type="button" id="ch-people-merge-more">Weitere laden</button>
       </div>
@@ -1119,7 +1119,7 @@ test('DOM: Detail view offers suggestions, merges into the open person and dismi
     api: async (endpoint, options = {}) => {
       calls.push({ endpoint, options });
       if (endpoint.includes('/similar?')) return { items: suggestions, rules_revision: 5, subject: { id: 'subj-1', photo_count: 6 } };
-      if (endpoint.includes('/action')) return { success: true, rules_revision: 6 };
+      if (endpoint.includes('/action') || endpoint === 'subjects/bulk-action') return { success: true, rules_revision: 6 };
       return { items: [] };
     },
     getGallery: () => 'default'
@@ -1148,14 +1148,13 @@ test('DOM: Detail view offers suggestions, merges into the open person and dismi
   // Merging moves the suggested group into the open person after confirmation.
   suggestions = [];
   const [merge] = list.children[0].querySelector('.ch-people-similar-actions').children;
-  const pending = merge.onclick();
+  await merge.onclick();
   await new Promise((r) => setTimeout(r, 0));
-  assert.equal(elements.get('ch-people-action-dialog').open, true, 'merge asks for confirmation');
-  elements.get('ch-people-action-ok').onclick();
-  await pending;
-  const mergeCall = calls.filter((c) => c.endpoint.endsWith('/action')).at(-1);
-  assert.equal(mergeCall.endpoint, 'subjects/other-2/action');
-  assert.deepEqual(JSON.parse(mergeCall.options.body), { action: 'merge', target_id: 'subj-1', rules_revision: 6 });
+  assert.equal(elements.get('ch-people-merge-dialog').open, true, 'merge asks for confirmation');
+  await elements.get('ch-people-merge-ok').onclick();
+  const mergeCall = calls.find((c) => c.endpoint === 'subjects/bulk-action');
+  assert.equal(mergeCall.endpoint, 'subjects/bulk-action');
+  assert.deepEqual(JSON.parse(mergeCall.options.body), { action: 'merge', ids: ['other-2'], target_id: 'subj-1', rules_revision: 6 });
   assert.equal(section.hidden, true, 'panel hides when no suggestions remain');
   assert.equal(controller.getSelectedSubject().id, 'subj-1', 'the open person stays open');
 });
@@ -1201,7 +1200,7 @@ test('DOM: Filtered faces get suggestions toward known people and move into them
           subject: { id: 'weak-1', photo_count: 0, filtered_count: 2 }
         };
       }
-      if (endpoint.includes('/action')) return { success: true, rules_revision: 8, merged_detection_ids: ['d1', 'd2'] };
+      if (endpoint === 'subjects/bulk-action') return { success: true, rules_revision: 8, merged_detection_ids: ['d1', 'd2'] };
       return { items: [] };
     },
     getGallery: () => 'default'
@@ -1216,15 +1215,14 @@ test('DOM: Filtered faces get suggestions toward known people and move into them
   assert.equal(elements.get('ch-people-detail-count').textContent, '2 Fotos', 'count follows the filtered faces');
 
   const [merge] = list.children[0].querySelector('.ch-people-similar-actions').children;
-  const pending = merge.onclick();
+  await merge.onclick();
   await new Promise((r) => setTimeout(r, 0));
-  assert.equal(elements.get('ch-people-action-dialog').open, true, 'assignment asks for confirmation');
-  assert.match(elements.get('ch-people-action-text').textContent, /bestätigt/, 'dialog says the faces get confirmed');
-  elements.get('ch-people-action-ok').onclick();
-  await pending;
-  const mergeCall = calls.filter((c) => c.endpoint.endsWith('/action')).at(-1);
-  assert.equal(mergeCall.endpoint, 'subjects/weak-1/action', 'the filtered group is the source');
-  assert.deepEqual(JSON.parse(mergeCall.options.body), { action: 'merge', target_id: 'known-1', rules_revision: 7 });
+  assert.equal(elements.get('ch-people-merge-dialog').open, true, 'assignment asks for confirmation');
+  assert.ok(elements.get('ch-people-merge-selection-preview').children.length > 0, 'dialog explains the explicit merge target');
+  await elements.get('ch-people-merge-ok').onclick();
+  const mergeCall = calls.find((c) => c.endpoint === 'subjects/bulk-action');
+  assert.equal(mergeCall.endpoint, 'subjects/bulk-action', 'the filtered group is the source');
+  assert.deepEqual(JSON.parse(mergeCall.options.body), { action: 'merge', ids: ['weak-1'], target_id: 'known-1', rules_revision: 7 });
   assert.equal(controller.getSelectedSubject(), null, 'the merged filtered group closes');
   assert.equal(elements.get('ch-people-undo-bar').hidden, false, 'undo is offered');
 });
@@ -1264,7 +1262,7 @@ test('Real DOM: Filtered person shows "Vielleicht dieselbe Person" and is assign
           };
         }
         if (endpoint.includes('/media?')) return { items: [{ id: 601, name: 'crowd.jpg', face_detection_ids: ['d601'] }] };
-        if (endpoint.includes('/action')) {
+        if (endpoint === 'subjects/bulk-action') {
           window.actionCalls.push({ endpoint, body: JSON.parse(options.body) });
           return { success: true, rules_revision: 4, merged_detection_ids: ['d601'] };
         }
@@ -1282,12 +1280,12 @@ test('Real DOM: Filtered person shows "Vielleicht dieselbe Person" and is assign
   assert.equal((await page.locator('#ch-people-similar .ch-people-similar-actions .ch-primary').textContent()).trim(), 'Zuordnen');
 
   await page.locator('#ch-people-similar .ch-people-similar-actions .ch-primary').click();
-  await page.waitForFunction(() => document.getElementById('ch-people-action-dialog').open);
-  await page.locator('#ch-people-action-ok').click();
+  await page.waitForFunction(() => document.getElementById('ch-people-merge-dialog').open);
+  await page.locator('#ch-people-merge-ok').click();
   await page.waitForFunction(() => window.actionCalls.length === 1);
   const call = await page.evaluate(() => window.actionCalls[0]);
-  assert.equal(call.endpoint, 'subjects/weak-1/action');
-  assert.deepEqual(call.body, { action: 'merge', target_id: 'known-1', rules_revision: 3 });
+  assert.equal(call.endpoint, 'subjects/bulk-action');
+  assert.deepEqual(call.body, { action: 'merge', ids: ['weak-1'], target_id: 'known-1', rules_revision: 3 });
   await page.waitForFunction(() => document.getElementById('ch-person-detail').hidden);
 
   await browser.close();
@@ -1335,8 +1333,8 @@ test('Real DOM: Suggestion badges mark cards and "Nächster Vorschlag" works thr
           };
         }
         if (endpoint.includes('/media?')) return { items: [{ id: 601, name: 'crowd.jpg', face_detection_ids: ['d601'] }] };
-        if (endpoint.includes('/action')) {
-          const id = endpoint.split('/')[1];
+        if (endpoint === 'subjects/bulk-action') {
+          const id = JSON.parse(options.body).ids[0];
           window.actionCalls.push({ endpoint, body: JSON.parse(options.body) });
           window.assigned.add(id);
           return { success: true, rules_revision: 4, merged_detection_ids: ['d601'] };
@@ -1363,12 +1361,12 @@ test('Real DOM: Suggestion badges mark cards and "Nächster Vorschlag" works thr
 
   // Assigning moves straight on to the remaining person with a suggestion.
   await page.locator('#ch-people-similar .ch-people-similar-actions .ch-primary').click();
-  await page.waitForFunction(() => document.getElementById('ch-people-action-dialog').open);
-  await page.locator('#ch-people-action-ok').click();
+  await page.waitForFunction(() => document.getElementById('ch-people-merge-dialog').open);
+  await page.locator('#ch-people-merge-ok').click();
   await page.waitForFunction(() => window.actionCalls.length === 1);
   const call = await page.evaluate(() => window.actionCalls[0]);
-  assert.equal(call.endpoint, 'subjects/weak-2/action');
-  assert.deepEqual(call.body, { action: 'merge', target_id: 'known-weak-2', rules_revision: 3 });
+  assert.equal(call.endpoint, 'subjects/bulk-action');
+  assert.deepEqual(call.body, { action: 'merge', ids: ['weak-2'], target_id: 'known-weak-2', rules_revision: 3 });
   await page.waitForFunction(() => window.controller.getSelectedSubject()?.id === 'weak-1');
   assert.equal(await page.evaluate(() => document.getElementById('ch-person-detail').hidden), false, 'Next person opened after assigning');
   assert.equal(await page.locator('#ch-people-next-suggestion').isVisible(), false, 'No next button when nothing else is open');
@@ -1526,7 +1524,7 @@ test('Real DOM: Merge dialog card selection shows active state, badge, and live 
 
   // Card contains ✓ Ausgewählt badge
   const badgeText = await page.locator('#ch-people-merge-targets .ch-people-merge-selected-badge').textContent();
-  assert.ok(badgeText.includes('Ausgewählt'), 'Badge shows Ausgewählt');
+  assert.ok(badgeText.includes('Bleibt bestehen'), 'Badge identifies the surviving target');
 
   // Preview bar is visible and shows Onkel Hans
   const previewVisible = await page.evaluate(() => {
@@ -2019,7 +2017,7 @@ test('Real DOM: Toggle face frames button state and interactive zoom in context 
 
   // Select target person Julia
   await page.locator('#ch-people-merge-targets .ch-people-merge-choice').click();
-  const inspectBtn = page.locator('#ch-people-merge-selection-preview button.ch-button');
+  const inspectBtn = page.locator('#ch-people-merge-selection-preview button.ch-button').filter({hasText:'Ganzes Bild & Fotos prüfen'});
   const inspectBtnText = await inspectBtn.textContent();
   assert.ok(!inspectBtnText.includes('🔍'), 'Inspect button text must not contain magnifying glass emoji: ' + inspectBtnText);
   assert.ok(inspectBtnText.includes('Ganzes Bild & Fotos prüfen'), 'Inspect button has clean text: Ganzes Bild & Fotos prüfen');
@@ -2235,7 +2233,7 @@ test('Real template: People workspace remains usable at 320, 390 and 1360 pixels
       await page.getByLabel('Gesamtfoto',{exact:true}).uncheck();
       assert.equal(await page.locator('#ch-people-grid img').first().evaluate(img=>new URL(img.src).searchParams.has('context')),false);
     }
-    await page.locator('[data-people-filter="filtered"]').click();
+    await page.evaluate(() => window.realTemplateController.setFilter('filtered'));
     await page.getByLabel('Gesamtfoto',{exact:true}).check();
     await page.locator('#ch-people-select-mode').click();
     await page.locator('#ch-people-grid button').first().click();
@@ -2253,16 +2251,15 @@ test('DOM: A failed merge suggestion stays visible as an error instead of being 
   const {root,elements,makeEl}=setupMockDOM();
   makeEl('ch-people-similar');makeEl('ch-people-similar-list');
   const controller=createPeopleController({root,dialogRoot:root,api:async endpoint=>{
-    if(endpoint.endsWith('/action'))throw Error('Merge failed');
+    if(endpoint==='subjects/bulk-action')throw Error('Merge failed');
     return {items:endpoint.includes('/similar?')?[{id:'other',photo_count:2}]:[]};
   }});
   await controller.openSubject({id:'person',photo_count:3});
   const merge=elements.get('ch-people-similar-list').children[0].querySelector('.ch-people-similar-actions').children[0];
-  const pending=merge.onclick();
-  elements.get('ch-people-action-ok').onclick();
-  await pending;
-  assert.equal(elements.get('ch-people-error').textContent,'Merge failed');
-  assert.equal(elements.get('ch-people-error').hidden,false);
+  await merge.onclick();
+  await elements.get('ch-people-merge-ok').onclick();
+  assert.equal(elements.get('ch-people-merge-error').textContent,'Merge failed');
+  assert.equal(elements.get('ch-people-merge-error').hidden,false);
   assert.equal(controller.getSelectedSubject().id,'person');
 });
 

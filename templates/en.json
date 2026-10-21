@@ -486,5 +486,22 @@
   "Die vorgeschlagene Person ({other}) wird dieser Person zugeordnet. Du kannst die verschobenen Fotos anschließend wieder abtrennen.": "The suggested person ({other}) will be assigned to this person. You can separate the moved photos again afterwards.",
   "Diese Person wird mit {target} zusammengelegt. Du kannst die verschobenen Fotos anschließend wieder abtrennen.": "This person will be merged with {target}. You can separate the moved photos again afterwards.",
   "Gesamtfoto": "Full photo",
-  "Ganzes Foto mit markiertem Gesicht statt Gesichtsausschnitt anzeigen": "Show the full photo with the face marked instead of a face crop"
+  "Ganzes Foto mit markiertem Gesicht statt Gesichtsausschnitt anzeigen": "Show the full photo with the face marked instead of a face crop",
+  "Ausgewählte Gruppen": "Selected groups",
+  "Weitere Zielperson suchen": "Find another target person",
+  "Mehrere Personen zusammenführen, verschieben oder ausblenden": "Merge, move or hide multiple people",
+  "Wähle, welche Person bestehen bleibt. Die anderen Gruppen werden ihr zugeordnet.": "Choose which person to keep. The other groups will be added to that person.",
+  "Wähle die Person, der die ausgewählten Fotos zugeordnet werden sollen.": "Choose the person to assign the selected photos to.",
+  "Bleibt bestehen": "Keep this person",
+  "Wird hinzugefügt": "Will be added",
+  "Tippe auf die Person, die bestehen bleiben soll.": "Tap the person you want to keep.",
+  "Jetzt zusammenführen": "Merge now",
+  "Name und Titelbild der Zielperson haben Vorrang. Fehlende Angaben werden aus den anderen Gruppen ergänzt. Die Zuordnung gilt für dein Konto in allen Galerien. Originalfotos bleiben erhalten.": "The target person’s name and cover take priority. Missing details are filled from the other groups. This applies to your account across all galleries. Original photos are preserved.",
+  "Nur die ausgewählten Fotos wechseln die Zuordnung.": "Only the selected photos will be reassigned.",
+  "Du kannst die hinzugefügten Fotos anschließend wieder abtrennen. Frühere Namen und Titelbilder werden dabei nicht wiederhergestellt.": "You can separate the added photos again afterwards. Previous names and covers will not be restored.",
+  "Richtung umkehren": "Reverse direction",
+  "Keine Personen in den geladenen Ergebnissen gefunden.": "No people found in the loaded results.",
+  "Die ausgewählten Gruppen wurden zusammengeführt. Du kannst die hinzugefügten Fotos wieder abtrennen.": "The selected groups have been merged. You can separate the added photos again.",
+  "Die Zielperson bleibt ausgeblendet.": "The target person stays hidden.",
+  "Die Zielperson bleibt unter „Unbekannte Personen“.": "The target person stays in “Unknown people”."
 }

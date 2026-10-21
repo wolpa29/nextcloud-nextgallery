@@ -46,7 +46,7 @@ $tr = static fn(string $text): string => $isGerman ? $text : ($english[$text] ??
       <button type="button" data-people-filter="filtered" class="ch-people-pill"><?php p($tr('Gefilterte Gesichter')); ?></button>
       <button type="button" data-people-filter="hidden" class="ch-people-pill" hidden><?php p($tr('Ausgeblendet')); ?></button>
      </div>
-     <select id="ch-people-filter" aria-label="<?php p($tr('Ansicht wählen')); ?>" hidden>
+     <select id="ch-people-filter" aria-label="<?php p($tr('Ansicht wählen')); ?>">
       <option value="all"><?php p($tr('Übersicht')); ?></option>
       <option value="suggested"><?php p($tr('Vorschläge')); ?></option>
       <option value="strangers"><?php p($tr('Unbekannte Personen')); ?></option>
@@ -97,14 +97,15 @@ $tr = static fn(string $text): string => $isGerman ? $text : ($english[$text] ??
    <div id="ch-people-list-container">
     <div class="ch-people-list-tools">
      <p id="ch-people-count" class="ch-people-count" role="status"></p>
-     <label class="ch-people-context-toggle" title="<?php p($tr('Ganzes Foto mit markiertem Gesicht statt Gesichtsausschnitt anzeigen')); ?>"><input type="checkbox" id="ch-people-context-previews"> <?php p($tr('Gesamtfoto')); ?></label>
-     <button type="button" id="ch-people-select-mode" class="ch-button ch-button-sm" aria-pressed="false" title="<?php p($tr('Mehrere Personen auswählen und gemeinsam verschieben oder ausblenden')); ?>"><?php p($tr('Auswählen')); ?></button>
+     <label class="ch-people-context-toggle" title="<?php p($tr('Ganzes Foto mit markiertem Gesicht statt Gesichtsausschnitt anzeigen')); ?>"><input type="checkbox" id="ch-people-context-previews" autocomplete="off"> <?php p($tr('Gesamtfoto')); ?></label>
+     <button type="button" id="ch-people-select-mode" class="ch-button" aria-pressed="false" title="<?php p($tr('Mehrere Personen zusammenführen, verschieben oder ausblenden')); ?>"><?php p($tr('Auswählen')); ?></button>
     </div>
     <div id="ch-people-bulk-bar" class="ch-selection-bar" hidden>
      <span id="ch-people-bulk-count"></span>
      <div class="ch-selection-actions">
+      <button type="button" id="ch-people-bulk-merge" class="ch-button ch-primary" disabled><?php p($tr('Zusammenführen')); ?></button>
       <button type="button" id="ch-people-bulk-all" class="ch-button"><?php p($tr('Alle geladenen auswählen')); ?></button>
-      <button type="button" id="ch-people-bulk-stranger" class="ch-button ch-primary" disabled><?php p($tr('Kenne ich nicht')); ?></button>
+      <button type="button" id="ch-people-bulk-stranger" class="ch-button" disabled><?php p($tr('Kenne ich nicht')); ?></button>
       <button type="button" id="ch-people-bulk-unstranger" class="ch-button ch-primary" hidden disabled><?php p($tr('Als bekannt markieren')); ?></button>
       <button type="button" id="ch-people-bulk-hide" class="ch-button" disabled><?php p($tr('Ausblenden')); ?></button>
       <button type="button" id="ch-people-bulk-show" class="ch-button ch-primary" hidden disabled><?php p($tr('Einblenden')); ?></button>
@@ -212,12 +213,17 @@ $tr = static fn(string $text): string => $isGerman ? $text : ($english[$text] ??
   </dialog>
   <dialog id="ch-people-merge-dialog" aria-labelledby="ch-people-merge-title">
    <form method="dialog" class="ch-dialog-head"><h2 id="ch-people-merge-title"><?php p($tr('Person zusammenführen')); ?></h2><button aria-label="<?php p($tr('Schließen')); ?>" class="ch-dialog-close"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></form>
-   <p id="ch-people-merge-subtitle"><?php p($tr('Wähle die Person aus, mit der diese zusammengelegt werden soll. Über „Fotos & Kontext“ kannst du dir das ganze Bild mit markiertem Gesicht und alle Fotos einer Person ansehen.')); ?></p>
+   <p id="ch-people-merge-subtitle"><?php p($tr('Wähle, welche Person bestehen bleibt. Die anderen Gruppen werden ihr zugeordnet.')); ?></p>
+   <div id="ch-people-merge-picked" class="ch-people-merge-list ch-people-merge-picked" role="group" aria-label="<?php p($tr('Ausgewählte Gruppen')); ?>"></div>
+   <details id="ch-people-merge-browse" open>
+   <summary><?php p($tr('Weitere Zielperson suchen')); ?></summary>
    <div class="ch-merge-toolbar">
-    <div class="ch-segmented" role="radiogroup" aria-label="<?php p($tr('Filter')); ?>">
-     <button type="button" class="ch-seg-btn active" data-merge-filter="all"><?php p($tr('Alle')); ?></button>
+    <div class="ch-people-merge-filters" role="group" aria-label="<?php p($tr('Filter')); ?>">
+     <button type="button" class="ch-seg-btn active" data-merge-filter="all"><?php p($tr('Übersicht')); ?></button>
      <button type="button" class="ch-seg-btn" data-merge-filter="single"><?php p($tr('Seltene Personen')); ?></button>
      <button type="button" class="ch-seg-btn" data-merge-filter="strangers"><?php p($tr('Unbekannte Personen')); ?></button>
+     <button type="button" class="ch-seg-btn" data-merge-filter="filtered"><?php p($tr('Gefilterte Gesichter')); ?></button>
+     <button type="button" class="ch-seg-btn" data-merge-filter="hidden"><?php p($tr('Ausgeblendet')); ?></button>
     </div>
     <input type="search" id="ch-people-merge-search" placeholder="<?php p($tr('Nach Name oder Fotoanzahl suchen …')); ?>" aria-label="<?php p($tr('Personen suchen')); ?>">
    </div>
@@ -225,7 +231,9 @@ $tr = static fn(string $text): string => $isGerman ? $text : ($english[$text] ??
    <div id="ch-people-merge-more-wrap" class="ch-panel-actions" hidden>
     <button type="button" id="ch-people-merge-more" class="ch-button"><?php p($tr('Weitere laden')); ?></button>
    </div>
+   </details>
    <div id="ch-people-merge-selection-preview" class="ch-people-merge-selection-preview"></div>
+   <p id="ch-people-merge-error" class="ch-error-banner" role="alert" hidden></p>
    <div class="ch-confirm-actions">
     <button type="button" id="ch-people-merge-cancel"><?php p($tr('Abbrechen')); ?></button>
     <button type="button" id="ch-people-merge-ok" class="ch-primary" disabled><?php p($tr('Zusammenführen')); ?></button>

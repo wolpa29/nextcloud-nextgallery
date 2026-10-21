@@ -467,3 +467,55 @@
 #nextgallery .ch-people-similar-actions .ch-people-inspect-btn{grid-column:1/-1;grid-row:1}
 #nextgallery .ch-people-similar-actions button{white-space:normal;font-size:12px;padding:6px 8px}
 @media(max-width:700px){#nextgallery .ch-people-similar-list{grid-template-columns:1fr}#nextgallery .ch-people-similar-actions{grid-template-columns:1fr 1fr 1fr}#nextgallery .ch-people-similar-actions .ch-people-inspect-btn{grid-column:auto;grid-row:auto;order:-1}}
+
+/* People: explicit target selection and touch-friendly correction controls. */
+#nextgallery .ch-people-context-toggle{display:inline-flex;align-items:center;gap:6px;min-height:44px;box-sizing:border-box;margin:0;padding:0 8px;font-weight:500;border:1px solid var(--ng-line);border-radius:12px;background:var(--ng-surface)}
+#nextgallery #ch-people-context-previews{appearance:auto!important;-webkit-appearance:checkbox!important;position:static;opacity:1;clip-path:none;width:18px;height:18px;margin:0 4px 0 0;accent-color:var(--ng-accent);flex:none}
+#nextgallery .ch-people-list-tools>p{margin-right:auto}
+#nextgallery #ch-people-select-mode{min-height:44px}
+#nextgallery #ch-people-bulk-bar{padding:12px;gap:10px}
+#nextgallery #ch-people-bulk-count{width:100%}
+#nextgallery #ch-people-bulk-bar .ch-selection-actions{display:flex;flex-wrap:wrap;gap:8px}
+#nextgallery #ch-people-merge-dialog{padding:20px 24px;scroll-padding-bottom:86px}
+#nextgallery #ch-people-merge-dialog .ch-dialog-head{padding:0 0 14px;margin:0 0 12px}
+#nextgallery #ch-people-merge-dialog .ch-dialog-head h2{margin:0;font-size:20px}
+#nextgallery #ch-people-merge-dialog>p{font-size:14px;line-height:1.5}
+#nextgallery #ch-people-merge-browse>summary{min-height:44px;cursor:pointer;align-content:center;font-size:14px;font-weight:600}
+#nextgallery .ch-people-merge-filters{display:flex;flex-wrap:wrap;gap:6px}
+#nextgallery .ch-people-merge-filters button{min-height:40px;padding:6px 10px;font-size:12px;white-space:normal}
+#nextgallery .ch-people-merge-filters button.active{background:var(--ng-selected);border-color:var(--ng-accent)}
+#nextgallery #ch-people-merge-targets{max-height:240px}
+#nextgallery .ch-people-merge-picked{grid-template-columns:repeat(auto-fill,minmax(110px,1fr));max-height:230px;margin:8px 0}
+#nextgallery .ch-people-merge-choice{min-width:0;gap:4px;justify-content:flex-start}
+#nextgallery .ch-people-merge-choice .ch-person-thumb-wrap{width:100%;aspect-ratio:1;max-width:96px;margin:0 auto 4px}
+#nextgallery .ch-people-merge-selected-badge{font-size:11px;white-space:normal}
+#nextgallery .ch-people-merge-compare-bar{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:10px;align-items:center}
+#nextgallery .ch-people-merge-sources{display:flex;flex-direction:column;gap:6px;max-height:180px;overflow:auto}
+#nextgallery .ch-people-merge-chip{border-radius:10px;padding:8px;min-width:0;overflow-wrap:anywhere;align-items:center}
+#nextgallery .ch-people-merge-chip img{flex:none}
+#nextgallery .ch-people-merge-selection-preview>.ch-hint{margin:10px 0 0;font-size:12.5px;line-height:1.5}
+#nextgallery .ch-people-merge-preview-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+#nextgallery .ch-people-merge-preview-actions button{min-height:44px;white-space:normal}
+#nextgallery #ch-people-merge-dialog>.ch-confirm-actions{position:sticky;bottom:-20px;z-index:2;background:var(--ng-surface);padding:14px 0 6px;border-top:1px solid var(--ng-line);margin-top:16px}
+#nextgallery #ch-people-merge-dialog>.ch-confirm-actions button{min-height:44px}
+@media(max-width:700px){
+ #nextgallery #ch-people-filter{display:block!important;min-width:0;width:100%}
+ #nextgallery .ch-people-filter-pills{display:none}
+ #nextgallery .ch-people-toolbar{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px}
+ #nextgallery .ch-people-toolbar .ch-filters{min-width:0}
+ #nextgallery .ch-people-toolbar-actions{gap:6px}
+ #nextgallery .ch-people-options summary{padding:8px;gap:4px}
+ #nextgallery .ch-people-list-tools{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
+ #nextgallery .ch-people-list-tools>p{grid-column:1/-1}
+ #nextgallery .ch-people-context-toggle{justify-self:start}
+ #nextgallery #ch-people-bulk-bar .ch-selection-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}
+ #nextgallery #ch-people-bulk-merge{grid-column:1/-1}
+ #nextgallery #ch-people-merge-dialog{width:calc(100vw - 16px);max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);padding:16px;border-radius:18px}
+ #nextgallery .ch-people-merge-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ #nextgallery .ch-people-merge-compare-bar{grid-template-columns:minmax(0,1fr)}
+ #nextgallery .ch-people-merge-arrow{text-align:center;transform:rotate(90deg)}
+ #nextgallery #ch-people-merge-dialog>.ch-confirm-actions{bottom:-16px;display:grid;grid-template-columns:minmax(0,1fr);padding:12px 0 4px}
+ #nextgallery #ch-people-merge-ok{grid-row:1}
+ #nextgallery #ch-people-merge-dialog>.ch-confirm-actions button{min-height:44px;white-space:normal;width:100%}
+ #nextgallery .ch-people-merge-preview-actions{display:grid;grid-template-columns:minmax(0,1fr)}
+}
