@@ -1,0 +1,20 @@
+{
+  "provenance": {
+    "dataset": "generated symbolic cases, no photographs",
+    "purpose": "demonstrate measurement of missed hits, absent motifs and mistaken identity merges",
+    "model": "none; fixed synthetic rankings and assignments",
+    "revision": 1
+  },
+  "queries": [
+    {"id": "all-bicycles-de", "relevant": ["bike-1", "bike-2", "bike-3"], "ranking": ["bike-1", "other", "bike-2", "bike-3"]},
+    {"id": "invoice-number", "relevant": ["invoice-1"], "ranking": ["invoice-1"]},
+    {"id": "missing-motif", "relevant": [], "ranking": ["unrelated"], "absent": true}
+  ],
+  "people": [
+    {"id": "face-a1", "identity": "a", "group": "one"},
+    {"id": "face-a2", "identity": "a", "group": "one"},
+    {"id": "face-a3", "identity": "a", "group": "two"},
+    {"id": "face-b1", "identity": "b", "group": "one"},
+    {"id": "face-b2", "identity": "b", "group": null}
+  ]
+}
