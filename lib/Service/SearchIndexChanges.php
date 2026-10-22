@@ -42,8 +42,33 @@ class SearchIndexChanges {
   $dir=$this->directory($uid).'/dirty';
   foreach($pending as $id=>$value){$p=$dir.'/'.$id;if(is_file($p)&&!is_link($p)&&file_get_contents($p)===$value)unlink($p);}
  }
+ public function requestBuild(string $uid):void {
+  $this->mark(function()use($uid){
+   $requests=$this->directory().'/requests';if(is_link($requests))throw new \RuntimeException('Unsafe search requests');
+   if(!is_dir($requests)&&!mkdir($requests,0700)&&!is_dir($requests))throw new \RuntimeException('Search requests unavailable');
+   $file=$requests.'/'.hash('sha256',$uid);
+   if(is_link($file))throw new \RuntimeException('Unsafe search request');
+   if(is_file($file)&&file_get_contents($file)===$uid)return;
+   $this->write($file,$uid);
+  });
+ }
+ public function clearBuildRequest(string $uid):void {
+  $requests=$this->directory().'/requests';$file=$requests.'/'.hash('sha256',$uid);
+  if(is_file($file)&&!is_link($file))@unlink($file);
+ }
+ public function requestedBuilds():array {
+  $requests=$this->directory().'/requests';if(!is_dir($requests)||is_link($requests))return [];
+  $uids=[];
+  foreach(glob($requests.'/*')?:[] as $p){
+   if(is_link($p)||!preg_match('/^[a-f0-9]{64}$/D',basename($p)))continue;
+   $uid=(string)@file_get_contents($p);
+   if($uid!==''&&hash('sha256',$uid)===basename($p))$uids[]=$uid;
+  }
+  return array_values(array_unique($uids));
+ }
  /** Delete only this account's derived index and short-lived search sessions. */
  public function forget(string $uid):void {
+  $this->clearBuildRequest($uid);
   $root=rtrim($this->config->getSystemValueString('datadirectory'),'/').'/.nextgallery_search';$dir=$root.'/'.hash('sha256',$uid);
   if(!is_dir($dir))return;
   if(is_link($root)||is_link($dir)||is_link($dir.'/index.lock'))throw new \RuntimeException('Unsafe search directory');

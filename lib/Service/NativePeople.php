@@ -104,7 +104,7 @@ class NativePeople {
         $q = $this->db->getQueryBuilder();
         $q->select('d.id', 'd.group_id', 'd.file_id', 'd.bbox_x', 'd.bbox_y', 'd.bbox_w', 'd.bbox_h',
                    'd.score', 'd.review', 'd.manual', 'd.sharpness', 'ff.etag AS face_etag', 'm.sort_key', 'm.path_text', 'm.kind', 'm.period')
-          ->from('nextgallery_faces_detections', 'd')
+          ->from('nextgallery_face_detections', 'd')
           ->innerJoin('d', 'nextgallery_faces_files', 'ff', 'ff.user_id = d.user_id AND ff.file_id = d.file_id')
           ->innerJoin('d', 'nextgallery_media', 'm', 'm.user_id = d.user_id AND m.file_id = d.file_id AND m.etag = ff.etag')
           ->where($q->expr()->eq('d.user_id', $q->createNamedParameter($uid)));

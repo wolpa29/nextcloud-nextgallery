@@ -26,6 +26,7 @@ try{
  $positive=array_merge([1.],array_fill(0,127,0.));$negative=array_merge([-1.],array_fill(0,127,0.));
  $vectors->publish($uid,$files[0]->getId(),$files[0]->getEtag(),$space,[['frame'=>0,'seconds'=>0,'values'=>$negative],['frame'=>1,'seconds'=>5,'values'=>$positive]]);
  $vectors->publish($uid,$files[1]->getId(),'old-etag',$space,[['frame'=>0,'seconds'=>0,'values'=>$positive]]);
+ Server::get(\OCA\Nextgallery\Service\SearchIndex::class)->ensure($uid);
  $calls=$client->calls;
  foreach(['Segelboot'=>['description'],'Urlaub'=>['tags'],'Boot'=>['description','objects'],'ZX314'=>['ocr'],'native-000'=>['name','path'],'NativeOnly'=>['path']] as $query=>$expectedSources){
   $r=$service->search($uid,$query,['/NativeOnly'],'',0,60,'text');
@@ -56,6 +57,7 @@ try{
  nativeCheck(count($r['items'])===60&&$r['more']&&count($second['items'])===5&&!$second['more'],'Mobile pagination incomplete');
  nativeCheck(count(array_unique(array_merge(array_column($r['items'],'id'),array_column($second['items'],'id'))))===65,'Mobile pagination duplicated a result');
  foreach(array_slice($files,5,5) as $large)$metadata->upsert($uid,Metadata::validate($large->getId(),$large->getEtag(),str_repeat('c',64),str_repeat('d',64),['vision'=>['type'=>'foto','description'=>'longpayload','tags'=>[],'objects'=>[],'uncertain_details'=>[]],'ocr'=>['text'=>str_repeat('x',480000)]],[]));
+ Server::get(\OCA\Nextgallery\Service\SearchIndex::class)->ensure($uid);
  $r=$service->search($uid,'longpayload',['/NativeOnly'],'',0,60,'text');$second=$service->search($uid,'longpayload',['/NativeOnly'],'',$r['next'],60,'text');
  nativeCheck(count($r['items'])>0&&count($r['items'])<5&&$r['more'],'Large OCR records were not split into bounded pages');
  nativeCheck(count(array_unique(array_merge(array_column($r['items'],'id'),array_column($second['items'],'id'))))===5&&!$second['more'],'Payload pagination lost or duplicated OCR records');

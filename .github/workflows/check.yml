@@ -1,11 +1,15 @@
 name: Verify unified NextGallery
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  workflow_call:
 permissions:
   contents: read
 jobs:
   check:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         php: ['8.3', '8.5']
     steps:
@@ -15,14 +19,36 @@ jobs:
         with: {node-version: '24', cache: npm}
       - uses: shivammathur/setup-php@v2
         with: {php-version: '${{ matrix.php }}', extensions: mbstring,pdo_sqlite}
-      - run: npm ci --ignore-scripts && npm run build && npm test
+      - run: npm ci --ignore-scripts && npm run build
+      - run: node --test tests/layout.test.mjs tests/search.test.mjs tests/viewer.test.mjs
       - run: git diff --exit-code -- js templates/en.json css/main.css
       - run: find lib templates appinfo tests pipeline/tests -name '*.php' -print0 | xargs -0 -n1 php -l
       - run: php tests/dates.php && php -d zend.assertions=1 -d assert.exception=1 tests/ai-migration.php
+      - run: php tests/capabilities-contract.php
       - run: for file in pipeline/tests/php_*.php; do php "$file"; done
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '24', cache: npm}
+      - uses: shivammathur/setup-php@v2
+        with: {php-version: '8.3'}
+      - run: npm ci --ignore-scripts
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - run: node scripts/required-browser-tests.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-synthetic-screenshots
+          path: |
+            artifacts/people-merge-ux/
+            artifacts/integration-overhaul-ui/
   python:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python: ['3.10', '3.13']
     steps:
@@ -40,8 +66,9 @@ jobs:
   integration:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        case: [upgrade32, rename32, fresh35]
+        case: [upgrade32, rename32, fresh35, people34, people35]
     steps:
       - uses: actions/checkout@v4
         with: {fetch-depth: 0}

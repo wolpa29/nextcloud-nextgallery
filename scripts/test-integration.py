@@ -1,12 +1,29 @@
 #!/usr/bin/env python3
 """Disposable Nextcloud migration smoke test. Synthetic files only, no host Nextcloud access."""
-import argparse, json, os, shutil, subprocess, time, urllib.request, urllib.error, base64
+import argparse, json, os, shutil, subprocess, sys, time, urllib.request, urllib.error, base64
 from pathlib import Path
 root=Path(__file__).resolve().parents[1]
-p=argparse.ArgumentParser();p.add_argument('--case',choices=['upgrade32','rename32','fresh35'],required=True);p.add_argument('--keep',action='store_true');a=p.parse_args()
-case=a.case;name='nextgallery-merge-'+case;port={'upgrade32':8781,'rename32':8783,'fresh35':8782}[case]
-out=root/'artifacts/integration'/case;out.mkdir(parents=True,exist_ok=True);(out/'ISOLATED_SYNTHETIC_TEST').touch();os.chmod(out,0o777)
+p=argparse.ArgumentParser()
+p.add_argument('--case',choices=['upgrade32','rename32','fresh35','people34','people35'],required=True)
+p.add_argument('--keep',action='store_true')
+a=p.parse_args()
+case=a.case
+prefix=os.environ.get('NEXTGALLERY_CONTAINER_PREFIX', 'nextgallery-ci-')
+name=prefix+case
+port_defaults={'upgrade32':8791,'rename32':8793,'fresh35':8792,'people34':8794,'people35':8795}
+port=int(os.environ.get('NEXTGALLERY_PORT', port_defaults.get(case, 8796)))
+out=Path(os.environ.get('NEXTGALLERY_ARTIFACT_ROOT',str(root/'artifacts/integration')))/case;out.mkdir(parents=True,exist_ok=True);(out/'ISOLATED_SYNTHETIC_TEST').touch();os.chmod(out,0o777)
+(out/'result.json').unlink(missing_ok=True)
 runtime=out/'runtime';runtime.mkdir(exist_ok=True)
+os.environ.update(NEXTGALLERY_TEST_CONTAINER=name,NEXTGALLERY_TEST_PORT=str(port),NEXTGALLERY_TEST_OUTPUT=str(out))
+if case.startswith('people'):
+    nc_ver = case.replace('people', '')
+    cmd = [sys.executable, str(root / 'scripts/test-people-contracts.py'), '--nc-version', nc_ver, '--port', str(port), '--prefix', prefix + 'people']
+    if a.keep: cmd.append('--keep')
+    subprocess.run(cmd, check=True)
+    src_res = root / f'artifacts/people-ci-{nc_ver}/result.json'
+    if src_res.is_file(): shutil.copy(src_res, out / 'result.json')
+    sys.exit(0)
 def run(*args,check=True):
  result=subprocess.run(args,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
  if check and result.returncode:
@@ -98,6 +115,7 @@ try:
  print(docker('exec','-u','www-data',name,'php','/test-scripts/embedding-contract.php'),flush=True)
  print(docker('exec','-u','www-data',name,'php','/test-scripts/native-search-contract.php'),flush=True)
  print(docker('exec','-u','www-data',name,'php','-d','memory_limit=512M','/test-scripts/sql-search-contract.php'),flush=True)
+ print(docker('exec','-u','www-data',name,'php','/test-scripts/integration.php','refresh-search'),flush=True)
  native='/ocs/v2.php/apps/nextgallery/api/v1/search?format=json'
  status,body=request(native,{'query':'native','roots':['/NativeOnly'],'phase':'text','limit':60});assert status==200,(status,body[-1000:]);page=json.loads(body)['ocs']['data'];assert len(page['items'])==60 and page['more'];http.append('native-search-independent-folders')
  status,body=request(native,{'query':'native','roots':['/NativeOnly'],'phase':'text','offset':page['next']});assert status==200 and len(json.loads(body)['ocs']['data']['items'])==5,(status,body[-1000:]);http.append('native-search-pagination')

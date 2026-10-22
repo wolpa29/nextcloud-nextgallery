@@ -26,7 +26,7 @@ class Version000420Date20261020010000 extends SimpleMigrationStep {
             $t->addColumn('generation', 'integer', ['notnull' => true, 'default' => 0]);
             $t->addColumn('rules_revision', 'integer', ['notnull' => true, 'default' => 0]);
             $t->addColumn('updated_at', 'bigint', ['notnull' => true]);
-            $t->setPrimaryKey(['user_id']);
+            $t->setPrimaryKey(['user_id'], 'ng_faces_acc_pk');
             $changed = true;
         }
 
@@ -38,7 +38,7 @@ class Version000420Date20261020010000 extends SimpleMigrationStep {
             $t->addColumn('etag', 'string', ['length' => 255, 'notnull' => true]);
             $t->addColumn('face_count', 'integer', ['notnull' => true, 'default' => 0]);
             $t->addColumn('updated_at', 'bigint', ['notnull' => true]);
-            $t->setPrimaryKey(['id']);
+            $t->setPrimaryKey(['id'], 'ng_faces_files_pk');
             $t->addUniqueIndex(['user_id', 'file_id'], 'ng_faces_files_user_file');
             $t->addIndex(['user_id'], 'ng_faces_files_user');
             $t->addIndex(['file_id', 'etag'], 'ng_faces_files_file_etag');
@@ -52,13 +52,13 @@ class Version000420Date20261020010000 extends SimpleMigrationStep {
             $t->addColumn('hidden', 'smallint', ['notnull' => true, 'default' => 0]);
             $t->addColumn('created_at', 'bigint', ['notnull' => true]);
             $t->addColumn('updated_at', 'bigint', ['notnull' => true]);
-            $t->setPrimaryKey(['user_id', 'id']);
+            $t->setPrimaryKey(['user_id', 'id'], 'ng_faces_groups_pk');
             $t->addIndex(['user_id', 'hidden'], 'ng_faces_groups_user_hidden');
             $changed = true;
         }
 
-        if (!$schema->hasTable('nextgallery_faces_detections')) {
-            $t = $schema->createTable('nextgallery_faces_detections');
+        if (!$schema->hasTable('nextgallery_face_detections') && !$schema->hasTable('nextgallery_faces_detections')) {
+            $t = $schema->createTable('nextgallery_face_detections');
             $t->addColumn('user_id', 'string', ['length' => 64, 'notnull' => true]);
             $t->addColumn('id', 'string', ['length' => 32, 'notnull' => true]);
             $t->addColumn('file_id', 'bigint', ['notnull' => true, 'unsigned' => true]);
@@ -75,22 +75,22 @@ class Version000420Date20261020010000 extends SimpleMigrationStep {
             $t->addColumn('manual', 'smallint', ['notnull' => true, 'default' => 0]);
             $t->addColumn('created_at', 'bigint', ['notnull' => true]);
             $t->addColumn('updated_at', 'bigint', ['notnull' => true]);
-            $t->setPrimaryKey(['user_id', 'id']);
+            $t->setPrimaryKey(['user_id', 'id'], 'ng_faces_det_pk');
             $t->addIndex(['user_id', 'group_id'], 'ng_faces_det_user_group');
             $t->addIndex(['user_id', 'file_id'], 'ng_faces_det_user_file');
             $t->addIndex(['file_id', 'etag'], 'ng_faces_det_file_etag');
             $changed = true;
         }
 
-        if (!$schema->hasTable('nextgallery_faces_constraints')) {
-            $t = $schema->createTable('nextgallery_faces_constraints');
+        if (!$schema->hasTable('nextgallery_face_rules') && !$schema->hasTable('nextgallery_faces_constraints')) {
+            $t = $schema->createTable('nextgallery_face_rules');
             $t->addColumn('id', 'bigint', ['autoincrement' => true, 'notnull' => true, 'unsigned' => true]);
             $t->addColumn('user_id', 'string', ['length' => 64, 'notnull' => true]);
             $t->addColumn('kind', 'string', ['length' => 32, 'notnull' => true]);
             $t->addColumn('detection_id', 'string', ['length' => 32, 'notnull' => true]);
             $t->addColumn('group_id', 'string', ['length' => 32, 'notnull' => true]);
             $t->addColumn('created_at', 'bigint', ['notnull' => true]);
-            $t->setPrimaryKey(['id']);
+            $t->setPrimaryKey(['id'], 'ng_faces_const_pk');
             $t->addUniqueIndex(['user_id', 'detection_id', 'group_id'], 'ng_faces_const_unique');
             $t->addIndex(['user_id', 'detection_id'], 'ng_faces_const_user_det');
             $changed = true;

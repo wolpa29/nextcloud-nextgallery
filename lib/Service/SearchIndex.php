@@ -9,6 +9,7 @@ use Symfony\Component\Process\Process;
 /** Per-account SQLite index. Original metadata/vectors remain in the canonical database. */
 class SearchIndex {
  public function __construct(private IConfig $config,private IDBConnection $db,private IRootFolder $root,private IFilesMetadataManager $metadata,private SearchIndexChanges $changes) {}
+ public function changes(): SearchIndexChanges { return $this->changes; }
  private function python():string {
   $configured=$this->config->getSystemValueString('nextgallery_search_python','');
   $candidates=$configured!==''?[$configured]:['/opt/nextgallery-ai-venv/bin/python','/usr/bin/python3'];
@@ -81,7 +82,7 @@ class SearchIndex {
    $full=!is_file($database)||($state['schema']??0)!==1||($state['catalog_revision']??'')!==$revision||($refreshCatalog&&time()-($state['catalog_at']??0)>300);
    // A changed aggregate without recorded IDs means an out-of-band write or restore.
    if(!$full&&($state['fingerprint']??'')!==$fingerprint&&!$pending)$full=true;
-   if(!$full&&!$pending)return $database;
+   if(!$full&&!$pending){$this->changes->clearBuildRequest($uid);return $database;}
    $tmp=$full?$dir.'/build-'.bin2hex(random_bytes(8)).'.sqlite3':$database;
    if(!$full){$publication=fopen($dir.'/index.lock','c');if(!$publication||!flock($publication,LOCK_EX))throw new \RuntimeException('Search index unavailable');chmod($dir.'/index.lock',0600);}
    [$input,$inputPath]=$this->input($this->records($uid,$full?null:array_keys($pending)),$dir);
@@ -91,15 +92,51 @@ class SearchIndex {
    $this->changes->acknowledge($uid,$pending);
    $next=['uid'=>$uid,'schema'=>1,'catalog_revision'=>$revision,'catalog_at'=>$full?time():($state['catalog_at']??time()),'updated_at'=>time(),'fingerprint'=>$fingerprint];
    $temp=$manifest.'.'.bin2hex(random_bytes(8));if(file_put_contents($temp,json_encode($next,JSON_THROW_ON_ERROR),LOCK_EX)===false)throw new \RuntimeException('Search state unavailable');chmod($temp,0600);if(!rename($temp,$manifest)){@unlink($temp);throw new \RuntimeException('Search state unavailable');}
+   $this->changes->clearBuildRequest($uid);
+   // A write during construction must retain a durable follow-up job.
+   if($this->changes->revision($uid)!==$revision||$this->changes->pending($uid))$this->changes->requestBuild($uid);
    return $database;
   }finally{if(isset($input)&&is_resource($input))fclose($input);if(isset($inputPath))@unlink($inputPath);if(isset($tmp)&&($full??false))foreach([$tmp,$tmp.'-wal',$tmp.'-shm'] as $part)if(is_file($part)&&!is_link($part))@unlink($part);if(is_resource($publication)){flock($publication,LOCK_UN);fclose($publication);}flock($lock,LOCK_UN);fclose($lock);}
  }
  public function query(string $uid,array $request):array {
   $dir=$this->changes->directory($uid);$database=$dir.'/index.sqlite3';$state='ready';
   foreach([$database,$database.'.sessions',$dir.'/build.lock',$dir.'/index.lock'] as $path)if(is_link($path))throw new \RuntimeException('Unsafe search index');
+
+  if (!is_file($database)) {
+   // Honest preparing state for cold index: do not block HTTP request with heavy process import!
+   // Request background build via durable coalescing marker without mutating account revision.
+   $this->changes->requestBuild($uid);
+   return [
+    'items' => [],
+    'next' => null,
+    'more' => false,
+    'total' => 0,
+    'mode' => 'lexical',
+    'embedding_state' => $request['embedding_enabled'] ? 'not_indexed' : 'disabled',
+    'search_backend' => 'sqlite',
+    'index_state' => 'preparing'
+   ];
+  }
+
   $building=fopen($dir.'/build.lock','c');if(!$building)throw new \RuntimeException('Search index unavailable');
-  // Periodic catalog sweeps belong to cron; a normal query must not wait for a full sweep.
-  try{if(!flock($building,LOCK_SH|LOCK_NB)&&is_file($database))$state='updating';else{flock($building,LOCK_UN);$database=$this->ensure($uid,false);}}finally{fclose($building);}
+  try{
+   if(!flock($building,LOCK_SH|LOCK_NB)){
+    $state='updating';
+   }else{
+    flock($building,LOCK_UN);
+    // Existing index present: continue serving from existing database while requesting background repair
+    $manifest=$dir.'/manifest.json';
+    $mState=is_file($manifest)?json_decode((string)file_get_contents($manifest),true):[];
+    $rev=$this->changes->revision($uid);
+    $pending=$this->changes->pending($uid);
+    $needsRebuild=($mState['schema']??0)!==1||($mState['catalog_revision']??'')!==$rev||!empty($pending)||time()-(int)($mState['catalog_at']??0)>300;
+    if($needsRebuild){
+     $state='updating';
+     $this->changes->requestBuild($uid);
+    }
+   }
+  }finally{fclose($building);}
+
   $lock=fopen($dir.'/index.lock','c');
   if(!$lock)throw new \RuntimeException('Search index unavailable');
   $until=microtime(true)+10;while(!flock($lock,LOCK_SH|LOCK_NB)){if(microtime(true)>$until){fclose($lock);throw new \RuntimeException('Search index is being updated');}usleep(100000);}

@@ -267,7 +267,7 @@ class Faces {
         $q = $this->db->getQueryBuilder();
         $q->select('d.id', 'd.file_id', 'd.etag', 'd.bbox_x', 'd.bbox_y', 'd.bbox_w', 'd.bbox_h',
                    'd.score', 'd.sharpness', 'd.manual', 'd.group_id', 'd.model_space', 'd.vector_data', 'd.review')
-          ->from('nextgallery_faces_detections', 'd')
+          ->from('nextgallery_face_detections', 'd')
           ->innerJoin('d', 'nextgallery_faces_files', 'f', 'f.user_id = d.user_id AND f.file_id = d.file_id AND f.etag = d.etag')
           ->where($q->expr()->eq('d.user_id', $q->createNamedParameter($uid)))
           ->andWhere($q->expr()->eq('d.model_space', $q->createNamedParameter(self::MODEL_SPACE)))
@@ -362,7 +362,7 @@ class Faces {
 
         $q = $this->db->getQueryBuilder();
         $q->select('id', 'bbox_x', 'bbox_y', 'bbox_w', 'bbox_h', 'score', 'group_id', 'review', 'manual')
-          ->from('nextgallery_faces_detections')
+          ->from('nextgallery_face_detections')
           ->where($q->expr()->eq('user_id', $q->createNamedParameter($uid)))
           ->andWhere($q->expr()->eq('file_id', $q->createNamedParameter($fileId)))
           ->andWhere($q->expr()->eq('etag', $q->createNamedParameter($currentEtag)));
@@ -388,7 +388,7 @@ class Faces {
     private function getCannotLinkMap(string $uid): array {
         $q = $this->db->getQueryBuilder();
         $q->select('detection_id', 'group_id')
-          ->from('nextgallery_faces_constraints')
+          ->from('nextgallery_face_rules')
           ->where($q->expr()->eq('user_id', $q->createNamedParameter($uid)))
           ->andWhere($q->expr()->eq('kind', $q->createNamedParameter('cannot_link')));
         $r = $q->executeQuery();
@@ -662,13 +662,13 @@ class Faces {
 
                 // Replace file detections
                 $this->db->executeStatement(
-                    'DELETE FROM *PREFIX*nextgallery_faces_detections WHERE user_id = ? AND file_id = ?',
+                    'DELETE FROM *PREFIX*nextgallery_face_detections WHERE user_id = ? AND file_id = ?',
                     [$uid, $fileId]
                 );
 
                 foreach ($canonical as $c) {
                     $this->db->executeStatement(
-                        'INSERT INTO *PREFIX*nextgallery_faces_detections (user_id, id, file_id, etag, bbox_x, bbox_y, bbox_w, bbox_h, score, group_id, model_space, vector_data, review, manual, created_at, updated_at, sharpness) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                        'INSERT INTO *PREFIX*nextgallery_face_detections (user_id, id, file_id, etag, bbox_x, bbox_y, bbox_w, bbox_h, score, group_id, model_space, vector_data, review, manual, created_at, updated_at, sharpness) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                         [
                             $uid, $c['id'], $fileId, $etag, $c['bbox_x'], $c['bbox_y'], $c['bbox_w'], $c['bbox_h'],
                             $c['score'], $c['group_id'], $c['model_space'], $c['vector_data'], $c['review'], $c['manual'],
@@ -778,11 +778,11 @@ class Faces {
                     'UPDATE *PREFIX*nextgallery_faces_account SET generation = ?, updated_at = ? WHERE user_id = ?',
                     [$newGeneration, $now, $uid]
                 );
-                $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_detections WHERE user_id = ?', [$uid]);
+                $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_face_detections WHERE user_id = ?', [$uid]);
                 $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_groups WHERE user_id = ?', [$uid]);
                 $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_files WHERE user_id = ?', [$uid]);
-                $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_constraints WHERE user_id = ?', [$uid]);
-                $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_suggestions WHERE user_id = ?', [$uid]);
+                $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_face_rules WHERE user_id = ?', [$uid]);
+                $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_face_suggest WHERE user_id = ?', [$uid]);
                 $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_dismissed WHERE user_id = ?', [$uid]);
                 $faceArtifacts = $this->faceArtifacts;
                 $faceArtifacts?->forget($uid);
@@ -811,21 +811,21 @@ class Faces {
                 foreach (array_chunk($ids, 500) as $chunk) {
                     $marks = implode(',', array_fill(0, count($chunk), '?'));
                     $params = array_merge([$uid], $chunk);
-                    $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_detections WHERE user_id = ? AND file_id IN ('.$marks.')', $params);
+                    $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_face_detections WHERE user_id = ? AND file_id IN ('.$marks.')', $params);
                     $affected += (int)$this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_files WHERE user_id = ? AND file_id IN ('.$marks.')', $params);
                 }
                 $this->db->executeStatement(
-                    'DELETE FROM *PREFIX*nextgallery_faces_groups WHERE user_id = ? AND id NOT IN (SELECT DISTINCT group_id FROM *PREFIX*nextgallery_faces_detections WHERE user_id = ?)',
+                    'DELETE FROM *PREFIX*nextgallery_faces_groups WHERE user_id = ? AND id NOT IN (SELECT DISTINCT group_id FROM *PREFIX*nextgallery_face_detections WHERE user_id = ?)',
                     [$uid, $uid]
                 );
                 $this->db->executeStatement(
-                    'DELETE FROM *PREFIX*nextgallery_faces_constraints WHERE user_id = ? AND (
-                        detection_id NOT IN (SELECT id FROM *PREFIX*nextgallery_faces_detections WHERE user_id = ?)
+                    'DELETE FROM *PREFIX*nextgallery_face_rules WHERE user_id = ? AND (
+                        detection_id NOT IN (SELECT id FROM *PREFIX*nextgallery_face_detections WHERE user_id = ?)
                         OR group_id NOT IN (SELECT id FROM *PREFIX*nextgallery_faces_groups WHERE user_id = ?)
                     )',
                     [$uid, $uid, $uid]
                 );
-                foreach (['nextgallery_faces_suggestions', 'nextgallery_faces_dismissed'] as $table) {
+                foreach (['nextgallery_face_suggest', 'nextgallery_faces_dismissed'] as $table) {
                     $this->db->executeStatement(
                         'DELETE FROM *PREFIX*' . $table . ' WHERE user_id = ? AND (
                             group_a NOT IN (SELECT id FROM *PREFIX*nextgallery_faces_groups WHERE user_id = ?)
@@ -860,11 +860,11 @@ class Faces {
         try {
             $this->db->beginTransaction();
             try {
-                $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_detections WHERE user_id = ?', [$uid]);
+                $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_face_detections WHERE user_id = ?', [$uid]);
                 $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_groups WHERE user_id = ?', [$uid]);
                 $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_files WHERE user_id = ?', [$uid]);
-                $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_constraints WHERE user_id = ?', [$uid]);
-                $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_suggestions WHERE user_id = ?', [$uid]);
+                $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_face_rules WHERE user_id = ?', [$uid]);
+                $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_face_suggest WHERE user_id = ?', [$uid]);
                 $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_dismissed WHERE user_id = ?', [$uid]);
                 $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_account WHERE user_id = ?', [$uid]);
                 $this->faceArtifacts?->forget($uid);
@@ -887,7 +887,7 @@ class Faces {
             try {
                 // Prune files and detections with changed ETag in filecache (stale images)
                 $this->db->executeStatement(
-                    'DELETE FROM *PREFIX*nextgallery_faces_detections WHERE user_id = ? AND file_id IN (
+                    'DELETE FROM *PREFIX*nextgallery_face_detections WHERE user_id = ? AND file_id IN (
                         SELECT f.file_id FROM *PREFIX*nextgallery_faces_files f
                         INNER JOIN *PREFIX*filecache fc ON fc.fileid = f.file_id
                         WHERE f.user_id = ? AND fc.etag != f.etag
@@ -904,7 +904,7 @@ class Faces {
 
                 // Prune detections and files missing from filecache or revoked from nextgallery_media
                 $this->db->executeStatement(
-                    'DELETE FROM *PREFIX*nextgallery_faces_detections WHERE user_id = ? AND file_id NOT IN (SELECT fileid FROM *PREFIX*filecache)',
+                    'DELETE FROM *PREFIX*nextgallery_face_detections WHERE user_id = ? AND file_id NOT IN (SELECT fileid FROM *PREFIX*filecache)',
                     [$uid]
                 );
                 $this->db->executeStatement(
@@ -914,20 +914,20 @@ class Faces {
 
                 // Prune empty groups
                 $this->db->executeStatement(
-                    'DELETE FROM *PREFIX*nextgallery_faces_groups WHERE user_id = ? AND id NOT IN (SELECT DISTINCT group_id FROM *PREFIX*nextgallery_faces_detections WHERE user_id = ?)',
+                    'DELETE FROM *PREFIX*nextgallery_faces_groups WHERE user_id = ? AND id NOT IN (SELECT DISTINCT group_id FROM *PREFIX*nextgallery_face_detections WHERE user_id = ?)',
                     [$uid, $uid]
                 );
 
                 // Prune orphaned constraints (missing detection or missing group)
                 $this->db->executeStatement(
-                    'DELETE FROM *PREFIX*nextgallery_faces_constraints WHERE user_id = ? AND (
-                        detection_id NOT IN (SELECT id FROM *PREFIX*nextgallery_faces_detections WHERE user_id = ?)
+                    'DELETE FROM *PREFIX*nextgallery_face_rules WHERE user_id = ? AND (
+                        detection_id NOT IN (SELECT id FROM *PREFIX*nextgallery_face_detections WHERE user_id = ?)
                         OR group_id NOT IN (SELECT id FROM *PREFIX*nextgallery_faces_groups WHERE user_id = ?)
                     )',
                     [$uid, $uid, $uid]
                 );
 
-                foreach (['nextgallery_faces_suggestions', 'nextgallery_faces_dismissed'] as $table) {
+                foreach (['nextgallery_face_suggest', 'nextgallery_faces_dismissed'] as $table) {
                     $this->db->executeStatement(
                         'DELETE FROM *PREFIX*' . $table . ' WHERE user_id = ? AND (
                             group_a NOT IN (SELECT id FROM *PREFIX*nextgallery_faces_groups WHERE user_id = ?)
@@ -1007,7 +1007,7 @@ class Faces {
                 // Verify each detection exists and strictly belongs to source group and user
                 if (in_array($action, ['split', 'remove', 'set_cover'], true)) {
                     $checkQ = $this->db->getQueryBuilder();
-                    $checkQ->select('id')->from('nextgallery_faces_detections')
+                    $checkQ->select('id')->from('nextgallery_face_detections')
                            ->where($checkQ->expr()->eq('user_id', $checkQ->createNamedParameter($uid)))
                            ->andWhere($checkQ->expr()->eq('group_id', $checkQ->createNamedParameter($id)))
                            ->andWhere($checkQ->expr()->in('id', $checkQ->createNamedParameter($cleanDets, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_STR_ARRAY)));
@@ -1073,7 +1073,7 @@ class Faces {
                                 throw new OCSBadRequestException('Ungültige Detection-ID für Vorschaubild');
                             }
                             $chkDet = $this->db->executeQuery(
-                                'SELECT id FROM *PREFIX*nextgallery_faces_detections WHERE user_id = ? AND group_id = ? AND id = ?',
+                                'SELECT id FROM *PREFIX*nextgallery_face_detections WHERE user_id = ? AND group_id = ? AND id = ?',
                                 [$uid, $id, $coverDetId]
                             );
                             $existsDet = (bool)$chkDet->fetchOne();
@@ -1125,19 +1125,19 @@ class Faces {
 
                         foreach ($cleanDets as $did) {
                             $this->db->executeStatement(
-                                'UPDATE *PREFIX*nextgallery_faces_detections SET group_id = ?, manual = 1, updated_at = ? WHERE user_id = ? AND id = ? AND group_id = ?',
+                                'UPDATE *PREFIX*nextgallery_face_detections SET group_id = ?, manual = 1, updated_at = ? WHERE user_id = ? AND id = ? AND group_id = ?',
                                 [$destGroup, $now, $uid, $did, $id]
                             );
                             // Idempotent constraint insertion
                             $chk = $this->db->getQueryBuilder();
-                            $chk->select('id')->from('nextgallery_faces_constraints')
+                            $chk->select('id')->from('nextgallery_face_rules')
                                 ->where($chk->expr()->eq('user_id', $chk->createNamedParameter($uid)))
                                 ->andWhere($chk->expr()->eq('detection_id', $chk->createNamedParameter($did)))
                                 ->andWhere($chk->expr()->eq('group_id', $chk->createNamedParameter($id)))
                                 ->andWhere($chk->expr()->eq('kind', $chk->createNamedParameter('cannot_link')));
                             if (!$chk->executeQuery()->fetchOne()) {
                                 $this->db->executeStatement(
-                                    'INSERT INTO *PREFIX*nextgallery_faces_constraints (user_id, kind, detection_id, group_id, created_at) VALUES (?, ?, ?, ?, ?)',
+                                    'INSERT INTO *PREFIX*nextgallery_face_rules (user_id, kind, detection_id, group_id, created_at) VALUES (?, ?, ?, ?, ?)',
                                     [$uid, 'cannot_link', $did, $id, $now]
                                 );
                             }
@@ -1145,7 +1145,7 @@ class Faces {
                         if (!empty($groupRow['cover_id']) && in_array((string)$groupRow['cover_id'], $cleanDets, true)) {
                             $this->db->executeStatement('UPDATE *PREFIX*nextgallery_faces_groups SET cover_id = NULL WHERE user_id = ? AND id = ?', [$uid, $id]);
                         }
-                        $rem = $this->db->executeQuery('SELECT COUNT(*) FROM *PREFIX*nextgallery_faces_detections WHERE user_id = ? AND group_id = ?', [$uid, $id]);
+                        $rem = $this->db->executeQuery('SELECT COUNT(*) FROM *PREFIX*nextgallery_face_detections WHERE user_id = ? AND group_id = ?', [$uid, $id]);
                         if ((int)$rem->fetchOne() === 0) {
                             $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_groups WHERE user_id = ? AND id = ?', [$uid, $id]);
                         }
@@ -1161,19 +1161,19 @@ class Faces {
                             $singleton = bin2hex(random_bytes(16));
                             $this->ensureGroup($uid, $singleton);
                             $this->db->executeStatement(
-                                'UPDATE *PREFIX*nextgallery_faces_detections SET group_id = ?, manual = 1, updated_at = ? WHERE user_id = ? AND id = ? AND group_id = ?',
+                                'UPDATE *PREFIX*nextgallery_face_detections SET group_id = ?, manual = 1, updated_at = ? WHERE user_id = ? AND id = ? AND group_id = ?',
                                 [$singleton, $now, $uid, $did, $id]
                             );
                             // Idempotent constraint insertion
                             $chk = $this->db->getQueryBuilder();
-                            $chk->select('id')->from('nextgallery_faces_constraints')
+                            $chk->select('id')->from('nextgallery_face_rules')
                                 ->where($chk->expr()->eq('user_id', $chk->createNamedParameter($uid)))
                                 ->andWhere($chk->expr()->eq('detection_id', $chk->createNamedParameter($did)))
                                 ->andWhere($chk->expr()->eq('group_id', $chk->createNamedParameter($id)))
                                 ->andWhere($chk->expr()->eq('kind', $chk->createNamedParameter('cannot_link')));
                             if (!$chk->executeQuery()->fetchOne()) {
                                 $this->db->executeStatement(
-                                    'INSERT INTO *PREFIX*nextgallery_faces_constraints (user_id, kind, detection_id, group_id, created_at) VALUES (?, ?, ?, ?, ?)',
+                                    'INSERT INTO *PREFIX*nextgallery_face_rules (user_id, kind, detection_id, group_id, created_at) VALUES (?, ?, ?, ?, ?)',
                                     [$uid, 'cannot_link', $did, $id, $now]
                                 );
                             }
@@ -1181,7 +1181,7 @@ class Faces {
                         if (!empty($groupRow['cover_id']) && in_array((string)$groupRow['cover_id'], $cleanDets, true)) {
                             $this->db->executeStatement('UPDATE *PREFIX*nextgallery_faces_groups SET cover_id = NULL WHERE user_id = ? AND id = ?', [$uid, $id]);
                         }
-                        $rem = $this->db->executeQuery('SELECT COUNT(*) FROM *PREFIX*nextgallery_faces_detections WHERE user_id = ? AND group_id = ?', [$uid, $id]);
+                        $rem = $this->db->executeQuery('SELECT COUNT(*) FROM *PREFIX*nextgallery_face_detections WHERE user_id = ? AND group_id = ?', [$uid, $id]);
                         if ((int)$rem->fetchOne() === 0) {
                             $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_groups WHERE user_id = ? AND id = ?', [$uid, $id]);
                         }
@@ -1191,13 +1191,13 @@ class Faces {
                         if ($cleanDets !== null && !empty($cleanDets)) {
                             foreach ($cleanDets as $did) {
                                 $this->db->executeStatement(
-                                    'UPDATE *PREFIX*nextgallery_faces_detections SET review = 0, manual = 1, updated_at = ? WHERE user_id = ? AND id = ?',
+                                    'UPDATE *PREFIX*nextgallery_face_detections SET review = 0, manual = 1, updated_at = ? WHERE user_id = ? AND id = ?',
                                     [$now, $uid, $did]
                                 );
                             }
                         } else {
                             $this->db->executeStatement(
-                                'UPDATE *PREFIX*nextgallery_faces_detections SET review = 0, manual = 1, updated_at = ? WHERE user_id = ? AND group_id = ?',
+                                'UPDATE *PREFIX*nextgallery_face_detections SET review = 0, manual = 1, updated_at = ? WHERE user_id = ? AND group_id = ?',
                                 [$now, $uid, $id]
                             );
                         }
@@ -1281,7 +1281,7 @@ class Faces {
 
             // Record source detection IDs before moving so caller can offer 1-click undo / group-wise split
             $srcDetRows = $this->db->executeQuery(
-                'SELECT id FROM *PREFIX*nextgallery_faces_detections WHERE user_id = ? AND group_id = ?',
+                'SELECT id FROM *PREFIX*nextgallery_face_detections WHERE user_id = ? AND group_id = ?',
                 [$uid, $sourceId]
             );
             $srcDets = [];
@@ -1303,29 +1303,29 @@ class Faces {
 
             // Move detections from source group to target group
             $this->db->executeStatement(
-                'UPDATE *PREFIX*nextgallery_faces_detections SET group_id = ?, manual = 1, updated_at = ? WHERE user_id = ? AND group_id = ?',
+                'UPDATE *PREFIX*nextgallery_face_detections SET group_id = ?, manual = 1, updated_at = ? WHERE user_id = ? AND group_id = ?',
                 [$targetId, $now, $uid, $sourceId]
             );
 
             // Remap cannot-link constraints from old group to target group
             $cq = $this->db->getQueryBuilder();
-            $cq->select('id', 'detection_id', 'kind')->from('nextgallery_faces_constraints')
+            $cq->select('id', 'detection_id', 'kind')->from('nextgallery_face_rules')
                ->where($cq->expr()->eq('user_id', $cq->createNamedParameter($uid)))
                ->andWhere($cq->expr()->eq('group_id', $cq->createNamedParameter($sourceId)));
             $crows = $cq->executeQuery()->fetchAll();
             foreach ($crows as $crow) {
                 // Idempotent remapping: check if target constraint already exists
                 $chk = $this->db->getQueryBuilder();
-                $chk->select('id')->from('nextgallery_faces_constraints')
+                $chk->select('id')->from('nextgallery_face_rules')
                     ->where($chk->expr()->eq('user_id', $chk->createNamedParameter($uid)))
                     ->andWhere($chk->expr()->eq('detection_id', $chk->createNamedParameter($crow['detection_id'])))
                     ->andWhere($chk->expr()->eq('group_id', $chk->createNamedParameter($targetId)))
                     ->andWhere($chk->expr()->eq('kind', $chk->createNamedParameter($crow['kind'])));
                 if ($chk->executeQuery()->fetchOne()) {
-                    $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_constraints WHERE id = ?', [$crow['id']]);
+                    $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_face_rules WHERE id = ?', [$crow['id']]);
                 } else {
                     $this->db->executeStatement(
-                        'UPDATE *PREFIX*nextgallery_faces_constraints SET group_id = ? WHERE id = ?',
+                        'UPDATE *PREFIX*nextgallery_face_rules SET group_id = ? WHERE id = ?',
                         [$targetId, $crow['id']]
                     );
                 }
@@ -1349,8 +1349,8 @@ class Faces {
 
         // Remove explicit merge contradictions (cannot-link to own new group)
         $this->db->executeStatement(
-            'DELETE FROM *PREFIX*nextgallery_faces_constraints WHERE user_id = ? AND group_id = ? AND detection_id IN (
-                SELECT id FROM *PREFIX*nextgallery_faces_detections WHERE user_id = ? AND group_id = ?
+            'DELETE FROM *PREFIX*nextgallery_face_rules WHERE user_id = ? AND group_id = ? AND detection_id IN (
+                SELECT id FROM *PREFIX*nextgallery_face_detections WHERE user_id = ? AND group_id = ?
             )',
             [$uid, $targetId, $uid, $targetId]
         );
@@ -1548,7 +1548,7 @@ class Faces {
         $q = $this->db->getQueryBuilder();
         $q->select('d.id', 'd.group_id', 'd.file_id', 'd.bbox_x', 'd.bbox_y', 'd.bbox_w', 'd.bbox_h',
                    'd.score', 'd.review', 'd.manual', 'd.sharpness', 'ff.etag AS face_etag', 'm.sort_key')
-          ->from('nextgallery_faces_detections', 'd')
+          ->from('nextgallery_face_detections', 'd')
           ->innerJoin('d', 'nextgallery_faces_files', 'ff', 'ff.user_id = d.user_id AND ff.file_id = d.file_id')
           ->innerJoin('d', 'nextgallery_media', 'm', 'm.user_id = d.user_id AND m.file_id = d.file_id AND m.etag = ff.etag')
           ->where($q->expr()->eq('d.user_id', $q->createNamedParameter($uid)));
@@ -1935,12 +1935,12 @@ class Faces {
             $stored = 0;
             $this->db->beginTransaction();
             try {
-                $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_suggestions WHERE user_id = ?', [$uid]);
+                $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_face_suggest WHERE user_id = ?', [$uid]);
                 foreach ($clean as $key => $similarity) {
                     [$a, $b] = explode('|', $key);
                     if (!isset($groups[$a], $groups[$b])) continue;
                     $this->db->executeStatement(
-                        'INSERT INTO *PREFIX*nextgallery_faces_suggestions (user_id, group_a, group_b, similarity, created_at) VALUES (?, ?, ?, ?, ?)',
+                        'INSERT INTO *PREFIX*nextgallery_face_suggest (user_id, group_a, group_b, similarity, created_at) VALUES (?, ?, ?, ?, ?)',
                         [$uid, $a, $b, $similarity, $now]
                     );
                     $stored++;
@@ -1967,8 +1967,8 @@ class Faces {
         }
         // A split or removal already says these photos are not that person.
         $r = $this->db->executeQuery(
-            'SELECT d.group_id AS group_a, c.group_id AS group_b FROM *PREFIX*nextgallery_faces_constraints c
-             INNER JOIN *PREFIX*nextgallery_faces_detections d ON d.user_id = c.user_id AND d.id = c.detection_id
+            'SELECT d.group_id AS group_a, c.group_id AS group_b FROM *PREFIX*nextgallery_face_rules c
+             INNER JOIN *PREFIX*nextgallery_face_detections d ON d.user_id = c.user_id AND d.id = c.detection_id
              WHERE c.user_id = ? AND c.kind = ?',
             [$uid, 'cannot_link']
         );
@@ -1978,7 +1978,7 @@ class Faces {
             $r->closeCursor();
         }
         $open = [];
-        $r = $this->db->executeQuery('SELECT group_a, group_b, similarity FROM *PREFIX*nextgallery_faces_suggestions WHERE user_id = ?', [$uid]);
+        $r = $this->db->executeQuery('SELECT group_a, group_b, similarity FROM *PREFIX*nextgallery_face_suggest WHERE user_id = ?', [$uid]);
         try {
             while ($row = $r->fetch()) {
                 [$a, $b] = self::pair((string)$row['group_a'], (string)$row['group_b']);
@@ -2116,7 +2116,7 @@ class Faces {
             foreach ($sharingUsers as $otherUid => $updatedAt) {
                 $dq = $this->db->executeQuery(
                     'SELECT d.file_id, d.etag, d.group_id, g.label, g.hidden, g.stranger, g.updated_at AS group_updated
-                     FROM *PREFIX*nextgallery_faces_detections d
+                     FROM *PREFIX*nextgallery_face_detections d
                      INNER JOIN *PREFIX*nextgallery_faces_groups g ON g.user_id = d.user_id AND g.id = d.group_id
                      WHERE d.user_id = ?',
                     [$otherUid]
@@ -2256,7 +2256,7 @@ class Faces {
         $sdRows = $this->db->executeQuery(
             'SELECT d.id, d.file_id, d.etag, d.bbox_x, d.bbox_y, d.bbox_w, d.bbox_h, d.score, d.sharpness,
                     d.group_id, d.model_space, d.vector_data, d.review, ff.inference_revision
-             FROM *PREFIX*nextgallery_faces_detections d
+             FROM *PREFIX*nextgallery_face_detections d
              INNER JOIN *PREFIX*nextgallery_faces_files ff ON ff.user_id = d.user_id AND ff.file_id = d.file_id
              WHERE d.user_id = ?',
             [$sourceUid]
@@ -2313,7 +2313,7 @@ class Faces {
                             [$uid, $fid]
                         );
                         $this->db->executeStatement(
-                            'DELETE FROM *PREFIX*nextgallery_faces_detections WHERE user_id = ? AND file_id = ?',
+                            'DELETE FROM *PREFIX*nextgallery_face_detections WHERE user_id = ? AND file_id = ?',
                             [$uid, $fid]
                         );
                         $this->db->executeStatement(
@@ -2345,13 +2345,13 @@ class Faces {
                             $myDetId = (string)$bestMatch['id'];
                             $usedMyDetIds[$myDetId] = true;
                             $this->db->executeStatement(
-                                'UPDATE *PREFIX*nextgallery_faces_detections SET group_id = ?, manual = 1, review = ?, updated_at = ? WHERE user_id = ? AND id = ?',
+                                'UPDATE *PREFIX*nextgallery_face_detections SET group_id = ?, manual = 1, review = ?, updated_at = ? WHERE user_id = ? AND id = ?',
                                 [$targetGroupId, (int)$sDet['review'], $now, $uid, $myDetId]
                             );
                         } else {
                             $myDetId = bin2hex(random_bytes(16));
                             $this->db->executeStatement(
-                                'INSERT INTO *PREFIX*nextgallery_faces_detections (user_id, id, file_id, etag, bbox_x, bbox_y, bbox_w, bbox_h, score, group_id, model_space, vector_data, review, manual, created_at, updated_at, sharpness) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)',
+                                'INSERT INTO *PREFIX*nextgallery_face_detections (user_id, id, file_id, etag, bbox_x, bbox_y, bbox_w, bbox_h, score, group_id, model_space, vector_data, review, manual, created_at, updated_at, sharpness) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)',
                                 [
                                     $uid, $myDetId, $fid, $etag,
                                     (float)$sDet['bbox_x'], (float)$sDet['bbox_y'], (float)$sDet['bbox_w'], (float)$sDet['bbox_h'],
@@ -2383,7 +2383,7 @@ class Faces {
 
                 // Prune any empty groups
                 $this->db->executeStatement(
-                    'DELETE FROM *PREFIX*nextgallery_faces_groups WHERE user_id = ? AND id NOT IN (SELECT DISTINCT group_id FROM *PREFIX*nextgallery_faces_detections WHERE user_id = ?)',
+                    'DELETE FROM *PREFIX*nextgallery_faces_groups WHERE user_id = ? AND id NOT IN (SELECT DISTINCT group_id FROM *PREFIX*nextgallery_face_detections WHERE user_id = ?)',
                     [$uid, $uid]
                 );
 
@@ -2413,9 +2413,9 @@ class Faces {
 
     /** Suggestions and decisions follow a merged group to its target. */
     private function remapPairs(string $uid, string $source, string $target, int $now): void {
-        $this->db->executeStatement('UPDATE *PREFIX*nextgallery_faces_suggestions SET group_a = ? WHERE user_id = ? AND group_a = ?', [$target, $uid, $source]);
-        $this->db->executeStatement('UPDATE *PREFIX*nextgallery_faces_suggestions SET group_b = ? WHERE user_id = ? AND group_b = ?', [$target, $uid, $source]);
-        $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_suggestions WHERE user_id = ? AND group_a = group_b', [$uid]);
+        $this->db->executeStatement('UPDATE *PREFIX*nextgallery_face_suggest SET group_a = ? WHERE user_id = ? AND group_a = ?', [$target, $uid, $source]);
+        $this->db->executeStatement('UPDATE *PREFIX*nextgallery_face_suggest SET group_b = ? WHERE user_id = ? AND group_b = ?', [$target, $uid, $source]);
+        $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_face_suggest WHERE user_id = ? AND group_a = group_b', [$uid]);
         $r = $this->db->executeQuery('SELECT id, group_a, group_b FROM *PREFIX*nextgallery_faces_dismissed WHERE user_id = ? AND (group_a = ? OR group_b = ?)', [$uid, $source, $source]);
         try {
             $rows = $r->fetchAll();
@@ -2440,7 +2440,7 @@ class Faces {
         if (!$exists) {
             $this->db->executeStatement('INSERT INTO *PREFIX*nextgallery_faces_dismissed (user_id, group_a, group_b, created_at) VALUES (?, ?, ?, ?)', [$uid, $a, $b, $now]);
         }
-        $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_suggestions WHERE user_id = ? AND ((group_a = ? AND group_b = ?) OR (group_a = ? AND group_b = ?))', [$uid, $a, $b, $b, $a]);
+        $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_face_suggest WHERE user_id = ? AND ((group_a = ? AND group_b = ?) OR (group_a = ? AND group_b = ?))', [$uid, $a, $b, $b, $a]);
     }
 
     public function detection(string $uid, string $detectionId): ?array {
@@ -2453,7 +2453,7 @@ class Faces {
         }
         $q = $this->db->getQueryBuilder();
         $q->select('id', 'file_id', 'etag', 'bbox_x', 'bbox_y', 'bbox_w', 'bbox_h', 'score', 'group_id', 'review', 'manual')
-          ->from('nextgallery_faces_detections')
+          ->from('nextgallery_face_detections')
           ->where($q->expr()->eq('user_id', $q->createNamedParameter($uid)))
           ->andWhere($q->expr()->eq('id', $q->createNamedParameter(strtolower($detectionId))));
         $r = $q->executeQuery();

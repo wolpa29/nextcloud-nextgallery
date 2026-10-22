@@ -92,6 +92,6 @@ You choose processing folders and schedules, with separate start/pause controls 
 
 ---
 
-**Learn more:** [Administration](docs/ADMINISTRATION.md) · [AI & visual search](docs/EMBEDDINGS.md) · [Embedding server setup](docs/EXTERNAL_EMBEDDING_SERVER.en.md) · [Android integration](docs/ANDROID.md) · [Migration](docs/MERGE.md) · [Validation](docs/VALIDATION.md) · [Version history](docs/CHANGELOG.md)
+**Learn more:** [Administration](docs/ADMINISTRATION.md) · [AI & visual search](docs/EMBEDDINGS.md) · [Embedding server setup](docs/EXTERNAL_EMBEDDING_SERVER.en.md) · [Android integration](docs/ANDROID.md) · [Migration](docs/MERGE.md) · [Validation](docs/VALIDATION.md) · [Quality and load checks](docs/QUALITY.md) · [Version history](docs/CHANGELOG.md)
 
 Open source under [AGPL-3.0-or-later](LICENSE). Third-party credits: [NOTICE](NOTICE). Running a public installation? See the [network source offer](docs/ADMINISTRATION.md#network-source-offer).

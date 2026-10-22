@@ -139,7 +139,7 @@ try {
     $db->executeStatement('DELETE FROM `*PREFIX*nextgallery_faces_dismissed` WHERE user_id = ?', [$uid]);
     $res = $faces->action($uid, $W, 'merge', $A, null, $faces->accountState($uid)['rules_revision']);
     expectSuggestion(count($res['merged_detection_ids']) === 1, 'Merge reports the moved filtered face');
-    expectSuggestion(count_rows($db, 'SELECT COUNT(*) FROM `*PREFIX*nextgallery_faces_detections` WHERE user_id = ? AND group_id = ? AND manual = 1 AND bbox_w < 0.05', [$uid, $A]) === 1, 'Merging marks the filtered face as confirmed (manual)');
+    expectSuggestion(count_rows($db, 'SELECT COUNT(*) FROM `*PREFIX*nextgallery_face_detections` WHERE user_id = ? AND group_id = ? AND manual = 1 AND bbox_w < 0.05', [$uid, $A]) === 1, 'Merging marks the filtered face as confirmed (manual)');
     $mainAfter = array_column($faces->subjects($uid, 'default')['items'], 'photo_count', 'id');
     expectSuggestion(($mainAfter[$A] ?? 0) === 3, 'The confirmed face counts for the known person');
     expectSuggestion(!in_array($A, array_column($faces->subjects($uid, 'default', 0, 60, 'filtered')['items'], 'id'), true), 'Nothing of the merge stays filtered');
@@ -252,16 +252,16 @@ try {
     $faces->action($uid, $A, 'rename', null, null, $faces->accountState($uid)['rules_revision'], '');
     $faces->action($uid, $C, 'merge', $E, null, $faces->accountState($uid)['rules_revision']);
     expectSuggestion(count_rows($db, 'SELECT COUNT(*) FROM `*PREFIX*nextgallery_faces_dismissed` WHERE user_id = ? AND group_a = ? AND group_b = ?', [$uid, $A, $E]) === 1, 'Decision follows the merged group');
-    expectSuggestion(count_rows($db, 'SELECT COUNT(*) FROM `*PREFIX*nextgallery_faces_suggestions` WHERE user_id = ? AND group_a = group_b', [$uid]) === 0, 'Merge leaves no self suggestion');
+    expectSuggestion(count_rows($db, 'SELECT COUNT(*) FROM `*PREFIX*nextgallery_face_suggest` WHERE user_id = ? AND group_a = group_b', [$uid]) === 0, 'Merge leaves no self suggestion');
     $detB = $faces->media($uid, $B, 'default')['items'][0]['face_detection_ids'][0];
     $faces->action($uid, $B, 'merge', $A, null, $faces->accountState($uid)['rules_revision']);
     $faces->action($uid, $A, 'split', $B, [$detB], $faces->accountState($uid)['rules_revision']);
     $faces->publishSuggestions($uid, $acc['epoch'], $acc['generation'], [['a' => $A, 'b' => $B, 'similarity' => 0.9]]);
     expectSuggestion($faces->similar($uid, $A, 'default')['items'] === [], 'A split decision suppresses the pair (MariaDB join)');
     $faces->cleanup($uid);
-    expectSuggestion(count_rows($db, 'SELECT COUNT(*) FROM `*PREFIX*nextgallery_faces_suggestions` WHERE user_id = ?', [$uid]) === 1, 'Cleanup keeps suggestions of existing groups');
+    expectSuggestion(count_rows($db, 'SELECT COUNT(*) FROM `*PREFIX*nextgallery_face_suggest` WHERE user_id = ?', [$uid]) === 1, 'Cleanup keeps suggestions of existing groups');
     $faces->reset($uid);
-    expectSuggestion(count_rows($db, 'SELECT COUNT(*) FROM `*PREFIX*nextgallery_faces_suggestions` WHERE user_id = ?', [$uid]) === 0, 'Reset removes suggestions');
+    expectSuggestion(count_rows($db, 'SELECT COUNT(*) FROM `*PREFIX*nextgallery_face_suggest` WHERE user_id = ?', [$uid]) === 0, 'Reset removes suggestions');
     expectSuggestion(count_rows($db, 'SELECT COUNT(*) FROM `*PREFIX*nextgallery_faces_dismissed` WHERE user_id = ?', [$uid]) === 0, 'Reset removes decisions');
 
     echo "$checks real Nextcloud face reuse/scoped listing/suggestion contracts passed\n";

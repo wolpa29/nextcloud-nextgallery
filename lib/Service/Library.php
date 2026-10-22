@@ -8,6 +8,12 @@ use OCP\FilesMetadata\IFilesMetadataManager;
 use Symfony\Component\Process\Process;
 class Library {
  public function __construct(private IConfig $config,private IDBConnection $db,private IRootFolder $root,private ILockingProvider $locks,private IFilesMetadataManager $metadata) {}
+ private array $settingsCache = [];
+ private array $userFolderCache = [];
+ public function clearCache(?string $uid=null):void {
+  if($uid!==null){unset($this->settingsCache[$uid],$this->userFolderCache[$uid]);}
+  else{$this->settingsCache=[];$this->userFolderCache=[];}
+ }
  private function stored(string $uid):array {
   return json_decode($this->config->getUserValue($uid,'nextgallery','settings','{}'),true)??[];
  }
@@ -22,11 +28,12 @@ class Library {
   return $p;
  }
  private function indexSettings(string $uid):array {
+  if(isset($this->settingsCache[$uid]))return $this->settingsCache[$uid];
   $p=$this->settings($uid);$roots=[];
   foreach($p['galleries'] as $g) $roots=array_merge($roots,$g['roots']);
   sort($roots);$selected=[];
   foreach(array_unique($roots) as $path)if(!array_filter($selected,fn($parent)=>str_starts_with($path,$parent.'/')))$selected[]=$path;
-  $p['roots']=$selected;return $p;
+  $p['roots']=$selected;return $this->settingsCache[$uid]=$p;
  }
  public function cacheKey(string $uid,string $gallery=''):string {
   $id=$this->settings($uid,$gallery)['activeGallery'];
@@ -84,6 +91,7 @@ class Library {
    if (isset($settings['timezone'])) {if (!in_array($settings['timezone'],\DateTimeZone::listIdentifiers(),true)) throw new \InvalidArgumentException('Ungültige Zeitzone.');$p['timezone']=$settings['timezone'];}
    foreach (['tile'=>[70,320],'offlineLimit'=>[1,5000]] as $key=>[$min,$max]) if (isset($settings[$key])) $p[$key]=max($min,min($max,(int)$settings[$key]));
    $this->config->setUserValue($uid,'nextgallery','settings',json_encode($p,JSON_THROW_ON_ERROR));
+   unset($this->settingsCache[$uid],$this->userFolderCache[$uid]);
    $q=$this->db->getQueryBuilder();$q->select('user_id')->from('nextgallery_users')->where($q->expr()->eq('user_id',$q->createNamedParameter($uid)));
    if (!$q->executeQuery()->fetchOne()) {$q=$this->db->getQueryBuilder();$q->insert('nextgallery_users')->setValue('user_id',$q->createNamedParameter($uid))->executeStatement();}
    $index=$this->indexSettings($uid);
@@ -96,16 +104,17 @@ class Library {
  public function users():array {$q=$this->db->getQueryBuilder();return $q->select('user_id')->from('nextgallery_users')->executeQuery()->fetchAll(\PDO::FETCH_COLUMN);}
  public function forget(string $uid):void {
   $this->lock($uid);
+  unset($this->settingsCache[$uid],$this->userFolderCache[$uid]);
   try {foreach(['nextgallery_media','nextgallery_users'] as $table){$q=$this->db->getQueryBuilder();$q->delete($table)->where($q->expr()->eq('user_id',$q->createNamedParameter($uid)))->executeStatement();}}
   finally {$this->unlock($uid);}
  }
  private function start(string $uid,array $p):array {
-  $s=['running'=>count($p['roots'])>0,'root'=>0,'after'=>0,'generation'=>bin2hex(random_bytes(16)),'seen'=>0,'errors'=>0,'started'=>time(),'completed'=>0];
+  $s=['running'=>count($p['roots'])>0,'root'=>0,'after'=>0,'generation'=>bin2hex(random_bytes(16)),'seen'=>0,'errors'=>0,'started'=>time(),'completed'=>0,'failedRoots'=>[],'partial'=>false];
   $this->stateSave($uid,$s);return $s;
  }
  private function inRoots(string $path,array $roots):bool {foreach ($roots as $r) if (str_starts_with($path,rtrim($r,'/').'/')) return true;return false;}
  public function file(string $uid,int $id):File {
-  $home=$this->root->getUserFolder($uid);$p=$this->indexSettings($uid);
+  $home=$this->userFolderCache[$uid]??=$this->root->getUserFolder($uid);$p=$this->indexSettings($uid);
   foreach ($home->getById($id) as $node) {
    if ($node instanceof File && $node->isReadable() && $this->inRoots('/'.ltrim($home->getRelativePath($node->getPath()),'/'),$p['roots']) && $this->kind($node->getMimeType())) return $node;
   }
@@ -147,14 +156,23 @@ class Library {
  }
  public function step(string $uid,bool $restart=false,int $limit=100,float $seconds=4):array {
   $this->lock($uid);
+  $this->clearCache($uid);
   try {
    $p=$this->indexSettings($uid);$s=$this->state($uid);
    if ($restart || !$s) $s=$this->start($uid,$p);
    if (!$s['running']) return $s;
    $home=$this->root->getUserFolder($uid);$deadline=microtime(true)+$seconds;$handled=0;
    while ($s['root']<count($p['roots']) && $handled<$limit && microtime(true)<$deadline) {
+    $currentRoot=$p['roots'][$s['root']]??null;
     try {$folder=$home->get($p['roots'][$s['root']]);if (!$folder instanceof Folder || !$folder->isReadable()) throw new \RuntimeException('Ordner nicht lesbar.');$nodes=$folder->search(Search::query((int)$s['after'],min(100,$limit-$handled)));}
-    catch (\Throwable $e) {$s['errors']++;$s['lastError']=get_class($e).': '.$e->getMessage();$s['root']++;$s['after']=0;continue;}
+    catch (\Throwable $e) {
+     $s['errors']++;$s['lastError']=get_class($e).': '.$e->getMessage();
+     if ($currentRoot !== null) {
+      $s['failedRoots'] ??= [];
+      if (!in_array($currentRoot, $s['failedRoots'], true)) $s['failedRoots'][] = $currentRoot;
+     }
+     $s['root']++;$s['after']=0;continue;
+    }
     if (!$nodes) {$s['root']++;$s['after']=0;continue;}
     foreach ($nodes as $node) {
      $s['after']++;$handled++;
@@ -173,18 +191,45 @@ class Library {
        if ($existing) {$q->update('nextgallery_media')->where($q->expr()->eq('user_id',$q->createNamedParameter($uid)))->andWhere($q->expr()->eq('file_id',$q->createNamedParameter($node->getId())));foreach($values as $k=>$v) $q->set($k,$q->createNamedParameter($v));}
        else {$q->insert('nextgallery_media')->setValue('user_id',$q->createNamedParameter($uid))->setValue('file_id',$q->createNamedParameter($node->getId()));foreach($values as $k=>$v) $q->setValue($k,$q->createNamedParameter($v));}
        $q->executeStatement();$s['seen']++;
-      } catch (\Throwable $e) {$s['errors']++;$s['lastError']=get_class($e).': '.$e->getMessage();}
+      } catch (\Throwable $e) {
+       $s['errors']++;$s['lastError']=get_class($e).': '.$e->getMessage();
+       if ($currentRoot !== null) {
+        $s['failedRoots'] ??= [];
+        if (!in_array($currentRoot, $s['failedRoots'], true)) $s['failedRoots'][] = $currentRoot;
+       }
+      }
      }
      if (microtime(true)>=$deadline || $handled>=$limit) break;
     }
    }
    if ($s['root']>=count($p['roots'])) {
-    // A complete sweep removes deleted/moved media; failed roots also stop being exposed.
-    $q=$this->db->getQueryBuilder();$q->delete('nextgallery_media')->where($q->expr()->eq('user_id',$q->createNamedParameter($uid)))->andWhere($q->expr()->neq('generation',$q->createNamedParameter($s['generation'])))->executeStatement();
+    $failedRoots = $s['failedRoots'] ?? [];
+    if (!empty($failedRoots)) {
+     // Unvollständiger Scan: Medien fehlgeschlagener Wurzeln erhalten!
+     $s['partial'] = true;
+     $successfulRoots = array_values(array_diff($p['roots'], $failedRoots));
+     foreach ($successfulRoots as $rootPath) {
+      $escaped = str_replace(['!', '%', '_'], ['!!', '!%', '!_'], mb_strtolower(rtrim($rootPath, '/').'/'));
+      $del = $this->db->getQueryBuilder();
+      $del->delete('nextgallery_media')
+          ->where($del->expr()->eq('user_id', $del->createNamedParameter($uid)))
+          ->andWhere($del->expr()->neq('generation', $del->createNamedParameter($s['generation'])))
+          ->andWhere("path_text LIKE " . $del->createNamedParameter($escaped . '%') . " ESCAPE '!'");
+      $del->executeStatement();
+     }
+    } else {
+     // Vollständiger erfolgreicher Sweep: alle wirklich entfernten Dateien bereinigen
+     $s['partial'] = false;
+     $q=$this->db->getQueryBuilder();
+     $q->delete('nextgallery_media')->where($q->expr()->eq('user_id',$q->createNamedParameter($uid)))->andWhere($q->expr()->neq('generation',$q->createNamedParameter($s['generation'])))->executeStatement();
+    }
     $s['running']=false;$s['completed']=time();
    }
    $this->stateSave($uid,$s);return $s;
-  } finally {$this->unlock($uid);}
+  } finally {
+   $this->clearCache($uid);
+   $this->unlock($uid);
+  }
  }
  public function folders(string $uid,string $path):array {
   if (str_contains($path,"\0") || in_array('..',explode('/',$path),true)) throw new \InvalidArgumentException('Ungültiger Pfad.');
@@ -217,17 +262,22 @@ class Library {
   return ['items'=>$this->hydrate($uid,$rows),'next'=>count($rows)?max(0,$offset)+count($rows):null,'more'=>count($rows)===max(1,min(200,$limit))];
  }
  public function hydrate(string $uid,array $rows):array {
-  $items=[];
-  foreach($rows as $row) {
-   try {$f=$this->file($uid,(int)$row['file_id']);$item=json_decode($row['payload'],true);
-    // Revalidate current user permissions, roots and path before returning identifying data.
-    $home=$this->root->getUserFolder($uid);$path='/'.ltrim($home->getRelativePath($f->getPath()),'/');
-    if ($path!==$item['path'] || $f->getEtag()!==$item['etag']) continue;
-    $item['metadata']['capture']=$item['metadata']['raw']??null;
-    $item['mtime']=$f->getMTime();$item['size']=$f->getSize();
-    unset($item['metadata']['raw']);$items[]=$item;
-   } catch (\Throwable) {}
+  $this->clearCache($uid);
+  try {
+   $home=$this->userFolderCache[$uid]??=$this->root->getUserFolder($uid);$items=[];
+   foreach($rows as $row) {
+    try {$f=$this->file($uid,(int)$row['file_id']);$item=json_decode($row['payload'],true);
+     // Revalidate current user permissions, roots and path before returning identifying data.
+     $path='/'.ltrim($home->getRelativePath($f->getPath()),'/');
+     if ($path!==$item['path'] || $f->getEtag()!==$item['etag']) continue;
+     $item['metadata']['capture']=$item['metadata']['raw']??null;
+     $item['mtime']=$f->getMTime();$item['size']=$f->getSize();
+     unset($item['metadata']['raw']);$items[]=$item;
+    } catch (\Throwable) {}
+   }
+   return $items;
+  } finally {
+   $this->clearCache($uid);
   }
-  return $items;
  }
 }

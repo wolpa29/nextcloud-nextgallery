@@ -11,7 +11,7 @@ use OCP\Migration\IOutput;
 /**
  * Migration for shared per-file face inference artifacts:
  * - Adds inference_revision to nextgallery_faces_files
- * - Creates nextgallery_faces_artifacts and nextgallery_faces_artifact_refs
+ * - Creates nextgallery_faces_artifacts and nextgallery_face_refs
  * Existing rows remain unsigned; no assumptions about their historical settings.
  */
 class Version000421Date20261020060000 extends SimpleMigrationStep {
@@ -36,22 +36,22 @@ class Version000421Date20261020060000 extends SimpleMigrationStep {
             $t->addColumn('face_count', 'integer', ['notnull' => true, 'default' => 0]);
             $t->addColumn('detections_json', 'text', ['length' => 16777215, 'notnull' => true]);
             $t->addColumn('created_at', 'bigint', ['notnull' => true]);
-            $t->setPrimaryKey(['id']);
+            $t->setPrimaryKey(['id'], 'ng_faces_art_pk');
             $t->addUniqueIndex(['file_id', 'etag', 'inference_revision'], 'ng_faces_art_unique');
             $t->addIndex(['file_id', 'etag'], 'ng_faces_art_file');
             $t->addIndex(['inference_revision'], 'ng_faces_art_rev');
             $changed = true;
         }
 
-        if (!$schema->hasTable('nextgallery_faces_artifact_refs')) {
-            $t = $schema->createTable('nextgallery_faces_artifact_refs');
+        if (!$schema->hasTable('nextgallery_face_refs') && !$schema->hasTable('nextgallery_faces_artifact_refs')) {
+            $t = $schema->createTable('nextgallery_face_refs');
             $t->addColumn('id', 'bigint', ['autoincrement' => true, 'notnull' => true, 'unsigned' => true]);
             $t->addColumn('artifact_id', 'bigint', ['notnull' => true, 'unsigned' => true]);
             $t->addColumn('user_id', 'string', ['length' => 64, 'notnull' => true]);
             $t->addColumn('file_id', 'bigint', ['notnull' => true, 'unsigned' => true]);
             $t->addColumn('etag', 'string', ['length' => 255, 'notnull' => true]);
             $t->addColumn('created_at', 'bigint', ['notnull' => true]);
-            $t->setPrimaryKey(['id']);
+            $t->setPrimaryKey(['id'], 'ng_faces_ref_pk');
             $t->addUniqueIndex(['artifact_id', 'user_id'], 'ng_faces_ref_unique');
             $t->addIndex(['user_id'], 'ng_faces_ref_user');
             $t->addIndex(['user_id', 'file_id'], 'ng_faces_ref_user_file');

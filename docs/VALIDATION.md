@@ -1,5 +1,54 @@
 # Native Android People integration — 20 October 2026
 
+## 0.4.39 Integration resilience and repeatable quality checks — 22 October 2026
+
+Local working-tree validation; no production install, Git push, App Store release
+or Android publication was performed. Test media are generated PNG/SVG fixtures.
+
+Implemented: atomic offline collection replacement retaining IndexedDB schema 1
+for previously saved shells; cancellation/quota/rollback protection; same-gallery
+refresh preservation and page retry; viewer paging across timeline periods;
+paused hidden-map pagination and batch marker insertion; compact dismissible
+processing help and mobile navigation reflow at enlarged text. Failed storage
+roots retain their catalog rows and report a partial scan; outputs still check
+current permissions. Optional Android person labels survive online parsing,
+SQLite snapshots and the picker. Capability discovery is bounded and compatible
+with older servers. Web and Android explain preparing/updating search indexes.
+
+Search queries enqueue cold/stale index work instead of importing in HTTP.
+Existing indexes remain readable with current file/ETag checks. Ordinary file
+changes target owners and share recipients; unclear/group-share events retain a
+conservative global invalidation. Cron rotates accounts persistently and includes
+queued Android-only accounts. A periodic queued sweep covers out-of-band changes.
+
+| Local check | Result |
+| --- | --- |
+| Required Node/browser suite | 73 passed, zero failures/skips; actual PHP shell and current frontend bundles |
+| Python suite | 385 passed, no skips reported |
+| PHP suite | Full service-user suite and syntax checks passed; includes 45 backend resilience, 18 capability, 19 date/GPS and 11 migration assertions |
+| Nextcloud 32.0.5, MariaDB | Both predecessor upgrade and unified rename paths passed the full runner, each including 28 authenticated HTTP checks and immediate revoked-share denial |
+| Nextcloud 35.0.1, SQLite | Full fresh-install runner passed, including 28 HTTP checks and 18 concurrent partial-publication/account-isolation assertions |
+| Nextcloud 34/35, MariaDB | All eight People contracts passed on each (417 assertions per version) |
+| Existing People schema | Real 0.4.38-to-0.4.39 app upgrades on 34/35 retained exact row fingerprints in eight nonempty tables; retry was idempotent. An additional 0.4.21-style pending-migration upgrade on 34 restored the missing sharpness column and retained rows/vectors/names/rules/references. |
+| Capability HTTP response | Verified through authenticated Nextcloud capabilities on both 32 fixtures and fresh 35 |
+| Layout | Generated screenshots at 320/390/768/1360 CSS pixels, light/dark, and 200% text at 320; no horizontal page overflow in those probes |
+| Android companion | 118 JVM tests passed; Lint, Debug APK and Android-test Kotlin compilation succeeded. Store/UI instrumentation was compiled but not run on a device. |
+| Packaging | Extracted worker package verification passed; generated frontend rebuild is deterministic |
+
+The short table names and explicit primary-key names repair Nextcloud 32's
+installation constraints. Migration 000439 uses physical renames, refuses
+ambiguous old/new collisions and copies/deletes no People rows. Earlier migration
+steps also accept existing legacy names before that rename occurs.
+
+The new CI browser job rejects skipped tests. People contracts run on 34 and 35;
+release packaging depends on the verification workflow. These are prepared
+workflow changes: no new hosted GitHub run is claimed for the unpushed tree.
+See [quality checks](QUALITY.md) for fixed labelled metrics and measured synthetic
+10k/100k/multiple-frame search loads. Those measurements do not establish model
+recognition accuracy or complete HTTP production latency. Exact candidate ranking
+and model/vector spaces are unchanged. No physical Android device, Safari,
+Firefox or complete screen-reader audit was run for this change.
+
 ## 0.4.38 Cross-gallery person assignments and consistent initial filters — 22 October 2026
 
 The People overview keeps gallery-local photos, counts and rarity. Assignment

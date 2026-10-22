@@ -291,13 +291,13 @@ namespace {
             $this->pdo->exec('CREATE TABLE nextgallery_faces_account(user_id TEXT PRIMARY KEY, epoch TEXT, generation INTEGER, rules_revision INTEGER, updated_at INTEGER)');
             $this->pdo->exec('CREATE TABLE nextgallery_faces_files(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, file_id INTEGER, etag TEXT, face_count INTEGER, updated_at INTEGER, inference_revision TEXT DEFAULT \'legacy\', UNIQUE(user_id, file_id))');
             $this->pdo->exec('CREATE TABLE nextgallery_faces_artifacts(id INTEGER PRIMARY KEY AUTOINCREMENT, file_id INTEGER, etag TEXT, inference_revision TEXT, face_count INTEGER, detections_json TEXT, created_at INTEGER, UNIQUE(file_id, etag, inference_revision))');
-            $this->pdo->exec('CREATE TABLE nextgallery_faces_artifact_refs(id INTEGER PRIMARY KEY AUTOINCREMENT, artifact_id INTEGER, user_id TEXT, file_id INTEGER, etag TEXT, created_at INTEGER, UNIQUE(artifact_id, user_id))');
+            $this->pdo->exec('CREATE TABLE nextgallery_face_refs(id INTEGER PRIMARY KEY AUTOINCREMENT, artifact_id INTEGER, user_id TEXT, file_id INTEGER, etag TEXT, created_at INTEGER, UNIQUE(artifact_id, user_id))');
             $this->pdo->exec('CREATE TABLE nextgallery_faces_groups(user_id TEXT, id TEXT, hidden INTEGER, created_at INTEGER, updated_at INTEGER, PRIMARY KEY(user_id, id))');
-            $this->pdo->exec('CREATE TABLE nextgallery_faces_detections(user_id TEXT, id TEXT, file_id INTEGER, etag TEXT, bbox_x REAL, bbox_y REAL, bbox_w REAL, bbox_h REAL, score REAL, sharpness REAL, group_id TEXT, model_space TEXT, vector_data TEXT, review INTEGER, manual INTEGER, created_at INTEGER, updated_at INTEGER, PRIMARY KEY(user_id, id))');
-            $this->pdo->exec('CREATE TABLE nextgallery_faces_constraints(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, kind TEXT, detection_id TEXT, group_id TEXT, created_at INTEGER, UNIQUE(user_id, detection_id, group_id))');
+            $this->pdo->exec('CREATE TABLE nextgallery_face_detections(user_id TEXT, id TEXT, file_id INTEGER, etag TEXT, bbox_x REAL, bbox_y REAL, bbox_w REAL, bbox_h REAL, score REAL, sharpness REAL, group_id TEXT, model_space TEXT, vector_data TEXT, review INTEGER, manual INTEGER, created_at INTEGER, updated_at INTEGER, PRIMARY KEY(user_id, id))');
+            $this->pdo->exec('CREATE TABLE nextgallery_face_rules(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, kind TEXT, detection_id TEXT, group_id TEXT, created_at INTEGER, UNIQUE(user_id, detection_id, group_id))');
             $this->pdo->exec('CREATE TABLE nextgallery_media(user_id TEXT, file_id INTEGER, sort_key TEXT, period TEXT, kind TEXT, etag TEXT, generation TEXT, latitude REAL, longitude REAL, payload TEXT, name_text TEXT, path_text TEXT, PRIMARY KEY(user_id, file_id))');
             $this->pdo->exec('CREATE TABLE filecache(fileid INTEGER PRIMARY KEY, storage INTEGER, path TEXT, etag TEXT, size INTEGER, mimetype INTEGER)');
-            $this->pdo->exec('CREATE TABLE nextgallery_faces_suggestions(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, group_a TEXT, group_b TEXT, similarity REAL, created_at INTEGER)');
+            $this->pdo->exec('CREATE TABLE nextgallery_face_suggest(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, group_a TEXT, group_b TEXT, similarity REAL, created_at INTEGER)');
             $this->pdo->exec('CREATE TABLE nextgallery_faces_dismissed(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, group_a TEXT, group_b TEXT, created_at INTEGER, UNIQUE(user_id, group_a, group_b))');
         }
 

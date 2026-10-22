@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Concurrent partial publishing against disposable synthetic Nextcloud only."""
-import concurrent.futures,json,subprocess,urllib.request,urllib.error
-name='nextgallery-merge-fresh35'
+import concurrent.futures,json,os,subprocess,urllib.request,urllib.error
+name=os.environ.get('NEXTGALLERY_TEST_CONTAINER','nextgallery-merge-fresh35')
+port=int(os.environ.get('NEXTGALLERY_TEST_PORT','8782'))
 def php(code):
  return subprocess.check_output(['docker','exec','-u','www-data',name,'php','-r','require "/var/www/html/lib/base.php";if(!is_file("/test-output/ISOLATED_SYNTHETIC_TEST"))exit(1);'+code],text=True).strip()
 uid='three-pipeline-synthetic'
@@ -9,7 +10,7 @@ data=json.loads(php('$u="three-pipeline-synthetic";$h=\\OCP\\Server::get(\\OCP\\
 vision={'type':'foto','description':'SYNTHETICCONCURRENTDESCRIPTION','tags':[],'objects':[],'uncertain_details':[]}
 def publish(stage,user=uid):
  payload={'file_id':data['id'],'etag':data['etag'],'sha256':'a'*64,'revision':'b'*64,'stage':stage,'metadata':{'vision':vision} if stage=='descriptions' else {'ocr':{'text':'SYNTHETICCONCURRENTOCR'}},'exif':{}}
- request=urllib.request.Request('http://127.0.0.1:8782/index.php/apps/nextgallery/ai/worker/publish',data=json.dumps(payload).encode(),headers={'Authorization':'Bearer '+data['token'],'X-Nextgallery-User':user,'Content-Type':'application/json','OCS-APIRequest':'true'})
+ request=urllib.request.Request(f'http://127.0.0.1:{port}/index.php/apps/nextgallery/ai/worker/publish',data=json.dumps(payload).encode(),headers={'Authorization':'Bearer '+data['token'],'X-Nextgallery-User':user,'Content-Type':'application/json','OCS-APIRequest':'true'})
  try:
   with urllib.request.urlopen(request,timeout=45) as response:return response.status
  except urllib.error.HTTPError as error:return error.code

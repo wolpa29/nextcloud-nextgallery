@@ -311,11 +311,11 @@ try {
     );
 
     // Get a detection ID from gid1 in /Photos
-    $detRow = $db->executeQuery('SELECT id FROM *PREFIX*nextgallery_faces_detections WHERE user_id=? AND group_id=? LIMIT 1', [$ownerUid, $gid1])->fetch();
+    $detRow = $db->executeQuery('SELECT id FROM *PREFIX*nextgallery_face_detections WHERE user_id=? AND group_id=? LIMIT 1', [$ownerUid, $gid1])->fetch();
     $detIdInPhotos = (string)$detRow['id'];
 
     // Get detection ID from gid5 in /Private
-    $detRow5 = $db->executeQuery('SELECT id FROM *PREFIX*nextgallery_faces_detections WHERE user_id=? AND group_id=? LIMIT 1', [$ownerUid, $gid5])->fetch();
+    $detRow5 = $db->executeQuery('SELECT id FROM *PREFIX*nextgallery_face_detections WHERE user_id=? AND group_id=? LIMIT 1', [$ownerUid, $gid5])->fetch();
     $detIdInPrivate = (string)$detRow5['id'];
 
     // Preview for detIdInPhotos with roots=['/Photos'] -> 200 JPEG
@@ -348,6 +348,8 @@ try {
     peopleCheck(count($goodIds) === 4, 'subjectFileIds returns 4 files for gid1');
     peopleCheck(is_string(reset($goodIds)), 'subjectFileIds returns string etag values');
 
+    Server::get(\OCA\Nextgallery\Service\SearchIndex::class)->ensure($ownerUid);
+
     // Search for 'p1' without subject_id:
     $searchAll = $nativeSearch->search($ownerUid, 'p1', ['/Photos'], '', 0, 60);
     peopleCheck(count($searchAll['items']) >= 3, 'unfiltered search finds p1 files');
@@ -378,6 +380,7 @@ try {
         $positive = array_merge([1.], array_fill(0, 127, 0.));
         $vectors = Server::get(\OCA\Nextgallery\AI\Service\Embeddings::class);
         foreach (['p1-a', 'p3-hidden'] as $key) $vectors->publish($ownerUid, $files[$key]->getId(), $files[$key]->getEtag(), $space, [['frame' => 0, 'seconds' => 0, 'values' => $positive]]);
+        Server::get(\OCA\Nextgallery\Service\SearchIndex::class)->ensure($ownerUid);
         $hybrid = new NativeSearch($db, $root, Server::get(\OCP\FilesMetadata\IFilesMetadataManager::class), $settings, $embeddingClient, null, $nativePeople);
         $query = 'syntheticsemanticnomatch';
         $allVectors = $hybrid->search($ownerUid, $query, ['/Photos'], '', 0, 60, 'hybrid');
@@ -404,7 +407,7 @@ try {
 
     // Native live queries and offline snapshots honor the same personal sorting.
     $faces->action($ownerUid, $gid1, 'rename', null, null, $faces->accountState($ownerUid)['rules_revision'], 'Synthetic name');
-    $coverDetection = (string)$db->executeQuery('SELECT id FROM *PREFIX*nextgallery_faces_detections WHERE user_id=? AND group_id=? AND file_id=?', [$ownerUid, $gid1, $files['multi']->getId()])->fetchOne();
+    $coverDetection = (string)$db->executeQuery('SELECT id FROM *PREFIX*nextgallery_face_detections WHERE user_id=? AND group_id=? AND file_id=?', [$ownerUid, $gid1, $files['multi']->getId()])->fetchOne();
     $faces->action($ownerUid, $gid1, 'set_cover', $coverDetection, null, $faces->accountState($ownerUid)['rules_revision']);
     $liveNamed = array_column($nativePeople->subjects($ownerUid, ['/Photos'])['items'], null, 'id')[$gid1];
     peopleCheck($liveNamed['label'] === 'Synthetic name', 'Live native overview retains manual name');

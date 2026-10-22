@@ -49,7 +49,21 @@ class NativeSearch {
   $subjectFileIds=$subjectId!==''?$this->peopleService()->subjectFileIds($uid,$subjectId,$roots):[];
   $items=[];$cursor=$offset;$bytes=0;$total=(int)($result['total']??0);$page=$result;
   do{
-   foreach($page['items'] as $hit){
+   $aiMetaMap=[];
+   // Bound large OCR/analysis payloads as well as the number of SQL queries.
+   // A page can contain 200 records, each with hundreds of kilobytes of text.
+   foreach($page['items'] as $hitPosition=>$hit){
+    if($hitPosition%10===0){
+     $pageFileIds=array_values(array_unique(array_map(fn($entry)=>(int)$entry['file_id'],array_slice($page['items'],$hitPosition,10))));
+     $aiMetaMap=[];
+     $qMeta=$this->db->getQueryBuilder();
+     $qMeta->select('file_id','etag','metadata_json','updated_at','description','tags_text','objects_text','ocr_text')
+           ->from('nextgallery_ai_meta')
+           ->where($qMeta->expr()->eq('user_id',$qMeta->createNamedParameter($uid)))
+           ->andWhere($qMeta->expr()->in('file_id',$qMeta->createNamedParameter($pageFileIds,\OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT_ARRAY)));
+     $rMeta=$qMeta->executeQuery();
+     try{while($row=$rMeta->fetch())$aiMetaMap[(int)$row['file_id']]=$row;}finally{$rMeta->closeCursor();}
+    }
     $position=$cursor;$cursor++;
     if($subjectId!==''&&!isset($subjectFileIds[(int)$hit['file_id']]))continue;
     try{$file=$home->get($hit['path']);}catch(\OCP\Files\NotFoundException|\OCP\Files\NotPermittedException){continue;}
@@ -59,8 +73,7 @@ class NativeSearch {
     if($path!==$hit['path']||!array_filter($roots,fn($root)=>$root==='/'||str_starts_with($path,$root.'/')))continue;
     $meta=$index->metadata($file);$date=Dates::resolve($path,$meta['capture']??null,$file->getMTime(),$mode,$timezone);
     if($period!==''&&!str_starts_with($date['date'],$period))continue;
-    $row=$this->db->executeQuery('SELECT etag,metadata_json,updated_at,description,tags_text,objects_text,ocr_text FROM *PREFIX*nextgallery_ai_meta WHERE user_id=? AND file_id=?',[$uid,$file->getId()]);
-    try{$ai=$row->fetch();}finally{$row->closeCursor();}
+    $ai=$aiMetaMap[$file->getId()]??null;
     $analysis=$ai?json_decode($ai['metadata_json'],true,64,JSON_THROW_ON_ERROR)['analysis']??[]:[];
     if($ai&&hash_equals($file->getEtag(),$ai['etag'])){$meta['mediaAi']=json_decode($ai['metadata_json'],true,64,JSON_THROW_ON_ERROR);$meta['aiUpdatedAt']=(int)$ai['updated_at'];$meta['aiEtag']=$ai['etag'];}
     // Cached ranks survive indexing changes, but deleted/stale content never explains a hit.

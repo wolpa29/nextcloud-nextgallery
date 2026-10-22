@@ -21,7 +21,7 @@ class ArtifactProbeDB extends TestDB {
     public int $checkedRollbacks=0;
     public function __construct(public ArtifactProbeLocks $probe) {parent::__construct();}
     public function executeStatement(string $query,array $params=[]):int {
-        if($this->fail&&str_contains($query,'DELETE FROM *PREFIX*nextgallery_faces_constraints'))throw new RuntimeException('Synthetic mutation failure');
+        if($this->fail&&str_contains($query,'DELETE FROM *PREFIX*nextgallery_face_rules'))throw new RuntimeException('Synthetic mutation failure');
         return parent::executeStatement($query,$params);
     }
     public function commit():void {

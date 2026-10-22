@@ -103,13 +103,13 @@ $faces->publish($aliceUid, $aliceFiles[5]->getId(), $aliceFiles[5]->getEtag(), $
 ], $rev);
 
 // Detections for Alice
-$detA1 = (string)$db->executeQuery('SELECT id FROM *PREFIX*nextgallery_faces_detections WHERE user_id=? AND group_id=? AND file_id=? LIMIT 1', [$aliceUid, $gidA, $aliceFiles[1]->getId()])->fetchOne();
-$detA2 = (string)$db->executeQuery('SELECT id FROM *PREFIX*nextgallery_faces_detections WHERE user_id=? AND group_id=? AND file_id=? LIMIT 1', [$aliceUid, $gidA, $aliceFiles[2]->getId()])->fetchOne();
-$detB = (string)$db->executeQuery('SELECT id FROM *PREFIX*nextgallery_faces_detections WHERE user_id=? AND group_id=? AND file_id=? LIMIT 1', [$aliceUid, $gidB, $aliceFiles[4]->getId()])->fetchOne();
+$detA1 = (string)$db->executeQuery('SELECT id FROM *PREFIX*nextgallery_face_detections WHERE user_id=? AND group_id=? AND file_id=? LIMIT 1', [$aliceUid, $gidA, $aliceFiles[1]->getId()])->fetchOne();
+$detA2 = (string)$db->executeQuery('SELECT id FROM *PREFIX*nextgallery_face_detections WHERE user_id=? AND group_id=? AND file_id=? LIMIT 1', [$aliceUid, $gidA, $aliceFiles[2]->getId()])->fetchOne();
+$detB = (string)$db->executeQuery('SELECT id FROM *PREFIX*nextgallery_face_detections WHERE user_id=? AND group_id=? AND file_id=? LIMIT 1', [$aliceUid, $gidB, $aliceFiles[4]->getId()])->fetchOne();
 
 // Reject self-split without changing assignments, revisions or correction constraints.
 $beforeSelfSplit = $faces->accountState($aliceUid)['rules_revision'];
-$constraintsBefore = (int)$db->executeQuery('SELECT COUNT(*) FROM *PREFIX*nextgallery_faces_constraints WHERE user_id=?', [$aliceUid])->fetchOne();
+$constraintsBefore = (int)$db->executeQuery('SELECT COUNT(*) FROM *PREFIX*nextgallery_face_rules WHERE user_id=?', [$aliceUid])->fetchOne();
 try {
     $faces->action($aliceUid, $gidA, 'split', strtoupper($gidA), [$detA1], $beforeSelfSplit);
     expectFeat(false, 'Self-split must fail');
@@ -117,8 +117,8 @@ try {
     expectFeat(true, 'Self-split rejected including case-normalized target');
 }
 expectFeat($faces->accountState($aliceUid)['rules_revision'] === $beforeSelfSplit, 'Rejected self-split preserves rule revision');
-expectFeat((int)$db->executeQuery('SELECT COUNT(*) FROM *PREFIX*nextgallery_faces_constraints WHERE user_id=?', [$aliceUid])->fetchOne() === $constraintsBefore, 'Rejected self-split creates no constraints');
-expectFeat($db->executeQuery('SELECT group_id FROM *PREFIX*nextgallery_faces_detections WHERE user_id=? AND id=?', [$aliceUid, $detA1])->fetchOne() === $gidA, 'Rejected self-split preserves group membership');
+expectFeat((int)$db->executeQuery('SELECT COUNT(*) FROM *PREFIX*nextgallery_face_rules WHERE user_id=?', [$aliceUid])->fetchOne() === $constraintsBefore, 'Rejected self-split creates no constraints');
+expectFeat($db->executeQuery('SELECT group_id FROM *PREFIX*nextgallery_face_detections WHERE user_id=? AND id=?', [$aliceUid, $detA1])->fetchOne() === $gidA, 'Rejected self-split preserves group membership');
 
 // 1. Check filter_counts in subjects()
 $subjAll = $faces->subjects($aliceUid, '', 0, 60, 'all');
@@ -253,7 +253,7 @@ try {
 // Atomic failure: verify account state and source group state are untouched
 $stAfterRejections = $faces->accountState($aliceUid);
 expectFeat($stAfterRejections['rules_revision'] === $st['rules_revision'], 'rejected bulk merges do not increment rules_revision');
-$bDetGroup = $db->executeQuery('SELECT group_id FROM *PREFIX*nextgallery_faces_detections WHERE user_id=? AND id=?', [$aliceUid, $detB])->fetchOne();
+$bDetGroup = $db->executeQuery('SELECT group_id FROM *PREFIX*nextgallery_face_detections WHERE user_id=? AND id=?', [$aliceUid, $detB])->fetchOne();
 expectFeat($bDetGroup === $gidB, 'atomic rejection leaves source group detections intact in group B');
 $faces->bulkAction($aliceUid, [$gidB, $gidC], 'unstranger', $st['rules_revision']);
 $restored = $faces->subjects($aliceUid, '', 0, 60, 'single');
@@ -434,10 +434,10 @@ $faces->publish($aliceUid, $aliceFiles[9]->getId(), $aliceFiles[9]->getEtag(), $
     ['bbox' => [.1, .1, .2, .2], 'vector' => $sampleVector, 'score' => .95, 'sharpness' => 80.0, 'group_id' => $gidS3]
 ], $rev);
 
-$detT1 = (string)$db->executeQuery('SELECT id FROM *PREFIX*nextgallery_faces_detections WHERE user_id=? AND group_id=? AND file_id=? LIMIT 1', [$aliceUid, $gidT1, $aliceFiles[6]->getId()])->fetchOne();
-$detS1 = (string)$db->executeQuery('SELECT id FROM *PREFIX*nextgallery_faces_detections WHERE user_id=? AND group_id=? AND file_id=? LIMIT 1', [$aliceUid, $gidS1, $aliceFiles[7]->getId()])->fetchOne();
-$detS2 = (string)$db->executeQuery('SELECT id FROM *PREFIX*nextgallery_faces_detections WHERE user_id=? AND group_id=? AND file_id=? LIMIT 1', [$aliceUid, $gidS2, $aliceFiles[8]->getId()])->fetchOne();
-$detS3 = (string)$db->executeQuery('SELECT id FROM *PREFIX*nextgallery_faces_detections WHERE user_id=? AND group_id=? AND file_id=? LIMIT 1', [$aliceUid, $gidS3, $aliceFiles[9]->getId()])->fetchOne();
+$detT1 = (string)$db->executeQuery('SELECT id FROM *PREFIX*nextgallery_face_detections WHERE user_id=? AND group_id=? AND file_id=? LIMIT 1', [$aliceUid, $gidT1, $aliceFiles[6]->getId()])->fetchOne();
+$detS1 = (string)$db->executeQuery('SELECT id FROM *PREFIX*nextgallery_face_detections WHERE user_id=? AND group_id=? AND file_id=? LIMIT 1', [$aliceUid, $gidS1, $aliceFiles[7]->getId()])->fetchOne();
+$detS2 = (string)$db->executeQuery('SELECT id FROM *PREFIX*nextgallery_face_detections WHERE user_id=? AND group_id=? AND file_id=? LIMIT 1', [$aliceUid, $gidS2, $aliceFiles[8]->getId()])->fetchOne();
+$detS3 = (string)$db->executeQuery('SELECT id FROM *PREFIX*nextgallery_face_detections WHERE user_id=? AND group_id=? AND file_id=? LIMIT 1', [$aliceUid, $gidS3, $aliceFiles[9]->getId()])->fetchOne();
 
 $st = $faces->accountState($aliceUid);
 $faces->action($aliceUid, $gidS1, 'rename', null, null, $st['rules_revision'], 'Person Eins');
@@ -451,12 +451,12 @@ $faces->action($aliceUid, $gidS2, 'set_cover', $detS2, null, $st['rules_revision
 
 // Add contradictory constraint (gidS1 cannot-link to detT1 which is in target)
 $db->executeStatement(
-    'INSERT INTO *PREFIX*nextgallery_faces_constraints (user_id, kind, detection_id, group_id, created_at) VALUES (?, ?, ?, ?, ?)',
+    'INSERT INTO *PREFIX*nextgallery_face_rules (user_id, kind, detection_id, group_id, created_at) VALUES (?, ?, ?, ?, ?)',
     [$aliceUid, 'cannot_link', $detT1, $gidS1, time()]
 );
 // Add valid constraint (gidS2 cannot-link to detA1)
 $db->executeStatement(
-    'INSERT INTO *PREFIX*nextgallery_faces_constraints (user_id, kind, detection_id, group_id, created_at) VALUES (?, ?, ?, ?, ?)',
+    'INSERT INTO *PREFIX*nextgallery_face_rules (user_id, kind, detection_id, group_id, created_at) VALUES (?, ?, ?, ?, ?)',
     [$aliceUid, 'cannot_link', $detA1, $gidS2, time()]
 );
 
@@ -487,7 +487,7 @@ $remainingSources = (int)$db->executeQuery('SELECT COUNT(*) FROM *PREFIX*nextgal
 expectFeat($remainingSources === 0, 'All source groups deleted from nextgallery_faces_groups');
 
 // Check all detections moved to target group with manual = 1
-$t1Dets = $db->executeQuery('SELECT id, manual FROM *PREFIX*nextgallery_faces_detections WHERE user_id=? AND group_id=?', [$aliceUid, $gidT1])->fetchAll();
+$t1Dets = $db->executeQuery('SELECT id, manual FROM *PREFIX*nextgallery_face_detections WHERE user_id=? AND group_id=?', [$aliceUid, $gidT1])->fetchAll();
 expectFeat(count($t1Dets) === 4, 'Target group contains all 4 detections');
 foreach ($t1Dets as $td) {
     if ($td['id'] !== $detT1) {
@@ -497,14 +497,14 @@ foreach ($t1Dets as $td) {
 
 // Check contradictory constraint removed
 $contraRemaining = (int)$db->executeQuery(
-    'SELECT COUNT(*) FROM *PREFIX*nextgallery_faces_constraints WHERE user_id=? AND group_id=? AND detection_id=?',
+    'SELECT COUNT(*) FROM *PREFIX*nextgallery_face_rules WHERE user_id=? AND group_id=? AND detection_id=?',
     [$aliceUid, $gidT1, $detT1]
 )->fetchOne();
 expectFeat($contraRemaining === 0, 'Contradictory cannot-link constraint on own detection was removed');
 
 // Check valid constraint remapped to gidT1
 $remappedRemaining = (int)$db->executeQuery(
-    'SELECT COUNT(*) FROM *PREFIX*nextgallery_faces_constraints WHERE user_id=? AND group_id=? AND detection_id=?',
+    'SELECT COUNT(*) FROM *PREFIX*nextgallery_face_rules WHERE user_id=? AND group_id=? AND detection_id=?',
     [$aliceUid, $gidT1, $detA1]
 )->fetchOne();
 expectFeat($remappedRemaining === 1, 'Valid cannot-link constraint was remapped to target group gidT1');
@@ -514,7 +514,7 @@ $stAfterMerge = $faces->accountState($aliceUid);
 $firstMerged = $bulkMergeRes['merged_groups'][0];
 $undoSplit = $faces->action($aliceUid, $gidT1, 'split', $firstMerged['source_id'], $firstMerged['detection_ids'], $stAfterMerge['rules_revision']);
 expectFeat($undoSplit['target_id'] === $gidS1, 'Group-wise split restores source group ID via split action');
-$restoredDetGroup = $db->executeQuery('SELECT group_id FROM *PREFIX*nextgallery_faces_detections WHERE user_id=? AND id=?', [$aliceUid, $detS1])->fetchOne();
+$restoredDetGroup = $db->executeQuery('SELECT group_id FROM *PREFIX*nextgallery_face_detections WHERE user_id=? AND id=?', [$aliceUid, $detS1])->fetchOne();
 expectFeat($restoredDetGroup === $gidS1, 'Detection detS1 restored back to original source group');
 
 // 9e. Target metadata PREFERENCE (target retains existing label & cover when set)
@@ -527,8 +527,8 @@ $faces->publish($aliceUid, $aliceFiles[10]->getId(), $aliceFiles[10]->getEtag(),
 $faces->publish($aliceUid, $aliceFiles[11]->getId(), $aliceFiles[11]->getEtag(), $st['epoch'], $st['generation'], $st['rules_revision'], $space, [
     ['bbox' => [.1, .1, .2, .2], 'vector' => $sampleVector, 'score' => .95, 'sharpness' => 80.0, 'group_id' => $gidS4]
 ], $rev);
-$detT2 = (string)$db->executeQuery('SELECT id FROM *PREFIX*nextgallery_faces_detections WHERE user_id=? AND group_id=? AND file_id=? LIMIT 1', [$aliceUid, $gidT2, $aliceFiles[10]->getId()])->fetchOne();
-$detS4 = (string)$db->executeQuery('SELECT id FROM *PREFIX*nextgallery_faces_detections WHERE user_id=? AND group_id=? AND file_id=? LIMIT 1', [$aliceUid, $gidS4, $aliceFiles[11]->getId()])->fetchOne();
+$detT2 = (string)$db->executeQuery('SELECT id FROM *PREFIX*nextgallery_face_detections WHERE user_id=? AND group_id=? AND file_id=? LIMIT 1', [$aliceUid, $gidT2, $aliceFiles[10]->getId()])->fetchOne();
+$detS4 = (string)$db->executeQuery('SELECT id FROM *PREFIX*nextgallery_face_detections WHERE user_id=? AND group_id=? AND file_id=? LIMIT 1', [$aliceUid, $gidS4, $aliceFiles[11]->getId()])->fetchOne();
 
 $st = $faces->accountState($aliceUid);
 $faces->action($aliceUid, $gidT2, 'rename', null, null, $st['rules_revision'], 'Target Boss');

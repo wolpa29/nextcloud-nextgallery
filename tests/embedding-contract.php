@@ -28,6 +28,7 @@ try {
  $vectors->publish($uid,$invoice->getId(),$invoice->getEtag(),$space,[['frame'=>0,'seconds'=>0,'values'=>$negative],['frame'=>1,'seconds'=>5,'values'=>$positive]]);
  // dog was changed by the base fixture: stale vectors must not enter the result set.
  $vectors->publish($uid,$dog->getId(),'stale-synthetic-etag',$space,[['frame'=>0,'seconds'=>0,'values'=>$positive]]);
+ Server::get(\OCA\Nextgallery\Service\SearchIndex::class)->ensure($uid);
  $client->fail=true;$calls=$client->calls;
  $r=$search->search($uid,'invoice','',0,60,'default','text');
  verifyEmbedding($r['mode']==='lexical'&&$r['embedding_state']==='pending'&&count($r['items'])===1,'Immediate lexical phase failed');

@@ -9,6 +9,7 @@ use OCP\Files\IRootFolder;
 $phase=$argv[1]??'';$uid='merge-synthetic';$config=Server::get(IConfig::class);$db=Server::get(IDBConnection::class);
 if ($config->getSystemValueString('instanceid')==='' || !is_file('/test-output/ISOLATED_SYNTHETIC_TEST')) throw new RuntimeException('Disposable test guard missing');
 $users=Server::get(IUserManager::class);$user=$users->get($uid)??$users->createUser($uid,'SyntheticMergeOnly2026!');Server::get(IUserSession::class)->setUser($user);
+if($phase==='refresh-search'){Server::get(\OCA\Nextgallery\Service\SearchIndex::class)->ensure($uid);echo "Background index refresh complete\n";exit;}
 $home=Server::get(IRootFolder::class)->getUserFolder($uid);
 $folder=$home->nodeExists('MergeSynthetic')?$home->get('MergeSynthetic'):$home->newFolder('MergeSynthetic');
 $excluded=$home->nodeExists('NotSelected')?$home->get('NotSelected'):$home->newFolder('NotSelected');
@@ -70,6 +71,8 @@ ok($config->getAppValue('nextgallery','ai_worker_token')===$before['token_cipher
 ok(hash_file('sha256',$state->directory().'/native.sqlite3')===$before['queue_hash'],'Queue touched by migration');ok($state->control()['paused'] && $state->control()['pause_reason']==='Synthetic preserved pause','Pause state changed');
 foreach($files as $i=>$file)ok($metadata->get($uid,$file->getId())===$before['metadata'][$i],'Existing analysis bytes/timestamp changed');
 $search=Server::get(\OCA\Nextgallery\Service\GallerySearch::class);
+// Index construction is a background responsibility; HTTP queries only queue it.
+Server::get(\OCA\Nextgallery\Service\SearchIndex::class)->ensure($uid);
 ok(count($search->search($uid,'dog')['items'])===1,'Existing catalog filename was not backfilled');ok(count($search->search($uid,'ZX987')['items'])===1,'Fresh OCR unavailable in shared gallery search');ok(count($search->search($uid,'Hund irrelevant filler')['items'])===3,'Recall-oriented OR search missing matches');ok(!$search->search($uid,'SECRETNOTSELECTED')['items'],'Search leaks outside gallery roots');
 $one=$search->search($uid,'synthetisch','',0,1);$two=$search->search($uid,'synthetisch','',$one['next'],1);ok(count($one['items'])===1&&$one['more']&&$one['items'][0]['id']!==$two['items'][0]['id'],'Stable search pagination failed');
 $other=$users->get('merge-other')??$users->createUser('merge-other','SyntheticOtherOnly2026!');ok(!$search->search('merge-other','ZX987')['items'],'Cross-user search leak');

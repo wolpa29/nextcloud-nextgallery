@@ -39,10 +39,10 @@ $candidate['faces']['share_inference'] = 'yes';
 checkThrows(fn() => $shareSettings->save($candidate, null, false), OCSBadRequestException::class, 'Non-boolean face reuse choice is rejected');
 
 $shareDb->executeStatement('INSERT INTO nextgallery_faces_artifacts (file_id, etag, inference_revision, face_count, detections_json, created_at) VALUES (1, ?, ?, 0, ?, 1)', ['e', str_repeat('a', 64), '[]']);
-$shareDb->executeStatement('INSERT INTO nextgallery_faces_artifact_refs (artifact_id, user_id, file_id, etag, created_at) VALUES (1, ?, 1, ?, 1)', ['alice', 'e']);
+$shareDb->executeStatement('INSERT INTO nextgallery_face_refs (artifact_id, user_id, file_id, etag, created_at) VALUES (1, ?, 1, ?, 1)', ['alice', 'e']);
 $artifacts->globalCleanup();
 check((int)$shareDb->executeQuery('SELECT COUNT(*) FROM nextgallery_faces_artifacts')->fetchOne() === 0, 'Disabled face reuse withdraws the shared cache on cleanup');
-check((int)$shareDb->executeQuery('SELECT COUNT(*) FROM nextgallery_faces_artifact_refs')->fetchOne() === 0, 'Disabled face reuse removes account references too');
+check((int)$shareDb->executeQuery('SELECT COUNT(*) FROM nextgallery_face_refs')->fetchOne() === 0, 'Disabled face reuse removes account references too');
 
 // 2. Fresh account with three groups: A (2 photos), B (1 photo), C (2 photos).
 $db = new TestDB();
@@ -153,7 +153,7 @@ check(array_column($faces->similar('alice', $C)['items'], 'id') === [], 'A split
 $rev = $faces->accountState('alice')['rules_revision'];
 $faces->action('alice', $B, 'merge', $A, null, $rev);
 check($faces->similar('alice', $A)['items'] === [], 'A merged suggestion disappears');
-check((int)$db->executeQuery('SELECT COUNT(*) FROM nextgallery_faces_suggestions WHERE group_a = group_b')->fetchOne() === 0, 'Merging leaves no self suggestion');
+check((int)$db->executeQuery('SELECT COUNT(*) FROM nextgallery_face_suggest WHERE group_a = group_b')->fetchOne() === 0, 'Merging leaves no self suggestion');
 $faces->publishSuggestions('alice', $acc['epoch'], $acc['generation'], [['a' => $A, 'b' => $D, 'similarity' => 0.55]]);
 $rev = $faces->accountState('alice')['rules_revision'];
 $faces->action('alice', $D, 'dismiss', $C, null, $rev);
@@ -163,12 +163,12 @@ $pairs = $db->executeQuery('SELECT group_a, group_b FROM nextgallery_faces_dismi
 check(in_array(['group_a' => $A, 'group_b' => $C], $pairs, true), 'Decisions of a merged group move to the target');
 
 // 7. Cleanup and reset remove suggestion data.
-$db->executeStatement('INSERT INTO nextgallery_faces_suggestions (user_id, group_a, group_b, similarity, created_at) VALUES (?, ?, ?, 0.5, 1)', ['alice', $A, $X]);
+$db->executeStatement('INSERT INTO nextgallery_face_suggest (user_id, group_a, group_b, similarity, created_at) VALUES (?, ?, ?, 0.5, 1)', ['alice', $A, $X]);
 $db->executeStatement('INSERT INTO filecache (fileid, etag) VALUES (201, ?), (202, ?), (203, ?), (204, ?), (205, ?)', ['etag201', 'etag202', 'etag203', 'etag204', 'etag205']);
 $faces->cleanup('alice');
-check((int)$db->executeQuery('SELECT COUNT(*) FROM nextgallery_faces_suggestions WHERE group_b = ?', [$X])->fetchOne() === 0, 'Cleanup removes suggestions of vanished groups');
+check((int)$db->executeQuery('SELECT COUNT(*) FROM nextgallery_face_suggest WHERE group_b = ?', [$X])->fetchOne() === 0, 'Cleanup removes suggestions of vanished groups');
 $faces->reset('alice');
-check((int)$db->executeQuery('SELECT COUNT(*) FROM nextgallery_faces_suggestions')->fetchOne() === 0, 'Reset removes suggestions');
+check((int)$db->executeQuery('SELECT COUNT(*) FROM nextgallery_face_suggest')->fetchOne() === 0, 'Reset removes suggestions');
 check((int)$db->executeQuery('SELECT COUNT(*) FROM nextgallery_faces_dismissed')->fetchOne() === 0, 'Reset removes decisions');
 
 // 8. Worker endpoint.

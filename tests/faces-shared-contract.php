@@ -324,7 +324,7 @@ try {
     // Check both accounts have refs for sharedFileId
     $qb = $db->getQueryBuilder();
     $qb->select($qb->createFunction('COUNT(*) as cnt'))
-       ->from('nextgallery_faces_artifact_refs')
+       ->from('nextgallery_face_refs')
        ->where($qb->expr()->eq('file_id', $qb->createNamedParameter($sharedFileId)));
     $refCount = (int)$qb->executeQuery()->fetchOne();
     expectShared($refCount >= 2, 'Both Alice and Bob have refs for shared file');
@@ -376,7 +376,7 @@ try {
         [$owner, $legacyFileId, $legacyEtag, 1, time(), 'legacy']
     );
     $db->executeStatement(
-        'INSERT INTO *PREFIX*nextgallery_faces_detections (user_id, id, file_id, etag, bbox_x, bbox_y, bbox_w, bbox_h, score, group_id, model_space, vector_data, review, manual, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO *PREFIX*nextgallery_face_detections (user_id, id, file_id, etag, bbox_x, bbox_y, bbox_w, bbox_h, score, group_id, model_space, vector_data, review, manual, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [$owner, 'legacydet10000000000000000000000', $legacyFileId, $legacyEtag, 0.1, 0.1, 0.2, 0.2, 0.95, 'legacygrp10000000000000000000000', Faces::MODEL_SPACE, base64_encode(pack('g*', ...$sampleVector)), 0, 0, time(), time()]
     );
 
@@ -391,7 +391,7 @@ try {
     $config->setAppValue('nextgallery', 'ai_faces_legacy_inference_revision', '');
 
     // Cleanup legacy test rows
-    $db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_detections WHERE file_id = ?', [$legacyFileId]);
+    $db->executeStatement('DELETE FROM *PREFIX*nextgallery_face_detections WHERE file_id = ?', [$legacyFileId]);
     $db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_files WHERE file_id = ?', [$legacyFileId]);
 
     // 15. New Unsigned Publication (Empty Signature) Sets FF Signature Unknown

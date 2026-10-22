@@ -9,7 +9,12 @@ permissions:
   contents: write
 
 jobs:
+  verify:
+    uses: ./.github/workflows/check.yml
+    permissions:
+      contents: read
   build-and-publish:
+    needs: verify
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository

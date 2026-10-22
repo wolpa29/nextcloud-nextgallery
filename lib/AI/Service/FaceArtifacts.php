@@ -57,7 +57,7 @@ class FaceArtifacts {
     public function find(int $fileId,string $etag,string $revision):?array {
         self::key($fileId,$etag,$revision);
         if(!$this->enabled())return null;
-        $rows=$this->rows('SELECT a.face_count,a.detections_json FROM *PREFIX*nextgallery_faces_artifacts a WHERE a.file_id=? AND a.etag=? AND a.inference_revision=? AND EXISTS (SELECT 1 FROM *PREFIX*nextgallery_faces_artifact_refs r WHERE r.artifact_id=a.id)',[$fileId,$etag,$revision]);
+        $rows=$this->rows('SELECT a.face_count,a.detections_json FROM *PREFIX*nextgallery_faces_artifacts a WHERE a.file_id=? AND a.etag=? AND a.inference_revision=? AND EXISTS (SELECT 1 FROM *PREFIX*nextgallery_face_refs r WHERE r.artifact_id=a.id)',[$fileId,$etag,$revision]);
         foreach($rows as $row){
             try{
                 $d=json_decode($row['detections_json'],true,64,JSON_THROW_ON_ERROR);
@@ -75,7 +75,7 @@ class FaceArtifacts {
           ->orderBy('id','DESC')->setMaxResults(5);
         $r=$q->executeQuery();try{$files=$r->fetchAll();}finally{$r->closeCursor();}
         foreach($files as $ff){
-            $dets=$this->rows('SELECT bbox_x,bbox_y,bbox_w,bbox_h,score,sharpness,vector_data,model_space FROM *PREFIX*nextgallery_faces_detections WHERE user_id=? AND file_id=? AND etag=?',[$ff['user_id'],$fileId,$etag]);
+            $dets=$this->rows('SELECT bbox_x,bbox_y,bbox_w,bbox_h,score,sharpness,vector_data,model_space FROM *PREFIX*nextgallery_face_detections WHERE user_id=? AND file_id=? AND etag=?',[$ff['user_id'],$fileId,$etag]);
             if(count($dets)!==(int)$ff['face_count']||count($dets)>100)continue;
             $raw=[];
             foreach($dets as $d){
@@ -99,18 +99,18 @@ class FaceArtifacts {
         // A valid new inference also repairs a corrupt cache row. Raw output never
         // comes from personal group configuration or correction fields.
         $this->db->executeStatement('UPDATE *PREFIX*nextgallery_faces_artifacts SET detections_json=?,face_count=? WHERE id=?',[$json,count($raw),$aid]);
-        $this->db->insertIgnoreConflict('nextgallery_faces_artifact_refs',['artifact_id'=>$aid,'user_id'=>$uid,'file_id'=>$fileId,'etag'=>$etag,'created_at'=>$now]);
+        $this->db->insertIgnoreConflict('nextgallery_face_refs',['artifact_id'=>$aid,'user_id'=>$uid,'file_id'=>$fileId,'etag'=>$etag,'created_at'=>$now]);
     }
     private function prune(array $ids):void {
         foreach(array_chunk(array_values(array_unique($ids)),500) as $chunk){
             if(!$chunk)continue;
             $marks=implode(',',array_fill(0,count($chunk),'?'));
-            $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_artifacts WHERE id IN ('.$marks.') AND NOT EXISTS (SELECT 1 FROM *PREFIX*nextgallery_faces_artifact_refs r WHERE r.artifact_id=*PREFIX*nextgallery_faces_artifacts.id)',$chunk);
+            $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_artifacts WHERE id IN ('.$marks.') AND NOT EXISTS (SELECT 1 FROM *PREFIX*nextgallery_face_refs r WHERE r.artifact_id=*PREFIX*nextgallery_faces_artifacts.id)',$chunk);
         }
     }
     public function forget(string $uid):void {
-        $rows=$this->rows('SELECT artifact_id FROM *PREFIX*nextgallery_faces_artifact_refs WHERE user_id=?',[$uid]);
-        $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_artifact_refs WHERE user_id=?',[$uid]);
+        $rows=$this->rows('SELECT artifact_id FROM *PREFIX*nextgallery_face_refs WHERE user_id=?',[$uid]);
+        $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_face_refs WHERE user_id=?',[$uid]);
         $this->config->deleteUserValue($uid,'nextgallery','ai_faces_cleanup_cursor');
         $this->prune(array_map(fn($r)=>(int)$r['artifact_id'],$rows));
     }
@@ -120,23 +120,23 @@ class FaceArtifacts {
         $artifactIds=[];
         foreach(array_chunk($ids,500) as $chunk){
             $marks=implode(',',array_fill(0,count($chunk),'?'));
-            $rows=$this->rows('SELECT artifact_id FROM *PREFIX*nextgallery_faces_artifact_refs WHERE user_id=? AND file_id IN ('.$marks.')',array_merge([$uid],$chunk));
+            $rows=$this->rows('SELECT artifact_id FROM *PREFIX*nextgallery_face_refs WHERE user_id=? AND file_id IN ('.$marks.')',array_merge([$uid],$chunk));
             foreach($rows as $r)$artifactIds[]=(int)$r['artifact_id'];
-            $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_artifact_refs WHERE user_id=? AND file_id IN ('.$marks.')',array_merge([$uid],$chunk));
+            $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_face_refs WHERE user_id=? AND file_id IN ('.$marks.')',array_merge([$uid],$chunk));
         }
         if($artifactIds)$this->prune($artifactIds);
     }
     /** Bounded sweep cursor avoids starving later files in a large account. */
     public function cleanupUser(string $uid,callable $allowed):void {
         $cursor=(int)$this->config->getUserValue($uid,'nextgallery','ai_faces_cleanup_cursor','0');
-        $q=$this->db->getQueryBuilder();$q->select('id','artifact_id','file_id','etag')->from('nextgallery_faces_artifact_refs')
+        $q=$this->db->getQueryBuilder();$q->select('id','artifact_id','file_id','etag')->from('nextgallery_face_refs')
           ->where($q->expr()->eq('user_id',$q->createNamedParameter($uid)))->andWhere($q->expr()->gt('id',$q->createNamedParameter($cursor)))->orderBy('id')->setMaxResults(1000);
         $r=$q->executeQuery();try{$rows=$r->fetchAll();}finally{$r->closeCursor();}
         $stale=[];
         foreach($rows as $row){
             $cursor=(int)$row['id'];
             if(!$allowed((int)$row['file_id'],(string)$row['etag'])){
-                $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_artifact_refs WHERE id=?',[(int)$row['id']]);$stale[]=(int)$row['artifact_id'];
+                $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_face_refs WHERE id=?',[(int)$row['id']]);$stale[]=(int)$row['artifact_id'];
             }
         }
         $this->prune($stale);
@@ -146,16 +146,16 @@ class FaceArtifacts {
     public function globalCleanup():void {
         // Turning reuse off withdraws the shared cache; account projections are unaffected.
         if(!$this->enabled()){
-            $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_artifact_refs');
+            $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_face_refs');
             $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_artifacts');
             return;
         }
         $q=$this->db->getQueryBuilder();$q->select('a.id')->from('nextgallery_faces_artifacts','a')->leftJoin('a','filecache','f','a.file_id=f.fileid')
           ->where($q->expr()->orX($q->expr()->isNull('f.fileid'),$q->expr()->neq('f.etag','a.etag')))->setMaxResults(500);
         $r=$q->executeQuery();try{$rows=$r->fetchAll();}finally{$r->closeCursor();}
-        foreach($rows as $row){$id=(int)$row['id'];$this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_artifact_refs WHERE artifact_id=?',[$id]);$this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_artifacts WHERE id=?',[$id]);}
-        $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_artifact_refs WHERE artifact_id NOT IN (SELECT id FROM *PREFIX*nextgallery_faces_artifacts)');
-        $q=$this->db->getQueryBuilder();$q->select('a.id')->from('nextgallery_faces_artifacts','a')->leftJoin('a','nextgallery_faces_artifact_refs','r','a.id=r.artifact_id')->where($q->expr()->isNull('r.id'))->setMaxResults(500);
+        foreach($rows as $row){$id=(int)$row['id'];$this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_face_refs WHERE artifact_id=?',[$id]);$this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_artifacts WHERE id=?',[$id]);}
+        $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_face_refs WHERE artifact_id NOT IN (SELECT id FROM *PREFIX*nextgallery_faces_artifacts)');
+        $q=$this->db->getQueryBuilder();$q->select('a.id')->from('nextgallery_faces_artifacts','a')->leftJoin('a','nextgallery_face_refs','r','a.id=r.artifact_id')->where($q->expr()->isNull('r.id'))->setMaxResults(500);
         $r=$q->executeQuery();try{$rows=$r->fetchAll();}finally{$r->closeCursor();}
         $this->prune(array_map(fn($r)=>(int)$r['id'],$rows));
     }

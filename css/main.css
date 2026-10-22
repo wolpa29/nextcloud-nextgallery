@@ -549,6 +549,47 @@
  #nextgallery .ch-people-merge-preview-actions{display:grid;grid-template-columns:minmax(0,1fr)}
 }
 
+/* Keep the optional introduction compact, with an account-local dismissal. */
+#nextgallery .ch-ai-feature{margin:8px 28px;padding:10px 14px;gap:12px;border-radius:14px}
+#nextgallery .ch-ai-feature-icon{width:36px;height:36px;border-radius:10px}
+#nextgallery .ch-ai-feature h2{font-size:14px}
+#nextgallery .ch-ai-feature p{font-size:12px;margin-top:2px}
+#nextgallery .ch-ai-feature .ch-button{font-size:12px;padding:8px 12px;min-height:40px}
+#nextgallery .ch-ai-hint-dismiss{flex:none;min-width:40px;min-height:40px;padding:0;border:0;font-size:24px;color:var(--ng-muted)}
+#nextgallery #ch-message{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+#nextgallery #ch-message button{min-height:44px;flex:none}
+#nextgallery .ch-tile[data-error]{font-size:12px;padding:8px;border:1px solid var(--ng-line);color:var(--ng-text);white-space:normal}
+#nextgallery #ch-viewer-status{position:absolute;bottom:100px;left:50%;transform:translateX(-50%);max-width:80%;padding:10px 16px;border-radius:12px;background:var(--ng-surface);color:var(--ng-text);z-index:2}
+@media(max-width:700px){
+ #nextgallery .ch-ai-feature{margin:6px 12px;padding:8px 10px;gap:8px;flex-wrap:nowrap}
+ #nextgallery .ch-ai-feature-icon{display:none}
+ #nextgallery .ch-ai-feature h2{font-size:13px}
+ #nextgallery .ch-ai-feature p{display:none}
+ #nextgallery .ch-ai-feature .ch-button{width:auto;min-height:40px;padding:6px 8px;font-size:11px}
+ #nextgallery #ch-ai-link .ch-ai-nav-short{font-size:9px;overflow-wrap:anywhere}
+ #nextgallery .ch-sidebar button,#nextgallery #ch-ai-link{white-space:normal;overflow-wrap:anywhere}
+}
+
+/* Reflow rather than clip when text is enlarged independently of the viewport. */
+#nextgallery .ch-top>div:first-child{min-width:0}
+#nextgallery .ch-gallery-switch{max-width:100%}
+#nextgallery .ch-gallery-switch span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis}
+#nextgallery .ch-toolbar{flex-wrap:wrap}
+#nextgallery .ch-filters{max-width:100%;flex-wrap:wrap}
+@media(max-width:700px){
+ #nextgallery .ch-ai-feature{flex-wrap:wrap}
+ #nextgallery .ch-ai-feature>div{min-width:70px}
+ #nextgallery .ch-ai-feature .ch-button{flex:1;min-width:0;white-space:normal;overflow-wrap:anywhere}
+}
+
+@media(max-width:700px){
+ #nextgallery .ch-sidebar{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,5.2em),1fr));font-size:9px}
+ #nextgallery .ch-sidebar nav,#nextgallery .ch-side-bottom{display:contents}
+ #nextgallery .ch-sidebar button,#nextgallery #ch-ai-link{width:100%;height:100%;overflow-wrap:normal}
+ #nextgallery .ch-ai-feature>div{flex:1 1 8em;min-width:0}
+ #nextgallery .ch-ai-feature .ch-button{flex:1 1 9em;overflow-wrap:normal}
+}
+
 /* LEAFLET STYLES */
 /* required styles */
 
