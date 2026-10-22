@@ -87,7 +87,12 @@ try {
     crossCheck($faces->subjects($uid,$gallery,0,60,'all','account','Maria')['items'] === [], 'Removed gallery roots are excluded even with old index rows');
     crossCheck($ctrl->preview($det,$gallery,[],'account')->getStatus() === 404, 'Removed root cannot supply a global preview');
     $library->save($uid,['activeGallery'=>'default','roots'=>['/CrossA']]);
+    $previousEtag = $files[$uid][0]->getEtag();
     $files[$uid][0]->putContent($png . 'changed');
+    // Local storage ETags may use second-resolution mtimes. Ensure this
+    // fixture really changes the version even on a fast CI runner.
+    $files[$uid][0]->touch($files[$uid][0]->getMTime() + 2);
+    crossCheck($files[$uid][0]->getEtag() !== $previousEtag, 'Synthetic write produced a distinct live ETag');
     crossCheck($faces->subjects($uid,$gallery,0,60,'all','account','Maria')['items'] === [], 'Changed ETag excludes stale target immediately');
     crossCheck($ctrl->preview($det,$gallery,[],'account')->getStatus() === 404, 'Changed ETag excludes stale preview');
     try { $faces->subjects($uid,$gallery,0,60,'all','unrestricted'); crossCheck(false,'Invalid scope accepted'); }
