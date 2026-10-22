@@ -88,10 +88,14 @@ try {
     crossCheck($ctrl->preview($det,$gallery,[],'account')->getStatus() === 404, 'Removed root cannot supply a global preview');
     $library->save($uid,['activeGallery'=>'default','roots'=>['/CrossA']]);
     $previousEtag = $files[$uid][0]->getEtag();
-    $files[$uid][0]->putContent($png . 'changed');
-    // Local storage ETags may use second-resolution mtimes. Ensure this
-    // fixture really changes the version even on a fast CI runner.
-    $files[$uid][0]->touch($files[$uid][0]->getMTime() + 2);
+    // Local storage can reuse same-second ETags. touch() leaves the Node's
+    // cached fileInfo stale, so advance mtime and resolve a fresh Node below.
+    $targetMtime = $files[$uid][0]->getMTime() + 5;
+    $img2 = imagecreatetruecolor(144, 144); imagefilledrectangle($img2, 0, 0, 143, 143, imagecolorallocate($img2, 200, 60, 60));
+    ob_start(); imagepng($img2); $changedPng = ob_get_clean(); imagedestroy($img2);
+    $files[$uid][0]->putContent($changedPng);
+    $files[$uid][0]->touch($targetMtime);
+    $files[$uid][0] = $files[$uid][0]->getParent()->get($files[$uid][0]->getName());
     crossCheck($files[$uid][0]->getEtag() !== $previousEtag, 'Synthetic write produced a distinct live ETag');
     crossCheck($faces->subjects($uid,$gallery,0,60,'all','account','Maria')['items'] === [], 'Changed ETag excludes stale target immediately');
     crossCheck($ctrl->preview($det,$gallery,[],'account')->getStatus() === 404, 'Changed ETag excludes stale preview');

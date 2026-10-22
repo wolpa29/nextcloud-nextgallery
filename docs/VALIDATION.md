@@ -2,8 +2,9 @@
 
 ## 0.4.39 Integration resilience and repeatable quality checks — 22 October 2026
 
-Local working-tree validation; the initial implementation was validated before production installation.
-The subsequent delivery record below distinguishes push, CI, install and release. Test media are generated PNG/SVG fixtures.
+Local working-tree validation with generated PNG/SVG fixtures. Git push, hosted
+CI, production installation and release publication are separate delivery states
+and must be verified independently of these local results.
 
 Implemented: atomic offline collection replacement retaining IndexedDB schema 1
 for previously saved shells; cancellation/quota/rollback protection; same-gallery
@@ -49,9 +50,10 @@ Playwright Docker image with PHP CLI. Roles, labels, attribution-link underlinin
 modal focus wrapping and keyboard photo opening were corrected. DOMPurify was
 updated to 3.4.17; the dependency audit then reported zero known vulnerabilities.
 
-The new CI browser job rejects skipped tests. People contracts run on 34 and 35;
-release packaging depends on the verification workflow. These are prepared
-workflow changes: no new hosted GitHub run is claimed for the unpushed tree.
+The CI browser job rejects skipped tests. People contracts run on 34 and 35;
+release packaging depends on the verification workflow. Check the exact release
+commit's GitHub checks for its hosted result. A GitHub archive or green CI does
+not establish a production installation or Nextcloud App Store availability.
 See [quality checks](QUALITY.md) for fixed labelled metrics and measured synthetic
 10k/100k/multiple-frame search loads. Those measurements do not establish model
 recognition accuracy or complete HTTP production latency. Exact candidate ranking
