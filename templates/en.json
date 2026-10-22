@@ -503,5 +503,11 @@
   "Keine Personen in den geladenen Ergebnissen gefunden.": "No people found in the loaded results.",
   "Die ausgewählten Gruppen wurden zusammengeführt. Du kannst die hinzugefügten Fotos wieder abtrennen.": "The selected groups have been merged. You can separate the added photos again.",
   "Die Zielperson bleibt ausgeblendet.": "The target person stays hidden.",
-  "Die Zielperson bleibt unter „Unbekannte Personen“.": "The target person stays in “Unknown people”."
+  "Die Zielperson bleibt unter „Unbekannte Personen“.": "The target person stays in “Unknown people”.",
+  "Alle meine Galerien": "All my galleries",
+  "Wähle die Person aus allen deinen Galerien, der die ausgewählten Fotos zugeordnet werden sollen.": "Choose the person from all your galleries to assign the selected photos to.",
+  "Wähle, welche Person bestehen bleibt. Du kannst Personen aus allen deinen Galerien zuordnen.": "Choose which person to keep. You can assign people from all your galleries.",
+  "Keine passenden Personen in deinen Galerien gefunden.": "No matching people found in your galleries.",
+  "In allen deinen Galerien nach Namen suchen …": "Search names across all your galleries …",
+  "Fotos konnten nicht geladen werden. Bitte erneut öffnen.": "Photos could not be loaded. Please open again."
 }

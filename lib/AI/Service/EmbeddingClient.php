@@ -12,6 +12,7 @@ class EmbeddingClient {
   if($body!==null)curl_setopt_array($handle,[CURLOPT_POST=>true,CURLOPT_POSTFIELDS=>json_encode($body,JSON_THROW_ON_ERROR)]);
   $ok=curl_exec($handle)!==false;$code=curl_getinfo($handle,CURLINFO_HTTP_CODE);curl_close($handle);
   if($code===401 || $code===403)throw new \RuntimeException('Authentifizierung am Embedding-Server fehlgeschlagen. API-Key prüfen.');
+  if(!$ok&&$config['location']==='local')throw new \RuntimeException('Lokaler Embedding-Dienst läuft noch nicht. Gemma installieren oder den Worker prüfen.');
   if(!$ok)throw new \RuntimeException('Embedding-Dienst nicht erreichbar oder Zeitüberschreitung. Adresse und Netzwerk prüfen.');
   if($code!==200)throw new \RuntimeException('Embedding-Dienst nicht bereit oder API-Adresse ungültig.');
   try{$value=json_decode($wire,true,64,JSON_THROW_ON_ERROR);}catch(\Throwable){throw new \RuntimeException('Ungültige Embedding-Antwort');}

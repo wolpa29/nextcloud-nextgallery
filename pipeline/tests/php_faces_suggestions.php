@@ -122,7 +122,9 @@ check($similarA['items'][0]['photo_count'] === 1 && !isset($similarA['items'][0]
 check($similarA['subject']['photo_count'] === 2, 'The current group count is returned');
 check(array_column($faces->similar('alice', $B)['items'], 'id') === [$A], 'Suggestions are symmetric');
 $suggested = $faces->subjects('alice', '', 0, 60, 'suggested');
-check(array_column($suggested['items'], 'id') === [$C, $A] || array_column($suggested['items'], 'id') === [$A, $C], 'Suggested filter lists main groups with open suggestions');
+$suggestedIds = array_column($suggested['items'], 'id'); sort($suggestedIds);
+check($suggestedIds === [$A, $B, $C], 'Suggested filter includes rare groups so their assignments can be resolved');
+check($suggested['filter_counts']['suggested'] === count($suggested['items']), 'Suggestion counter agrees with main and rare results');
 $similarRes = $ctrl->similar($A);
 check($similarRes->getStatus() === 200 && count($similarRes->getData()['items']) === 2, 'Web endpoint returns suggestions');
 $req->headers['OCS-APIRequest'] = 'true';

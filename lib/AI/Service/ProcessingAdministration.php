@@ -59,7 +59,7 @@ class ProcessingAdministration {
   $result=['ready'=>true,'location'=>$config['location'],'model'=>$info['model'],'space'=>$space,'dimensions'=>$info['dimensions'],'video'=>'sampled_frames'];
   try{
    foreach($this->vectors->spaces() as $row)if($row['space']!==$space||(int)$row['dimensions']!==$info['dimensions'])return $result+['compatible'=>false,'compatibility'=>'different','reason'=>'Der Dienst ist erreichbar, liefert aber einen anderen Vektorraum. Modellstand, Laufzeit und Bildverarbeitung prüfen.'];
-   foreach($this->ids() as $uid){$db=$this->cache($uid,true);if(!$db)continue;try{$rows=$db->query('SELECT DISTINCT space FROM embeddings');while($row=$rows->fetchArray(SQLITE3_ASSOC))if($row['space']!==$space)return $result+['compatible'=>false,'compatibility'=>'different','reason'=>'Der lokale Verarbeitungsspeicher enthält andere Bildvektoren.'];}finally{$db->close();}}
+   foreach($this->ids() as $uid){$db=$this->cache($uid,true);if(!$db)continue;try{$rows=$db->query("SELECT DISTINCT space FROM embeddings WHERE active=1 AND status='done'");while($row=$rows->fetchArray(SQLITE3_ASSOC))if($row['space']!==$space)return $result+['compatible'=>false,'compatibility'=>'different','reason'=>'Der lokale Verarbeitungsspeicher enthält andere Bildvektoren.'];}finally{$db->close();}}
    return $result+['compatible'=>true,'compatibility'=>'matching','reason'=>'Gleicher Vektorraum nachgewiesen. Vorhandene Vektoren können weiterverwendet werden.'];
   }catch(\Throwable){return $result+['compatible'=>false,'compatibility'=>'unverified','reason'=>'Gespeicherte Vektorräume konnten nicht geprüft werden. Es wurden keine Vektoren gelöscht.'];}
  }
@@ -91,9 +91,11 @@ class ProcessingAdministration {
    foreach($this->ids() as $uid){$db=$this->cache($uid);if(!$db)continue;try{if($db->querySingle('SELECT COUNT(*) FROM embeddings')>0){$cached=true;$affected[]=$uid;}}finally{$db->close();}}
    $affected=array_values(array_unique($affected));
    if($changed&&($affected||$cached)){
-    if(!hash_equals($this->changeId(),$confirmation)||!in_array($mode,['reset','keep'],true))throw new OCSBadRequestException('Modellwechsel bitte erneut bestätigen.');
-    $match=$mode==='keep'?$this->compatible($config):[];
+    if(!hash_equals($this->changeId(),$confirmation)||!in_array($mode,['reset','keep','defer'],true))throw new OCSBadRequestException('Modellwechsel bitte erneut bestätigen.');
+    $match=$mode!=='reset'?$this->compatible($config):[];
     if($mode==='keep'&&empty($match['compatible']))throw new OCSBadRequestException($match['reason']);
+    // A service that is not running yet (e.g. Gemma before installation) cannot be compared; the worker compares on its next run.
+    if($mode==='defer'&&($match['compatibility']??null)!=='unverified')throw new OCSBadRequestException('Der Dienst ist erreichbar. Modellwechsel bitte erneut bestätigen.');
     // No worker or HTTP start can pass the global gate during cache/DB/config changes.
     if($mode==='reset'){
      $wasPaused=$this->state->processingPaused('embeddings');$this->state->setProcessingPaused(true,'embeddings');
@@ -102,7 +104,7 @@ class ProcessingAdministration {
     }
     $this->settings->save($config);
     foreach($this->ids() as $uid){
-     $own=$this->state->forUser($uid)->forPipeline('embeddings');$own->atomic('embedding-rebuild.json',$mode==='keep'?['required'=>false,'approved'=>true,'signature'=>Settings::embeddingSignature($this->settings->forUser($uid)->get()),'approved_space'=>$match['space']]:[]);
+     $own=$this->state->forUser($uid)->forPipeline('embeddings');$own->atomic('embedding-rebuild.json',$mode==='keep'?['required'=>false,'approved'=>true,'signature'=>Settings::embeddingSignature($this->settings->forUser($uid)->get()),'approved_space'=>$match['space']]:($mode==='defer'?['required'=>false,'approved'=>false,'deferred'=>true,'updated_at'=>time()]:[]));
      if($mode==='reset'){$c=$own->control();$c['paused']=true;$c['requested']=false;unset($c['retry_errors']);$own->atomic('control.json',$c);$s=$own->status();$s['stats']=$s['embedding_stats']=['done'=>0,'pending'=>0,'error'=>0];$s['last_run']=null;$s['current']=null;$s['state']='paused';unset($s['embedding_space']);$own->atomic('status.json',$s);$own->atomic('embedding-cache-reset.json',['revision'=>bin2hex(random_bytes(12))]);}
      if($mode==='reset'&&in_array($uid,$affected,true)&&$rebuild&&$candidate['embedding']['enabled']){
       $own->registerAccount();$control=$own->control();$control['paused']=false;$control['requested']=true;$control['run_kind']='embeddings';$control['request_id']=bin2hex(random_bytes(12));$control['updated_at']=time();unset($control['retry_errors']);$own->atomic('control.json',$control);

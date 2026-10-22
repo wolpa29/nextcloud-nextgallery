@@ -35,13 +35,17 @@ async function fixture(t, {width = 1100, height = 850, touch = false} = {}) {
     document.getElementById('ch-gallery-name').textContent = 'Synthetische Galerie';
     document.getElementById('ch-source-count').textContent = 'Nur synthetische Testbilder';
     window.groups = [{id:'a',label:'Ada',cover_id:'a',photo_count:7,suggestion_count:1}, {id:'b',label:'Bert',cover_id:'b',photo_count:4}, {id:'c',cover_id:'c',photo_count:1}];
-    window.activeGallery = 'synthetic'; window.revision = 10; window.writes = []; window.loads = [];
+    window.activeGallery = 'synthetic'; window.revision = 10; window.writes = []; window.loads = []; window.reads = [];
     const api = async (endpoint, options = {}) => {
+      if (options.method !== 'POST') window.reads.push(endpoint);
       if (endpoint.startsWith('subjects?')) {
         if (window.holdLoads) return new Promise(resolve => window.loads.push({endpoint, resolve}));
-        return {items:structuredClone(window.groups), rules_revision:window.revision};
+        const q = new URLSearchParams(endpoint.split('?')[1]);
+        let items = q.get('scope') === 'account' && window.accountGroups ? window.accountGroups : window.groups;
+        if (q.get('query')) items = items.filter(g => (g.label || '').toLocaleLowerCase().includes(q.get('query').toLocaleLowerCase()));
+        return {items:structuredClone(items), rules_revision:window.revision};
       }
-      if (endpoint.includes('/similar?')) return {items:[structuredClone(window.groups.find(g => g.id === 'b'))].filter(Boolean),rules_revision:window.revision};
+      if (endpoint.includes('/similar?')) return {items:window.accountGroups ? structuredClone(window.accountGroups) : [structuredClone(window.groups.find(g => g.id === 'b'))].filter(Boolean),rules_revision:window.revision};
       if (endpoint.includes('/media?')) return {items:[],rules_revision:window.revision};
       if (options.method === 'POST') {
         const body = JSON.parse(options.body); window.writes.push({endpoint,body});
@@ -50,9 +54,10 @@ async function fixture(t, {width = 1100, height = 850, touch = false} = {}) {
         if (body.rules_revision !== window.revision) throw Object.assign(Error('Stale revision'), {status:409});
         window.revision++;
         if (body.action === 'merge') {
-          const target = window.groups.find(g => g.id === body.target_id);
+          const target = window.groups.find(g => g.id === body.target_id) || window.accountGroups?.find(g => g.id === body.target_id);
           const sources = window.groups.filter(g => body.ids.includes(g.id));
           target.photo_count += sources.reduce((n,g) => n + g.photo_count, 0);
+          if (!window.groups.some(g => g.id === target.id)) window.groups.push(target);
           window.groups = window.groups.filter(g => !body.ids.includes(g.id));
           return {success:true,rules_revision:window.revision,target_id:target.id,merged_detection_ids:sources.map(g=>'d-'+g.id),merged_groups:sources.map(g=>({source_id:g.id,detection_ids:['d-'+g.id]}))};
         }
@@ -193,4 +198,62 @@ test('People: real mobile and desktop template fits with explicit merge roles in
     await page.locator('#ch-people-merge-cancel').click();
     await page.locator('#ch-people-bulk-cancel').click();
   }
+});
+
+test('People: restored filter controls agree with the first request, show and pageshow', async t => {
+  const page = await fixture(t); if (!page) return;
+  await page.evaluate(() => {
+    window.controller.hide();
+    window.mount();
+    document.getElementById('ch-people-filter').value = 'single';
+    window.reads = [];
+    window.controller.show();
+  });
+  assert.equal(await page.locator('#ch-people-filter').inputValue(), 'all');
+  assert.equal(await page.evaluate(() => new URLSearchParams(window.reads[0].split('?')[1]).get('filter')), 'all');
+  await page.evaluate(() => window.controller.setFilter('single'));
+  await page.evaluate(() => {
+    document.getElementById('ch-people-filter').value='all';
+    window.dispatchEvent(new PageTransitionEvent('pageshow', {persisted:true}));
+  });
+  assert.equal(await page.locator('#ch-people-filter').inputValue(), 'single');
+  await page.evaluate(() => { controller.hide(); document.getElementById('ch-people-filter').value='all'; controller.show(); });
+  assert.equal(await page.locator('#ch-people-filter').inputValue(), 'single');
+});
+
+test('People: first rare photo can merge into a named person from another gallery with global search and previews', async t => {
+  const page = await fixture(t, {width:390, height:844, touch:true}); if (!page) return;
+  await page.evaluate(async () => {
+    window.groups = [{id:'c',cover_id:'c',photo_count:1}];
+    window.accountGroups = [{id:'maria', label:'Maria', cover_id:'maria', photo_count:20, scope:'account'}];
+    await controller.setFilter('single');
+  });
+  assert.equal(await page.locator('#ch-people-grid .ch-person-card').count(), 1);
+  await page.locator('#ch-people-grid [data-id="c"]').click();
+  await page.locator('#ch-people-similar-list [data-id="maria"]').waitFor();
+  const similar = page.locator('#ch-people-similar-list [data-id="maria"]');
+  assert.match(await similar.textContent(), /Alle meine Galerien/);
+  assert.equal(await similar.locator('img').evaluate(el=>new URL(el.src).searchParams.get('scope')), 'account');
+  assert.ok(await page.evaluate(()=>window.reads.some(e=>e.includes('/similar?') && new URLSearchParams(e.split('?')[1]).get('scope')==='account')));
+  await page.locator('#ch-people-merge').click();
+  const dialog = page.locator('#ch-people-merge-dialog');
+  await dialog.locator('[data-target-id="maria"]').waitFor();
+  assert.ok(await page.evaluate(()=>window.reads.some(e=>e.startsWith('subjects?') && new URLSearchParams(e.split('?')[1]).get('scope')==='account')));
+  await page.locator('#ch-people-merge-search').fill('Maria');
+  await page.waitForFunction(()=>window.reads.some(e=>new URLSearchParams(e.split('?')[1]).get('query')==='Maria'));
+  await dialog.locator('[data-target-id="maria"]').click();
+  assert.equal(await dialog.evaluate(el=>{const r=el.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth+1;}), true, 'Account target dialog fits phone width');
+  assert.equal(await dialog.locator('#ch-people-merge-picked [data-target-id="maria"] .ch-person-count').evaluate(el=>el.scrollWidth<=el.clientWidth+1), true, 'Global count wraps inside its card');
+  mkdirSync(out,{recursive:true});
+  await page.screenshot({path:resolve(out,'account-scope-mobile.png')});
+  await dialog.getByRole('button', {name:'Ganzes Bild & Fotos prüfen', exact:true}).click();
+  await page.locator('#ch-people-inspect-dialog').waitFor();
+  assert.equal(await page.locator('#ch-people-inspect-stage img').first().evaluate(el=>new URL(el.src).searchParams.get('scope')), 'account');
+  assert.ok(await page.evaluate(()=>window.reads.some(e=>e.startsWith('subjects/maria/media?') && new URLSearchParams(e.split('?')[1]).get('scope')==='account')));
+  await page.locator('#ch-people-inspect-close').click();
+  await page.locator('#ch-people-merge-ok').click();
+  await page.waitForFunction(()=>window.writes.length===1);
+  assert.deepEqual(await page.evaluate(()=>window.writes[0].body.ids), ['c']);
+  assert.equal(await page.evaluate(()=>window.writes[0].body.target_id), 'maria');
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth), true, 'No page overflow on phone');
 });

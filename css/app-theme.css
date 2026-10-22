@@ -469,8 +469,8 @@
 @media(max-width:700px){#nextgallery .ch-people-similar-list{grid-template-columns:1fr}#nextgallery .ch-people-similar-actions{grid-template-columns:1fr 1fr 1fr}#nextgallery .ch-people-similar-actions .ch-people-inspect-btn{grid-column:auto;grid-row:auto;order:-1}}
 
 /* People: explicit target selection and touch-friendly correction controls. */
-#nextgallery .ch-people-context-toggle{display:inline-flex;align-items:center;gap:6px;min-height:44px;box-sizing:border-box;margin:0;padding:0 8px;font-weight:500;border:1px solid var(--ng-line);border-radius:12px;background:var(--ng-surface)}
-#nextgallery #ch-people-context-previews{appearance:auto!important;-webkit-appearance:checkbox!important;position:static;opacity:1;clip-path:none;width:18px;height:18px;margin:0 4px 0 0;accent-color:var(--ng-accent);flex:none}
+#nextgallery label.ch-people-context-toggle{display:inline-flex;align-items:center;gap:6px;min-height:44px;box-sizing:border-box;margin:0;padding:0 10px;font-size:13px;font-weight:500;border:1px solid var(--ng-line);border-radius:12px;background:var(--ng-surface)}
+#nextgallery #ch-people-context-previews{appearance:auto!important;-webkit-appearance:checkbox!important;position:static;opacity:1;clip-path:none;width:18px;height:18px;min-height:0;margin:0;padding:0;accent-color:var(--ng-accent);flex:none}
 #nextgallery .ch-people-list-tools>p{margin-right:auto}
 #nextgallery #ch-people-select-mode{min-height:44px}
 #nextgallery #ch-people-bulk-bar{padding:12px;gap:10px}
@@ -487,6 +487,7 @@
 #nextgallery #ch-people-merge-targets{max-height:240px}
 #nextgallery .ch-people-merge-picked{grid-template-columns:repeat(auto-fill,minmax(110px,1fr));max-height:230px;margin:8px 0}
 #nextgallery .ch-people-merge-choice{min-width:0;gap:4px;justify-content:flex-start}
+#nextgallery .ch-people-merge-choice .ch-person-count{max-width:100%;white-space:normal;overflow-wrap:anywhere;line-height:1.4}
 #nextgallery .ch-people-merge-choice .ch-person-thumb-wrap{width:100%;aspect-ratio:1;max-width:96px;margin:0 auto 4px}
 #nextgallery .ch-people-merge-selected-badge{font-size:11px;white-space:normal}
 #nextgallery .ch-people-merge-compare-bar{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:10px;align-items:center}

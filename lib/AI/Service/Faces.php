@@ -1533,7 +1533,18 @@ class Faces {
      * Counts follow the gallery index like the timeline; returned media and covers are
      * revalidated live, so a stale index row can never expose a file or face crop.
      */
-    private function scopedDetections(string $uid, string $gallery, ?string $groupId = null): array {
+    public function scopeRoots(string $uid, string $gallery = '', string $scope = 'gallery'): array {
+        if (!in_array($scope, ['gallery', 'account'], true)) throw new OCSBadRequestException('Ungültiger Personenbereich');
+        $settings = $this->library->settings($uid, $gallery);
+        if ($scope === 'gallery') return $settings['roots'] ?? [];
+        $roots = [];
+        foreach ($settings['galleries'] as $entry) {
+            foreach ($entry['roots'] ?? [] as $path) $roots[] = $path;
+        }
+        return array_values(array_unique($roots));
+    }
+
+    private function scopedDetections(string $uid, string $gallery, ?string $groupId = null, string $scope = 'gallery'): array {
         $q = $this->db->getQueryBuilder();
         $q->select('d.id', 'd.group_id', 'd.file_id', 'd.bbox_x', 'd.bbox_y', 'd.bbox_w', 'd.bbox_h',
                    'd.score', 'd.review', 'd.manual', 'd.sharpness', 'ff.etag AS face_etag', 'm.sort_key')
@@ -1544,7 +1555,12 @@ class Faces {
         if ($groupId !== null) {
             $q->andWhere($q->expr()->eq('d.group_id', $q->createNamedParameter($groupId)));
         }
-        $this->library->scopeQuery($q, $uid, 'm.path_text', $gallery);
+        $paths = [];
+        foreach ($this->scopeRoots($uid, $gallery, $scope) as $path) {
+            $escaped = str_replace(['!', '%', '_'], ['!!', '!%', '!_'], mb_strtolower(rtrim($path, '/') . '/'));
+            $paths[] = 'm.path_text LIKE ' . $q->createNamedParameter($escaped . '%') . " ESCAPE '!'";
+        }
+        $q->andWhere($paths ? '(' . implode(' OR ', $paths) . ')' : '1=0');
         $q->orderBy('d.score', 'DESC')->addOrderBy('d.id', 'ASC');
         $r = $q->executeQuery();
         try {
@@ -1576,7 +1592,9 @@ class Faces {
         string $gallery = '',
         int $cursor = 0,
         int $limit = 60,
-        string $filter = 'all'
+        string $filter = 'all',
+        string $scope = 'gallery',
+        string $query = ''
     ): array {
         $this->ensureSchema();
         $limit = max(1, min(100, $limit));
@@ -1585,7 +1603,7 @@ class Faces {
         $config = $this->settings->forUser($uid)->get();
         $minGroupSize = (int)$config['faces_filters']['min_group_photos'];
         $qualityFilters = $config['faces_filters'];
-        $galleryRoots = $this->library->settings($uid, $gallery)['roots'] ?? [];
+        $galleryRoots = $this->scopeRoots($uid, $gallery, $scope);
 
         $gq = $this->db->getQueryBuilder();
         $gq->select('id', 'hidden', 'stranger', 'label', 'cover_id', 'updated_at')
@@ -1595,8 +1613,18 @@ class Faces {
            ->addOrderBy('id', 'ASC');
         $groups = $gq->executeQuery()->fetchAll();
 
-        $stats = $groups ? $this->groupStats($this->scopedDetections($uid, $gallery), $qualityFilters) : [];
+        $stats = $groups ? $this->groupStats($this->scopedDetections($uid, $gallery, null, $scope), $qualityFilters) : [];
         $open = $groups ? $this->openSuggestions($uid) : [];
+        $suggestionRoots = $this->scopeRoots($uid, $gallery, 'account');
+        $suggestionStats = $open ? ($scope === 'account' ? $stats : $this->groupStats($this->scopedDetections($uid, $gallery, null, 'account'), $qualityFilters)) : [];
+        $suggestionAccess = [];
+        $targetReadable = [];
+        $targetAvailable = function ($other, int $minGood = 1) use ($uid, $suggestionStats, $suggestionRoots, &$suggestionAccess, &$targetReadable): bool {
+            $good = $suggestionStats[$other]['good'] ?? [];
+            if (count($good) < $minGood) return false;
+            if (!array_key_exists($other, $targetReadable)) $targetReadable[$other] = $this->readableDetectionDetail($uid, $good, $suggestionRoots, $suggestionAccess) !== null;
+            return $targetReadable[$other];
+        };
         $hiddenGroups = [];
         $strangerGroups = [];
         foreach ($groups as $g) {
@@ -1631,7 +1659,7 @@ class Faces {
 
             $hasOpenSuggestion = !$hidden && !$stranger && $goodCount > 0 && !empty(array_filter(
                 array_keys($open[$gid] ?? []),
-                fn($other) => !isset($hiddenGroups[$other]) && !isset($strangerGroups[$other]) && !empty($stats[$other]['good'])
+                fn($other) => !isset($hiddenGroups[$other]) && !isset($strangerGroups[$other]) && $targetAvailable($other)
             ));
 
             // Mirrors similar(): what the detail view would offer for this group in this list.
@@ -1647,7 +1675,7 @@ class Faces {
                 $minGood = $weakSource ? self::STRONG_GROUP_FACES : 1;
                 foreach ($open[$gid] ?? [] as $other => $similarity) {
                     $other = (string)$other;
-                    if (isset($hiddenGroups[$other]) || isset($strangerGroups[$other]) || count($stats[$other]['good'] ?? []) < $minGood) continue;
+                    if (isset($hiddenGroups[$other]) || isset($strangerGroups[$other]) || !$targetAvailable($other, $minGood)) continue;
                     $suggestionCount++;
                     $bestSimilarity = max($bestSimilarity, (float)$similarity);
                 }
@@ -1675,6 +1703,7 @@ class Faces {
                 default => !$hidden && !$stranger && ($photoCount >= $minGroupSize || $rawLabel !== null),
             };
             if (!$match) continue;
+            if (trim($query) !== '' && !str_contains(mb_strtolower($rawLabel ?? ''), mb_strtolower(trim($query)))) continue;
             usort($dets, fn($a, $b) => (float)$b['score'] <=> (float)$a['score']);
             $filtered[] = [
                 'id' => $gid,
@@ -1710,6 +1739,7 @@ class Faces {
             if ($coverInfo === null) continue;
             unset($entry['dets'], $entry['preferred_cover']);
             $items[] = [
+                'scope' => $scope,
                 'cover_id' => $coverInfo['id'],
                 'cover_file_id' => $coverInfo['file_id'],
                 'cover_box' => $coverInfo['box'],
@@ -1778,7 +1808,8 @@ class Faces {
         string $gallery = '',
         int $cursor = 0,
         int $limit = 60,
-        string $filter = 'all'
+        string $filter = 'all',
+        string $scope = 'gallery'
     ): array {
         $this->ensureSchema();
         if (!preg_match('/^[a-f0-9]{32}$/iD', $groupId)) {
@@ -1788,7 +1819,7 @@ class Faces {
         $limit = max(1, min(100, $limit));
         $cursor = max(0, $cursor);
         $acc = $this->accountState($uid);
-        $galleryRoots = $this->library->settings($uid, $gallery)['roots'] ?? [];
+        $galleryRoots = $this->scopeRoots($uid, $gallery, $scope);
         $qualityFilters = $this->settings->forUser($uid)->get()['faces_filters'];
 
         $gq = $this->db->executeQuery(
@@ -1803,7 +1834,7 @@ class Faces {
         $groupHidden = (int)($gRow['hidden'] ?? 0) === 1;
 
         // Order and paginate files from the index; only the returned page is checked live.
-        $rows = $this->scopedDetections($uid, $gallery, $groupId);
+        $rows = $this->scopedDetections($uid, $gallery, $groupId, $scope);
         usort($rows, fn($a, $b) => [(string)$b['sort_key'], (int)$b['file_id']] <=> [(string)$a['sort_key'], (int)$a['file_id']]);
         $files = [];
         foreach ($rows as $row) {
@@ -1966,7 +1997,7 @@ class Faces {
      * Groups that may show the same person, most similar first; same scope rules as subjects().
      * A group with only filtered faces never anchors: it is only offered strong groups.
      */
-    public function similar(string $uid, string $groupId, string $gallery = '', int $limit = 8): array {
+    public function similar(string $uid, string $groupId, string $gallery = '', int $limit = 8, string $scope = 'gallery'): array {
         $this->ensureSchema();
         if (!preg_match('/^[a-f0-9]{32}$/iD', $groupId)) {
             throw new OCSBadRequestException('Ungültige Subjekt-ID');
@@ -1974,8 +2005,13 @@ class Faces {
         $groupId = strtolower($groupId);
         $acc = $this->accountState($uid);
         $config = $this->settings->forUser($uid)->get();
-        $galleryRoots = $this->library->settings($uid, $gallery)['roots'] ?? [];
+        $galleryRoots = $this->scopeRoots($uid, $gallery, $scope);
+        $sourceRoots = $this->scopeRoots($uid, $gallery);
         $stats = $this->groupStats($this->scopedDetections($uid, $gallery), $config['faces_filters']);
+        $targetStats = $scope === 'account' ? $this->groupStats($this->scopedDetections($uid, $gallery, null, $scope), $config['faces_filters']) : $stats;
+        $sourceAccess = [];
+        $sourceDetections = array_merge($stats[$groupId]['good'] ?? [], $stats[$groupId]['weak'] ?? []);
+        $sourceReadable = $scope !== 'account' || $this->readableDetectionDetail($uid, $sourceDetections, $sourceRoots, $sourceAccess) !== null;
         $candidates = $this->openSuggestions($uid)[$groupId] ?? [];
         $items = [];
         $groupMeta = [];
@@ -1994,18 +2030,19 @@ class Faces {
         }
         $weakSource = !($stats[$groupId]['good'] ?? []) && ($stats[$groupId]['weak'] ?? []);
         $minGood = $weakSource ? self::STRONG_GROUP_FACES : 1;
-        if ($candidates) {
+        if ($candidates && $sourceReadable) {
             arsort($candidates);
             $access = [];
             foreach ($candidates as $other => $similarity) {
                 if (count($items) >= $limit) break;
                 $other = (string)$other;
                 $meta = $groupMeta[$other] ?? ['hidden' => true, 'stranger' => false, 'label' => null, 'cover_id' => null];
-                $good = $stats[$other]['good'] ?? [];
+                $good = $targetStats[$other]['good'] ?? [];
                 if ($meta['hidden'] || $meta['stranger'] || count($good) < $minGood) continue;
                 $coverInfo = $this->readableDetectionDetail($uid, $good, $galleryRoots, $access, $meta['cover_id']);
                 if ($coverInfo === null) continue;
                 $items[] = [
+                    'scope' => $scope,
                     'id' => $other,
                     'label' => $meta['label'],
                     'photo_count' => self::photoCount($good),

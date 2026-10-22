@@ -146,13 +146,14 @@ async function init() {
  form.addEventListener('submit',async e=>{e.preventDefault();try{await saveForm();}catch(error){message(error.message,true);}});
  function chooseEmbeddingChange(preview){
   const dialog=$('mai-embedding-change');$('mai-embedding-change-title').textContent=tr(preview.compatibility==='unverified'?'Embedding-Dienst prüfen':'Embedding-Modell wechseln');$('mai-embedding-change-text').textContent=preview.compatibility==='unverified'?tr('Der Vektorraum konnte noch nicht geprüft werden. Das beweist keinen Modellwechsel. Prüfe die Verbindung; vorhandene Vektoren bleiben beim Abbrechen erhalten.'):tr('Zurücksetzen löscht sofort alle Bildvektoren aller Benutzer und den lokalen Vektor-Verarbeitungsspeicher. Betroffene Dateien: {files} · Konten: {accounts}. Die Bildsuche füllt sich beim Neuaufbau wieder.',{files:Number(preview.files).toLocaleString(i18n.language),accounts:preview.accounts});
-  $('mai-embedding-change-keep').disabled=!preview.compatible;
-  $('mai-embedding-keep-reason').textContent=tr(preview.compatible?'Gleicher Vektorraum nachgewiesen. Vorhandene Vektoren können weiterverwendet werden.':preview.reason);
+  const unverified=preview.compatibility==='unverified',keep=$('mai-embedding-change-keep');
+  keep.disabled=!preview.compatible&&!unverified;keep.textContent=tr(unverified?'Speichern, später prüfen':'Vektoren behalten');
+  $('mai-embedding-keep-reason').textContent=tr(preview.compatible?'Gleicher Vektorraum nachgewiesen. Vorhandene Vektoren können weiterverwendet werden.':preview.reason)+(unverified?' '+tr('Vorhandene Vektoren bleiben erhalten. Sobald der Dienst läuft, vergleicht der Worker den Vektorraum; bei Abweichung musst du den Neuaufbau bestätigen.'):'');
   $('mai-embedding-auto-rebuild').checked=true;
   $('mai-embedding-change-reset').disabled=preview.compatibility==='unverified';
   $('mai-embedding-auto-rebuild').closest('label').hidden=preview.compatibility==='unverified';
   $('mai-embedding-auto-rebuild').closest('label').nextElementSibling.hidden=preview.compatibility==='unverified';
-  return new Promise(resolve=>{const finish=mode=>{dialog.close();resolve(mode?{mode,rebuild:mode==='reset'&&$('mai-embedding-auto-rebuild').checked}:null);};$('mai-embedding-change-cancel').onclick=()=>finish(null);$('mai-embedding-change-reset').onclick=()=>finish('reset');$('mai-embedding-change-keep').onclick=()=>finish('keep');dialog.oncancel=e=>{e.preventDefault();finish(null);};dialog.showModal();$('mai-embedding-change-cancel').focus();});
+  return new Promise(resolve=>{const finish=mode=>{dialog.close();resolve(mode?{mode,rebuild:mode==='reset'&&$('mai-embedding-auto-rebuild').checked}:null);};$('mai-embedding-change-cancel').onclick=()=>finish(null);$('mai-embedding-change-reset').onclick=()=>finish('reset');keep.onclick=()=>finish(unverified?'defer':'keep');dialog.oncancel=e=>{e.preventDefault();finish(null);};dialog.showModal();$('mai-embedding-change-cancel').focus();});
  }
  async function processing(){
   processingState=await api('processing');

@@ -46,7 +46,7 @@ $tr = static fn(string $text): string => $isGerman ? $text : ($english[$text] ??
       <button type="button" data-people-filter="filtered" class="ch-people-pill"><?php p($tr('Gefilterte Gesichter')); ?></button>
       <button type="button" data-people-filter="hidden" class="ch-people-pill" hidden><?php p($tr('Ausgeblendet')); ?></button>
      </div>
-     <select id="ch-people-filter" aria-label="<?php p($tr('Ansicht wählen')); ?>">
+     <select id="ch-people-filter" autocomplete="off" aria-label="<?php p($tr('Ansicht wählen')); ?>">
       <option value="all"><?php p($tr('Übersicht')); ?></option>
       <option value="suggested"><?php p($tr('Vorschläge')); ?></option>
       <option value="strangers"><?php p($tr('Unbekannte Personen')); ?></option>
@@ -97,7 +97,7 @@ $tr = static fn(string $text): string => $isGerman ? $text : ($english[$text] ??
    <div id="ch-people-list-container">
     <div class="ch-people-list-tools">
      <p id="ch-people-count" class="ch-people-count" role="status"></p>
-     <label class="ch-people-context-toggle" title="<?php p($tr('Ganzes Foto mit markiertem Gesicht statt Gesichtsausschnitt anzeigen')); ?>"><input type="checkbox" id="ch-people-context-previews" autocomplete="off"> <?php p($tr('Gesamtfoto')); ?></label>
+     <label class="ch-people-context-toggle" title="<?php p($tr('Ganzes Foto mit markiertem Gesicht statt Gesichtsausschnitt anzeigen')); ?>"><input type="checkbox" id="ch-people-context-previews" autocomplete="off"><span><?php p($tr('Gesamtfoto')); ?></span></label>
      <button type="button" id="ch-people-select-mode" class="ch-button" aria-pressed="false" title="<?php p($tr('Mehrere Personen zusammenführen, verschieben oder ausblenden')); ?>"><?php p($tr('Auswählen')); ?></button>
     </div>
     <div id="ch-people-bulk-bar" class="ch-selection-bar" hidden>
@@ -225,7 +225,7 @@ $tr = static fn(string $text): string => $isGerman ? $text : ($english[$text] ??
      <button type="button" class="ch-seg-btn" data-merge-filter="filtered"><?php p($tr('Gefilterte Gesichter')); ?></button>
      <button type="button" class="ch-seg-btn" data-merge-filter="hidden"><?php p($tr('Ausgeblendet')); ?></button>
     </div>
-    <input type="search" id="ch-people-merge-search" placeholder="<?php p($tr('Nach Name oder Fotoanzahl suchen …')); ?>" aria-label="<?php p($tr('Personen suchen')); ?>">
+    <input type="search" id="ch-people-merge-search" placeholder="<?php p($tr('In allen deinen Galerien nach Namen suchen …')); ?>" aria-label="<?php p($tr('Personen suchen')); ?>">
    </div>
    <div id="ch-people-merge-targets" class="ch-people-merge-list"></div>
    <div id="ch-people-merge-more-wrap" class="ch-panel-actions" hidden>

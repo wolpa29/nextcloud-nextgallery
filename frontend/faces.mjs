@@ -4,7 +4,7 @@
  * unknown-people folder, context/bbox inspector, undoable merges, and shared sorting.
  */
 
-export function buildSubjectsQuery({gallery, cursor, limit = 60, filter = 'all'} = {}) {
+export function buildSubjectsQuery({gallery, cursor, limit = 60, filter = 'all', scope, query} = {}) {
   const params = new URLSearchParams();
   if (gallery) params.set('gallery', gallery);
   if (cursor !== undefined && cursor !== null && cursor !== '') params.set('cursor', String(cursor));
@@ -14,6 +14,8 @@ export function buildSubjectsQuery({gallery, cursor, limit = 60, filter = 'all'}
   } else {
     params.set('filter', 'all');
   }
+  if (scope === 'account') params.set('scope', scope);
+  if (typeof query === 'string' && query.trim()) params.set('query', query.trim());
   return params.toString();
 }
 
@@ -172,6 +174,7 @@ export function createPeopleController({
   let mutationPending = false;
   let mergeDialogGeneration = 0;
   let closeMergeDialog = null;
+  let inspectGeneration = 0;
 
   // Keep one correction in flight. A double click must not send the same revision twice.
   async function withMutation(work) {
@@ -197,14 +200,25 @@ export function createPeopleController({
 
   function mergeSuggestion(other) {
     if (!selectedSubject || mutationPending) return;
-    return openMergeDialog({ participants: [{ ...selectedSubject }, other], initialTarget: filter === 'filtered' ? other : selectedSubject });
+    const target = filter === 'filtered' || (!selectedSubject.label && other.label) ? other : selectedSubject;
+    return openMergeDialog({ participants: [{ ...selectedSubject }, other], initialTarget: target });
   }
 
   function dismissSuggestion(...args) { return withMutation(() => executeDismissSuggestion(...args)); }
 
-  function contextPreviewUrl(detectionId) {
-    const u = previewUrl(detectionId);
+  function contextPreviewUrl(detectionId, person) {
+    const u = personPreviewUrl(detectionId, person);
     return u + (u.includes('?') ? '&' : '?') + 'context=1';
+  }
+
+  function personPreviewUrl(detectionId, person) {
+    const url = previewUrl(detectionId);
+    return person?.scope === 'account' ? url + (url.includes('?') ? '&' : '?') + 'scope=account' : url;
+  }
+
+  function personPhotoCount(person) {
+    const count = formatPhotoCount(person.photo_count, tr, locale);
+    return person.scope === 'account' ? `${count} · ${tr('Alle meine Galerien')}` : count;
   }
 
   function subjectDisplayName(subject) {
@@ -800,7 +814,7 @@ export function createPeopleController({
     const subjectId = selectedSubject.id;
     const gallery = getGallery();
     try {
-      const q = new URLSearchParams({ gallery });
+      const q = new URLSearchParams({ gallery, scope: 'account' });
       const data = await api(`subjects/${encodeURIComponent(subjectId)}/similar?` + q.toString());
       if (reqGen !== similarGeneration || gallery !== getGallery() || !selectedSubject || selectedSubject.id !== subjectId) return;
       similarItems = Array.isArray(data.items) ? data.items : [];
@@ -853,7 +867,7 @@ export function createPeopleController({
         img.alt = '';
         img.loading = 'lazy';
         img.decoding = 'async';
-        img.src = previewUrl(other.cover_id);
+        img.src = personPreviewUrl(other.cover_id, other);
         img.onerror = () => img.replaceWith(createGenericPersonIcon());
         thumb.append(img);
       } else {
@@ -871,7 +885,7 @@ export function createPeopleController({
 
       const count = document.createElement('span');
       count.className = 'ch-person-count';
-      count.textContent = formatPhotoCount(other.photo_count, tr, locale);
+      count.textContent = personPhotoCount(other);
       item.append(count);
 
       const actions = document.createElement('div');
@@ -1376,9 +1390,11 @@ export function createPeopleController({
     const closeBtn = $d('ch-people-inspect-close');
     const mergeBtn = $d('ch-people-inspect-merge');
     if (!dialog || !stageEl || !photosEl) return;
+    const inspection = ++inspectGeneration;
+    const gallery = getGallery();
 
     const dispName = subjectDisplayName(subject);
-    const countStr = formatPhotoCount(subject.photo_count || 1, tr, locale);
+    const countStr = personPhotoCount(subject);
     if (titleEl) {
       titleEl.textContent = `${dispName} · ${countStr}`;
     }
@@ -1465,7 +1481,7 @@ export function createPeopleController({
       fullImg.className = 'ch-people-inspect-full-img';
       fullImg.alt = mediaItem?.name || tr('Voller Bildbereich');
       if (detId) {
-        fullImg.src = contextPreviewUrl(detId);
+        fullImg.src = contextPreviewUrl(detId, subject);
       }
       imgHolder.append(fullImg);
 
@@ -1662,7 +1678,7 @@ export function createPeopleController({
         const cropImg = document.createElement('img');
         cropImg.className = 'ch-people-inspect-crop-img';
         cropImg.alt = '';
-        cropImg.src = previewUrl(detId);
+        cropImg.src = personPreviewUrl(detId, subject);
         cropCard.append(cropImg);
       }
 
@@ -1683,8 +1699,10 @@ export function createPeopleController({
     dialog.showModal();
 
     try {
-      const q = new URLSearchParams({ gallery: getGallery(), limit: '40', filter: 'all' });
+      const q = new URLSearchParams({ gallery, limit: '40', filter: 'all' });
+      if (subject.scope === 'account') q.set('scope', 'account');
       const data = await api(`subjects/${encodeURIComponent(subject.id)}/media?` + q.toString());
+      if (inspection !== inspectGeneration || gallery !== getGallery() || !dialog.open) return;
       const items = Array.isArray(data?.items) ? data.items : [];
       photosEl.replaceChildren();
       if (items.length === 0) {
@@ -1710,7 +1728,7 @@ export function createPeopleController({
           }).catch(() => {});
           const fInfo = Array.isArray(mItem.faces) && mItem.faces[0] ? mItem.faces[0] : null;
           if (!tImg.src && (fInfo?.id || mItem.face_detection_ids?.[0])) {
-            tImg.src = previewUrl(fInfo?.id || mItem.face_detection_ids[0]);
+            tImg.src = personPreviewUrl(fInfo?.id || mItem.face_detection_ids[0], subject);
           }
           thumbBtn.append(tImg);
           thumbBtn.onclick = () => {
@@ -1726,7 +1744,11 @@ export function createPeopleController({
         }
       }
     } catch {
-      photosEl.replaceChildren();
+      if (inspection === inspectGeneration && gallery === getGallery() && dialog.open) {
+        const hint = document.createElement('p'); hint.className = 'ch-hint';
+        hint.textContent = tr('Fotos konnten nicht geladen werden. Bitte erneut öffnen.');
+        photosEl.replaceChildren(hint);
+      }
     }
   }
 
@@ -2013,7 +2035,7 @@ export function createPeopleController({
   const preferenceWindow = root.ownerDocument?.defaultView;
   if (preferenceWindow) {
     if (root.peoplePreviewRestore) preferenceWindow.removeEventListener('pageshow', root.peoplePreviewRestore);
-    root.peoplePreviewRestore = () => { syncContextPreference(); };
+    root.peoplePreviewRestore = () => { syncContextPreference(); updateFilterButtons(); };
     preferenceWindow.addEventListener('pageshow', root.peoplePreviewRestore);
   }
 
@@ -2090,6 +2112,7 @@ export function createPeopleController({
     let target = initialTarget ? { ...initialTarget } : null;
     let mergeFilter = 'all', next = null, hasMore = false, fetching = false, request = 0;
     let targets = [], busy = false, closed = false;
+    let searchTimer = null;
     const valid = () => !closed && session === mergeDialogGeneration && gallery === getGallery();
     const people = () => partner ? [...basePeople, partner] : basePeople;
     const sources = () => people().filter(s => s.id !== target?.id);
@@ -2097,15 +2120,18 @@ export function createPeopleController({
     if (title) title.textContent = tr(isMove ? 'Ausgewählte Fotos zu Person verschieben' : 'Personen zusammenführen');
     const subtitle = $d('ch-people-merge-subtitle');
     if (subtitle) subtitle.textContent = isMove
-      ? tr('Wähle die Person, der die ausgewählten Fotos zugeordnet werden sollen.')
-      : tr('Wähle, welche Person bestehen bleibt. Die anderen Gruppen werden ihr zugeordnet.');
+      ? tr('Wähle die Person aus allen deinen Galerien, der die ausgewählten Fotos zugeordnet werden sollen.')
+      : tr('Wähle, welche Person bestehen bleibt. Du kannst Personen aus allen deinen Galerien zuordnen.');
     if (searchInput) searchInput.value = '';
     if (error) error.hidden = true;
     const controls = () => [...dialog.querySelectorAll('button, input')];
+    // A previous merge closes the dialog while its controls are still disabled; reopen with them usable.
+    controls().forEach(el => { el.disabled = false; });
 
     function finish() {
       if (closed) return;
       closed = true;
+      clearTimeout(searchTimer);
       request++;
       if (closeMergeDialog === finish) closeMergeDialog = null;
       if (dialog.open) dialog.close();
@@ -2118,13 +2144,13 @@ export function createPeopleController({
     if (dismiss) dismiss.onclick = e => { e.preventDefault(); if (!busy) finish(); };
 
     function description(person) {
-      return `${subjectDisplayName(person)} · ${formatPhotoCount(person.photo_count, tr, locale)}`;
+      return `${subjectDisplayName(person)} · ${personPhotoCount(person)}`;
     }
     function chip(person, label) {
       const el = document.createElement('div');
       el.className = 'ch-people-merge-chip';
       if (person.cover_id) {
-        const img = document.createElement('img'); img.src = previewUrl(person.cover_id); img.alt = ''; el.append(img);
+        const img = document.createElement('img'); img.src = personPreviewUrl(person.cover_id, person); img.alt = ''; el.append(img);
       }
       const copy = document.createElement('span'); copy.textContent = `${label}: ${description(person)}`; el.append(copy);
       return el;
@@ -2144,10 +2170,10 @@ export function createPeopleController({
       const thumb = document.createElement('div'); thumb.className = 'ch-person-thumb-wrap';
       if (person.cover_id) {
         const img = document.createElement('img'); img.className = 'ch-person-thumb'; img.alt = ''; img.loading = 'lazy';
-        img.src = previewUrl(person.cover_id); img.onerror = () => img.replaceWith(createGenericPersonIcon()); thumb.append(img);
+        img.src = personPreviewUrl(person.cover_id, person); img.onerror = () => img.replaceWith(createGenericPersonIcon()); thumb.append(img);
       } else thumb.append(createGenericPersonIcon());
       const name = document.createElement('strong'); name.className = 'ch-person-name'; name.textContent = subjectDisplayName(person);
-      const count = document.createElement('span'); count.className = 'ch-person-count'; count.textContent = formatPhotoCount(person.photo_count, tr, locale);
+      const count = document.createElement('span'); count.className = 'ch-person-count'; count.textContent = personPhotoCount(person);
       const badge = document.createElement('span'); badge.className = 'ch-people-merge-selected-badge';
       badge.textContent = tr('Bleibt bestehen'); badge.hidden = !active;
       button.append(thumb, name, count, badge); button.onclick = () => choose(person, external);
@@ -2200,25 +2226,24 @@ export function createPeopleController({
     }
     function renderTargets() {
       container.replaceChildren();
-      const q = (searchInput?.value || '').trim().toLocaleLowerCase();
-      const shown = targets.filter(s => !basePeople.some(b => b.id === s.id)).filter(s =>
-        !q || description(s).toLocaleLowerCase().includes(q) || String(s.photo_count).includes(q));
+      const shown = targets.filter(s => !basePeople.some(b => b.id === s.id));
       for (const person of shown) container.append(choice(person, true));
       if (!shown.length) {
         const empty = document.createElement('p'); empty.className = 'ch-hint';
-        empty.textContent = fetching ? tr('Personen werden geladen …') : tr('Keine Personen in den geladenen Ergebnissen gefunden.'); container.append(empty);
+        empty.textContent = fetching ? tr('Personen werden geladen …') : tr('Keine passenden Personen in deinen Galerien gefunden.'); container.append(empty);
       }
       if (moreWrap) moreWrap.hidden = !hasMore;
       if (moreBtn) moreBtn.disabled = fetching;
     }
     async function load(reset = true) {
       if (!valid() || (fetching && !reset)) return;
+      clearTimeout(searchTimer);
       const req = ++request;
       fetching = true;
       if (reset) { next = null; targets = []; hasMore = false; }
       renderTargets();
       try {
-        const data = await api('subjects?' + buildSubjectsQuery({ gallery, cursor: next, limit: 60, filter: mergeFilter }));
+        const data = await api('subjects?' + buildSubjectsQuery({ gallery, cursor: next, limit: 60, filter: mergeFilter, scope: 'account', query: searchInput?.value }));
         if (!valid() || req !== request) return;
         targets = reset ? (data.items || []) : [...targets, ...(data.items || [])];
         targets = [...new Map(targets.map(s => [s.id, s])).values()];
@@ -2241,7 +2266,13 @@ export function createPeopleController({
         load(true);
       };
     });
-    if (searchInput) searchInput.oninput = renderTargets;
+    if (searchInput) searchInput.oninput = () => {
+      clearTimeout(searchTimer);
+      request++; // Discard responses for the previous name immediately.
+      targets = []; next = null; hasMore = false; fetching = true;
+      renderTargets();
+      searchTimer = setTimeout(() => load(true), 180);
+    };
     if (moreBtn) moreBtn.onclick = () => load(false);
     okBtn.onclick = async () => {
       if (!valid() || okBtn.disabled || busy) return;
@@ -2433,6 +2464,8 @@ export function createPeopleController({
 
   function onGalleryChange(newGallery) {
     closeMergeDialog?.();
+    inspectGeneration++;
+    $d('ch-people-inspect-dialog')?.close();
     currentGallery = newGallery || getGallery();
     activeGeneration++;
     if (currentAbort) {
@@ -2469,6 +2502,7 @@ export function createPeopleController({
   return {
     show: () => {
       syncContextPreference();
+      updateFilterButtons();
       root.hidden = false;
       const gallery = getGallery();
       if (gallery !== currentGallery) {

@@ -20,3 +20,20 @@ On small screens the overview uses a compact filter dropdown. The merge dialog u
 - PHP syntax checks, JavaScript syntax check and `git diff --check`.
 
 These checks use local and disposable test environments. Production deployment is verified separately with runtime hashes and a before/after preservation audit. Private-library accuracy and physical-device behavior were not tested; this change does not require a data reset.
+
+## Cross-gallery assignments (0.4.38)
+
+Person identities, names and corrections belong to the account. The overview,
+rarity and photo counts remain scoped to the selected gallery. Assignment targets
+and similarity suggestions use all currently configured galleries of that account,
+so the first rare photo in one gallery can be assigned to a named person that
+previously appeared only in another gallery. Global target counts are labelled
+“All my galleries”. Target inspection and previews retain this scope.
+
+Target name searches run on the server before pagination. Restored browser form
+values are reconciled with the active controller filter on opening and pageshow,
+so the selected filter always matches the requested and displayed list.
+
+The account scope never bypasses current file access, ETag or configured folder
+checks and never combines identities from different accounts. No existing AI
+records are reset or reprocessed by this update.

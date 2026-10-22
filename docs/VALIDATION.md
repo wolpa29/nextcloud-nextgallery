@@ -1,5 +1,43 @@
 # Native Android People integration — 20 October 2026
 
+## 0.4.38 Cross-gallery person assignments and consistent initial filters — 22 October 2026
+
+The People overview keeps gallery-local photos, counts and rarity. Assignment
+and similarity targets now use all currently configured galleries of the signed-in
+account, including named people with no photos in the current gallery. Target
+name search runs before pagination. Preview and inspection requests retain the
+target scope and still check current access, configured roots and ETag. The Web
+and OCS adapters expose the same optional scope. Browser-restored filter values
+are reconciled on opening and pageshow.
+
+Validation: 57 Node/browser tests; 72 real Nextcloud suggestion assertions on
+Nextcloud 34/35; a separate 28-assertion contract covers the first rare photo,
+search beyond the first page, cross-gallery previews, OCS parity, cross-account
+isolation, hidden/unknown targets, removed roots and changed ETags. Existing
+96 People feature, 93 native People and 6 snapshot-cleanup assertions pass on
+Nextcloud 34. Admin browser validation passes 68 checks and model-transition
+validation passes 39 checks. The full PHP unit suite passes when run as the
+service user. Its old expectations for repeated pause and rare-person suggestions
+were corrected against the existing behavior; no control logic was changed.
+The complete fresh Nextcloud 35.0.1 integration run passes, including 28 HTTP
+checks, 39 admin and 17 independent-pipeline assertions, concurrent publication
+and revoked-share checks.
+Synthetic phone/desktop layouts and the new account target card were inspected.
+No private photos are used. The pre-existing Admin/Gemma fixes below are included
+in this release without resetting or recomputing existing AI data.
+
+## 0.4.35 Vector-space check ignores retired cache rows — 21 October 2026
+
+The admin compatibility check compared every row of the worker cache, including inactive rows kept from an older model space, and reported "The local processing cache contains different image vectors" although all active vectors and the Nextcloud vector table matched the service. It now counts only active, completed rows, like the worker's own rebuild detection. "Check connection" moved below the Gemma install/remove controls.
+
+Validation: admin contract (39 assertions, fixture now uses the worker cache schema with an inactive older-space row; fails with the previous query), 68 admin browser assertions without page errors.
+
+## 0.4.34 Switching to local Gemma before installation — 21 October 2026
+
+Moving from an external embedding service to local Gemma deadlocked: "Save and install Gemma" saves first, the vector-space check cannot reach the not-yet-installed local service, and the dialog only allowed cancelling. An unreachable service now offers "Save, verify later": the configuration is saved, no vectors are deleted and no space is approved. Once the service runs, the worker compares the stored vectors and keeps them on a match or requires an explicit rebuild confirmation. The server rejects deferral when the service is reachable. Local connection checks now say that the local service is not running yet.
+
+Validation: fresh Nextcloud 35 integration suite passed (39 admin processing/model transition assertions including deferral, 17 three-pipeline assertions), 68 admin browser assertions passed without page errors, JavaScript unit tests passed.
+
 ## 0.4.33 People workspace and native consistency — 21 October 2026
 
 The People workspace now has a clearly labelled overview, management disclosure, compact/collapsible suggestions, keyboard-accessible context controls and explicit loaded counts. Same-context refresh failures preserve existing cards/photos; failed suggestion requests can be retried independently. Correction requests reject duplicate submissions, stale-view results cannot overwrite another gallery, and correction/conflict failures remain visible. Hide/show and known/unknown flags support retryable undo. Merge separation is honestly labelled and documented: it does not restore historical names/covers. Processing errors distinguish image corruption, limits and response failures without claiming an unverified model-service outage.

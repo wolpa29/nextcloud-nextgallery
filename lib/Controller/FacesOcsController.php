@@ -53,15 +53,19 @@ class FacesOcsController extends OCSController {
         string $gallery = '',
         int $cursor = 0,
         int $limit = 60,
-        string $filter = 'all'
+        string $filter = 'all',
+        string $scope = 'gallery',
+        string $query = ''
     ): DataResponse {
         $uid = $this->uid();
         $gallery = $gallery !== '' ? $gallery : (string)$this->request->getParam('gallery', '');
         $cursor = $cursor !== 0 ? $cursor : (int)$this->request->getParam('cursor', 0);
         $limit = $limit !== 60 ? $limit : (int)$this->request->getParam('limit', 60);
         $filter = $filter !== 'all' ? $filter : (string)$this->request->getParam('filter', 'all');
+        $scope = $scope !== 'gallery' ? $scope : (string)$this->request->getParam('scope', 'gallery');
+        $query = $query !== '' ? $query : (string)$this->request->getParam('query', '');
 
-        $data = $this->faces->subjects($uid, $gallery, $cursor, $limit, $filter);
+        $data = $this->faces->subjects($uid, $gallery, $cursor, $limit, $filter, $scope, $query);
         return $this->response($data);
     }
 
@@ -72,7 +76,8 @@ class FacesOcsController extends OCSController {
         string $gallery = '',
         int $cursor = 0,
         int $limit = 60,
-        string $filter = 'all'
+        string $filter = 'all',
+        string $scope = 'gallery'
     ): DataResponse {
         $uid = $this->uid();
         $gallery = $gallery !== '' ? $gallery : (string)$this->request->getParam('gallery', '');
@@ -80,16 +85,18 @@ class FacesOcsController extends OCSController {
         $limit = $limit !== 60 ? $limit : (int)$this->request->getParam('limit', 60);
 
         $filter=$filter!=='all'?$filter:(string)$this->request->getParam('filter','all');
-        $data = $this->faces->media($uid, $id, $gallery, $cursor, $limit, $filter);
+        $scope = $scope !== 'gallery' ? $scope : (string)$this->request->getParam('scope', 'gallery');
+        $data = $this->faces->media($uid, $id, $gallery, $cursor, $limit, $filter, $scope);
         return $this->response($data);
     }
 
     #[NoAdminRequired]
     #[NoCSRFRequired]
-    public function similar(string $id, string $gallery = ''): DataResponse {
+    public function similar(string $id, string $gallery = '', string $scope = 'gallery'): DataResponse {
         $uid = $this->uid();
         $gallery = $gallery !== '' ? $gallery : (string)$this->request->getParam('gallery', '');
-        return $this->response($this->faces->similar($uid, $id, $gallery));
+        $scope = $scope !== 'gallery' ? $scope : (string)$this->request->getParam('scope', 'gallery');
+        return $this->response($this->faces->similar($uid, $id, $gallery, 8, $scope));
     }
 
     #[NoAdminRequired]

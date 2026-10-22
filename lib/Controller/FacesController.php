@@ -47,15 +47,19 @@ class FacesController extends Controller {
         string $gallery = '',
         int $cursor = 0,
         int $limit = 60,
-        string $filter = 'all'
+        string $filter = 'all',
+        string $scope = 'gallery',
+        string $query = ''
     ): DataResponse {
         $uid = $this->uid();
         $gallery = $gallery !== '' ? $gallery : (string)$this->request->getParam('gallery', '');
         $cursor = $cursor !== 0 ? $cursor : (int)$this->request->getParam('cursor', 0);
         $limit = $limit !== 60 ? $limit : (int)$this->request->getParam('limit', 60);
         $filter = $filter !== 'all' ? $filter : (string)$this->request->getParam('filter', 'all');
+        $scope = $scope !== 'gallery' ? $scope : (string)$this->request->getParam('scope', 'gallery');
+        $query = $query !== '' ? $query : (string)$this->request->getParam('query', '');
 
-        $data = $this->faces->subjects($uid, $gallery, $cursor, $limit, $filter);
+        $data = $this->faces->subjects($uid, $gallery, $cursor, $limit, $filter, $scope, $query);
         $response = new DataResponse($data);
         $response->addHeader('Cache-Control', 'private, no-store');
         return $response;
@@ -67,7 +71,8 @@ class FacesController extends Controller {
         string $gallery = '',
         int $cursor = 0,
         int $limit = 60,
-        string $filter = 'all'
+        string $filter = 'all',
+        string $scope = 'gallery'
     ): DataResponse {
         $uid = $this->uid();
         $gallery = $gallery !== '' ? $gallery : (string)$this->request->getParam('gallery', '');
@@ -75,8 +80,9 @@ class FacesController extends Controller {
         $limit = $limit !== 60 ? $limit : (int)$this->request->getParam('limit', 60);
 
         $filter=$filter!=='all'?$filter:(string)$this->request->getParam('filter','all');
+        $scope = $scope !== 'gallery' ? $scope : (string)$this->request->getParam('scope', 'gallery');
         try {
-            $data = $this->faces->media($uid, $id, $gallery, $cursor, $limit, $filter);
+            $data = $this->faces->media($uid, $id, $gallery, $cursor, $limit, $filter, $scope);
             $response = new DataResponse($data);
             $response->addHeader('Cache-Control', 'private, no-store');
             return $response;
@@ -93,11 +99,12 @@ class FacesController extends Controller {
     }
 
     #[NoAdminRequired]
-    public function similar(string $id, string $gallery = ''): DataResponse {
+    public function similar(string $id, string $gallery = '', string $scope = 'gallery'): DataResponse {
         $uid = $this->uid();
         $gallery = $gallery !== '' ? $gallery : (string)$this->request->getParam('gallery', '');
+        $scope = $scope !== 'gallery' ? $scope : (string)$this->request->getParam('scope', 'gallery');
         try {
-            $response = new DataResponse($this->faces->similar($uid, $id, $gallery));
+            $response = new DataResponse($this->faces->similar($uid, $id, $gallery, 8, $scope));
             $response->addHeader('Cache-Control', 'private, no-store');
             return $response;
         } catch (OCSBadRequestException $e) {
@@ -122,10 +129,11 @@ class FacesController extends Controller {
 
     #[NoAdminRequired]
     #[NoCSRFRequired]
-    public function preview(string $detectionId, string $gallery = '', array $roots = []): Bytes {
+    public function preview(string $detectionId, string $gallery = '', array $roots = [], string $scope = 'gallery'): Bytes {
         $uid = $this->uid();
         $gallery = $gallery !== '' ? $gallery : (string)$this->request->getParam('gallery', '');
         $roots = $roots !== [] ? $roots : (array)$this->request->getParam('roots', []);
+        $scope = $scope !== 'gallery' ? $scope : (string)$this->request->getParam('scope', 'gallery');
 
         $det = $this->faces->getDetection($uid, $detectionId);
         if (!$det) {
@@ -140,7 +148,7 @@ class FacesController extends Controller {
                 return new Bytes('', 'text/plain', 404, ['Cache-Control' => 'no-store']);
             }
         } else {
-            $effectiveRoots = $this->library->settings($uid, $gallery)['roots'] ?? [];
+            $effectiveRoots = $this->faces->scopeRoots($uid, $gallery, $scope);
         }
 
         // Current read access, gallery scope and file version; fails closed without a home folder.
