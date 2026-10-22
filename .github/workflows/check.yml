@@ -35,7 +35,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with: {php-version: '8.3'}
       - run: npm ci --ignore-scripts
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps chromium firefox webkit
       - run: npm run build
       - run: node scripts/required-browser-tests.mjs
       - uses: actions/upload-artifact@v4

@@ -529,5 +529,6 @@
   "Suchindex wird im Hintergrund aktualisiert.": "The search index is being updated in the background.",
   "Bildinhalte finden": "Find image content",
   "{0} Vorschauen gespeichert.": "{0} previews saved.",
-  "Teilweise aktualisiert · nicht erreichbare Ordner bleiben erhalten": "Partially updated · unavailable folders are retained"
+  "Teilweise aktualisiert · nicht erreichbare Ordner bleiben erhalten": "Partially updated · unavailable folders are retained",
+  "Suchergebnisse": "Search results"
 }

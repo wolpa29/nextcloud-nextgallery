@@ -2,8 +2,8 @@
 
 ## 0.4.39 Integration resilience and repeatable quality checks — 22 October 2026
 
-Local working-tree validation; no production install, Git push, App Store release
-or Android publication was performed. Test media are generated PNG/SVG fixtures.
+Local working-tree validation; the initial implementation was validated before production installation.
+The subsequent delivery record below distinguishes push, CI, install and release. Test media are generated PNG/SVG fixtures.
 
 Implemented: atomic offline collection replacement retaining IndexedDB schema 1
 for previously saved shells; cancellation/quota/rollback protection; same-gallery
@@ -23,7 +23,7 @@ queued Android-only accounts. A periodic queued sweep covers out-of-band changes
 
 | Local check | Result |
 | --- | --- |
-| Required Node/browser suite | 73 passed, zero failures/skips; actual PHP shell and current frontend bundles |
+| Required Node/browser suite | 83 passed, zero failures/skips; actual PHP shell and current frontend bundles |
 | Python suite | 385 passed, no skips reported |
 | PHP suite | Full service-user suite and syntax checks passed; includes 45 backend resilience, 18 capability, 19 date/GPS and 11 migration assertions |
 | Nextcloud 32.0.5, MariaDB | Both predecessor upgrade and unified rename paths passed the full runner, each including 28 authenticated HTTP checks and immediate revoked-share denial |
@@ -40,14 +40,25 @@ installation constraints. Migration 000439 uses physical renames, refuses
 ambiguous old/new collisions and copies/deletes no People rows. Earlier migration
 steps also accept existing legacy names before that rename occurs.
 
+Additional accessibility checks cover keyboard-only dialog focus return and Tab
+cycling, radio-group navigation, the fast-scroll slider, gallery/search/People/map
+semantics, visible labels in accessible names and real People photo rendering.
+Chromium, Firefox and WebKit are exercised with generated fixtures. The Linux
+host lacks WebKit libraries, so its complete strict browser run uses the official
+Playwright Docker image with PHP CLI. Roles, labels, attribution-link underlining,
+modal focus wrapping and keyboard photo opening were corrected. DOMPurify was
+updated to 3.4.17; the dependency audit then reported zero known vulnerabilities.
+
 The new CI browser job rejects skipped tests. People contracts run on 34 and 35;
 release packaging depends on the verification workflow. These are prepared
 workflow changes: no new hosted GitHub run is claimed for the unpushed tree.
 See [quality checks](QUALITY.md) for fixed labelled metrics and measured synthetic
 10k/100k/multiple-frame search loads. Those measurements do not establish model
 recognition accuracy or complete HTTP production latency. Exact candidate ranking
-and model/vector spaces are unchanged. No physical Android device, Safari,
-Firefox or complete screen-reader audit was run for this change.
+and model/vector spaces are unchanged. No physical Android device, macOS Safari
+or complete assistive screen-reader audit was run for this change. The test suite
+verifies automated axe-core rules and targeted keyboard behaviors without
+claiming full WCAG compliance.
 
 ## 0.4.38 Cross-gallery person assignments and consistent initial filters — 22 October 2026
 

@@ -590,6 +590,10 @@
  #nextgallery .ch-ai-feature .ch-button{flex:1 1 9em;overflow-wrap:normal}
 }
 
+#nextgallery .ch-person-media-tile img[role=button]:focus-visible{outline:3px solid var(--ng-accent);outline-offset:-3px}
+
+#nextgallery .leaflet-control-attribution a{text-decoration:underline;text-underline-offset:2px}
+
 /* LEAFLET STYLES */
 /* required styles */
 

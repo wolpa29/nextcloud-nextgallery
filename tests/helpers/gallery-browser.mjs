@@ -23,12 +23,7 @@ function renderShell() {
   .replace("file_get_contents(__DIR__.'/en.json')",phpString(readFileSync(ROOT+'/frontend/en.json','utf8')))
   .replaceAll("include __DIR__.'/display-options.php';",'?>'+readFileSync(ROOT+'/templates/display-options.php','utf8')+'<?php ');
  const preamble = `<?php function p($text){echo htmlspecialchars((string)$text,ENT_QUOTES,'UTF-8');} $_=['context'=>['language'=>'de','version'=>'test','settings'=>['appearance'=>'light'],'aiUrl'=>'/apps/nextgallery/processing']]; ?>`;
- let defaultPhp = '["php"]';
- if (!process.env.NEXTGALLERY_TEST_PHP) {
-  const check = spawnSync('php', ['-v'], {encoding: 'utf8'});
-  if (check.error || check.status !== 0) defaultPhp = '["docker","exec","-i","nextgallery-merge-fresh35","php"]';
- }
- const command = JSON.parse(process.env.NEXTGALLERY_TEST_PHP || defaultPhp);
+ const command = JSON.parse(process.env.NEXTGALLERY_TEST_PHP || '["php"]');
  const result = spawnSync(command[0],command.slice(1),{input:preamble+source,encoding:'utf8'});
  if (result.error || result.status !== 0) throw result.error || Error(result.stderr || result.stdout);
  if (/Warning:|Fatal error:/.test(result.stdout)) throw Error(result.stdout);
@@ -42,8 +37,19 @@ export async function galleryFixture(t,{total=9,width=1100,height=850,items=null
  if (browserName === 'chromium') {
   launchOptions.executablePath = process.env.PLAYWRIGHT_EXECUTABLE || undefined;
   launchOptions.args = ['--no-sandbox'];
+ } else if (browserName === 'firefox') {
+  launchOptions.executablePath = process.env.PLAYWRIGHT_FIREFOX_EXECUTABLE || undefined;
+ } else if (browserName === 'webkit') {
+  launchOptions.executablePath = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE || undefined;
  }
- const browser = await engine.launch(launchOptions);
+ let browser;
+ try {
+  browser = await engine.launch(launchOptions);
+ } catch (error) {
+  if (process.env.REQUIRE_BROWSER_TESTS === '1') throw error;
+  t.skip(`${browserName} launch failed: ${error.message}`);
+  return;
+ }
  t.after(()=>browser.close());
  const page = await browser.newPage({viewport:{width,height}});
  page.setDefaultTimeout(6000);

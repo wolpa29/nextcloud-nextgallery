@@ -548,6 +548,9 @@ export function createPeopleController({
       countLabel.className = 'ch-person-count';
       countLabel.textContent = countStr;
       card.append(countLabel);
+      const badges = [...thumbWrap.querySelectorAll('.ch-person-badge')].map(badge => badge.textContent);
+      const visibleName = [...badges, hasName ? subject.label.trim() : '', countStr].join('');
+      card.setAttribute('aria-label', (hasName ? '' : subjectDisplayName(subject) + ' · ') + visibleName);
 
       card.onclick = () => {
         if (selectMode) toggleSelectSubject(subject);
@@ -1023,6 +1026,7 @@ export function createPeopleController({
     for (const item of subjectMedia) {
       const tile = document.createElement('div');
       tile.className = 'ch-person-media-tile';
+      tile.setAttribute('role', 'listitem');
       tile.dataset.id = String(item.id);
 
       const isSelected = selectedDetections.has(item.id);
@@ -1041,6 +1045,11 @@ export function createPeopleController({
 
       const img = document.createElement('img');
       img.alt = item.name || '';
+      img.tabIndex = 0;
+      img.setAttribute('role', 'button');
+      img.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); img.click(); }
+      });
       img.loading = 'lazy';
       img.decoding = 'async';
 
