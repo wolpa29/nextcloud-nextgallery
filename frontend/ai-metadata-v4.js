@@ -26,8 +26,27 @@ class AnalysisTab extends HTMLElement {
       this.replaceChildren()
       if(!r.available){this.append(text('p',tr(r.stale?'Die Datei wurde geändert. Eine neue Analyse steht aus.':'Für dieses Bild liegt noch keine Analyse vor.')));return}
       const a=r.metadata.analysis,v=a.vision
-      this.append(text('h3',tr('Bildbeschreibung')),text('p',v.description),text('h3',tr('Typ und Suchbegriffe')),text('p',[v.type,...(window.MediaAIi18n?.keywords(v)||v.tags||[])].join(' · ')),text('h3',tr('Erkannter Text')),text('pre',a.ocr.source==='skipped_video'?tr('OCR bei Videos ausgelassen.'):a.ocr.text||tr('Kein Text erkannt.')))
-      if(v.uncertain_details?.length)this.append(text('h3',tr('Unsichere Angaben')),text('p',v.uncertain_details.join('\n')))
+      if(v)this.append(text('h3',tr('Bildbeschreibung')),text('p',v.description),text('h3',tr('Typ und Suchbegriffe')),text('p',[v.type,...(window.MediaAIi18n?.keywords(v)||v.tags||[])].join(' · ')))
+      if(a.ocr)this.append(text('h3',tr('Erkannter Text')),text('pre',a.ocr.source==='skipped_video'?tr('OCR bei Videos ausgelassen.'):a.ocr.text||tr('Kein Text erkannt.')))
+      if(v?.uncertain_details?.length)this.append(text('h3',tr('Unsichere Angaben')),text('p',v.uncertain_details.join('\n')))
+      if(a.audio){
+        this.append(text('h3',tr('Videoton · Gesprochene Inhalte')))
+        if(a.audio.no_audio)this.append(text('p',tr('Keine Sprache in der Audiospur erkannt.')))
+        else if(a.audio.text){
+          this.append(text('p',a.audio.text))
+          if(a.audio.segments?.length){
+            const details=text('details','')
+            details.append(text('summary',tr('Zeitabschnitte anzeigen ({count})',{count:a.audio.segments.length})))
+            const fmt=sec=>{const m=Math.floor(sec/60),s=Math.floor(sec%60);return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`}
+            const list=document.createElement('div')
+            for(const seg of a.audio.segments){
+              list.append(text('p',`[${fmt(seg.start)} - ${fmt(seg.end)}] ${seg.text}`))
+            }
+            details.append(list)
+            this.append(details)
+          }
+        }
+      }
       this.append(text('h3',tr('Analyse')),text('p',new Date(Number(r.updated_at)*1000).toLocaleString()))
       const details=text('details','');details.append(text('summary',tr('Alle Metadaten und Quelldaten')),text('pre',JSON.stringify(r.metadata,null,2)));this.append(details)
     }catch(e){if(generation===this.generation)this.replaceChildren(text('p',tr('Metadaten konnten nicht geladen werden ({error}).',{error:e.message})))}

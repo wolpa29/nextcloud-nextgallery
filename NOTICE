@@ -12,3 +12,5 @@ The corresponding-source archive includes installed npm package sources, source 
 sqlite-vec 0.1.9: Copyright (c) 2024 Alex Garcia and contributors. Dual-licensed under MIT and Apache-2.0. Upstream source: https://github.com/asg017/sqlite-vec (tag v0.1.9, commit e9f598abfa0c06b328d8fe5da9c3760cce74be10). Bundled precompiled manylinux shared libraries for x86_64 and aarch64; corresponding amalgamation C sources, licenses, and manifests are recorded in worker/vendor/sqlite-vec-source/ and docs/licenses/sqlite-vec*.
 
 YuNet and SFace (OpenCV Zoo): Copyright 2021-2023 OpenCV authors and contributors. YuNet is licensed under MIT; SFace under Apache-2.0. Upstream models and code: https://github.com/opencv/opencv_zoo. Managed download for face detection and recognition; license text and training data notice at docs/licenses/faces-opencv-zoo.txt.
+
+Optional video speech runtime: faster-whisper 1.2.1 and Whisper models, MIT. Model repository revisions: worker/audio_models.json. Managed private download only; notices: docs/licenses/audio-whisper.txt. PyAV 16.1.0 and CTranslate2 retain their upstream licence notices in the isolated runtime.

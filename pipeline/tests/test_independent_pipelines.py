@@ -15,7 +15,7 @@ def synthetic_worker(directory,kind,started,release,progress):
     root=Path(directory)
     config={'user_id':'synthetic','folders':['/Synthetic'],'exclude_folders':[],
             'analysis_enabled':True,'embedding':{'enabled':True},'vision':{},'ocr':{},
-            'faces':{'enabled':True},'enabled':False,'schedule_time':'00:00','timezone':'Europe/Vienna','log_days':1}
+            'faces':{'enabled':True},'audio':{'enabled':True},'enabled':False,'schedule_time':'00:00','timezone':'Europe/Vienna','log_days':1}
     class API:
         url='https://synthetic.invalid/worker/'
         def __init__(self,*args):pass
@@ -30,14 +30,18 @@ def synthetic_worker(directory,kind,started,release,progress):
         result={'state':'finished','processed':count,'errors':0,'stats':{'done':count,'pending':0,'error':0},'published':count}
         return result
     w.initialize_pipelines(root)
-    if kind=='faces':w.atomic(root/'control-faces.json',{'paused':False,'requested':True,'run_kind':'faces','request_id':'synthetic'})
+    if kind in ('faces','audio'):w.atomic(root/('control-'+kind+'.json'),{'paused':False,'requested':True,'run_kind':kind,'request_id':'synthetic'})
     from types import SimpleNamespace
     def faces_cycle(api,config,directory,reporter,control):
         reporter.update(state='running')
         result=run(should_stop=lambda: w.admin_paused(root,'faces') or w.read(root/'control-faces.json',{}).get('paused',False))
         return {'faces':result,'embedding':{'state':'disabled'}}
+    def audio_cycle(api,config,directory,reporter,control):
+        reporter.update(state='running')
+        result=run(should_stop=lambda: w.admin_paused(root,'audio') or w.read(root/'control-audio.json',{}).get('paused',False))
+        return {'audio':result,'embedding':{'state':'disabled'}}
     fake_setup=SimpleNamespace(tick=lambda *args,**kwargs:{'installed':True},python_path=lambda directory:Path(sys.executable),stop=lambda:None)
-    with patch.dict(sys.modules,{'faces_setup':fake_setup}),patch.object(w,'faces_cycle',faces_cycle),patch.object(w.sys,'argv',['worker','--bootstrap',str(root/'bootstrap.json'),'--pipeline',kind,'--once']),patch.object(w,'API',API),patch.object(w,'NativeSource',Source),patch.object(w.p,'Model'),patch.object(w.p,'run',run),patch.object(w.embedding,'run',side_effect=lambda *args:run(should_stop=args[5])),patch.object(w,'ensure_local_embedding'),patch.object(w,'maintain_embedding_service',return_value=True),patch.object(w,'detect_embedding_rebuild',return_value=False):
+    with patch.dict(sys.modules,{'faces_setup':fake_setup,'audio_setup':fake_setup}),patch.object(w,'faces_cycle',faces_cycle),patch.object(w,'audio_cycle',audio_cycle),patch.object(w.sys,'argv',['worker','--bootstrap',str(root/'bootstrap.json'),'--pipeline',kind,'--once']),patch.object(w,'API',API),patch.object(w,'NativeSource',Source),patch.object(w.p,'Model'),patch.object(w.p,'run',run),patch.object(w.embedding,'run',side_effect=lambda *args:run(should_stop=args[5])),patch.object(w,'ensure_local_embedding'),patch.object(w,'maintain_embedding_service',return_value=True),patch.object(w,'detect_embedding_rebuild',return_value=False):
         w.main()
 
 
@@ -153,7 +157,7 @@ class IndependentPipelines(unittest.TestCase):
             def wait(self,timeout):return self.returncode
         with tempfile.TemporaryDirectory() as temporary,patch.object(w,'_shutdown',shutdown),patch.object(w.subprocess,'Popen',side_effect=Child):
             w.supervise(SimpleNamespace(bootstrap=str(Path(temporary)/'bootstrap.json'),once=False),Path(temporary))
-        self.assertEqual([child.kind for child in created],['descriptions','ocr','embeddings','faces','embeddings'])
+        self.assertEqual([child.kind for child in created],['descriptions','ocr','embeddings','faces','audio','embeddings'])
         self.assertTrue(created[0].terminated)  # Only stopped when the supervisor itself shuts down.
         self.assertFalse(created[2].terminated)  # This process failed independently.
 

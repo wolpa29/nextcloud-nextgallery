@@ -20,9 +20,9 @@ class AiAccountController extends Controller {
         $space=$rebuild['target_space']??$rebuild['approved_space']??$lane['embedding_space']??$lane['last_run']['embedding']['space']??null;
         $embeddingTotal=$this->embeddings->count($uid);
         return new DataResponse(['user_id'=>$uid,'folders'=>$config['folders'],'exclude_folders'=>$config['exclude_folders'],'folder_stages'=>$config['folder_stages'],'faces_filters'=>$config['faces_filters'],
-            'analysis_enabled'=>$config['analysis_enabled'],'ocr_enabled'=>$config['ocr_enabled'],'embedding_enabled'=>$config['embedding']['enabled'],'faces_enabled'=>$config['faces']['enabled'],'faces_count'=>$this->faces?->count($uid)??0,
+            'analysis_enabled'=>$config['analysis_enabled'],'ocr_enabled'=>$config['ocr_enabled'],'embedding_enabled'=>$config['embedding']['enabled'],'faces_enabled'=>$config['faces']['enabled'],'faces_count'=>$this->faces?->count($uid)??0,'audio_enabled'=>(bool)($config['audio']['enabled']??false),
             'search_index'=>$this->searchIndex?->status($uid),
-            'metadata_count'=>$counts['metadata'],'description_count'=>$counts['descriptions'],'ocr_count'=>$counts['ocr'],'embedding_count'=>$embeddingTotal,
+            'metadata_count'=>$counts['metadata'],'description_count'=>$counts['descriptions'],'ocr_count'=>$counts['ocr'],'audio_count'=>$counts['audio']??0,'embedding_count'=>$embeddingTotal,
             'embedding_current_count'=>is_string($space)&&preg_match('/^[a-f0-9]{64}$/D',$space)?$this->embeddings->count($uid,$space):null,
             'schedule'=>['enabled'=>$config['enabled'],'time'=>$config['schedule_time'],'timezone'=>$config['timezone']]]);
     }
@@ -66,8 +66,8 @@ class AiAccountController extends Controller {
         return new DataResponse($status);
     }
     #[NoAdminRequired]
-    public function library(string $path='',string $filter='all',string $query='',int $offset=0,string $embedding_filter='all',string $ocr_filter='all',string $faces_filter='all'):DataResponse {
-        try{return new DataResponse($this->library->forUser($this->uid())->browse($path,$filter,$query,$offset,$embedding_filter,$ocr_filter,$faces_filter));
+    public function library(string $path='',string $filter='all',string $query='',int $offset=0,string $embedding_filter='all',string $ocr_filter='all',string $faces_filter='all',string $audio_filter='all'):DataResponse {
+        try{return new DataResponse($this->library->forUser($this->uid())->browse($path,$filter,$query,$offset,$embedding_filter,$ocr_filter,$faces_filter,$audio_filter));
         }catch(\OCP\AppFramework\OCS\OCSBadRequestException $e){return new DataResponse(['error'=>$e->getMessage()],400);}
     }
     #[NoAdminRequired]
@@ -84,14 +84,14 @@ class AiAccountController extends Controller {
     public function control(string $action,string $kind='both',string $embedding_rebuild_id=''):DataResponse {
         if(!in_array($action,['start','pause','resume','retry'],true))return new DataResponse(['error'=>'Unbekannte Aktion'],400);
         $config=$this->settings->forUser($this->uid())->get();
-        if(in_array($action,['start','resume','retry'],true)&&(($kind==='descriptions'&&!$config['analysis_enabled'])||($kind==='ocr'&&!$config['ocr_enabled'])||($kind==='embeddings'&&!$config['embedding']['enabled'])||($kind==='faces'&&!$config['faces']['enabled'])||($kind==='both'&&(!$config['analysis_enabled']||!$config['ocr_enabled']||!$config['embedding']['enabled']))))return new DataResponse(['error'=>'Diese Verarbeitung ist vom Administrator noch nicht eingerichtet.'],409);
+        if(in_array($action,['start','resume','retry'],true)&&(($kind==='descriptions'&&!$config['analysis_enabled'])||($kind==='ocr'&&!$config['ocr_enabled'])||($kind==='embeddings'&&!$config['embedding']['enabled'])||($kind==='faces'&&!$config['faces']['enabled'])||($kind==='audio'&&!($config['audio']['enabled']??false))||($kind==='both'&&(!$config['analysis_enabled']||!$config['ocr_enabled']||!$config['embedding']['enabled']))))return new DataResponse(['error'=>'Diese Verarbeitung ist vom Administrator noch nicht eingerichtet.'],409);
         if($kind==='faces'&&in_array($action,['start','resume','retry'],true)){$setup=$this->account()->forPipeline('faces')->status()['faces_setup']??[];if(empty($setup['installed']))return new DataResponse(['error'=>'Bitte zuerst die Personenerkennung in den Server-Einstellungen installieren.'],409);}
         try{return new DataResponse($this->account()->setControl($action,true,$embedding_rebuild_id,$kind));}
         catch(\OCP\AppFramework\OCS\OCSBadRequestException $e){return new DataResponse(['error'=>$e->getMessage()],409);}
     }
     #[NoAdminRequired]
     public function delete(string $kind,string $confirmation,int $expected_count=-1,string $folder='',int $file_id=0):DataResponse {
-        if($confirmation!==$kind||!in_array($kind,['descriptions','ocr','embeddings','faces','all'],true))return new DataResponse(['error'=>'Bestätigung fehlt'],400);
+        if($confirmation!==$kind||!in_array($kind,['descriptions','ocr','embeddings','faces','audio','all'],true))return new DataResponse(['error'=>'Bestätigung fehlt'],400);
         $state=$this->account();
         if($folder!==''||$file_id>0){
             $state->initializePipelines();$lanes=$kind==='all'?State::PIPELINES:[$kind];
@@ -106,7 +106,7 @@ class AiAccountController extends Controller {
                 return new DataResponse(['error'=>$e->getMessage()],400);
             }
             $deleted=0;
-            if(in_array($kind,['all','descriptions','ocr'],true)){
+            if(in_array($kind,['all','descriptions','ocr','audio'],true)){
                 $lock=fopen($state->directory().'/publication.lock','c');if(!$lock||!flock($lock,LOCK_EX))throw new \RuntimeException('Publication gate unavailable');
                 try{$deleted+=$this->metadata->resetFiles($uid,$fileIds,$kind==='all'?null:$kind);}finally{flock($lock,LOCK_UN);fclose($lock);}
             }

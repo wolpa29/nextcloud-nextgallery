@@ -42,6 +42,7 @@ class Inventory {
         $embeddingEtags=$embedding_space!==''?$this->embeddingStatuses($config['user_id'],array_column($rows,'fileid'),$embedding_space):[];
         foreach ($rows as $row) {
             if(in_array($kind,['ocr','faces'],true)&&str_starts_with($row['mimetype'],'video/'))continue;
+            if($kind==='audio'&&!str_starts_with($row['mimetype'],'video/'))continue;
             $stages=Metadata::stages(['etag'=>$row['analyzed_etag']??null,'metadata_json'=>$row['metadata_json']??'{}']);$row['analyzed_etag']=$kind==='faces'?($faceEtags[(int)$row['fileid']]??null):($stages[$kind]??null);
             $path = null;
             foreach ($scopes as $scope) {
@@ -102,7 +103,7 @@ class Inventory {
         $result = $this->db->executeQuery($sql, $parameters); $items = [];
         try {
             while ($row = $result->fetch()) {
-                $stages=Metadata::stages(['etag'=>$row['analyzed_etag']??null,'metadata_json'=>$row['metadata_json']??'{}']);$row['analyzed_etag']=$stages['descriptions']??null;$row['ocr_etag']=$stages['ocr']??null;
+                $stages=Metadata::stages(['etag'=>$row['analyzed_etag']??null,'metadata_json'=>$row['metadata_json']??'{}']);$row['analyzed_etag']=$stages['descriptions']??null;$row['ocr_etag']=$stages['ocr']??null;$row['audio_etag']=$stages['audio']??null;
                 foreach ($scopes as $scope) {
                     $prefix = $scope['path'] === '' ? '' : $scope['path'].'/';
                     if ((int)$row['storage'] !== $scope['storage'] || !str_starts_with($row['path'], $prefix)) { continue; }
@@ -110,7 +111,7 @@ class Inventory {
                     foreach ($config['exclude_folders'] as $exclude) {
                         if ($exclude === '/' || $path === $exclude || str_starts_with($path, rtrim($exclude, '/').'/')) { continue 3; }
                     }
-                    $items[] = ['file_id'=>(int)$row['fileid'],'path'=>ltrim($path,'/'),'etag'=>$row['etag'],'size'=>(int)$row['size'],'mime'=>$row['mimetype'],'analyzed_etag'=>$row['analyzed_etag'],'updated_at'=>(int)$row['updated_at'],'ocr_etag'=>$row['ocr_etag'],'stages'=>Settings::stagesFor($config,$path)];
+                    $items[] = ['file_id'=>(int)$row['fileid'],'path'=>ltrim($path,'/'),'etag'=>$row['etag'],'size'=>(int)$row['size'],'mime'=>$row['mimetype'],'analyzed_etag'=>$row['analyzed_etag'],'updated_at'=>(int)$row['updated_at'],'ocr_etag'=>$row['ocr_etag'],'audio_etag'=>$row['audio_etag'],'stages'=>Settings::stagesFor($config,$path)];
                     break;
                 }
             }
@@ -127,6 +128,7 @@ class Inventory {
         foreach ($config['exclude_folders'] as $folder) { if ($folder === '/' || $path === $folder || str_starts_with($path, $folder . '/')) { $allowed = false; } }
         if (!$allowed) { throw new \OCP\AppFramework\OCS\OCSNotFoundException('Bild außerhalb der ausgewählten Ordner'); }
         if ($kind !== null && !in_array($kind, Settings::stagesFor($config, $path), true)) { throw new \OCP\AppFramework\OCS\OCSNotFoundException('Verarbeitung für diesen Ordner nicht ausgewählt'); }
+        if ($kind === 'audio' && !str_starts_with($file->getMimeType(), 'video/')) { throw new \OCP\AppFramework\OCS\OCSBadRequestException('Audio-Transkription nur für Videos verfügbar'); }
         return $file;
     }
     /** Resolve media file IDs inside a folder (or '*' for current selection). */

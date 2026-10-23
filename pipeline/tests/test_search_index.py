@@ -44,6 +44,37 @@ class TestSearchIndex(unittest.TestCase):
         self.index.close()
         self.temp_dir.cleanup()
 
+    def test_audio_source_is_independent_and_session_bound(self):
+        docs = [
+            {'type':'document','file_id':1,'path':'/Videos/one.mp4','kind':'video','etag':'one','name':'one.mp4','audio':'Gesprochen: Ananas in Wien'},
+            {'type':'document','file_id':2,'path':'/Videos/Ananas.mp4','kind':'video','etag':'two','name':'Ananas.mp4','description':'Ananas in Wien'},
+            {'type':'document','file_id':3,'path':'/Hidden/three.mp4','kind':'video','etag':'three','audio':'Ananas in Wien'},
+        ]
+        self.index.import_ndjson([json.dumps(doc) for doc in docs])
+        req = {'query':'Ananas','roots':['/Videos'],'phase':'text','source':'audio','embedding_enabled':True}
+        result = self.index.query(req)
+        self.assertEqual([hit['file_id'] for hit in result['items']], [1])
+        self.assertEqual(result['items'][0]['search_match']['sources'], ['audio'])
+        self.assertEqual(result['embedding_state'], 'disabled')
+        self.assertEqual(len(self.index.query({**req,'source':''})['items']), 2)
+        with self.assertRaises(search_index.SearchSessionExpired):
+            self.index.query({**req,'source':'','search_token':result['search_token']})
+        self.index.update_ndjson([json.dumps({**docs[0],'audio':''})])
+        self.assertFalse(self.index.query(req)['items'])
+        with self.assertRaises(ValueError): self.index.query({**req,'source':'invalid'})
+
+    def test_existing_projection_upgrades_without_losing_docs_or_vectors(self):
+        self.index.import_ndjson([json.dumps({'type':'document','file_id':1,'path':'/Old/legacy.mp4','name':'legacy.mp4','kind':'video','etag':'one','description':'legacytoken'})])
+        conn = self.index.get_connection()
+        conn.execute('DROP TABLE fts_documents')
+        conn.execute("CREATE VIRTUAL TABLE fts_documents USING fts5(name,path,metadata_text,description,tags,objects,ocr,tokenize='trigram')")
+        conn.execute('ALTER TABLE documents DROP COLUMN audio')
+        conn.execute('ALTER TABLE documents DROP COLUMN audio_lower')
+        conn.commit(); self.index.close()
+        result = self.index.query({'query':'legacytoken','roots':['/Old'],'phase':'text'})
+        self.assertEqual([hit['file_id'] for hit in result['items']], [1])
+        self.assertIn('audio', {row[1] for row in self.index.get_connection().execute('PRAGMA table_info(documents)')})
+
     # -----------------------------------------------------------------------
     # 1. Dates Resolution (PHP Dates.php match)
     # -----------------------------------------------------------------------

@@ -1,0 +1,5 @@
+# Isolated CPU/GPU speech runtime; never installed into the base worker.
+-r requirements.txt
+faster-whisper==1.2.1
+# PyAV 17 removed metadata_errors, which faster-whisper 1.2.1 uses.
+av==16.1.0

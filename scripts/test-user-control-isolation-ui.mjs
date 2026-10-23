@@ -151,6 +151,7 @@ let pipelineStates = {
   }
 };
 
+let embeddingRebuild = null;
 let activeGetGate = null;
 const activePostGates = new Map();
 const postCalls = [];
@@ -300,7 +301,8 @@ try {
       json: {
         online: true,
         state: 'idle',
-        pipelines: pipelineStates
+        pipelines: pipelineStates,
+        embedding_rebuild: embeddingRebuild
       }
     });
   });
@@ -384,7 +386,7 @@ try {
     const afterPause = await getButtonSnapshot(page);
     check(afterPause[kind].pause.hidden, `${kind} Pause button hidden after pause`);
     check(!afterPause[kind].resume.hidden && !afterPause[kind].resume.disabled, `${kind} Resume button visible and enabled after pause`);
-    check(!afterPause[kind].start.disabled, `${kind} Start button re-enabled after pause`);
+    check(afterPause[kind].start.hidden && afterPause[kind].start.disabled, `${kind} Duplicate Start hidden while Resume is offered`);
   }
 
   await page.screenshot({ path: `${outDir}/02-all-pipelines-paused.png`, fullPage: true });
@@ -535,6 +537,109 @@ try {
     return resume && !resume.hidden && !resume.disabled;
   });
   check(staleStatusServed && getRefreshCounts.config > oldRefreshCount, 'A fresh status request replaces a stale overlapping poll after mutation');
+
+  // The shared top field exposes only the actions that match the worker state.
+  const savedStates = structuredClone(pipelineStates);
+  const cardFor = kind => page.locator(`[data-start="${kind}"]`).locator('..').locator('..');
+  const primaryFor = kind => cardFor(kind).locator('.mai-pipeline-controls .primary:visible');
+  async function refreshScenario() {
+    const response = page.waitForResponse(r => r.url().endsWith('/ai/account/status'));
+    await page.evaluate(() => window.syntheticPoll());
+    await response;
+    await page.waitForFunction(() => !document.querySelector('#mai-description-count')?.textContent.includes('—'));
+    // Allow the config/status Promise.all and render microtasks to settle.
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  }
+  for (const kind of pipelines) {
+    const setLane = (state, paused, requested, done, pending, error) => {
+      pipelineStates[kind] = { online:true, state, control:{paused,requested}, stats:{done,pending,error} };
+    };
+    setLane('not_started', true, false, 0, 8, 0);
+    await refreshScenario();
+    check(await primaryFor(kind).count() === 1 && await primaryFor(kind).innerText() === 'Lauf starten', `${kind}: first run offers only Start`);
+    setLane('running', false, false, 3, 8, 2);
+    await refreshScenario();
+    check(await primaryFor(kind).innerText() === 'Pausieren' && !await primaryFor(kind).isDisabled(), `${kind}: running offers Pause in top field`);
+    check(await cardFor(kind).locator('.mai-run-surface [data-user-action]').count() === 0, `${kind}: no controls remain below the progress`);
+    setLane('idle', false, true, 3, 8, 2);
+    await refreshScenario();
+    check(await primaryFor(kind).innerText() === 'Pausieren' && !await primaryFor(kind).isDisabled(), `${kind}: queued run can be paused`);
+    await primaryFor(kind).focus();
+    setLane('running', true, false, 3, 8, 2);
+    await refreshScenario();
+    check(await primaryFor(kind).innerText() === 'Pausiere …' && await primaryFor(kind).isDisabled(), `${kind}: draining file cannot be resumed early`);
+    check(await cardFor(kind).locator('.mai-pipeline-controls').evaluate(field => field===document.activeElement), `${kind}: keyboard focus remains in field during pause`);
+    check(!await cardFor(kind).locator('[data-user-action=retry]').isVisible(), `${kind}: Retry hidden until current file finishes`);
+    setLane('paused', true, false, 3, 8, 2);
+    await refreshScenario();
+    check(await primaryFor(kind).innerText() === 'Fortsetzen' && !await primaryFor(kind).isDisabled(), `${kind}: paused run offers Resume`);
+    check(await primaryFor(kind).evaluate(button => button===document.activeElement), `${kind}: keyboard focus follows Resume after pause settles`);
+    check(await cardFor(kind).locator('.mai-pipeline-controls button:visible').count() === 2, `${kind}: paused errors share top field with Resume`);
+    // A Retry click retains the API action and pipeline, rather than dispatching Start.
+    const retryResponse = page.waitForResponse(r => r.url().endsWith('/ai/account/control'));
+    await cardFor(kind).locator('[data-user-action=retry]').click();
+    await retryResponse;
+    await primaryFor(kind).waitFor({state:'visible'});
+    await page.waitForFunction(k => !document.querySelector(`[data-user-action=resume][data-kind="${k}"]`).disabled, kind);
+    check(postCalls.at(-1).action === 'retry' && postCalls.at(-1).kind === kind, `${kind}: unified Retry dispatches correct action`);
+    for (const guard of ['offline', 'admin', 'reset', 'disabled']) {
+      pipelineStates[kind].online = guard !== 'offline';
+      pipelineStates[kind].admin_paused = guard === 'admin';
+      pipelineStates[kind].control.reset_requested = guard === 'reset';
+      const enabledKey = kind === 'descriptions' ? 'analysis_enabled' : kind === 'ocr' ? 'ocr_enabled' : kind === 'embeddings' ? 'embedding_enabled' : 'faces_enabled';
+      configData[enabledKey] = guard !== 'disabled';
+      await refreshScenario();
+      check(await primaryFor(kind).isDisabled() && await cardFor(kind).locator('[data-user-action=retry]').isDisabled(), `${kind}: ${guard} blocks Resume and Retry`);
+      configData[enabledKey] = true;
+    }
+    setLane('finished', false, false, 8, 0, 0);
+    await refreshScenario();
+    check(await primaryFor(kind).innerText() === 'Auswahl erneut prüfen' && await cardFor(kind).locator('.mai-pipeline-controls button:visible').count() === 1, `${kind}: completed run offers one action`);
+  }
+  pipelineStates = savedStates;
+  pipelineStates.embeddings = {online:true,state:'paused',control:{paused:true,requested:false},stats:{done:3,pending:8,error:2}};
+  await refreshScenario();
+  // Unsaved selection blocks all actions that would start work, but never Pause.
+  await page.locator('#mai-user-selection-form [name=schedule_time]').evaluate(input => { input.value='04:15'; input.dispatchEvent(new Event('input',{bubbles:true})); });
+  check(await primaryFor('embeddings').isDisabled() && await cardFor('embeddings').locator('[data-user-action=retry]').isDisabled(), 'Dirty selection blocks both Resume and Retry');
+  check(!await primaryFor('descriptions').isDisabled(), 'Dirty selection still permits Pause on a running pipeline');
+  await page.locator('#mai-user-selection-discard').evaluate(button => button.click());
+  check(!await primaryFor('embeddings').isDisabled(), 'Discarding draft restores Resume');
+  // Rebuild can replace a queued request and still requires explicit confirmation.
+  embeddingRebuild = {required:true,request_id:'synthetic-rebuild'};
+  pipelineStates.embeddings.control.requested = true;
+  await refreshScenario();
+  check(await primaryFor('embeddings').innerText() === 'Bildvektoren neu aufbauen' && !await primaryFor('embeddings').isDisabled(), 'Queued rebuild offers explicit rebuild action');
+  const postsBeforeRebuild = postCalls.length;
+  await primaryFor('embeddings').click();
+  await page.locator('#mai-user-confirm').waitFor({state:'visible'});
+  check(postCalls.length === postsBeforeRebuild, 'Rebuild does not dispatch before confirmation');
+  await page.locator('#mai-user-confirm-cancel').click();
+  check(postCalls.length === postsBeforeRebuild, 'Cancelling rebuild preserves the queue');
+  embeddingRebuild = null;
+  pipelineStates.embeddings.control.requested = false;
+  await refreshScenario();
+  // A realistic mix of all four states for visual checks at desktop and phone widths.
+  pipelineStates.descriptions = {online:true,state:'not_started',control:{paused:true},stats:{done:0,pending:8,error:0}};
+  pipelineStates.ocr = {online:true,state:'running',control:{paused:false},stats:{done:3,pending:8,error:0}};
+  pipelineStates.faces = {online:true,state:'finished',control:{},stats:{done:8,pending:0,error:0}};
+  await refreshScenario();
+  for (const width of [1280, 390, 320]) {
+    await page.setViewportSize({width,height:1000});
+    check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `Unified controls fit viewport at ${width}px`);
+    for (const kind of pipelines) {
+      const geometry = await cardFor(kind).locator('.mai-pipeline-controls').evaluate(field => {
+        const box=field.getBoundingClientRect();
+        return [...field.querySelectorAll('button:not([hidden])')].every(button => {const b=button.getBoundingClientRect();return b.height>=44 && b.left>=box.left-1 && b.right<=box.right+1;});
+      });
+      check(geometry, `${kind}: touch targets stay in shared field at ${width}px`);
+    }
+    await page.screenshot({path:`${outDir}/08-unified-controls-${width}.png`,fullPage:true});
+    if(width===390)await cardFor('embeddings').screenshot({path:`${outDir}/09-paused-errors-mobile.png`});
+  }
+  await page.setViewportSize({width:1280,height:900});
+  pipelineStates = savedStates;
+  await refreshScenario();
 
   // A failed People run does not establish that a remote model service is unavailable.
   pipelineStates.faces.state = 'error';

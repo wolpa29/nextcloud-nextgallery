@@ -22,7 +22,7 @@ import embedding_setup
 import analysis_storage
 
 _shutdown = threading.Event()
-PIPELINES = ('descriptions', 'ocr', 'embeddings', 'faces')
+PIPELINES = ('descriptions', 'ocr', 'embeddings', 'faces', 'audio')
 
 _local_embedding_process = None
 _local_embedding_signature = None
@@ -53,10 +53,10 @@ def admin_paused(directory, kind=None):
 
 def initialize_pipelines(directory):
     """One-time split, shared with PHP; leave native/vector databases untouched."""
-    if read(directory/'pipelines.json',{}).get('version',0)>=3:return
+    if read(directory/'pipelines.json',{}).get('version',0)>=4:return
     with (directory/'control.lock').open('a') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX)
-        if read(directory/'pipelines.json',{}).get('version',0)>=3:return
+        if read(directory/'pipelines.json',{}).get('version',0)>=4:return
         version=read(directory/'pipelines.json',{}).get('version',0)
         if version<1:
             old=read(directory/'control.json',{'paused':True,'requested':False})
@@ -87,10 +87,15 @@ def initialize_pipelines(directory):
             atomic(directory/'status-ocr.json',{'state':'paused','current':None,'stats':{},'ocr_stats':{}})
             atomic(directory/'schedule-ocr.json',read(directory/'schedule-descriptions.json',{}))
             if (directory/'processing-admin-descriptions.json').exists():atomic(directory/'processing-admin-ocr.json',read(directory/'processing-admin-descriptions.json',{}))
-        atomic(directory/'control-faces.json',{'paused':True,'requested':False,'run_kind':'faces'})
-        atomic(directory/'status-faces.json',{'state':'paused','current':None,'stats':{'done':0,'pending':0,'error':0}})
-        atomic(directory/'schedule-faces.json',{})
-        atomic(directory/'pipelines.json',{'version':3})
+        if version<3:
+            atomic(directory/'control-faces.json',{'paused':True,'requested':False,'run_kind':'faces'})
+            atomic(directory/'status-faces.json',{'state':'paused','current':None,'stats':{'done':0,'pending':0,'error':0}})
+            atomic(directory/'schedule-faces.json',{})
+        if version<4:
+            atomic(directory/'control-audio.json',{'paused':True,'requested':False,'run_kind':'audio'})
+            atomic(directory/'status-audio.json',{'state':'paused','current':None,'stats':{'done':0,'pending':0,'error':0}})
+            atomic(directory/'schedule-audio.json',{})
+        atomic(directory/'pipelines.json',{'version':4})
 
 
 
@@ -147,13 +152,13 @@ class NativeSource:
             if not isinstance(next_cursor,int) or next_cursor<=cursor: raise p.PipelineError('Invalid inventory pagination')
             cursor=next_cursor
     def read(self,item,maximum):
-        wire,headers=self.api.wire('image?'+urllib.parse.urlencode({'file_id':item.locator,'etag':item.etag}),maximum=maximum)
+        wire,headers=self.api.wire('image?'+urllib.parse.urlencode({'file_id':item.locator,'etag':item.etag,'kind':self.kind}),maximum=maximum)
         returned=p.etag(next((v for k,v in headers.items() if k.lower()=='etag'),''))
         if returned != item.etag: raise p.PipelineError('Image changed while downloading')
         if self.kind == 'embeddings' and len(wire) != item.size: raise p.PipelineError('Incomplete source image download; retry this file')
         return wire
     def download_to(self,item,destination,maximum):
-        url=self.api.url+'image?'+urllib.parse.urlencode({'file_id':item.locator,'etag':item.etag})
+        url=self.api.url+'image?'+urllib.parse.urlencode({'file_id':item.locator,'etag':item.etag,'kind':self.kind})
         with p.open_stream(url,'GET',None,self.api.headers,timeout=120,ca_file=self.api.ca_file) as stream:
             if p.etag(stream.headers.get('ETag','')) != item.etag: raise p.PipelineError('Media changed while downloading')
             return p.copy_media(stream,destination,maximum)
@@ -163,7 +168,7 @@ class NativeSource:
     def embedding_video(self, item, destination, maximum):
         """Use the server-authorized local video without copying a large original."""
         target = self.api.call('resolve?'+urllib.parse.urlencode({
-            'file_id':item.locator, 'etag':item.etag, 'local_media':'true'}))
+            'file_id':item.locator, 'etag':item.etag, 'local_media':'true', 'kind':self.kind}))
         if target.get('etag') != item.etag or target.get('file_id') != int(item.locator) or target.get('size') != item.size:
             raise p.PipelineError('Media changed before frame extraction')
         local = target.get('local_path')
@@ -323,6 +328,10 @@ def reset_ai(api,directory,reporter,control):
         for suffix in ('','-wal','-shm'):
             cache=directory/('faces.sqlite3'+suffix)
             if cache.is_file() and not cache.is_symlink():cache.unlink()
+    if kind in ('all','audio'):
+        for suffix in ('','-wal','-shm'):
+            cache=directory/('audio.sqlite3'+suffix)
+            if cache.is_file() and not cache.is_symlink():cache.unlink()
     with (directory/'control.lock').open('a') as stream:
         fcntl.flock(stream,fcntl.LOCK_EX)
         current=read(lane_file(directory,'control.json',lane),{})
@@ -330,6 +339,7 @@ def reset_ai(api,directory,reporter,control):
             current['reset_requested']=False;atomic(lane_file(directory,'control.json',lane),current)
     fields={'analysis_stats':{}} if kind in ('descriptions','ocr') else {'embedding_stats':{}} if kind=='embeddings' else {'analysis_stats':{},'embedding_stats':{}}
     if kind=='ocr':fields['ocr_stats']={}
+    if kind=='audio':fields={'audio_stats':{}}
     reporter.update(stats={'done':0,'pending':0,'error':0},last_run=None,current=None,state='paused',message='KI-Daten zurückgesetzt',**fields)
     reporter.event('ai_reset_finished',kind=kind)
 
@@ -370,6 +380,43 @@ def faces_cycle(api,config,directory,reporter,control):
         raise p.PipelineError(str(error)) from error
     finally:
         reporter.run_id=None
+
+
+def audio_cycle(api,config,directory,reporter,control):
+    import media_ai_audio
+    kind='audio'; config=dict(config); config['_pipeline']=kind
+    def stop():
+        return _shutdown.is_set() or admin_paused(Path(config.get('_model_directory',directory)),kind) or read(lane_file(directory,'control.json',kind),{'paused':True}).get('paused',True)
+    reporter.run_id=uuid.uuid4().hex
+    progress={'done':0,'pending':0,'error':0}; started=time.monotonic()
+    reporter.update(state='running',current=None,message='Videoton wird transkribiert')
+    def observe(event,**fields):
+        if event=='audio_inventory':
+            progress.update({key:fields.get(key,0) for key in progress})
+            reporter.update(stats=dict(progress),audio_stats=dict(progress))
+        elif event in ('audio_processed','audio_error'):
+            progress['pending']=max(0,progress['pending']-1)
+            progress['error' if event=='audio_error' else 'done']+=1
+            reporter.update(stats=dict(progress),audio_stats=dict(progress),current=None)
+            reporter.event('file_error' if event=='audio_error' else 'file_finished',**fields,level='error' if event=='audio_error' else 'info')
+        elif event in ('audio_extracting','audio_transcribing'):
+            current=dict(reporter.value.get('current') or {})
+            current.update(stage=event,path=fields.get('path'),file_id=fields.get('file_id'))
+            reporter.update(current=current)
+        else:reporter.event(event,**fields)
+    try:
+        reporter.event('run_start',kind=kind)
+        result=media_ai_audio.run(config,NativeSource(api,config),api,directory,observe,stop,retry_errors=bool(control.get('retry_errors')))
+        result={**result,'kind':kind,'seconds':round(time.monotonic()-started,3)}
+        reporter.update(state=result['state'],current=None,stats=result['stats'],audio_stats=result['stats'],last_run=result,message='')
+        return {'audio':result,'embedding':{'state':'disabled'},'kind':kind}
+    except p.ServiceUnavailable as error:
+        pause_unavailable(directory,str(error),kind)
+        reporter.event('service_unavailable',level='error',error=str(error))
+        result={'state':'paused','kind':kind,'stats':progress,'reason':str(error),'seconds':round(time.monotonic()-started,3)}
+        reporter.update(state='paused',current=None,stats=progress,audio_stats=progress,last_run=result,message=str(error))
+        return {'audio':result,'embedding':{'state':'disabled'},'kind':kind}
+    finally:reporter.run_id=None
 
 
 def is_due(config,control,schedule,now=None):
@@ -643,6 +690,10 @@ def main():
                                 # Re-exec just this lane into its isolated OpenCV runtime.
                                 reporter.close()
                                 os.execv(str(runtime),[str(runtime),str(Path(__file__).resolve()),*sys.argv[1:]])
+                    if kind=='audio':
+                        import audio_setup
+                        audio_ready=audio_setup.tick(directory,requested=bool(global_config.get('audio',{}).get('enabled')))
+                        reporter.update(audio_setup=audio_ready)
                     candidates=account_directories(directory,global_config['user_id'])
                     for _,account_directory in candidates:
                         initialize_pipelines(account_directory)
@@ -666,6 +717,7 @@ def main():
                             if not control.get('reset_requested') and control.get('paused',True):continue
                             config=scoped_api.call('config');config['_model_directory']=str(directory)
                             if kind=='faces' and not control.get('reset_requested') and (not config.get('faces',{}).get('enabled') or not setup.get('installed')):continue
+                            if kind=='audio' and not control.get('reset_requested') and (not config.get('audio',{}).get('enabled') or not audio_ready.get('installed')):continue
                             config['_pipeline']=kind
                             config['analysis_enabled']=(config.get('ocr_enabled',config.get('analysis_enabled',True)) if kind=='ocr' else config.get('analysis_enabled',True)) and kind in ('descriptions','ocr','both')
                             config.setdefault('embedding',{})['enabled']=config.get('embedding',{}).get('enabled',False) and kind=='embeddings'
@@ -683,7 +735,7 @@ def main():
                                 reporter.update(active_user_id=uid)
                                 consume(account_directory,control.get('request_id'),kind)
                                 result_date=datetime.now(ZoneInfo(config['timezone'])).strftime('%Y-%m-%d')
-                                result=(faces_cycle if kind=='faces' else cycle)(scoped_api,config,account_directory,child,control)
+                                result=(faces_cycle if kind=='faces' else audio_cycle if kind=='audio' else cycle)(scoped_api,config,account_directory,child,control)
                                 atomic(lane_file(account_directory,'schedule.json',kind),{'date':result_date,'embedding_pending':result['embedding']['state']=='preparing'})
                                 if not config['enabled'] and result['embedding']['state']!='preparing':
                                     with (account_directory/'control.lock').open('a') as account_lock:
@@ -715,9 +767,21 @@ def main():
             if kind=='faces':
                 import faces_setup
                 faces_setup.stop()
+            if kind=='audio':
+                import audio_setup
+                audio_setup.stop()
             if _local_embedding_process is not None and _local_embedding_process.poll() is None:_local_embedding_process.terminate()
             reporter.close()
             atomic(lane_file(directory,'service.json',kind),{'heartbeat_at':0,'active_user_id':None})
+
+
+def lane_process_active(directory,kind):
+    """Allow an independently started lane during a deployment without restarts."""
+    with (directory/('daemon-'+kind+'.lock')).open('a') as lock:
+        try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        except BlockingIOError:return True
+        fcntl.flock(lock,fcntl.LOCK_UN)
+    return False
 
 
 def supervise(args,directory):
@@ -736,6 +800,7 @@ def supervise(args,directory):
                             completed.add(kind)
                         del children[kind]
                     if kind not in children and kind not in completed:
+                        if not args.once and lane_process_active(directory,kind):continue
                         command=[sys.executable,str(Path(__file__).resolve()),'--bootstrap',args.bootstrap,'--pipeline',kind]
                         if args.once:command.append('--once')
                         children[kind]=subprocess.Popen(command)

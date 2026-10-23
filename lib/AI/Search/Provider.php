@@ -14,7 +14,7 @@ use OCA\Nextgallery\AI\Service\Preferences;
 class Provider implements IProvider {
     public function __construct(private Metadata $metadata, private Files $files, private IURLGenerator $urls, private ?Preferences $preferences = null,private ?\OCA\Nextgallery\Service\NativeSearch $searchIndex=null) {}
     public function getId(): string { return 'nextgallery_ai'; }
-    public function getName(): string { return $this->preferences?->language()==='en'?'Image content and OCR':'Bildinhalt und OCR'; }
+    public function getName(): string { return $this->preferences?->language()==='en'?'Image content, OCR and video audio':'Bildinhalt, OCR und Videoton'; }
     public function getOrder(string $route, array $routeParameters): int { return 20; }
     public function search(IUser $user, ISearchQuery $query): SearchResult {
         $cursor = max(0, (int)$query->getCursor());
@@ -34,8 +34,14 @@ class Provider implements IProvider {
             $path = $this->files->relativePath($user->getUID(), $file);
             $url = $this->urls->linkToRoute('files.View.showFile', ['fileid' => $file->getId()]);
             $original=isset($row['metadata_json'])?json_decode($row['metadata_json'],true):null;
-            $snippet = mb_substr(($original['analysis']['vision']['description']??$row['description']) . ' · ' . ($original['analysis']['ocr']['text']??$row['ocr_text']), 0, 600);
-            $entries[] = new SearchResultEntry('', $file->getName(), $snippet, $url, ($original['analysis']['vision']['type'] ?? '') === 'video' ? 'icon-video' : 'icon-image');
+            $parts = array_filter([
+                $original['analysis']['vision']['description'] ?? $row['description'],
+                $original['analysis']['ocr']['text'] ?? $row['ocr_text'],
+                $original['analysis']['audio']['text'] ?? ''
+            ], fn($s) => is_string($s) && trim($s) !== '');
+            $snippet = mb_substr(implode(' · ', $parts), 0, 600);
+            $isVideo = ($original['analysis']['vision']['type'] ?? '') === 'video' || isset($original['analysis']['audio']) || str_starts_with($file->getMimeType(), 'video/');
+            $entries[] = new SearchResultEntry('', $file->getName(), $snippet, $url, $isVideo ? 'icon-video' : 'icon-image');
         }
         if($this->searchIndex){$cursor=$indexCursor;if(!$page['more'])return SearchResult::complete($this->getName(),$entries);}
         if (count($rows) < $limit) { return SearchResult::complete($this->getName(), $entries); }

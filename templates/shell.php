@@ -24,8 +24,8 @@ $tr = static fn(string $text): string => $isGerman ? $text : ($english[$text] ??
   </section>
   <section id="ch-search-view" class="ch-panel" hidden>
    <div class="ch-toolbar"><div class="ch-filters" role="group" aria-label="<?php p($tr('Medientyp')); ?>"><button data-kind="" class="active"><?php p($tr('Alle')); ?></button><button data-kind="image"><?php p($tr('Bilder')); ?></button><button data-kind="video"><?php p($tr('Videos')); ?></button></div></div>
-   <form id="ch-search-form" role="search"><label for="ch-search-query"><?php p($tr('Galerie durchsuchen')); ?></label><div class="ch-search-input"><input id="ch-search-query" type="search" maxlength="200" placeholder="<?php p($tr('Dateiname, Bildinhalt oder erkannter Text')); ?>"><button class="ch-primary" type="submit"><?php p($tr('Suchen')); ?></button></div></form>
-   <p id="ch-search-status" role="status"><?php p($tr('Sucht in Dateinamen, Beschreibung, Tags, Objekten und OCR deiner Galerie.')); ?></p>
+   <form id="ch-search-form" role="search"><label for="ch-search-query"><?php p($tr('Galerie durchsuchen')); ?></label><div class="ch-search-input"><input id="ch-search-query" type="search" maxlength="200" placeholder="<?php p($tr('Dateiname, Bildinhalt oder erkannter Text')); ?>"><button class="ch-primary" type="submit"><?php p($tr('Suchen')); ?></button></div><div class="ch-search-options"><label class="ch-check ch-search-audio-option"><input type="checkbox" id="ch-search-audio-only" name="source" value="audio"> <span><?php p($tr('Nur Videoton / Gesprochenes')); ?></span></label></div></form>
+   <p id="ch-search-status" role="status"><?php p($tr('Sucht in Dateinamen, Beschreibung, Tags, Objekten, OCR und gesprochenem Videoton deiner Galerie.')); ?></p>
    <div id="ch-search-results" role="group" aria-label="<?php p($tr('Suchergebnisse')); ?>"></div>
    <div id="ch-search-pages" class="ch-search-pages" hidden><button id="ch-search-prev" disabled><?php p($tr('Zurück')); ?></button><button id="ch-search-next" disabled><?php p($tr('Weitere Treffer')); ?></button></div>
   </section>

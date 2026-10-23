@@ -42,6 +42,21 @@ class Library {
             return $rows;
         }catch(\Throwable){return [];}
     }
+    private function audioQueue():array {
+        $path=$this->state->directory().'/audio.sqlite3';
+        if(!is_file($path)||is_link($path))return [];
+        try{
+            $db=new \PDO('sqlite:file:'.$path.'?mode=ro',null,null,[\PDO::ATTR_ERRMODE=>\PDO::ERRMODE_EXCEPTION]);
+            $db->exec('PRAGMA query_only=ON');$db->exec('PRAGMA busy_timeout=250');$rows=[];
+            foreach($db->query('SELECT file_id,etag,status,error FROM files') as $row){
+                if(($row['status']??'')==='ready'&&!empty($row['error'])){
+                    $row['publish_error']=$row['error'];
+                }
+                $rows[(int)$row['file_id']]=$row;
+            }
+            return $rows;
+        }catch(\Throwable){return [];}
+    }
     public static function classify(array $item, ?array $queued): string {
         // Published metadata is authoritative, including after queue/app/model changes.
         if ($item['analyzed_etag']) { return $item['analyzed_etag']===$item['etag'] ? 'done' : 'changed'; }
@@ -53,7 +68,7 @@ class Library {
         if ($item['analyzed_etag'] && $item['analyzed_etag']===$item['etag']) { return 'done'; }
         return $item['analyzed_etag'] ? 'changed' : 'pending';
     }
-    public static function totals(): array { return ['total'=>0,'done'=>0,'pending'=>0,'error'=>0,'changed'=>0,'publishing'=>0,'images'=>0,'videos'=>0,'embedded'=>0,'embedding_pending'=>0,'embedding_error'=>0,'ocr_done'=>0,'ocr_pending'=>0,'ocr_error'=>0,'ocr_total'=>0,'description_total'=>0,'embedding_total'=>0,'faces_total'=>0,'faces_done'=>0,'faces_pending'=>0,'faces_error'=>0,'stored_descriptions'=>0,'stored_ocr'=>0,'stored_embeddings'=>0,'stored_faces'=>0]; }
+    public static function totals(): array { return ['total'=>0,'done'=>0,'pending'=>0,'error'=>0,'changed'=>0,'publishing'=>0,'images'=>0,'videos'=>0,'embedded'=>0,'embedding_pending'=>0,'embedding_error'=>0,'ocr_done'=>0,'ocr_pending'=>0,'ocr_error'=>0,'ocr_total'=>0,'description_total'=>0,'embedding_total'=>0,'faces_total'=>0,'faces_done'=>0,'faces_pending'=>0,'faces_error'=>0,'audio_total'=>0,'audio_done'=>0,'audio_pending'=>0,'audio_error'=>0,'stored_descriptions'=>0,'stored_ocr'=>0,'stored_embeddings'=>0,'stored_faces'=>0,'stored_audio'=>0]; }
     public function invalidate(): void { $this->caches?->createLocal('nextgallery_ai_library')?->clear(); }
     public function folderFileIds(string $folder): array { return $this->inventory->folderFileIds($folder); }
     private function snapshot(): array {
@@ -62,9 +77,9 @@ class Library {
         // A changed model must never present old vectors as completed for the new model.
         if(!empty($rebuild['required'])&&!isset($rebuild['target_space']))$space='';
         $cache=$this->caches?->createLocal('nextgallery_ai_library');
-        $key=hash('sha256',json_encode([5,$config['user_id'],$config['folders'],$config['exclude_folders'],$config['folder_stages'],Settings::embeddingSignature($config),$space,$rebuild['required']??false],JSON_THROW_ON_ERROR));
+        $key=hash('sha256',json_encode([6,$config['user_id'],$config['folders'],$config['exclude_folders'],$config['folder_stages'],Settings::embeddingSignature($config),$space,$rebuild['required']??false],JSON_THROW_ON_ERROR));
         $stored=$cache?->get($key); if (is_array($stored)) { return $stored; }
-        $queue=$this->queue();$ocrQueue=$this->queue('ocr'); $rows=$this->inventory->snapshot();
+        $queue=$this->queue();$ocrQueue=$this->queue('ocr');$audioQueue=$this->audioQueue(); $rows=$this->inventory->snapshot();
         $stored=$this->embeddings?->processingStatuses($config['user_id'],array_column($rows,'file_id'),$space)??[];$embeddingQueue=$this->embeddingQueue($space);
         $faceStored=$this->faces?->statuses($config['user_id'],array_column($rows,'file_id'))??[];$faceQueue=$this->facesQueue();
         $folders=[''=>['path'=>'','name'=>'Alle ausgewählten Dateien','counts'=>self::totals()]]; $recent=[];
@@ -84,6 +99,10 @@ class Library {
             $fq=$faceQueue[$row['file_id']]??null;$row['has_faces']=isset($faceStored[$row['file_id']]);
             $row['faces_status']=!in_array('faces',$stages,true)||str_starts_with($row['mime'],'video/')?'not_applicable':(($faceStored[$row['file_id']]??null)===$row['etag']?'done':(($fq['etag']??null)===$row['etag']&&($fq['status']??'')==='error'?'error':'pending'));
             $row['faces_error']=$row['faces_status']==='error'?($fq['error']??''):'';
+            $row['has_audio']=!empty($row['audio_etag']);
+            $audioItem=$row;$audioItem['analyzed_etag']=$row['audio_etag']??null;$aq=$audioQueue[$row['file_id']]??null;
+            $row['audio_status']=!str_starts_with($row['mime'],'video/')||!in_array('audio',$stages,true)?'not_applicable':self::classify($audioItem,$aq);
+            $row['audio_error']=$row['audio_status']==='error'?($aq['error']??''):($row['audio_status']==='publishing'?($aq['publish_error']??''):'');
             $row['embedding_error']=$row['embedding_status']==='error'?($embedding['error']??''):'';
             $row['name']=basename($row['path']); $row['parent']=dirname($row['path']);
             if ($row['parent']==='.') { $row['parent']=''; }
@@ -98,12 +117,14 @@ class Library {
                 if($row['has_ocr'])$folders[$path]['counts']['stored_ocr']++;
                 if($row['has_embedding'])$folders[$path]['counts']['stored_embeddings']++;
                 if($row['has_faces'])$folders[$path]['counts']['stored_faces']++;
+                if($row['has_audio'])$folders[$path]['counts']['stored_audio']++;
                 if($row['faces_status']!=='not_applicable'){$folders[$path]['counts']['faces_total']++;$folders[$path]['counts'][match($row['faces_status']){'done'=>'faces_done','error'=>'faces_error',default=>'faces_pending'}]++;}
+                if($row['audio_status']!=='not_applicable'){$folders[$path]['counts']['audio_total']++;$folders[$path]['counts'][match($row['audio_status']){'done','changed'=>'audio_done','error'=>'audio_error',default=>'audio_pending'}]++;}
                 $folders[$path]['counts']['total']++;if($row['ocr_status']!=='not_applicable'){$folders[$path]['counts']['ocr_total']++;$folders[$path]['counts'][match($row['ocr_status']){'done','changed'=>'ocr_done','error'=>'ocr_error',default=>'ocr_pending'}]++;}if($row['embedding_status']!=='not_applicable'){$folders[$path]['counts']['embedding_total']++;$folders[$path]['counts'][match($row['embedding_status']){'done'=>'embedded','error'=>'embedding_error',default=>'embedding_pending'}]++;}if($row['status']!=='not_applicable'){$folders[$path]['counts']['description_total']++;$folders[$path]['counts'][$row['status']]++;}
                 $folders[$path]['counts'][str_starts_with($row['mime'],'video/')?'videos':'images']++;
             }
             if ($row['status']==='done') { $recent[]=['file_id'=>$row['file_id'],'path'=>$row['path'],'name'=>$row['name'],'updated_at'=>$row['updated_at']]; }
-            unset($row['etag'],$row['analyzed_etag'],$row['ocr_etag']);
+            unset($row['etag'],$row['analyzed_etag'],$row['ocr_etag'],$row['audio_etag']);
         }
         unset($row); usort($recent,fn($a,$b)=>$b['updated_at']<=>$a['updated_at']);
         foreach ($folders as &$folder) { $counts=$folder['counts']; $folder['status']=$counts['total']>0 && $counts['description_total']===0 ? 'not_applicable' : ($counts['description_total']>0 && ($counts['done']+$counts['changed'])===$counts['description_total'] ? ($counts['changed']?'changed':'done') : ($counts['error'] ? 'error' : 'pending')); }
@@ -127,8 +148,8 @@ class Library {
         }
         return $selected;
     }
-    public function browse(string $path='', string $filter='all', string $query='', int $offset=0,string $embeddingFilter='all',string $ocrFilter='all',string $facesFilter='all'): array {
-        if (strlen($path)>2000 || str_contains($path,"\0") || str_contains($path,'\\') || preg_match('~(^|/)(\.|\.\.)(/|$)~',$path) || $offset<0 || $offset>10000000 || strlen($query)>200 || !in_array($facesFilter,['all','done','pending','error'],true) || !in_array($ocrFilter,['all','done','pending','error'],true) || !in_array($embeddingFilter,['all','done','pending','error'],true) || !in_array($filter,['all','analyzed','done','pending','unprocessed','error','changed'],true)) { throw new OCSBadRequestException('Ungültige Dateiauswahl'); }
+    public function browse(string $path='', string $filter='all', string $query='', int $offset=0,string $embeddingFilter='all',string $ocrFilter='all',string $facesFilter='all',string $audioFilter='all'): array {
+        if (strlen($path)>2000 || str_contains($path,"\0") || str_contains($path,'\\') || preg_match('~(^|/)(\.|\.\.)(/|$)~',$path) || $offset<0 || $offset>10000000 || strlen($query)>200 || !in_array($facesFilter,['all','done','pending','error'],true) || !in_array($ocrFilter,['all','done','pending','error'],true) || !in_array($embeddingFilter,['all','done','pending','error'],true) || !in_array($audioFilter,['all','done','pending','error'],true) || !in_array($filter,['all','analyzed','done','pending','unprocessed','error','changed'],true)) { throw new OCSBadRequestException('Ungültige Dateiauswahl'); }
         $path=trim($path,'/'); $snapshot=$this->snapshot(); $config=$this->settings->get();
         if (!isset($snapshot['folders'][$path])) { throw new OCSBadRequestException('Ordner außerhalb der Auswahl oder ohne Medien'); }
         $folder=$snapshot['folders'][$path]; $children=[]; $files=[];
@@ -139,11 +160,12 @@ class Library {
         // Search/filter recurse within the current folder. Unfiltered browsing is one level.
         foreach ($snapshot['rows'] as $row) {
             $inside=$path==='' || str_starts_with($row['path'],$path.'/');
-            if (!$inside || ($filter==='all' && $embeddingFilter==='all' && $ocrFilter==='all' && $facesFilter==='all' && $query==='' && $row['parent']!==$path)) { continue; }
+            if (!$inside || ($filter==='all' && $embeddingFilter==='all' && $ocrFilter==='all' && $facesFilter==='all' && $audioFilter==='all' && $query==='' && $row['parent']!==$path)) { continue; }
             if ($filter==='analyzed' ? !$row['has_description'] : ($filter==='pending' ? !$row['next_pending'] : ($filter==='unprocessed' ? !in_array($row['status'],['pending','publishing'],true) : ($filter!=='all' && $row['status']!==$filter)))) { continue; }
             if($ocrFilter!=='all'&&($ocrFilter==='done'?!in_array($row['ocr_status'],['done','changed'],true):($ocrFilter==='pending'?!in_array($row['ocr_status'],['pending','publishing'],true):$row['ocr_status']!==$ocrFilter)))continue;
             if($facesFilter!=='all'&&$row['faces_status']!==$facesFilter)continue;
             if($embeddingFilter!=='all'&&$row['embedding_status']!==$embeddingFilter)continue;
+            if($audioFilter!=='all'&&($audioFilter==='done'?!in_array($row['audio_status'],['done','changed'],true):($audioFilter==='pending'?!in_array($row['audio_status'],['pending','publishing'],true):$row['audio_status']!==$audioFilter)))continue;
             if ($query!=='' && mb_stripos($row['path'],$query)===false) { continue; }
             $files[]=$row;
         }

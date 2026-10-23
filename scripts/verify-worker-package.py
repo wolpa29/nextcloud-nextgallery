@@ -26,6 +26,9 @@ with tempfile.TemporaryDirectory(prefix='nextgallery-package-check-') as tempora
     worker_dir = app_root / 'worker'
     runtime = worker_dir / 'lmstudio'
 
+    for name in ['media_ai_audio.py','audio_setup.py','audio_models.json','requirements-audio.txt']:
+        assert (worker_dir / name).is_file(), 'Audio runtime input missing: '+name
+    assert (app_root / 'docs/AUDIO.md').is_file(), 'Audio administration guide missing'
     # -------------------------------------------------------------------------
     # 1. Existing LM Studio SDK & embeddings setup tests (preserved)
     # -------------------------------------------------------------------------

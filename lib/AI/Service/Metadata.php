@@ -6,13 +6,13 @@ use OCP\AppFramework\OCS\OCSBadRequestException;
 class Metadata {
     public function __construct(private IDBConnection $db,private ?\OCA\Nextgallery\Service\SearchIndexChanges $searchChanges=null) {}
     public static function validate(int $fileId, string $etag, string $sha256, string $revision, array $metadata, array $exif,string $stage=''): array {
-        if(!in_array($stage,['','descriptions','ocr'],true))throw new OCSBadRequestException('Invalid metadata stage');
-        $vision = $metadata['vision'] ?? ['type'=>'unklar','description'=>'','tags'=>[],'objects'=>[],'uncertain_details'=>[]];
-        $ocr = $metadata['ocr']['text'] ?? ($stage==='descriptions'?'':null);
+        if(!in_array($stage,['','descriptions','ocr','audio'],true))throw new OCSBadRequestException('Invalid metadata stage');
+        $vision = $metadata['vision'] ?? ['type'=>($stage==='audio'?'video':'unklar'),'description'=>'','tags'=>[],'objects'=>[],'uncertain_details'=>[]];
+        $ocr = $metadata['ocr']['text'] ?? (($stage==='descriptions'||$stage==='audio')?'':null);
         if ($fileId < 1 || strlen($etag) < 1 || strlen($etag) > 255 || !preg_match('/^[a-f0-9]{64}$/D', $sha256)
             || !preg_match('/^[a-f0-9]{64}$/D', $revision) || !is_string($ocr) || strlen($ocr) > 500000
             || !in_array($vision['type'] ?? null, ['video', 'foto', 'screenshot', 'dokument', 'meme', 'grafik', 'unklar'], true)
-            || !is_string($vision['description'] ?? null) || ($stage!=='ocr'&&strlen($vision['description']) < 1) || strlen($vision['description']) > 48000) {
+            || !is_string($vision['description'] ?? null) || ($stage!=='ocr'&&$stage!=='audio'&&strlen($vision['description']) < 1) || strlen($vision['description']) > 48000) {
             throw new OCSBadRequestException('Invalid metadata');
         }
         foreach (['tags', 'objects', 'uncertain_details'] as $field) {
@@ -22,6 +22,40 @@ class Metadata {
             foreach ($vision[$field] as $word) {
                 if (!is_string($word) || strlen($word) > 2000) { throw new OCSBadRequestException('Invalid keyword'); }
             }
+        }
+        $audio = $metadata['audio'] ?? null;
+        if ($stage === 'audio' && !is_array($audio)) {
+            throw new OCSBadRequestException('Invalid metadata');
+        }
+        if (is_array($audio)) {
+            $audioText = $audio['text'] ?? null;
+            $audioLang = $audio['language'] ?? null;
+            $audioDur = $audio['duration'] ?? null;
+            $audioModel = $audio['model'] ?? null;
+            $noAudio = $audio['no_audio'] ?? null;
+            $segments = $audio['segments'] ?? null;
+            if (!is_string($audioText) || strlen($audioText) > 500000
+                || !is_string($audioLang) || strlen($audioLang) > 64
+                || !is_numeric($audioDur) || !is_finite((float)$audioDur) || (float)$audioDur < 0
+                || !is_string($audioModel) || strlen($audioModel) > 255
+                || !is_bool($noAudio) || !is_array($segments) || !array_is_list($segments)
+                || count($segments) > 20000) {
+                throw new OCSBadRequestException('Invalid metadata');
+            }
+            $cleanSegments = [];
+            foreach ($segments as $seg) {
+                if (!is_array($seg) || !isset($seg['start'], $seg['end'], $seg['text'])
+                    || !is_numeric($seg['start']) || !is_finite((float)$seg['start'])
+                    || !is_numeric($seg['end']) || !is_finite((float)$seg['end'])
+                    || !is_string($seg['text'])
+                    || (float)$seg['start'] < 0 || (float)$seg['end'] < (float)$seg['start'] || strlen($seg['text']) > 50000) {
+                    throw new OCSBadRequestException('Invalid metadata');
+                }
+                $cleanSegments[] = ['start' => (float)$seg['start'], 'end' => (float)$seg['end'], 'text' => $seg['text']];
+            }
+            $audio['segments'] = $cleanSegments;
+            $audio['duration'] = (float)$audioDur;
+            $metadata['audio'] = $audio;
         }
         $metadata['vision']=$vision;$metadata['ocr']=$metadata['ocr']??['text'=>$ocr];
         if($stage!==''){$metadata['completed_stages']=$metadata['completed_stages']??[];$metadata['completed_stages'][$stage]=true;$metadata['stage_etags'][$stage]=$etag;}
@@ -38,7 +72,11 @@ class Metadata {
         $flags=$analysis['completed_stages']??null;$result=[];
         $description=is_string($analysis['vision']['description']??null)&&$analysis['vision']['description']!=='';
         $ocr=is_string($analysis['ocr']['text']??null)&&($analysis['ocr']['source']??'')!=='skipped_video';
-        foreach(['descriptions'=>$description,'ocr'=>$ocr] as $kind=>$complete)if($complete&&($flags===null||!empty($flags[$kind])))$result[$kind]=$analysis['stage_etags'][$kind]??$row['etag'];
+        $audio=isset($analysis['audio'])&&is_array($analysis['audio'])&&(
+            !empty($analysis['audio']['no_audio']) ||
+            (is_string($analysis['audio']['text']??null)&&($analysis['audio']['text']!==''||!empty($flags['audio'])))
+        );
+        foreach(['descriptions'=>$description,'ocr'=>$ocr,'audio'=>$audio] as $kind=>$complete)if($complete&&($flags===null||!empty($flags[$kind])))$result[$kind]=$analysis['stage_etags'][$kind]??$row['etag'];
         return $result;
     }
     public function upsert(string $uid,array $data,string $stage=''):void {
@@ -52,7 +90,7 @@ class Metadata {
         $previous=$this->getStored($uid,(int)$data['file_id']);$completed=$previous?self::stages($previous):[];
         if(isset($completed[$stage]))return; // Only explicit stage deletion allows replacement.
         $incoming=json_decode($data['metadata_json'],true);$old=$previous?json_decode($previous['metadata_json'],true):[];
-        $analysis=$old['analysis']??[];$new=$incoming['analysis'];$key=$stage==='descriptions'?'vision':'ocr';
+        $analysis=$old['analysis']??[];$new=$incoming['analysis'];$key=$stage==='descriptions'?'vision':($stage==='ocr'?'ocr':'audio');
         $analysis[$key]=$new[$key];
         $analysis['provenance']=array_replace_recursive($analysis['provenance']??[],$new['provenance']??[]);
         $analysis['stage_provenance'][$stage]=$new['provenance']??[];
@@ -81,7 +119,7 @@ class Metadata {
     }
     /** Count both independent stages in bounded reads for the live account overview. */
     public function counts(string $uid):array {
-        $counts=['metadata'=>0,'descriptions'=>0,'ocr'=>0];
+        $counts=['metadata'=>0,'descriptions'=>0,'ocr'=>0,'audio'=>0];
         foreach($this->storedRows($uid,'etag,metadata_json') as $row){$counts['metadata']++;foreach(self::stages($row) as $stage=>$etag)$counts[$stage]++;}
         return $counts;
     }
@@ -94,9 +132,9 @@ class Metadata {
         $this->searchChanges?->account($uid);
         if($stage!==null){
             foreach($this->storedRows($uid,'etag,sha256,revision,metadata_json') as $row){$completed=self::stages($row);if(!isset($completed[$stage]))continue;unset($completed[$stage]);if(!$completed){$this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_ai_meta WHERE user_id=? AND file_id=?',[$uid,(int)$row['file_id']]);continue;}
-                $wire=json_decode($row['metadata_json'],true);$analysis=$wire['analysis'];unset($analysis[$stage==='descriptions'?'vision':'ocr'],$analysis['stage_provenance'][$stage],$analysis['stage_sources'][$stage]);
-                $model=$stage==='descriptions'?'vision':'ocr';foreach(['models','images','inference_attempts','output_channels'] as $field)unset($analysis['provenance'][$field][$model]);
-                $analysis['completed_stages']=array_fill_keys(array_keys($completed),true);$analysis['stage_etags']=$completed;$remaining=isset($completed['descriptions'])?'descriptions':'ocr';
+                $wire=json_decode($row['metadata_json'],true);$analysis=$wire['analysis'];unset($analysis[$stage==='descriptions'?'vision':($stage==='ocr'?'ocr':'audio')],$analysis['stage_provenance'][$stage],$analysis['stage_sources'][$stage]);
+                $model=$stage==='descriptions'?'vision':($stage==='ocr'?'ocr':'audio');foreach(['models','images','inference_attempts','output_channels'] as $field)unset($analysis['provenance'][$field][$model]);
+                $analysis['completed_stages']=array_fill_keys(array_keys($completed),true);$analysis['stage_etags']=$completed;$remaining=isset($completed['descriptions'])?'descriptions':(isset($completed['ocr'])?'ocr':'audio');
                 $data=self::validate((int)$row['file_id'],reset($completed),$row['sha256'],$row['revision'],$analysis,$wire['source_exif']??[],$remaining);
                 $this->db->executeStatement('UPDATE *PREFIX*nextgallery_ai_meta SET '.implode(',',array_map(fn($key)=>$key.'=?',array_keys($data))).' WHERE user_id=? AND file_id=?',array_merge(array_values($data),[$uid,(int)$row['file_id']]));
             }return;
@@ -118,9 +156,9 @@ class Metadata {
             foreach($rows as $row){
                 $completed=self::stages($row);if(!isset($completed[$stage]))continue;unset($completed[$stage]);$affected++;
                 if(!$completed){$this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_ai_meta WHERE user_id=? AND file_id=?',[$uid,(int)$row['file_id']]);continue;}
-                $wire=json_decode($row['metadata_json'],true);$analysis=$wire['analysis'];unset($analysis[$stage==='descriptions'?'vision':'ocr'],$analysis['stage_provenance'][$stage],$analysis['stage_sources'][$stage]);
-                $model=$stage==='descriptions'?'vision':'ocr';foreach(['models','images','inference_attempts','output_channels'] as $field)unset($analysis['provenance'][$field][$model]);
-                $analysis['completed_stages']=array_fill_keys(array_keys($completed),true);$analysis['stage_etags']=$completed;$remaining=isset($completed['descriptions'])?'descriptions':'ocr';
+                $wire=json_decode($row['metadata_json'],true);$analysis=$wire['analysis'];unset($analysis[$stage==='descriptions'?'vision':($stage==='ocr'?'ocr':'audio')],$analysis['stage_provenance'][$stage],$analysis['stage_sources'][$stage]);
+                $model=$stage==='descriptions'?'vision':($stage==='ocr'?'ocr':'audio');foreach(['models','images','inference_attempts','output_channels'] as $field)unset($analysis['provenance'][$field][$model]);
+                $analysis['completed_stages']=array_fill_keys(array_keys($completed),true);$analysis['stage_etags']=$completed;$remaining=isset($completed['descriptions'])?'descriptions':(isset($completed['ocr'])?'ocr':'audio');
                 $data=self::validate((int)$row['file_id'],reset($completed),$row['sha256'],$row['revision'],$analysis,$wire['source_exif']??[],$remaining);
                 $this->db->executeStatement('UPDATE *PREFIX*nextgallery_ai_meta SET '.implode(',',array_map(fn($key)=>$key.'=?',array_keys($data))).' WHERE user_id=? AND file_id=?',array_merge(array_values($data),[$uid,(int)$row['file_id']]));
             }
@@ -147,11 +185,17 @@ class Metadata {
         preg_match_all('/[\p{L}\p{N}_]+/u', $term, $matches);
         $words = array_slice(array_filter($matches[0], fn($word) => mb_strlen($word) >= 3), 0, 16);
         if (!$words) { return []; }
-        if ($this->db->getDatabaseProvider() !== 'mysql') {
+        $provider=$this->db->getDatabaseProvider();
+        $audioColumn=match($provider){
+            'mysql'=>"LOWER(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(metadata_json,'$.analysis.audio.text')),''))",
+            'pgsql','postgresql'=>"LOWER(COALESCE(CAST(metadata_json AS JSON)->'analysis'->'audio'->>'text',''))",
+            default=>"LOWER(COALESCE(json_extract(metadata_json,'$.analysis.audio.text'),''))",
+        };
+        if ($provider !== 'mysql') {
             $conditions=[]; $params=[$uid,$cursor];
             foreach ($words as $word) {
                 $parts=[];
-                foreach (['description','ocr_text','tags_text','objects_text'] as $column) {
+                foreach (['description','ocr_text','tags_text','objects_text',$audioColumn] as $column) {
                     $parts[]="$column LIKE ? ESCAPE '!'";
                     $params[]='%'.str_replace(['!','%','_'],['!!','!%','!_'],mb_strtolower($word)).'%';
                 }
@@ -161,7 +205,14 @@ class Metadata {
             try { return $result->fetchAll(); } finally { $result->closeCursor(); }
         }
         $query = implode(' ', array_map(fn($word) => '+' . mb_strtolower($word) . '*', $words));
-        $result = $this->db->executeQuery('SELECT id,file_id,etag,description,ocr_text,metadata_json FROM *PREFIX*nextgallery_ai_meta WHERE user_id=? AND id>? AND MATCH(description,ocr_text,tags_text,objects_text) AGAINST (? IN BOOLEAN MODE) ORDER BY id LIMIT ' . min(50, max(1, $limit)), [$uid, $cursor, $query]);
+        $likeConditions = [];
+        $params = [$uid, $cursor, $query];
+        foreach ($words as $word) {
+            $likeConditions[] = "$audioColumn LIKE ? ESCAPE '!'";
+            $params[] = '%' . str_replace(['!','%','_'],['!!','!%','!_'],mb_strtolower($word)) . '%';
+        }
+        $where = '(MATCH(description,ocr_text,tags_text,objects_text) AGAINST (? IN BOOLEAN MODE) OR (' . implode(' AND ', $likeConditions) . '))';
+        $result = $this->db->executeQuery('SELECT id,file_id,etag,description,ocr_text,metadata_json FROM *PREFIX*nextgallery_ai_meta WHERE user_id=? AND id>? AND ' . $where . ' ORDER BY id LIMIT ' . min(50, max(1, $limit)), $params);
         try { return $result->fetchAll(); } finally { $result->closeCursor(); }
     }
 }

@@ -60,6 +60,7 @@ return ['routes' => [
  ['name'=>'ai_worker#shareResult', 'url'=>'/ai/worker/shared-result', 'verb'=>'POST'],
  ['name'=>'ai_admin#facesStatus','url'=>'/ai/admin/faces-status','verb'=>'GET'],
  ['name'=>'ai_admin#facesInstall','url'=>'/ai/admin/faces-install','verb'=>'POST'],
+ ['name'=>'ai_admin#audioStatus','url'=>'/ai/admin/audio-status','verb'=>'GET'],
  ['name'=>'face_worker#state', 'url'=>'/ai/worker/faces-state', 'verb'=>'GET'],
  ['name'=>'face_worker#publish', 'url'=>'/ai/worker/publish-faces', 'verb'=>'POST'],
  ['name'=>'face_worker#reset', 'url'=>'/ai/worker/reset-faces', 'verb'=>'POST'],

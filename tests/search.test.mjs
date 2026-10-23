@@ -46,3 +46,9 @@ test('a lexical error is reported without starting or fabricating semantic resul
  const runner=progressiveSearch({request:async()=>{throw new Error('session expired');},show:()=>assert.fail('rendered unavailable lexical response')});
  await assert.rejects(runner.run({query:'dog'}),/session expired/);
 });
+
+test('transcript-only search preserves source and never invokes visual inference',async()=>{
+ const requests=[];const runner=progressiveSearch({request:async params=>{requests.push(params);return {...text,embedding_state:'disabled'};},show:()=>{}});
+ const result=await runner.run({query:'Ananas',source:'audio',gallery:'private',kind:'video'});
+ assert.equal(result,undefined);assert.deepEqual(requests,[{query:'Ananas',source:'audio',gallery:'private',kind:'video',phase:'text'}]);
+});

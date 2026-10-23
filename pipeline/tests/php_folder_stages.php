@@ -41,6 +41,10 @@ check($settings->save($owner,null,false)['folder_stages']===['/'=>$all,'/Scans'=
 check(in_array('faces',Settings::STAGES,true)&&!in_array('faces',$all,true),'Faces fallback is not opt-in');
 $faceSelection=$settings->saveAccount('faces-opt-in',['folders'=>['/Photos'],'folder_stages'=>['/Photos'=>['faces']]]);
 check($faceSelection['folder_stages']['/Photos']===['faces'],'Explicit faces choice lost');
+// Fifth pipeline (audio) is also available only by explicit folder choice.
+check(in_array('audio',Settings::STAGES,true)&&!in_array('audio',$all,true),'Audio fallback is not opt-in');
+$audioSelection=$settings->saveAccount('audio-opt-in',['folders'=>['/Videos'],'folder_stages'=>['/Videos'=>['audio']]]);
+check($audioSelection['folder_stages']['/Videos']===['audio'],'Explicit audio choice lost');
 // The most specific selected folder decides.
 $selection=['folders'=>['/','/Photos/Screens','/Photos'],'folder_stages'=>['/'=>$all,'/Photos'=>['descriptions'],'/Photos/Screens'=>['ocr']]];
 check(Settings::stagesFor($selection,'/root.jpg')===$all,'Root folder choice ignored');

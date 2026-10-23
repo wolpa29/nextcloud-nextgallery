@@ -65,7 +65,15 @@
 #nextgallery dialog,#media-ai-admin dialog{background:var(--ng-surface);border-color:var(--ng-line);border-radius:28px}
 #nextgallery :is(#ch-folder-list button,.ch-dialog-head button){background:transparent}#nextgallery #ch-folder-list button:hover{background:var(--ng-soft)}
 #nextgallery #ch-empty{background:var(--ng-surface);border:1px solid var(--ng-line);border-radius:28px;padding:32px;margin:48px auto}
-#nextgallery #ch-empty>span{color:var(--ng-accent)}#nextgallery #ch-search-results{gap:16px}#nextgallery .ch-search-tile{border:0;background:transparent;display:flex;align-items:stretch;padding:0;border-radius:12px;text-align:left;white-space:normal;min-width:0}
+#nextgallery #ch-empty>span{color:var(--ng-accent)}#nextgallery #ch-search-results{gap:16px}#nextgallery .ch-search-tile{border:0;background:transparent;display:flex;align-items:stretch;padding:0;border-radius:12px;text-align:left;white-space:normal;min-width:0;position:relative}
+#nextgallery .ch-search-options{margin:10px 0 6px;display:flex;align-items:center;gap:12px}
+#nextgallery .ch-search-audio-option{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--ng-text);cursor:pointer}
+#nextgallery .ch-match-audio{position:absolute;top:6px;left:6px;background:color-mix(in srgb,var(--ng-surface) 85%,transparent);color:var(--ng-accent);border:1px solid var(--ng-line);border-radius:6px;padding:2px 6px;font-size:10px;font-weight:600;backdrop-filter:blur(4px);pointer-events:none}
+#nextgallery .ch-analysis-audio{margin-top:10px;padding-top:10px;border-top:1px solid var(--ng-line)}
+#nextgallery .ch-analysis-segments{margin-top:6px;font-size:12.5px}
+#nextgallery .ch-analysis-segments summary{cursor:pointer;color:var(--ng-accent);font-weight:600}
+#nextgallery .ch-analysis-segments-list{max-height:180px;overflow-y:auto;margin-top:6px;display:flex;flex-direction:column;gap:3px;font-size:12px}
+#nextgallery .ch-analysis-segment-time{color:var(--ng-muted);font-weight:600;font-variant-numeric:tabular-nums;margin-inline-end:4px}
 #nextgallery .ch-search-tile img{border-radius:12px}#nextgallery .ch-search-tile span{font-size:12px;padding:0 4px 6px}
 #nextgallery #ch-map{background:var(--ng-soft)}#nextgallery .ch-map-pin{background:var(--ng-accent)}#nextgallery .marker-cluster{background:var(--ng-selected)}#nextgallery .marker-cluster div{background:var(--ng-accent);color:var(--ng-on-accent)}
 #nextgallery .leaflet-overlay-pane svg path{fill:var(--ng-low);stroke:var(--ng-line)}
@@ -131,6 +139,7 @@
 #nextgallery .ch-gallery-select[aria-current=true]{background:var(--ng-selected);color:var(--ng-on-selected)}
 #nextgallery .ch-gallery-select strong{font-size:15px;font-weight:600;overflow-wrap:anywhere}
 #nextgallery .ch-gallery-select small{font-size:12px;color:var(--ng-muted)}
+#nextgallery .ch-gallery-select[aria-current=true] small{color:var(--ng-on-selected)}
 #nextgallery .ch-gallery-choice>button:last-child{border:0;background:var(--ng-surface);border-radius:10px;padding:8px 14px;color:var(--ng-accent);font-size:13px;font-weight:500;cursor:pointer;transition:background .15s}
 #nextgallery .ch-gallery-choice>button:last-child:hover{background:var(--ng-soft)}
 #nextgallery #ch-new-gallery{margin-top:16px;border-radius:14px;min-height:44px}

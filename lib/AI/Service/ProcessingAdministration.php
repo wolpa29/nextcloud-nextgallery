@@ -44,7 +44,7 @@ class ProcessingAdministration {
   $kinds=[];
   foreach(array_unique(array_merge(array_keys($previous),array_keys($candidate))) as $key){
    if(self::canonical($previous[$key]??null)===self::canonical($candidate[$key]??null))continue;
-   $lanes=in_array($key,['faces','faces_filters'],true)?['faces']:($key==='embedding'?['embeddings']:(in_array($key,['ocr','ocr_enabled'],true)?['ocr']:(in_array($key,['analysis_enabled','vision','video'],true)?['descriptions']:State::PIPELINES)));
+   $lanes=in_array($key,['faces','faces_filters'],true)?['faces']:($key==='embedding'?['embeddings']:($key==='audio'?['audio']:(in_array($key,['ocr','ocr_enabled'],true)?['ocr']:(in_array($key,['analysis_enabled','vision','video'],true)?['descriptions']:State::PIPELINES))));
    $kinds=array_merge($kinds,$lanes);
   }
   foreach(['vision','ocr','embedding'] as $key)if(!empty($submitted[$key]['api_key'])||!empty($submitted[$key]['clear_api_key']))$kinds[]=$key==='embedding'?'embeddings':($key==='ocr'?'ocr':'descriptions');

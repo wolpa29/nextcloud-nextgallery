@@ -8,7 +8,7 @@ use OCP\AppFramework\OCS\OCSBadRequestException;
 
 class Settings {
     /** Available pipelines and the conservative fallback are intentionally distinct. */
-    public const STAGES = ['descriptions','ocr','embeddings','faces'];
+    public const STAGES = ['descriptions','ocr','embeddings','faces','audio'];
     public const DEFAULT_STAGES = ['descriptions','ocr','embeddings'];
     public const DEFAULT_FACE_FILTERS = ['min_face_area'=>0.0025,'min_sharpness'=>45.0,'min_group_photos'=>3];
     private ?string $account = null;
@@ -21,6 +21,7 @@ class Settings {
         return ['enabled' => false, 'analysis_enabled' => true, 'ocr_enabled'=>true, 'embedding' => ['enabled'=>false, 'location'=>'local', 'local_auto_setup'=>true, 'local_profile'=>'lite', 'transport'=>'multimodal', 'family'=>'gemma2', 'model'=>'embeddinggemma-2', 'url'=>'http://10.1.10.78:9379/v1', 'local_model_path'=>'/opt/nextgallery-ai-models/embeddinggemma-2-text-vision-440m.litertlm', 'local_qwen_source'=>'', 'model_revision'=>'', 'max_edge'=>2048, 'video_frames'=>10, 'batch_size'=>1, 'timeout_seconds'=>120, 'video_timeout_seconds'=>3600], 'user_id' => 'paul', 'folders' => ['/'], 'exclude_folders' => [], 'folder_stages' => [],
             'faces_filters'=>self::DEFAULT_FACE_FILTERS,
             'faces'=>['enabled'=>false,'share_inference'=>true,'model'=>'opencv-yunet-sface-v1','cosine_threshold'=>0.55,'detection_threshold'=>0.9,'min_face_size'=>32,'min_group_size'=>3,'max_edge'=>2048],
+            'audio'=>['enabled'=>false,'model'=>'small','language'=>'','device'=>'cpu','compute_type'=>'int8','cpu_threads'=>4,'timeout_seconds'=>3600],
             'schedule_time' => '03:00', 'timezone' => 'Europe/Vienna', 'image_timeout_seconds' => 600, 'log_days' => 30, 'max_download_bytes' => 67108864,
             'max_image_pixels' => 80000000, 'max_video_download_bytes' => 536870912, 'video' => ['frame_count' => 10],
             'vision' => ['url' => 'http://10.1.10.78:1234/v1', 'model' => 'qwen/qwen3.8-27b',
@@ -170,6 +171,30 @@ class Settings {
         if($candidate['api_key']===''&&empty($value['embedding']['clear_api_key']))$candidate['api_key']=$saved['api_key'];
         return $candidate;
     }
+    public function validatedAudio(mixed $audio):array {
+        $result=$this->defaults()['audio'];
+        if(!is_array($audio))throw new OCSBadRequestException('Audio-Einstellungen ungültig');
+        $enabled=$audio['enabled']??$result['enabled'];
+        if(!is_bool($enabled))throw new OCSBadRequestException('Audio-Aktivierung ungültig');
+        $result['enabled']=$enabled;
+        $model=$audio['model']??$result['model'];
+        if(!in_array($model,['tiny','base','small','medium','large-v3','large-v3-turbo'],true))throw new OCSBadRequestException('Audio-Modell ungültig');
+        $result['model']=$model;
+        $device=$audio['device']??$result['device'];
+        if(!in_array($device,['cpu','cuda'],true))throw new OCSBadRequestException('Audio-Gerät ungültig');
+        $result['device']=$device;
+        $computeType=$audio['compute_type']??$result['compute_type'];
+        if(!in_array($computeType,['default','auto','int8','int8_float16','int8_float32','int8_bfloat16','int16','float16','bfloat16','float32'],true))throw new OCSBadRequestException('Audio-Berechnungstyp ungültig');
+        $result['compute_type']=$computeType;
+        $threads=$audio['cpu_threads']??$result['cpu_threads'];
+        $result['cpu_threads']=$this->integer($threads,1,64,'audio/cpu_threads');
+        $timeout=$audio['timeout_seconds']??$result['timeout_seconds'];
+        $result['timeout_seconds']=$this->integer($timeout,15,86400,'audio/timeout_seconds');
+        $lang=$audio['language']??$result['language'];
+        if(!is_string($lang)||strlen($lang)>16||!preg_match('/^[a-zA-Z-]{0,16}$/D',$lang))throw new OCSBadRequestException('Audio-Sprache ungültig');
+        $result['language']=$lang;
+        return $result;
+    }
     private function paths($value): array {
         if (!is_array($value) || !array_is_list($value) || count($value) > 100) { throw new OCSBadRequestException('Ordnerliste ungültig'); }
         $result = [];
@@ -293,6 +318,7 @@ class Settings {
         }
         foreach(['min_face_size'=>[16,256],'min_group_size'=>[1,20],'max_edge'=>[640,4096]] as $key=>[$min,$max])$result['faces'][$key]=$this->integer($faces[$key]??$result['faces'][$key],$min,$max,'faces/'.$key);
         $result['faces_filters']['min_group_photos']=$result['faces']['min_group_size'];
+        $result['audio']=$this->validatedAudio($value['audio']??$result['audio']);
         // Validate the entire form before writing any value or encrypted secret.
         if ($validateFolders !== null) { $validateFolders($result); }
         if (!$persist) { return $result; }

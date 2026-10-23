@@ -38,7 +38,7 @@ async function init() {
   const custom=form.elements['embedding.family'].value==='custom';
   form.elements['embedding.family'].querySelector('[value="custom"]').disabled=local;
   root.querySelectorAll('[data-embedding-custom]').forEach(node=>node.hidden=local||!custom);
-  const parts=['Dateinamen und Pfade'];if(analysis)parts.push('Beschreibungen, Tags und Objekte');if(form.elements.ocr_enabled.checked)parts.push('erkannter Text');if(dense)parts.push('ähnliche Bildinhalte');
+  const parts=['Dateinamen und Pfade'];if(analysis)parts.push('Beschreibungen, Tags und Objekte');if(form.elements.ocr_enabled.checked)parts.push('erkannter Text');if(dense)parts.push('ähnliche Bildinhalte');if(form.elements['audio.enabled']?.checked)parts.push('gesprochene Inhalte');
    root.querySelectorAll('[data-embedding-local]').forEach(n=>n.hidden=!local);
   root.querySelectorAll('[data-embedding-auto]').forEach(n=>n.hidden=!local||!gemma);
   root.querySelectorAll('[data-embedding-auto-help]').forEach(n=>n.hidden=!automatic);
@@ -93,7 +93,7 @@ async function init() {
    const value=input.type==='checkbox'?input.checked:input.type==='number'?Number(input.value):input.value;
    if(Array.isArray(previous))previous=previous.join('\n');
    if(value===(previous??''))continue;
-   const kinds=group==='faces'?['faces']:group==='embedding'?['embeddings']:['ocr','ocr_enabled'].includes(group)?['ocr']:['vision','video','analysis_enabled'].includes(group)?['descriptions']:['descriptions','ocr','embeddings','faces'];
+   const kinds=group==='audio'?['audio']:group==='faces'?['faces']:group==='embedding'?['embeddings']:['ocr','ocr_enabled'].includes(group)?['ocr']:['vision','video','analysis_enabled'].includes(group)?['descriptions']:['descriptions','ocr','embeddings','faces','audio'];
    for(const kind of kinds)if(pipelineRunning(kind))blocked.add(kind);
   }
   return [...blocked];
@@ -110,7 +110,7 @@ async function init() {
   const snapshot=formSnapshot(),dirty=savedSnapshot!==null&&snapshot!==savedSnapshot,blocked=dirty?blockedPipelines():[];
   for(const [last,current,id] of [[embeddingProbeSnapshot,formSnapshot('embedding'),'mai-embedding-result'],[modelProbeSnapshot,snapshot,'mai-model-result']])if(last!==null&&last!==current)$(id).textContent=tr('Eingaben geändert. Verbindung erneut prüfen.');
   if(modelProbeSnapshot!==null&&modelProbeSnapshot!==snapshot)modelProbe=null;
-  root.querySelectorAll('[data-save-blocked]').forEach(node=>{node.hidden=!blocked.length;node.querySelector('[data-save-blocked-text]').textContent=tr('Zum Speichern zuerst {pipelines} pausieren und den Abschluss der aktuellen Datei abwarten.',{pipelines:blocked.map(kind=>tr({descriptions:'Beschreibungen',ocr:'Texterkennung (OCR)',embeddings:'Visuelle Bildsuche · Embeddings',faces:'Personenerkennung · Gesichter'}[kind])).join(', ')});});
+  root.querySelectorAll('[data-save-blocked]').forEach(node=>{node.hidden=!blocked.length;node.querySelector('[data-save-blocked-text]').textContent=tr('Zum Speichern zuerst {pipelines} pausieren und den Abschluss der aktuellen Datei abwarten.',{pipelines:blocked.map(kind=>tr({descriptions:'Beschreibungen',ocr:'Texterkennung (OCR)',embeddings:'Visuelle Bildsuche · Embeddings',faces:'Personenerkennung · Gesichter',audio:'Videoton · Gesprochene Inhalte'}[kind])).join(', ')});});
   if(!dirty)saveError=false;
   const state=savedSnapshot===null?'loading':saving?'saving':dirty?(saveError?'error':blocked.length?'blocked':'dirty'):'saved';
   const labels={loading:'Einstellungen werden geladen …',saving:'Wird gespeichert …',dirty:'Ungespeicherte Änderungen',blocked:'Speichern erst nach dem Pausieren möglich',error:'Nicht gespeichert · erneut versuchen',saved:'Gespeichert'};
@@ -126,7 +126,7 @@ async function init() {
  }
  root.querySelectorAll('[data-show-processing]').forEach(button=>button.onclick=()=>{workspace.show('settings');$('mai-processing-admin').open=true;$('mai-processing-admin').scrollIntoView({behavior:'smooth',block:'start'});});
  for(const event of ['input','change'])form.addEventListener(event,e=>{if(e.target.name)updateSaveState();});
- function loadForm(){if(!config.faces)config.faces={enabled:false,cosine_threshold:0.55,detection_threshold:0.9,min_face_size:32,min_group_size:2,max_edge:2048};for(const input of form.elements){if(!input.name)continue;const parts=input.name.split('.');let v=parts.length===2?config[parts[0]]?.[parts[1]]:config[parts[0]];if(input.dataset.defaultPrompt)v=v||config[parts[0]]['default_'+parts[1]];if(input.type==='checkbox')input.checked=Boolean(v);else if(Array.isArray(v))input.value=v.join('\n');else input.value=v??'';} form.querySelectorAll('[data-image-edge]').forEach(i=>i.dispatchEvent(new Event('input')));const allowed=config.can_configure_models;form.elements.user_id.readOnly=true; $('mai-model-settings').querySelectorAll('input,select,button').forEach(i=>i.disabled=!allowed);$('mai-model-settings').querySelectorAll('textarea').forEach(i=>{i.readOnly=!allowed;i.dispatchEvent(new Event('input'));});root.querySelectorAll('#mai-embedding-settings input,#mai-embedding-settings select,[data-model-admin]').forEach(i=>i.disabled=!allowed);root.querySelectorAll('#mai-faces-settings input,#mai-faces-settings select,button[data-faces-install]').forEach(i=>i.disabled=!allowed);processingExplanation(); savedSnapshot=formSnapshot();saveError=false;updateSaveState(); }
+ function loadForm(){if(!config.audio)config.audio={enabled:false,model:'small',language:'',device:'cpu',compute_type:'int8',cpu_threads:4,timeout_seconds:3600};if(!config.faces)config.faces={enabled:false,cosine_threshold:0.55,detection_threshold:0.9,min_face_size:32,min_group_size:2,max_edge:2048};for(const input of form.elements){if(!input.name)continue;const parts=input.name.split('.');let v=parts.length===2?config[parts[0]]?.[parts[1]]:config[parts[0]];if(input.dataset.defaultPrompt)v=v||config[parts[0]]['default_'+parts[1]];if(input.type==='checkbox')input.checked=Boolean(v);else if(Array.isArray(v))input.value=v.join('\n');else input.value=v??'';} form.querySelectorAll('[data-image-edge]').forEach(i=>i.dispatchEvent(new Event('input')));const allowed=config.can_configure_models;form.elements.user_id.readOnly=true; $('mai-model-settings').querySelectorAll('input,select,button').forEach(i=>i.disabled=!allowed);$('mai-model-settings').querySelectorAll('textarea').forEach(i=>{i.readOnly=!allowed;i.dispatchEvent(new Event('input'));});root.querySelectorAll('#mai-embedding-settings input,#mai-embedding-settings select,[data-model-admin]').forEach(i=>i.disabled=!allowed);root.querySelectorAll('#mai-faces-settings input,#mai-faces-settings select,button[data-faces-install],#mai-audio-settings input,#mai-audio-settings select').forEach(i=>i.disabled=!allowed);processingExplanation(); savedSnapshot=formSnapshot();saveError=false;updateSaveState(); }
  async function saveForm(){
   if(!config||saving||choosingModel)return false;if(savedSnapshot===formSnapshot())return true;if(settingsBlocked()||!form.reportValidity())return false;
   const submittedSnapshot=formSnapshot(),v=formConfig();
@@ -157,7 +157,7 @@ async function init() {
  }
  async function processing(){
   processingState=await api('processing');
-  for(const kind of ['descriptions','ocr','embeddings','faces']){
+  for(const kind of ['descriptions','ocr','embeddings','faces','audio']){
    const section=root.querySelector('[data-admin-pipeline="'+kind+'"]');
    if(!section)continue;
    const value=processingState.pipelines?.[kind]||processingState;
@@ -170,7 +170,7 @@ async function init() {
  }
  root.querySelectorAll('[data-processing-action]').forEach(button=>button.onclick=async()=>{
   const action=button.dataset.processingAction,kind=button.dataset.kind;
-  try{if(action==='pause_all'&&!await confirmModelAction(kind==='embeddings'?'Alle Embedding-Läufe pausieren?':kind==='ocr'?'Alle OCR-Läufe pausieren?':kind==='faces'?'Alle Läufe der Personenerkennung pausieren?':'Alle Beschreibungs-Läufe pausieren?','Die aktuelle Datei wird abgeschlossen. Vorgemerkte Starts werden entfernt; neue und automatische Läufe dieser Verarbeitung sind bis zur Freigabe gesperrt. Die anderen Verarbeitungen laufen weiter.','Pausieren'))return;
+  try{if(action==='pause_all'&&!await confirmModelAction(kind==='embeddings'?'Alle Embedding-Läufe pausieren?':kind==='ocr'?'Alle OCR-Läufe pausieren?':kind==='faces'?'Alle Läufe der Personenerkennung pausieren?':kind==='audio'?'Alle Videoton-Läufe pausieren?':'Alle Beschreibungs-Läufe pausieren?','Die aktuelle Datei wird abgeschlossen. Vorgemerkte Starts werden entfernt; neue und automatische Läufe dieser Verarbeitung sind bis zur Freigabe gesperrt. Die anderen Verarbeitungen laufen weiter.','Pausieren'))return;
    await api('processing',{action,kind});await processing();await status();
   }catch(error){message(error.message,true);}
  });
@@ -332,7 +332,21 @@ async function init() {
   }catch(e){message(e.message,true);}
   finally{facesInstallBusy=false;renderFacesInstall();}
  }));
- async function status(){try{lastStatus=await api('status');await processing();await checkFacesStatus();embeddingSetupStatus(lastStatus);updateSaveState();workspace.status(lastStatus);}catch(e){message(e.message,true);}}
+ let audioStatusData=null;
+ async function checkAudioStatus(){
+  try{audioStatusData=await api('audio-status');}catch{audioStatusData=null;}
+  const target=$('mai-audio-setup-settings');if(!target)return;
+  const lane=lastStatus?.pipelines?.audio,s=audioStatusData||lane?.audio_setup||lastStatus?.audio_setup||{};
+  const phase=s.state||s.phase||'not_installed';target.hidden=false;
+  let text;
+  if(lane&&!lane.online)text=tr('Audio-Worker ist offline. Bitte den Hintergrunddienst starten.');
+  else if(s.installed||s.ready||phase==='ready')text=tr('Lokale Spracherkennung bereit. Das gewählte Modell wird beim ersten Lauf geladen.');
+  else if(phase==='installing')text=tr('Lokale Spracherkennung wird eingerichtet …');
+  else if(phase==='error')text=tr('Einrichtung der Spracherkennung fehlgeschlagen. Bitte das Worker-Protokoll prüfen.');
+  else text=tr('Nach dem Aktivieren wird die lokale Spracherkennung automatisch eingerichtet.');
+  target.classList.toggle('mai-error',phase==='error');target.textContent=text;
+ }
+ async function status(){try{lastStatus=await api('status');await processing();await checkFacesStatus();await checkAudioStatus();embeddingSetupStatus(lastStatus);updateSaveState();workspace.status(lastStatus);}catch(e){message(e.message,true);}}
  api('config').then(c=>{canManage=true;config=c;loadForm();workspace.start();status();}).catch(e=>message(e.status===403?'Nur Administratoren dürfen diese Einstellungen öffnen.':e.message,true));
  const timer=setInterval(()=>{if(!document.contains(root)){clearInterval(timer);return;}if(canManage&&!document.hidden)status();},5000);
 }

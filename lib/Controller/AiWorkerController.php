@@ -29,16 +29,30 @@ class AiWorkerController extends Controller {
     #[PublicPage] #[NoCSRFRequired]
     public function inventory(int $cursor = 0,string $kind='descriptions',string $embedding_space=''): DataResponse { if ($denied = $this->denied()) { return $denied; } return new DataResponse($this->inventory->page($cursor,$kind,$embedding_space)); }
     #[PublicPage] #[NoCSRFRequired]
-    public function resolve(int $file_id, string $etag = '', bool $local_media = false): DataResponse {
-        if ($denied = $this->denied()) { return $denied; } $file = $this->sourceFile($file_id);if($file instanceof DataResponse)return $file;
+    public function resolve(int $file_id, string $etag = '', bool $local_media = false, string $kind = 'embeddings'): DataResponse {
+        if ($denied = $this->denied()) { return $denied; }
+        $file = $this->sourceFile($file_id, $kind === 'audio' ? 'audio' : null);
+        if ($file instanceof DataResponse) return $file;
         if ($etag !== '' && !hash_equals($file->getEtag(), $etag)) { return new DataResponse(['error'=>'Media changed'],409); }
         $data = ['file_id'=>$file->getId(), 'etag'=>$file->getEtag(), 'size'=>$file->getSize()];
+        if ($kind === 'audio') {
+            $config = $this->settings->get();
+            if (empty($config['audio']['enabled']) || !str_starts_with($file->getMimeType(), 'video/')) {
+                return new DataResponse(['error'=>'Current audio video required'],400);
+            }
+        }
         if ($local_media) {
-            // Only authenticated embedding workers may read an allowed, current
-            // local video directly. Do not materialize remote/encrypted storage.
             $data['local_path'] = null;
-            if ($etag === '' || !$this->settings->get()['embedding']['enabled'] || !str_starts_with($file->getMimeType(), 'video/')) {
-                return new DataResponse(['error'=>'Current embedding video required'],400);
+            if ($kind === 'audio') {
+                if ($etag === '') {
+                    return new DataResponse(['error'=>'Current audio video required'],400);
+                }
+            } else {
+                // Only authenticated embedding workers may read an allowed, current
+                // local video directly. Do not materialize remote/encrypted storage.
+                if ($etag === '' || !$this->settings->get()['embedding']['enabled'] || !str_starts_with($file->getMimeType(), 'video/')) {
+                    return new DataResponse(['error'=>'Current embedding video required'],400);
+                }
             }
             $storage = $file->getStorage();
             if ($storage->isLocal() && !$file->isEncrypted()) {
@@ -56,10 +70,17 @@ class AiWorkerController extends Controller {
         $response = new DataResponse($data);$response->addHeader('Cache-Control','no-store');return $response;
     }
     #[PublicPage] #[NoCSRFRequired]
-    public function image(int $file_id, string $etag): StreamResponse|DataResponse {
-        if ($denied = $this->denied()) { return $denied; } $file = $this->sourceFile($file_id);if($file instanceof DataResponse)return $file;
+    public function image(int $file_id, string $etag, string $kind = ''): StreamResponse|DataResponse {
+        if ($denied = $this->denied()) { return $denied; }
+        $file = $this->sourceFile($file_id, $kind === 'audio' ? 'audio' : null);
+        if ($file instanceof DataResponse) return $file;
         if (!hash_equals($file->getEtag(), $etag)) { return new DataResponse(['error'=>'Image changed'],409); }
         $config = $this->settings->get();
+        if ($kind === 'audio') {
+            if (empty($config['audio']['enabled']) || !str_starts_with($file->getMimeType(), 'video/')) {
+                return new DataResponse(['error'=>'Current audio video required'],400);
+            }
+        }
         $maximum = str_starts_with($file->getMimeType(), 'video/') ? $config['max_video_download_bytes'] : $config['max_download_bytes'];
         if ($file->getSize() > $maximum) { return new DataResponse(['error'=>'Image exceeds download limit'],413); }
         $stream = $file->fopen('rb');
@@ -74,20 +95,20 @@ class AiWorkerController extends Controller {
     #[PublicPage] #[NoCSRFRequired]
     public function reset(string $kind='all'): DataResponse {
         if($denied=$this->denied())return $denied;
-        if(!in_array($kind,['all','descriptions','ocr','embeddings','faces'],true))return new DataResponse(['error'=>'Invalid reset kind'],400);
+        if(!in_array($kind,['all','descriptions','ocr','embeddings','faces','audio'],true))return new DataResponse(['error'=>'Invalid reset kind'],400);
         $state=$kind==='all'?$this->state:$this->state?->forPipeline($kind);
         $control=$state?->control()??[];
         if($kind==='all'&&$state&&is_file($state->directory().'/pipelines.json'))foreach(\OCA\Nextgallery\AI\Service\State::PIPELINES as $lane){$c=$state->forPipeline($lane)->control();if(empty($c['reset_requested'])||empty($c['paused']))return new DataResponse(['error'=>'Explicit paused reset request required for all pipelines'],409);}
         if(empty($control['reset_requested']) || empty($control['paused']))return new DataResponse(['error'=>'Explicit paused reset request required'],409);
         $uid=$this->settings->get()['user_id'];$kind=$control['reset_kind']??$kind;
-        if(in_array($kind,['all','descriptions','ocr'],true)){
+        if(in_array($kind,['all','descriptions','ocr','audio'],true)){
             $lock=fopen($state->directory().'/publication.lock','c');if(!$lock||!flock($lock,LOCK_EX))throw new \RuntimeException('Publication gate unavailable');
             try{$this->metadata->reset($uid,$kind==='all'?null:$kind);}finally{flock($lock,LOCK_UN);fclose($lock);}
         }
         if(in_array($kind,['all','embeddings'],true))$this->embeddings?->reset($uid);
         // A reset asks for fresh inference: withdraw this account's shared contributions too.
         if(in_array($kind,['all','faces'],true))$this->faces?->reset($uid);
-        if($kind!=='faces')$this->shared?->forget($uid,$kind);
+        if(!in_array($kind,['faces','audio'],true))$this->shared?->forget($uid,$kind);
         return new DataResponse(['reset'=>true]);
     }
     /** Shared stage results only for a current file this account may process. */

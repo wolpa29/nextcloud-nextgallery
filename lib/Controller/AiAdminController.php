@@ -70,6 +70,31 @@ class AiAdminController extends Controller {
         $value=is_file($path)&&!is_link($path)&&filesize($path)<1048576?json_decode((string)file_get_contents($path),true):[];
         return new DataResponse((is_array($value)?$value:[])+['phase'=>'not_installed','installed'=>false,'ready'=>false,'message'=>'Personenerkennung noch nicht installiert']);
     }
+    public function audioStatus():DataResponse {
+        if($denied=$this->denied())return $denied;
+        $dir=$this->state->rootDirectory().'/audio-local';
+        $setupPath=$dir.'/setup.json';
+        $readyPath=$dir.'/ready.json';
+        $value=is_file($setupPath)&&!is_link($setupPath)&&filesize($setupPath)<1048576?json_decode((string)file_get_contents($setupPath),true):[];
+        if(!is_array($value))$value=[];
+        $ready=is_file($readyPath)&&!is_link($readyPath);
+        $state=$value['state']??($ready?'ready':'not_installed');
+        $installed=!empty($value['installed'])||$ready||$state==='ready';
+        $isReady=$ready||$state==='ready';
+        $phase=$value['phase']??$state;
+        return new DataResponse(array_merge([
+            'phase'=>$phase,
+            'state'=>$state,
+            'installed'=>$installed,
+            'ready'=>$isReady,
+            'message'=>$value['message']??($isReady?'Bereit für Spracherkennung':'Audio-Transkription noch nicht eingerichtet'),
+        ],$value,[
+            'phase'=>$phase,
+            'state'=>$state,
+            'installed'=>$installed,
+            'ready'=>$isReady,
+        ]));
+    }
     public function facesInstall():DataResponse {
         if($denied=$this->denied())return $denied;
         $status=$this->state->forPipeline('faces')->status();

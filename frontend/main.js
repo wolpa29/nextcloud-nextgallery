@@ -304,7 +304,12 @@ async function start(){
  on('ch-live','click',async()=>{offlineMode=false;try{await load();message('');}catch(e){offlineMode=true;await load();throw e;}});
  let searchOffset=0,searchMore=false,searchGeneration=0,searchHistory=[];
  const searchRunner=progressiveSearch({
-  request:(params,signal)=>api('search?'+new URLSearchParams({...params,kind}),{signal}),
+  request:(params,signal)=>{
+   const queryParams={...params,kind};
+   const audioOnly=Boolean($('ch-search-audio-only')?.checked);
+   if(audioOnly)queryParams.source='audio';
+   return api('search?'+new URLSearchParams(queryParams),{signal});
+  },
   show:showSearch
  });
  let searchToken=null,searchTokenPhase='text';
@@ -317,7 +322,14 @@ async function start(){
    const existing=new Map([...host.children].map(tile=>[Number(tile.dataset.id),tile])),tiles=[];
    for(const item of result.items){
     let tile=existing.get(item.id);
-    if(!tile){tile=document.createElement('button');tile.className='ch-search-tile';tile.dataset.id=String(item.id);tile.setAttribute('aria-label',item.name);const image=document.createElement('img');image.alt='';image.loading='lazy';const unavailable=()=>{const placeholder=document.createElement('span');placeholder.className='ch-unavailable';placeholder.textContent=tr(item.kind==='video'?'Video · keine Vorschau':'Keine Vorschau');image.replaceWith(placeholder);};image.onerror=unavailable;const url=await imageURL(item);if(!current())return;if(url)image.src=url;const name=document.createElement('span');name.textContent=item.name;tile.append(image,name);if(!url)unavailable();}
+    if(!tile){
+     tile=document.createElement('button');tile.className='ch-search-tile';tile.dataset.id=String(item.id);
+     const isAudioMatch=item.search_match?.sources?.includes('audio');
+     tile.setAttribute('aria-label',item.name+(isAudioMatch?' · '+tr('Treffer im Videoton'):''));
+     const image=document.createElement('img');image.alt='';image.loading='lazy';const unavailable=()=>{const placeholder=document.createElement('span');placeholder.className='ch-unavailable';placeholder.textContent=tr(item.kind==='video'?'Video · keine Vorschau':'Keine Vorschau');image.replaceWith(placeholder);};image.onerror=unavailable;const url=await imageURL(item);if(!current())return;if(url)image.src=url;const name=document.createElement('span');name.textContent=item.name;tile.append(image,name);
+     if(isAudioMatch){const badge=document.createElement('span');badge.className='ch-match-audio';badge.textContent=tr('Videoton');tile.append(badge);}
+     if(!url)unavailable();
+    }
     tile.onclick=()=>openViewer(item,result.items);tiles.push(tile);
    }
    if(!current())return;
@@ -342,11 +354,13 @@ async function start(){
  async function runSearch(offset=0){
   const generation=++searchGeneration,query=$('ch-search-query').value.trim();searchOffset=offset;
   searchRunner.cancel();$('ch-search-status').textContent=tr('Wird geladen …');$('ch-search-prev').disabled=true;$('ch-search-next').disabled=true;
+  const audioOnly=Boolean($('ch-search-audio-only')?.checked),source=audioOnly?'audio':'';
   if(offlineMode){const words=query.toLocaleLowerCase().match(/[\p{L}\p{N}_]+/gu)||[];const found=words.length?offlineItems.filter(i=>words.some(w=>(i.name+' '+i.path).toLocaleLowerCase().includes(w))):[];await showSearch({items:found.slice(offset,offset+60),more:found.length>offset+60,next:offset+60},{stage:'text',current:()=>generation===searchGeneration});}
-  else if(searchToken){const result=await api('search?'+new URLSearchParams({query,kind,offset,limit:60,phase:searchTokenPhase,search_token:searchToken}));await showSearch(result,{stage:searchTokenPhase,current:()=>generation===searchGeneration});}
-  else {searchToken=null;const job=await searchRunner.run({query,offset,limit:60});job?.finished.catch(handleError);}
+  else if(searchToken){const queryParams={query,kind,offset,limit:60,phase:searchTokenPhase,search_token:searchToken};if(source)queryParams.source=source;const result=await api('search?'+new URLSearchParams(queryParams));await showSearch(result,{stage:searchTokenPhase,current:()=>generation===searchGeneration});}
+  else {searchToken=null;const queryParams={query,offset,limit:60};if(source)queryParams.source=source;const job=await searchRunner.run(queryParams);job?.finished.catch(handleError);}
  }
  on('ch-search-form','submit',async e=>{e.preventDefault();searchHistory=[];searchToken=null;await runSearch();});
+ on('ch-search-audio-only','change',async()=>{searchHistory=[];searchToken=null;await runSearch();});
  on('ch-search-next','click',async()=>{searchHistory.push(searchOffset);await runSearch(Number($('ch-search-next').dataset.offset));});
  on('ch-search-prev','click',()=>runSearch(searchHistory.pop()??0));
  let analysisGeneration=0;
@@ -358,7 +372,26 @@ async function start(){
    const status=document.createElement('p');status.textContent=tr('Wird geladen …');body.append(status);
    try{const r=await api('analysis/'+item.id);if(generation!==analysisGeneration)return;body.replaceChildren();
     if(!r.available){status.textContent=r.stale?tr('Die Datei wurde geändert. Eine neue Analyse steht aus.'):tr('Für dieses Medium liegt noch keine Analyse vor.');body.append(status);return;}
-    if(r.stale){const warning=document.createElement('p');warning.textContent=tr('Diese Analyse gehört zu einem älteren Dateistand. Sie bleibt bis zum ausdrücklichen Löschen erhalten.');body.append(warning);}const a=r.metadata.analysis;for(const text of [a.vision.description,[...(a.vision.tags||[]),...(a.vision.objects||[])].join(' · '),a.ocr.text]){if(!text)continue;const p=document.createElement('p');p.textContent=text;body.append(p);}
+    if(r.stale){const warning=document.createElement('p');warning.textContent=tr('Diese Analyse gehört zu einem älteren Dateistand. Sie bleibt bis zum ausdrücklichen Löschen erhalten.');body.append(warning);}
+    const a=r.metadata.analysis;
+    for(const text of [a.vision?.description,[...(a.vision?.tags||[]),...(a.vision?.objects||[])].join(' · '),a.ocr?.text]){if(!text)continue;const p=document.createElement('p');p.textContent=text;body.append(p);}
+    if(a.audio){
+     const au=a.audio;
+     if(au.no_audio){const p=document.createElement('p');p.textContent=tr('Keine Sprache in der Audiospur erkannt.');body.append(p);}
+     else if(au.text){
+      const p=document.createElement('p');p.className='ch-analysis-audio';
+      const strong=document.createElement('strong');strong.textContent=tr('Videoton')+': ';
+      p.append(strong,document.createTextNode(au.text));body.append(p);
+      if(au.segments?.length){
+       const segDetails=document.createElement('details');segDetails.className='ch-analysis-segments';
+       const summary=document.createElement('summary');summary.textContent=tr('Zeitabschnitte anzeigen ({count})').replace('{count}',count(au.segments.length));
+       const list=document.createElement('div');list.className='ch-analysis-segments-list';
+       const fmt=sec=>{const m=Math.floor(sec/60),s=Math.floor(sec%60);return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;};
+       for(const s of au.segments){const seg=document.createElement('p');const time=document.createElement('span');time.className='ch-analysis-segment-time';time.textContent=`[${fmt(s.start)} - ${fmt(s.end)}] `;seg.append(time,document.createTextNode(s.text));list.append(seg);}
+       segDetails.append(summary,list);body.append(segDetails);
+      }
+     }
+    }
    }catch(e){if(generation===analysisGeneration)status.textContent=e.message;}
   };
  }

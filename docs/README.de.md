@@ -69,6 +69,7 @@ Du erinnerst dich an *einen Hund am Strand*, aber nicht an den Dateinamen? Optio
 - **Beschreibungen und Schlagwörter** helfen dir, Fotos und Videos wiederzufinden.
 - **Texterkennung (OCR)** findet Wörter auf fotografierten Schildern oder Dokumenten.
 - **Visuelle Suche** findet passende Bilder anhand deiner Beschreibung.
+- **Videoton** transkribiert gesprochene Inhalte lokal, speichert Zeitmarken und bietet eine eigene Suchoption. [Einrichtung und Grenzen →](AUDIO.md)
 - **Personen** gruppiert Fotos nach Gesichtern, ohne Namen zu benötigen. Für ausgewählte Ordner ausdrücklich aktivierbar. [Einrichtung und Korrekturen →](FACES.md)
 
 Du wählst Verarbeitungsordner und Zeitpläne und kannst jede KI-Funktion getrennt starten oder pausieren. Die Modelle können auf eigener Hardware laufen. **Die Galerie funktioniert auch ohne KI.** [KI & visuelle Suche →](EMBEDDINGS.md)

@@ -290,6 +290,7 @@ class SearchIndex:
             tags TEXT NOT NULL DEFAULT '',
             objects TEXT NOT NULL DEFAULT '',
             ocr TEXT NOT NULL DEFAULT '',
+            audio TEXT NOT NULL DEFAULT '',
             ai_etag TEXT,
             ai_updated_at INTEGER,
             name_lower TEXT NOT NULL,
@@ -298,9 +299,22 @@ class SearchIndex:
             description_lower TEXT NOT NULL DEFAULT '',
             tags_lower TEXT NOT NULL DEFAULT '',
             objects_lower TEXT NOT NULL DEFAULT '',
-            ocr_lower TEXT NOT NULL DEFAULT ''
+            ocr_lower TEXT NOT NULL DEFAULT '',
+            audio_lower TEXT NOT NULL DEFAULT ''
         );
         """)
+
+        # Old projections are disposable, but preserve documents/vectors during
+        # the online schema upgrade while background maintenance rebuilds them.
+        columns = {row[1] for row in conn.execute('PRAGMA table_info(documents)')}
+        if 'audio' not in columns:
+            conn.execute("ALTER TABLE documents ADD COLUMN audio TEXT NOT NULL DEFAULT ''")
+        if 'audio_lower' not in columns:
+            conn.execute("ALTER TABLE documents ADD COLUMN audio_lower TEXT NOT NULL DEFAULT ''")
+        fts_columns = {row[1] for row in conn.execute('PRAGMA table_info(fts_documents)')}
+        rebuild_fts = bool(fts_columns and 'audio' not in fts_columns)
+        if rebuild_fts:
+            conn.execute('DROP TABLE fts_documents')
 
         conn.execute("CREATE INDEX IF NOT EXISTS idx_docs_path ON documents(path);")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_docs_kind_path ON documents(kind, path);")
@@ -328,9 +342,14 @@ class SearchIndex:
             tags,
             objects,
             ocr,
+            audio,
             tokenize='trigram'
         );
         """)
+        if rebuild_fts:
+            conn.execute("INSERT INTO fts_documents(rowid,name,path,metadata_text,description,tags,objects,ocr,audio) SELECT file_id,name_lower,path_lower,metadata_text_lower,description_lower,tags_lower,objects_lower,ocr_lower,audio_lower FROM documents")
+            conn.commit()
+
 
     def _session_schema(self, conn):
         if 'session_store' not in {row[1] for row in conn.execute('PRAGMA database_list')}:
@@ -506,6 +525,9 @@ class SearchIndex:
         if len(ocr) > 500000:
             raise ValueError("OCR text exceeds maximum allowed length of 500k")
 
+        audio = doc.get('audio', '')
+        if not isinstance(audio, str) or len(audio.encode('utf-8')) > 500000:
+            raise ValueError('Invalid or oversized audio transcript')
         meta_text = extract_metadata_text(metadata)
         ai_etag = doc.get('ai_etag')
         ai_updated_at = doc.get('ai_updated_at')
@@ -523,22 +545,22 @@ class SearchIndex:
         conn.execute("""
         INSERT OR REPLACE INTO documents (
             file_id, path, name, kind, etag, mtime, size, capture, metadata_json,
-            description, tags, objects, ocr, ai_etag, ai_updated_at,
+            description, tags, objects, ocr, audio, ai_etag, ai_updated_at,
             name_lower, path_lower, metadata_text_lower, description_lower,
-            tags_lower, objects_lower, ocr_lower
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            tags_lower, objects_lower, ocr_lower, audio_lower
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
         """, (
             file_id, path, name, kind, etag, mtime, size, capture, json.dumps(metadata, ensure_ascii=False),
-            desc, tags, objects, ocr, ai_etag, ai_updated_at,
-            name_lower, path_lower, meta_lower, desc_lower, tags_lower, objects_lower, ocr_lower
+            desc, tags, objects, ocr, audio, ai_etag, ai_updated_at,
+            name_lower, path_lower, meta_lower, desc_lower, tags_lower, objects_lower, ocr_lower, audio.lower()
         ))
 
         conn.execute("""
         INSERT OR REPLACE INTO fts_documents (
-            rowid, name, path, metadata_text, description, tags, objects, ocr
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+            rowid, name, path, metadata_text, description, tags, objects, ocr, audio
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
         """, (
-            file_id, name_lower, path_lower, meta_lower, desc_lower, tags_lower, objects_lower, ocr_lower
+            file_id, name_lower, path_lower, meta_lower, desc_lower, tags_lower, objects_lower, ocr_lower, audio.lower()
         ))
 
     def _import_vector(self, conn: sqlite3.Connection, vec: dict):
@@ -655,7 +677,10 @@ class SearchIndex:
         except Exception:
             raise ValueError("timezone is unsupported")
 
-        embedding_enabled = bool(req.get('embedding_enabled', False))
+        source = req.get('source', '')
+        if source not in ('', 'audio'):
+            raise ValueError('Invalid search source')
+        embedding_enabled = bool(req.get('embedding_enabled', False)) and source != 'audio'
         embedding_error = bool(req.get('embedding_error', False))
         space = req.get('space')
         if space is not None:
@@ -681,7 +706,7 @@ class SearchIndex:
             query_vector = [x / v_norm for x in v_floats]
 
         # An opaque session freezes ranks across paging while the index is updated.
-        signature = {key:req.get(key, default) for key,default in [("query", ""),("roots", []),("kind", ""),("phase", "text"),("period", ""),("mode", "folder"),("timezone", "UTC"),("embedding_enabled", False),("context", ""),("vector_only", False)]}
+        signature = {key:req.get(key, default) for key,default in [("query", ""),("roots", []),("kind", ""),("phase", "text"),("period", ""),("mode", "folder"),("timezone", "UTC"),("embedding_enabled", False),("context", ""),("vector_only", False),("source", "")]}
         fingerprint = hashlib.sha256(json.dumps(signature,sort_keys=True,ensure_ascii=False).encode()).hexdigest()
         token = req.get("search_token", "")
         if token:
@@ -702,34 +727,23 @@ class SearchIndex:
         sources_map: dict[int, set[str]] = {}
         lexical_results: list[tuple[int, int]] = []  # (file_id, score)
 
-        if words and not req.get("vector_only", False):
+        if words and (source == "audio" or not req.get("vector_only", False)):
             # Build SQL scoring expression for all extracted words
+            fields = {'name': ('name_lower', 8), 'path': ('path_lower', 2),
+                      'metadata': ('metadata_text_lower', 1), 'description': ('description_lower', 1),
+                      'tags': ('tags_lower', 3), 'objects': ('objects_lower', 3),
+                      'ocr': ('ocr_lower', 2), 'audio': ('audio_lower', 2)}
+            if source == 'audio': fields = {'audio': fields['audio']}
             score_clauses = []
-            src_clauses = {
-                'name': [], 'path': [], 'metadata': [],
-                'description': [], 'tags': [], 'objects': [], 'ocr': []
-            }
+            src_clauses = {key: [] for key in fields}
             params: list[Any] = []
-
             for w in words:
-                score_clauses.append(f"""(
-                    (CASE WHEN INSTR(name_lower, ?) > 0 THEN 8 ELSE 0 END) +
-                    (CASE WHEN INSTR(path_lower, ?) > 0 THEN 2 ELSE 0 END) +
-                    (CASE WHEN INSTR(metadata_text_lower, ?) > 0 THEN 1 ELSE 0 END) +
-                    (CASE WHEN INSTR(description_lower, ?) > 0 THEN 1 ELSE 0 END) +
-                    (CASE WHEN INSTR(tags_lower, ?) > 0 THEN 3 ELSE 0 END) +
-                    (CASE WHEN INSTR(objects_lower, ?) > 0 THEN 3 ELSE 0 END) +
-                    (CASE WHEN INSTR(ocr_lower, ?) > 0 THEN 2 ELSE 0 END)
-                )""")
-                params.extend([w] * 7)
-
-                src_clauses['name'].append("INSTR(name_lower, ?) > 0")
-                src_clauses['path'].append("INSTR(path_lower, ?) > 0")
-                src_clauses['metadata'].append("INSTR(metadata_text_lower, ?) > 0")
-                src_clauses['description'].append("INSTR(description_lower, ?) > 0")
-                src_clauses['tags'].append("INSTR(tags_lower, ?) > 0")
-                src_clauses['objects'].append("INSTR(objects_lower, ?) > 0")
-                src_clauses['ocr'].append("INSTR(ocr_lower, ?) > 0")
+                terms = []
+                for key, (column, weight) in fields.items():
+                    terms.append(f'(CASE WHEN INSTR({column}, ?) > 0 THEN {weight} ELSE 0 END)')
+                    params.append(w)
+                    src_clauses[key].append(f'INSTR({column}, ?) > 0')
+                score_clauses.append('(' + ' + '.join(terms) + ')')
 
             full_score_sql = " + ".join(score_clauses)
             select_src_cols = []
@@ -773,7 +787,7 @@ class SearchIndex:
                 lexical_results.append((fid, score))
 
                 s_set = sources_map.setdefault(fid, set())
-                for s_key in ('name', 'path', 'metadata', 'description', 'tags', 'objects', 'ocr'):
+                for s_key in fields:
                     if row[f'has_{s_key}']:
                         s_set.add(s_key)
 
@@ -869,7 +883,7 @@ class SearchIndex:
             conn.execute("DELETE FROM session_store.search_sessions WHERE token=?",(old["token"],))
         token = uuid.uuid4().hex
         conn.execute("INSERT INTO session_store.search_sessions VALUES(?,?,?,?,?,?,?)",(token,fingerprint,int(time.time()),len(final_ids),search_mode,embedding_state,space))
-        order = ('name','path','metadata','description','tags','objects','ocr','embedding')
+        order = ('name','path','metadata','description','tags','objects','ocr','audio','embedding')
         records = ((token,position,fid,doc_cache[fid]['path'],doc_cache[fid]['etag'],json.dumps([source for source in order if source in sources_map.get(fid,set())])) for position,fid in enumerate(final_ids))
         conn.executemany("INSERT INTO session_store.search_results VALUES(?,?,?,?,?,?)",records)
         return self._page_session(conn,token,raw_query,offset,limit)

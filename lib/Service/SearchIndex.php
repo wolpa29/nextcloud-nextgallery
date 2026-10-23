@@ -41,13 +41,14 @@ class SearchIndex {
  }
  private function batch(string $uid,$home,array $files,bool $vectors=true):\Generator {
   $docs=[];$ids=[];
-  foreach($files as $file){$id=$file->getId();$ids[]=$id;$docs[$id]=['type'=>'document','file_id'=>$id,'path'=>'/'.ltrim($home->getRelativePath($file->getPath()),'/'),'name'=>$file->getName(),'kind'=>str_starts_with($file->getMimeType(),'image/')?'image':'video','etag'=>$file->getEtag(),'mtime'=>$file->getMTime(),'size'=>$file->getSize(),'metadata'=>($this->metadata($file)?:new \stdClass()),'description'=>'','tags'=>'','objects'=>'','ocr'=>''];}
+  foreach($files as $file){$id=$file->getId();$ids[]=$id;$docs[$id]=['type'=>'document','file_id'=>$id,'path'=>'/'.ltrim($home->getRelativePath($file->getPath()),'/'),'name'=>$file->getName(),'kind'=>str_starts_with($file->getMimeType(),'image/')?'image':'video','etag'=>$file->getEtag(),'mtime'=>$file->getMTime(),'size'=>$file->getSize(),'metadata'=>($this->metadata($file)?:new \stdClass()),'description'=>'','tags'=>'','objects'=>'','ocr'=>'','audio'=>''];}
   $q=$this->db->getQueryBuilder();$q->select('file_id','etag','description','tags_text','objects_text','ocr_text','metadata_json','updated_at')->from('nextgallery_ai_meta')->where($q->expr()->eq('user_id',$q->createNamedParameter($uid)))->andWhere($q->expr()->in('file_id',$q->createNamedParameter($ids,\OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT_ARRAY)));
   $r=$q->executeQuery();$etags=[];
   try{while($row=$r->fetch()){$id=(int)$row['file_id'];$doc=$docs[$id]??null;if(!$doc)continue;
    $analysis=json_decode($row['metadata_json'],true,64,JSON_THROW_ON_ERROR)['analysis']??[];$stages=$analysis['stage_etags']??[];
    if(hash_equals($doc['etag'],$stages['descriptions']??$row['etag']))foreach(['description'=>'description','tags_text'=>'tags','objects_text'=>'objects'] as $field=>$target)$doc[$target]=$row[$field];
    if(hash_equals($doc['etag'],$stages['ocr']??$row['etag']))$doc['ocr']=$row['ocr_text'];
+   if(!empty($analysis['completed_stages']['audio'])&&hash_equals($doc['etag'],$stages['audio']??''))$doc['audio']=$analysis['audio']['text']??'';
    $doc['ai_etag']=$row['etag'];$doc['ai_updated_at']=(int)$row['updated_at'];$etags[$id]=$doc['etag'];
    yield json_encode($doc,JSON_THROW_ON_ERROR|JSON_INVALID_UTF8_SUBSTITUTE)."\n";unset($docs[$id]);
   }}finally{$r->closeCursor();}
@@ -79,7 +80,7 @@ class SearchIndex {
   $publication=null;
   try{
    $state=is_file($manifest)?json_decode((string)file_get_contents($manifest),true):[];$revision=$this->changes->revision($uid);$pending=$this->changes->pending($uid);$fingerprint=$this->fingerprint($uid);
-   $full=!is_file($database)||($state['schema']??0)!==1||($state['catalog_revision']??'')!==$revision||($refreshCatalog&&time()-($state['catalog_at']??0)>300);
+   $full=!is_file($database)||($state['schema']??0)!==2||($state['catalog_revision']??'')!==$revision||($refreshCatalog&&time()-($state['catalog_at']??0)>300);
    // A changed aggregate without recorded IDs means an out-of-band write or restore.
    if(!$full&&($state['fingerprint']??'')!==$fingerprint&&!$pending)$full=true;
    if(!$full&&!$pending){$this->changes->clearBuildRequest($uid);return $database;}
@@ -90,7 +91,7 @@ class SearchIndex {
    if(!$p->isSuccessful()){if($full)@unlink($tmp);throw new \RuntimeException('Search index update failed');}
    if($full){$publication=fopen($dir.'/index.lock','c');if(!$publication||!flock($publication,LOCK_EX))throw new \RuntimeException('Search index unavailable');chmod($dir.'/index.lock',0600);chmod($tmp,0600);if(!rename($tmp,$database))throw new \RuntimeException('Search index publication failed');}
    $this->changes->acknowledge($uid,$pending);
-   $next=['uid'=>$uid,'schema'=>1,'catalog_revision'=>$revision,'catalog_at'=>$full?time():($state['catalog_at']??time()),'updated_at'=>time(),'fingerprint'=>$fingerprint];
+   $next=['uid'=>$uid,'schema'=>2,'catalog_revision'=>$revision,'catalog_at'=>$full?time():($state['catalog_at']??time()),'updated_at'=>time(),'fingerprint'=>$fingerprint];
    $temp=$manifest.'.'.bin2hex(random_bytes(8));if(file_put_contents($temp,json_encode($next,JSON_THROW_ON_ERROR),LOCK_EX)===false)throw new \RuntimeException('Search state unavailable');chmod($temp,0600);if(!rename($temp,$manifest)){@unlink($temp);throw new \RuntimeException('Search state unavailable');}
    $this->changes->clearBuildRequest($uid);
    // A write during construction must retain a durable follow-up job.
@@ -129,7 +130,7 @@ class SearchIndex {
     $mState=is_file($manifest)?json_decode((string)file_get_contents($manifest),true):[];
     $rev=$this->changes->revision($uid);
     $pending=$this->changes->pending($uid);
-    $needsRebuild=($mState['schema']??0)!==1||($mState['catalog_revision']??'')!==$rev||!empty($pending)||time()-(int)($mState['catalog_at']??0)>300;
+    $needsRebuild=($mState['schema']??0)!==2||($mState['catalog_revision']??'')!==$rev||!empty($pending)||time()-(int)($mState['catalog_at']??0)>300;
     if($needsRebuild){
      $state='updating';
      $this->changes->requestBuild($uid);
@@ -157,7 +158,8 @@ class SearchIndex {
    $date=Dates::resolve($doc['path'],$doc['metadata']['capture']??null,$doc['mtime'],$request['mode'],$request['timezone']);
    if($request['period']!==''&&!str_starts_with($date['date'],$request['period']))continue;
    $texts=[];$walk=function($value)use(&$walk,&$texts){if(is_array($value))foreach($value as $entry)$walk($entry);elseif(is_string($value)||is_int($value)||is_float($value))$texts[]=(string)$value;};$walk($doc['metadata']);
-   $fields=['name'=>[$doc['name'],8],'path'=>[$doc['path'],2],'metadata'=>[implode(' ',$texts),1],'description'=>[$doc['description'],1],'tags'=>[$doc['tags'],3],'objects'=>[$doc['objects'],3],'ocr'=>[$doc['ocr'],2]];
+   $fields=['name'=>[$doc['name'],8],'path'=>[$doc['path'],2],'metadata'=>[implode(' ',$texts),1],'description'=>[$doc['description'],1],'tags'=>[$doc['tags'],3],'objects'=>[$doc['objects'],3],'ocr'=>[$doc['ocr'],2],'audio'=>[$doc['audio'],2]];
+   if(($request['source']??'')==='audio')$fields=['audio'=>$fields['audio']];
    $score=0;$sources=[];foreach($words as $word)foreach($fields as $source=>[$value,$weight])if(str_contains(mb_strtolower($value),$word)){$score+=$weight;$sources[$source]=true;}
    if(!$score)continue;$id=$doc['file_id'];$scores[$id]=$score;$hits[$id]=['file_id'=>$id,'path'=>$doc['path'],'etag'=>$doc['etag'],'search_match'=>['query'=>trim($request['query']),'sources'=>array_keys($sources)]];
   }

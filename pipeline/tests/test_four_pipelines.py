@@ -26,7 +26,7 @@ class FourthPipelineMigration(unittest.TestCase):
                 path.write_bytes(b'protected existing cache')
                 preserved[path] = path.read_bytes()
             worker.initialize_pipelines(root)
-            self.assertEqual(json.loads((root / 'pipelines.json').read_text())['version'], 3)
+            self.assertEqual(json.loads((root / 'pipelines.json').read_text())['version'], 4)
             self.assertTrue(worker.read(root / 'control-faces.json', {})['paused'])
             self.assertFalse(worker.read(root / 'control-faces.json', {})['requested'])
             for path, content in preserved.items():

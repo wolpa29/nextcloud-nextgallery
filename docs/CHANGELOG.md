@@ -1,5 +1,12 @@
 # Version history
 
+
+## 0.4.40 — 2026-10-23
+
+- Add an optional fifth, independent video speech pipeline using local faster-whisper, with explicit folder opt-in, transcript timestamps, isolated controls and selective deletion.
+- Include spoken content in text search and add a separate transcript-only source.
+- Preserve existing pipeline state and analyses when upgrading; default audio processing stays off. Pin the compatible PyAV runtime and model revisions.
+
 [Back to the overview](../README.md) · [Administration](ADMINISTRATION.md)
 
 Historical notes moved from the original README. This is a partial history; see the [commit history](https://github.com/wolpa29/nextcloud-nextgallery/commits/main/) for newer changes.

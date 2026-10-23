@@ -12,8 +12,8 @@ script('nextgallery','ai-i18n'); script('nextgallery','ai-workspace'); script('n
   <div class="mai-section-header"><div><h3>Server-Einstellungen</h3><p class="mai-muted">Modelle und Dienste für alle Benutzer.</p></div></div>
   <p class="mai-muted">Modelle werden zentral eingerichtet. Benutzer starten ihre eigenen Läufe.</p>
   <div class="mai-actions"><button id="mai-test" type="button">Beschreibung und OCR prüfen</button></div><div id="mai-model-result" role="status"></div>
-  <details id="mai-processing-admin" class="mai-model"><summary>Benutzerläufe</summary><p class="mai-muted">Beschreibungen, Texterkennung und Embeddings laufen unabhängig. Modellwechsel betreffen nur die jeweilige Verarbeitung.</p>
-   <?php foreach(['descriptions'=>'Beschreibungen','ocr'=>'Texterkennung (OCR)','embeddings'=>'Visuelle Bildsuche · Embeddings','faces'=>'Personenerkennung · Gesichter'] as $kind=>$label): ?>
+  <details id="mai-processing-admin" class="mai-model"><summary>Benutzerläufe</summary><p class="mai-muted">Alle fünf Verarbeitungen laufen unabhängig. Modellwechsel betreffen nur die jeweilige Verarbeitung.</p>
+   <?php foreach(['descriptions'=>'Beschreibungen','ocr'=>'Texterkennung (OCR)','embeddings'=>'Visuelle Bildsuche · Embeddings','faces'=>'Personenerkennung · Gesichter','audio'=>'Videoton · Gesprochene Inhalte'] as $kind=>$label): ?>
    <section data-admin-pipeline="<?php p($kind); ?>"><h4><?php p($label); ?></h4><p data-processing-status role="status"></p><div class="mai-actions"><button type="button" data-processing-action="pause_all" data-kind="<?php p($kind); ?>">Alle Läufe dieser Verarbeitung pausieren</button><button type="button" data-processing-action="allow_runs" data-kind="<?php p($kind); ?>" hidden>Läufe wieder erlauben</button></div><details class="mai-processing-accounts"><summary data-processing-accounts-summary>Benutzer</summary><ul data-processing-accounts></ul></details></section>
    <?php endforeach; ?>
    <p class="mai-muted">Pausieren schließt die aktuelle Datei ab, entfernt vorgemerkte Starts und sperrt neue sowie automatische Läufe dieser Verarbeitung.</p>
@@ -59,6 +59,22 @@ script('nextgallery','ai-i18n'); script('nextgallery','ai-workspace'); script('n
      <label>Max. Bildkante (Pixel)<input type="number" name="faces.max_edge" min="640" max="4096" step="1" required><span class="mai-muted">Standard: 2048 (640 bis 4096)</span></label>
     </div>
    </details>
+  </details>
+  <details id="mai-audio-settings" class="mai-model"><summary>Videoton · Gesprochene Inhalte</summary>
+   <label class="mai-check"><input type="checkbox" name="audio.enabled">Für Benutzer aktivieren</label>
+   <p class="mai-muted">Gesprochene Sprache in Videos transkribieren. Vollständig lokale Spracherkennung mit Whisper auf dem Server.</p>
+   <div class="mai-grid">
+    <label>Modell<select name="audio.model"><option value="tiny">tiny (schnell, geringe Genauigkeit)</option><option value="base">base</option><option value="small">small (Standard, ausgewogen)</option><option value="medium">medium</option><option value="large-v3">large-v3 (höchste Genauigkeit)</option><option value="large-v3-turbo">large-v3-turbo (optimiert)</option></select></label>
+    <label>Sprache (ISO-Code, z. B. de, en; leer = automatische Erkennung)<input name="audio.language" maxlength="10" placeholder="Automatisch erkennen"></label>
+    <label>Ausführungsgerät (Device)<select name="audio.device"><option value="cpu">CPU (Standard)</option><option value="cuda">CUDA (NVIDIA GPU)</option></select></label>
+    <label>Berechnungstyp (Compute Type)<select name="audio.compute_type"><option value="default">default</option><option value="auto">auto</option><option value="int8">int8 (Standard für CPU)</option><option value="int8_float16">int8_float16</option><option value="int8_float32">int8_float32</option><option value="int8_bfloat16">int8_bfloat16</option><option value="int16">int16</option><option value="float16">float16 (empfohlen für CUDA)</option><option value="bfloat16">bfloat16</option><option value="float32">float32</option></select></label>
+    <label>CPU-Threads<input type="number" name="audio.cpu_threads" min="1" max="64" step="1" required></label>
+    <label>Wartezeit für Audio-Transkription (Sekunden)<input type="number" name="audio.timeout_seconds" min="15" max="86400" required></label>
+   </div>
+   <div class="mai-model-requirements" role="note">
+    <strong>Modell-Herkunft und Lizenzen:</strong> Faster-Whisper unter MIT-Lizenz (CTranslate2). Vollständig lokale Ausführung auf dem Nextcloud-Server in isolierter Python-Umgebung.
+   </div>
+   <p id="mai-audio-setup-settings" class="mai-muted" role="status" aria-live="polite" hidden></p>
   </details>
   <div data-embedding-rebuild-notice class="mai-policy" hidden role="status"></div>
   <div id="mai-advanced-settings"><details class="mai-subsection"><summary>Speichergrenzen für Originaldateien</summary><p class="mai-muted">Diese Grenzen schützen den Worker beim Laden und Decodieren. Sie bestimmen nicht die Auflösung für das Modell. Größere Originale werden als Fehler gemeldet.</p><div class="mai-grid"><label>Max. Originaldateigröße (Bytes)<input type="number" name="max_download_bytes" min="1048576" max="536870912" required></label><label>Max. Videodateigröße (Bytes)<input type="number" name="max_video_download_bytes" min="1048576" max="4294967296" required></label><label>Max. Originalpixel beim Decodieren<input type="number" name="max_image_pixels" min="1000000" max="200000000" required></label></div></details>
