@@ -49,8 +49,8 @@ try{
   $f=$root->newFile('large-ocr-'.$i.'.png',file_get_contents('/samples/bike.png'));
   $meta->upsert($uid,Metadata::validate($f->getId(),$f->getEtag(),str_repeat('a',64),str_repeat('c',64),['vision'=>['type'=>'foto','description'=>'Persistent synthetic description','tags'=>['RETAIN'],'objects'=>[],'uncertain_details'=>[]],'ocr'=>['text'=>str_repeat('SYNTHETIC ',24000)]],[]));
  }
- sqlCheck($meta->counts($uid)===['metadata'=>43,'descriptions'=>43,'ocr'=>42],'Bounded overview counts lost a batch');
- $meta->reset($uid,'ocr');sqlCheck($meta->counts($uid)===['metadata'=>43,'descriptions'=>43,'ocr'=>0],'Paged OCR deletion lost independent descriptions');
+ sqlCheck($meta->counts($uid)===['metadata'=>43,'descriptions'=>43,'ocr'=>42,'audio'=>0],'Bounded overview counts lost a batch');
+ $meta->reset($uid,'ocr');sqlCheck($meta->counts($uid)===['metadata'=>43,'descriptions'=>43,'ocr'=>0,'audio'=>0],'Paged OCR deletion lost independent descriptions');
  $dir=$changes->directory($uid);sqlCheck(is_file($dir.'/index.sqlite3.sessions'),'Private session database missing');
  $user->delete();sqlCheck(!is_dir($dir),'Account deletion retained its private search index');
  file_put_contents('/test-output/sql-contract-result.json',json_encode(['checks'=>$checks,'peak_php_mib'=>memory_get_peak_usage(true)/1048576,'synthetic'=>true],JSON_PRETTY_PRINT));

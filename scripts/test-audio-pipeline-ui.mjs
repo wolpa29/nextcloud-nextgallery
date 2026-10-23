@@ -78,8 +78,10 @@ const shellSource = (await readFile('templates/shell.php', 'utf8'))
   .replace("file_get_contents(__DIR__.'/en.json')", "'" + (await readFile('frontend/en.json', 'utf8')).replaceAll('\\', '\\\\').replaceAll("'", "\\'") + "'")
   .replaceAll("include __DIR__.'/display-options.php';", '?>' + (await readFile('templates/display-options.php', 'utf8')) + '<?php ');
 const preamble = `<?php function p($text){echo htmlspecialchars((string)$text,ENT_QUOTES,'UTF-8');} $_=['context'=>['language'=>'de','version'=>'0.4.40','base'=>'/apps/nextgallery','settings'=>['appearance'=>'light','roots'=>[],'activeGallery'=>'default'],'aiUrl'=>'/apps/nextgallery/processing']]; ?>`;
-const command = JSON.parse(process.env.NEXTGALLERY_TEST_PHP || '["docker","exec","-i","nextgallery-audio-fresh35","php"]');
+const command = JSON.parse(process.env.NEXTGALLERY_TEST_PHP || '["php"]');
 const shellResult = spawnSync(command[0], command.slice(1), { input: preamble + shellSource, encoding: 'utf8' });
+if(shellResult.error||shellResult.status!==0)throw shellResult.error||new Error(shellResult.stderr||shellResult.stdout||'PHP fixture rendering failed');
+assert(!/Warning:|Fatal error:/.test(shellResult.stdout),'PHP shell fixture must render successfully');
 const renderedShell = shellResult.stdout;
 
 const searchFixtureHtml = `<!DOCTYPE html>
