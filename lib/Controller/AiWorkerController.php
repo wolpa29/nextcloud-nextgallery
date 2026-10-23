@@ -27,7 +27,7 @@ class AiWorkerController extends Controller {
     #[PublicPage] #[NoCSRFRequired]
     public function config(): DataResponse { if ($denied = $this->denied()) { return $denied; } $response = new DataResponse($this->settings->workerConfig()); $response->addHeader('Cache-Control','no-store'); return $response; }
     #[PublicPage] #[NoCSRFRequired]
-    public function inventory(int $cursor = 0,string $kind='descriptions'): DataResponse { if ($denied = $this->denied()) { return $denied; } return new DataResponse($this->inventory->page($cursor,$kind)); }
+    public function inventory(int $cursor = 0,string $kind='descriptions',string $embedding_space=''): DataResponse { if ($denied = $this->denied()) { return $denied; } return new DataResponse($this->inventory->page($cursor,$kind,$embedding_space)); }
     #[PublicPage] #[NoCSRFRequired]
     public function resolve(int $file_id, string $etag = '', bool $local_media = false): DataResponse {
         if ($denied = $this->denied()) { return $denied; } $file = $this->sourceFile($file_id);if($file instanceof DataResponse)return $file;

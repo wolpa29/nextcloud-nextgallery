@@ -82,6 +82,7 @@ class NativeMediaTests(unittest.TestCase):
             item=p.Item('synthetic:9','video.mp4','9','v1',9,'video/mp4')
             source,_=self.source(item,original)
             source.inventory=lambda:[item]
+            source.embedding_inventory=lambda space:([item],set())
             source.unchanged=lambda item:True
             source.download_to=lambda *args: (_ for _ in ()).throw(AssertionError('downloaded'))
             frames=p.ImageBatch([(b'frame-one','image/png','one'),(b'frame-two','image/png','two')],'synthetic')

@@ -122,17 +122,28 @@ class NativeSource:
         self.kind=config.get('_pipeline','descriptions')
         self.scope=p.digest(['native',getattr(api,'scope_url',api.url),config['user_id'],config['folders'],config['exclude_folders']])
     def inventory(self):
-        cursor=0; items=[]; seen=set()
+        return self._inventory()[0]
+    def embedding_inventory(self,space):
+        """Reconcile with published results; folder selection is not a model revision."""
+        return self._inventory(space)
+    def _inventory(self,embedding_space=None):
+        cursor=0; items=[]; seen=set(); completed=set()
         while True:
-            page=self.api.call('inventory?'+urllib.parse.urlencode({'cursor':cursor,'kind':self.kind}))
+            query={'cursor':cursor,'kind':self.kind}
+            if embedding_space is not None:query['embedding_space']=embedding_space
+            page=self.api.call('inventory?'+urllib.parse.urlencode(query))
             for row in page['items']:
                 identifier=str(row['file_id'])
                 if identifier in seen: raise p.PipelineError('Duplicate inventory identity')
                 if not row['etag']: raise p.PipelineError('Image has no ETag')
                 seen.add(identifier)
                 items.append(p.Item(self.scope+':'+identifier,row['path'],identifier,row['etag'],int(row['size']),row['mime'],row.get('analyzed_etag') or ''))
+                # Old servers do not acknowledge the space: never mistake their
+                # description/OCR completion for a published image vector.
+                if self.kind=='embeddings' and embedding_space is not None and page.get('embedding_space')==embedding_space and row.get('embedding_etag')==row['etag']:
+                    completed.add(items[-1].key)
             next_cursor=page['cursor']
-            if next_cursor is None: return items
+            if next_cursor is None: return items,completed
             if not isinstance(next_cursor,int) or next_cursor<=cursor: raise p.PipelineError('Invalid inventory pagination')
             cursor=next_cursor
     def read(self,item,maximum):
@@ -574,7 +585,7 @@ def detect_embedding_rebuild(config,directory,reporter):
         finally:connection.close()
         mismatched=[row for row in rows if row[0]!=space]
         if not mismatched:return False
-        old=json.loads(mismatched[0][1]);dimensions=len(old[0]['values']) if old else None
+        old=json.loads(mismatched[0][1]) if mismatched[0][1] else None;dimensions=len(old[0]['values']) if old else None
         marker={'required':True,'approved':False,'signature':signature,'target_space':space,'request_id':uuid.uuid4().hex,
             'file_count':len(mismatched),'old_dimensions':dimensions,'new_dimensions':info['dimensions'],'model':config['embedding']['model'],'updated_at':time.time()}
         atomic(directory/'embedding-rebuild.json',marker)

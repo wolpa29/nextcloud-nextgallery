@@ -22,8 +22,9 @@ class Inventory {
         return $result;
     }
     private function escaped(string $value): string { return str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $value); }
-    public function page(int $cursor = 0,string $kind='descriptions'): array {
+    public function page(int $cursor = 0,string $kind='descriptions',string $embedding_space=''): array {
         if(!in_array($kind,Settings::STAGES,true))throw new OCSBadRequestException('Verarbeitungsauswahl ungültig');
+        if($embedding_space!==''&&($kind!=='embeddings'||!preg_match('/^[a-f0-9]{64}$/D',$embedding_space)))throw new OCSBadRequestException('Embedding-Raum ungültig');
         if ($cursor < 0) { throw new OCSBadRequestException('Inventar-Cursor ungültig'); }
         $scopes = $this->scopes();
         $config = $this->settings->get();
@@ -38,6 +39,7 @@ class Inventory {
         try { $rows = $result->fetchAll(); } finally { $result->closeCursor(); }
         $config = $this->settings->get(); $items = [];
         $faceEtags=$kind==='faces'?$this->faceStatuses($config['user_id'],array_column($rows,'fileid')):[];
+        $embeddingEtags=$embedding_space!==''?$this->embeddingStatuses($config['user_id'],array_column($rows,'fileid'),$embedding_space):[];
         foreach ($rows as $row) {
             if(in_array($kind,['ocr','faces'],true)&&str_starts_with($row['mimetype'],'video/'))continue;
             $stages=Metadata::stages(['etag'=>$row['analyzed_etag']??null,'metadata_json'=>$row['metadata_json']??'{}']);$row['analyzed_etag']=$kind==='faces'?($faceEtags[(int)$row['fileid']]??null):($stages[$kind]??null);
@@ -54,8 +56,25 @@ class Inventory {
             if (!in_array($kind, Settings::stagesFor($config, $path), true)) { continue; }
             $items[] = ['file_id' => (int)$row['fileid'], 'path' => ltrim($path, '/'), 'etag' => $row['etag'],
                         'size' => (int)$row['size'], 'mime' => $row['mimetype'], 'analyzed_etag' => $row['analyzed_etag'] ?? null];
+            if($embedding_space!=='')$items[array_key_last($items)]['embedding_etag']=$embeddingEtags[(int)$row['fileid']]??null;
         }
-        return ['items' => $items, 'cursor' => count($rows) === 1000 ? (int)end($rows)['fileid'] : null];
+        $page=['items' => $items, 'cursor' => count($rows) === 1000 ? (int)end($rows)['fileid'] : null];
+        if($embedding_space!=='')$page['embedding_space']=$embedding_space;
+        return $page;
+    }
+    /** Published vectors are authoritative across folder-selection changes. */
+    private function embeddingStatuses(string $uid,array $ids,string $space):array {
+        $result=[];
+        foreach(array_chunk(array_map('intval',$ids),500) as $chunk){
+            $q=$this->db->getQueryBuilder();
+            $q->selectDistinct(['file_id','etag'])->from('nextgallery_ai_vectors')
+              ->where($q->expr()->eq('user_id',$q->createNamedParameter($uid)))
+              ->andWhere($q->expr()->eq('space',$q->createNamedParameter($space)))
+              ->andWhere($q->expr()->in('file_id',$q->createNamedParameter($chunk,\OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT_ARRAY)));
+            $r=$q->executeQuery();
+            try{while($row=$r->fetch())$result[(int)$row['file_id']]=(string)$row['etag'];}finally{$r->closeCursor();}
+        }
+        return $result;
     }
     /** Processed face files are canonical; keep Inventory independent of Faces. */
     private function faceStatuses(string $uid,array $ids):array {

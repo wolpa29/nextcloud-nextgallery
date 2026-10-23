@@ -140,7 +140,10 @@ def run(config, source, api, directory, observe, should_stop, retry_errors=False
     processed=errors=0; started=time.monotonic()
     try:
         client.health(); space=client.space
-        items=source.inventory()
+        if hasattr(source,'embedding_inventory'):
+            items,completed=source.embedding_inventory(space)
+        else:
+            items=source.inventory();completed=set()
         retry_ids={}
         with store.db:
             store.db.execute('UPDATE embeddings SET active=0')
@@ -152,9 +155,13 @@ def run(config, source, api, directory, observe, should_stop, retry_errors=False
                 store.db.execute('INSERT OR IGNORE INTO embeddings(id,space,etag,path,status) VALUES (?,?,?,?,?)',(item.key,space,item.etag,item.path,'pending'))
                 store.db.execute('UPDATE embeddings SET active=1,path=? WHERE id=? AND space=?',(item.path,item.key,space))
                 if retry_errors:store.db.execute("UPDATE embeddings SET status='pending' WHERE id=? AND space=? AND status='error'",(item.key,space))
+                if item.key in completed:
+                    # The canonical store has this account's exact file version
+                    # in this vector space. No media read or republication is needed.
+                    store.db.execute("UPDATE embeddings SET status='done',error=NULL WHERE id=? AND space=?",(item.key,space))
         if retry_ids:
             items.sort(key=lambda item:retry_ids.get(item.key,(2,0)))
-        observe('embedding_inventory_finished',embedding_stats=store.stats(space),embedding_space=space)
+        observe('embedding_inventory_finished',embedding_stats=store.stats(space),embedding_space=space,published_files=len(completed))
         pending=[]; pending_bytes=0; hashes={}
         def rejected(error):
             # A 5xx while /info still answers points at this input, not at an outage;

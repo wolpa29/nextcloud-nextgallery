@@ -113,6 +113,7 @@ try:
   status,body=request('/index.php/apps/nextgallery/ai/worker/reset',{},headers={'Authorization':'Bearer '+token});assert status==409,(status,body);http.append('reset-requires-explicit-request')
  print(docker('exec','-u','www-data',name,'php','/test-scripts/gallery-contract.php'),flush=True)
  print(docker('exec','-u','www-data',name,'php','/test-scripts/embedding-contract.php'),flush=True)
+ print(docker('exec','-u','www-data',name,'php','/test-scripts/embedding-inventory-contract.php'),flush=True)
  print(docker('exec','-u','www-data',name,'php','/test-scripts/native-search-contract.php'),flush=True)
  print(docker('exec','-u','www-data',name,'php','-d','memory_limit=512M','/test-scripts/sql-search-contract.php'),flush=True)
  print(docker('exec','-u','www-data',name,'php','/test-scripts/integration.php','refresh-search'),flush=True)
