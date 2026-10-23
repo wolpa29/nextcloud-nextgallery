@@ -24,6 +24,15 @@ def video_source(source, item, path, maximum):
         yield path
 
 
+@contextmanager
+def video_budget(seconds):
+    """Video decoding has its own budget; the image/OCR budget stays unchanged."""
+    try:
+        with p.ImageBudget(seconds):yield
+    except p.ImageTimeout:
+        raise p.PipelineError(f'Zeitgrenze für Video-Aufbereitung überschritten ({seconds:g} s).') from None
+
+
 def space_id(info, config):
     return p.hashlib.sha256((info['space']+'|image-v2-png|edge='+str(config['max_edge'])+'|frames='+str(config['video_frames'])).encode()).hexdigest()
 
@@ -260,13 +269,14 @@ def run(config, source, api, directory, observe, should_stop, retry_errors=False
                     flush();observe('stage_start',path=item.path,file_id=item.locator,stage='publishing');publish(item,vectors);continue
                 if p.is_video(item):
                     flush()
-                    with p.ImageBudget(config.get('image_timeout_seconds',0)), tempfile.TemporaryDirectory(prefix='nextgallery-embedding-') as temp:
+                    video_timeout=config['embedding'].get('video_timeout_seconds',3600)
+                    with video_budget(video_timeout), tempfile.TemporaryDirectory(prefix='nextgallery-embedding-') as temp:
                         path=Path(temp)/('source'+Path(item.path).suffix)
                         maximum=config['max_video_download_bytes']
                         with video_source(source,item,path,maximum) as current:
                             if reuse(item,file_sha256(current)):continue
                             report={}; batch,_,_=p.prepare_video(current,{'frame_count':config['embedding']['video_frames'],'max_edge':config['embedding']['max_edge'],
-                                'decoder_timeout_seconds':max(120,config.get('image_timeout_seconds',0) or 600),
+                                'decoder_timeout_seconds':video_timeout,
                                 '_should_stop':should_stop,'decoder_threads':4},config['max_image_pixels'],report)
                     try:
                         with hold(config['embedding'].get('_inference_directory'),getattr(client,'url',config['embedding']['url']),should_stop), p.ImageBudget(config.get('image_timeout_seconds',0)):
@@ -275,6 +285,8 @@ def run(config, source, api, directory, observe, should_stop, retry_errors=False
                     except p.ServiceUnavailable as error:
                         if not rejected(error):raise
                         raise rejection(error) from None
+                    except p.ImageTimeout:
+                        raise p.PipelineError(f"Zeitgrenze für Video-Embedding-Anfragen überschritten ({config.get('image_timeout_seconds',0):g} s).") from None
                     vectors=[{'frame':i,'seconds':report['frames'][i]['sample_seconds'],'values':value} for i,value in enumerate(values)]
                     stage(item,vectors);publish(item,vectors)
                 else:

@@ -88,7 +88,7 @@ class NativeMediaTests(unittest.TestCase):
             frames=p.ImageBatch([(b'frame-one','image/png','one'),(b'frame-two','image/png','two')],'synthetic')
             def prepare(path,setting,max_pixels,report):
                 self.assertEqual(path,original)
-                self.assertEqual(setting['decoder_timeout_seconds'],600)
+                self.assertEqual(setting['decoder_timeout_seconds'],3600)
                 report['frames']=[{'sample_seconds':0.0},{'sample_seconds':9.5}]
                 return frames,'image/png',{}
             setting=config();setting['max_video_download_bytes']=1

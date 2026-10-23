@@ -23,6 +23,7 @@ const server=http.createServer(async(req,res)=>{
  }
  if(path.endsWith('/processing')){res.end(JSON.stringify({paused:false,running:false,accounts:[]}));return;}
  if(path.endsWith('/status')){res.end(JSON.stringify({online:true,state:'paused'}));return;}
+ if(path.endsWith('/faces-status')){res.end(JSON.stringify({installed:false}));return;}
  if(path==='/favicon.ico'){res.writeHead(404);res.end('{}');return;}
  unexpected.push(path);res.writeHead(404);res.end('{}');
 });
@@ -38,6 +39,12 @@ try{
   await page.locator('#mai-embedding-settings>summary').click();
   check(await input.isVisible());check(await input.getAttribute('type')==='number');
   check((await input.locator('..').textContent()).startsWith(language==='de'?'Bilder/Frames pro Batch':'Images/frames per batch'));
+  const videoBudget=page.locator('[name="embedding.video_timeout_seconds"]');
+  check(await videoBudget.inputValue()==='3600');
+  check((await videoBudget.locator('..').textContent()).startsWith(language==='de'?'Max. Zeit für Video-Aufbereitung':'Maximum video preparation time'));
+  await videoBudget.locator('xpath=ancestor::details[1]').locator('summary').click();
+  await videoBudget.fill('59');check(!await videoBudget.evaluate(i=>i.checkValidity()));
+  await videoBudget.fill('7200');check(await videoBudget.evaluate(i=>i.checkValidity()));
   await page.locator('#mai-embedding-provider').selectOption('native');check(!await input.isVisible());
   await page.locator('#mai-embedding-provider').selectOption('external');check(await input.isVisible());
   await input.fill('0');check(!await input.evaluate(i=>i.checkValidity()));
@@ -46,12 +53,14 @@ try{
   const previous=saves.length;
   await page.locator('#mai-form button[type="submit"]').click();await page.waitForFunction(()=>[...document.querySelectorAll('[data-save-status]')].some(i=>i.dataset.state==='saved'));
   check(saves.length===previous+1);check(saves.at(-1).config.embedding.batch_size===10);
+  check(saves.at(-1).config.embedding.video_timeout_seconds===7200);
   check(!saves.at(-1).embedding_change_id);check(!await page.locator('#mai-embedding-change').evaluate(d=>d.open));
   await page.reload();await page.waitForFunction(()=>document.querySelector('[name="embedding.batch_size"]')?.value==='10');checks++;
   await page.locator('#mai-embedding-settings>summary').click();
+  await page.locator('[name="embedding.video_timeout_seconds"]').locator('xpath=ancestor::details[1]').locator('summary').click();
   await mkdir('artifacts/embedding-batch-ui',{recursive:true});await page.locator('#mai-embedding-settings').screenshot({path:`artifacts/embedding-batch-ui/${language}.png`});
   // Prepare a distinct next save for the second language.
-  setting.embedding.batch_size=1;await context.close();
+  setting.embedding.batch_size=1;setting.embedding.video_timeout_seconds=3600;await context.close();
  }
  assert.deepEqual(errors,[]);assert.deepEqual(unexpected,[]);console.log(`${checks} synthetic admin batch UI checks passed`);
 }catch(error){console.error({errors,unexpected,saves:saves.length});throw error;}finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
