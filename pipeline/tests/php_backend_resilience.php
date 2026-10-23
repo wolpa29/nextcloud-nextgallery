@@ -826,7 +826,7 @@ namespace {
 
         $mockNative = new class extends \OCA\Nextgallery\Service\NativeSearch {
             public function __construct() {}
-            public function search(string $uid, string $query, array $roots, string $kind = '', int $offset = 0, int $limit = 60, string $phase = 'hybrid', string $period = '', string $mode = 'folder', string $timezone = 'UTC', string $search_token = '', bool $vectorOnly = false, string $subjectId = ''): array {
+            public function search(string $uid, string $query, array $roots, string $kind = '', int $offset = 0, int $limit = 60, string $phase = 'hybrid', string $period = '', string $mode = 'folder', string $timezone = 'UTC', string $search_token = '', bool $vectorOnly = false, string $subjectId = '', string $source = ''): array {
                 $items = [];
                 for ($i = 1; $i <= 5; $i++) {
                     $items[] = [
