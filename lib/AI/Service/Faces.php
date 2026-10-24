@@ -18,6 +18,14 @@ class Faces {
     public const SUGGESTION_LIMIT = 5000;
     /** A group with only filtered faces is only pointed at groups with this many good faces. */
     public const STRONG_GROUP_FACES = 2;
+    /** Re-sorting one person: bounds and provisional decision margins (not yet measured on a real library). */
+    public const RESORT_MAX_FACES = 10000;
+    public const RESORT_ANCHORS_PER_GROUP = 200;
+    public const RESORT_CANDIDATES = 6;
+    public const RESORT_CLOSEST = 3;
+    public const RESORT_MARGIN = 0.03;
+    public const RESORT_ROUNDS = 3;
+    public const RESORT_NEW_MARGIN = 0.05;
     private bool $schemaChecked = false;
 
     public function __construct(
@@ -1509,6 +1517,481 @@ class Faces {
     }
 
     /**
+     * Re-sort one person: compare each automatically assigned face of this person in the gallery
+     * again with the other people and move it where it clearly fits better.
+     *
+     * Faces the user assigned or confirmed (manual), selected faces ($keepIds) and faces outside
+     * this gallery stay and are the person's reference. Unlike automatic grouping, which joins the
+     * single closest face, a face only moves when the mean of its closest faces of another person
+     * reaches the assignment threshold and beats every other person by a margin. With $rest 'new'
+     * the faces that fit nobody clearly leave this person and are grouped into new unnamed people;
+     * otherwise they stay. $absent says the person does not appear in this gallery at all: then every
+     * face of it here, including its own corrections, is re-sorted without the person as a target,
+     * faces without a clear match always form new people, and the moved faces may not return to it.
+     * $dryRun only returns the plan.
+     */
+    public function resort(
+        string $uid,
+        string $id,
+        string $gallery = '',
+        array $keepIds = [],
+        string $rest = 'stay',
+        bool $dryRun = true,
+        int $rulesRevision = 0,
+        bool $absent = false
+    ): array {
+        $this->ensureSchema();
+        if (!preg_match('/^[a-f0-9]{32}$/iD', $id)) {
+            throw new OCSBadRequestException('Ungültige Subjekt-ID');
+        }
+        if (!in_array($rest, ['stay', 'new'], true)) {
+            throw new OCSBadRequestException('Ungültige Auswahl für nicht zuordenbare Fotos');
+        }
+        $id = strtolower($id);
+        if ($absent) {
+            $rest = 'new';
+            $keepIds = [];
+        }
+        $keep = [];
+        foreach ($keepIds as $did) {
+            if (!is_string($did) || !preg_match('/^[a-f0-9]{32}$/iD', $did)) {
+                throw new OCSBadRequestException('Ungültiges Detection-ID-Format');
+            }
+            $keep[strtolower($did)] = true;
+        }
+        if (function_exists('set_time_limit')) @set_time_limit(300);
+
+        $this->lock($uid);
+        try {
+            $acc = $this->accountState($uid);
+            if ($rulesRevision !== $acc['rules_revision']) {
+                throw new FaceConflictException('Regelstand veraltet, bitte Ansicht aktualisieren');
+            }
+            $groupMeta = [];
+            $r = $this->db->executeQuery('SELECT id, hidden, label, cover_id FROM *PREFIX*nextgallery_faces_groups WHERE user_id = ?', [$uid]);
+            try {
+                while ($row = $r->fetch()) {
+                    $groupMeta[(string)$row['id']] = [
+                        'hidden' => (int)$row['hidden'] === 1,
+                        'label' => isset($row['label']) && trim((string)$row['label']) !== '' ? trim((string)$row['label']) : null,
+                        'cover_id' => isset($row['cover_id']) && trim((string)$row['cover_id']) !== '' ? strtolower(trim((string)$row['cover_id'])) : null,
+                    ];
+                }
+            } finally {
+                $r->closeCursor();
+            }
+            if (!isset($groupMeta[$id])) {
+                throw new OCSNotFoundException('Gruppe nicht gefunden');
+            }
+
+            $config = $this->settings->forUser($uid)->get();
+            $filters = $config['faces_filters'];
+            $threshold = max(0.3, min(0.95, (float)($config['faces']['cosine_threshold'] ?? 0.55)));
+
+            // Current detections of the account, without vectors; vectors are read only where needed.
+            $rows = [];
+            $r = $this->db->executeQuery(
+                'SELECT d.id, d.group_id, d.file_id, d.bbox_x, d.bbox_y, d.bbox_w, d.bbox_h, d.score, d.manual, d.sharpness
+                 FROM *PREFIX*nextgallery_face_detections d
+                 INNER JOIN *PREFIX*nextgallery_faces_files ff ON ff.user_id = d.user_id AND ff.file_id = d.file_id AND ff.etag = d.etag
+                 WHERE d.user_id = ? ORDER BY d.manual DESC, d.score DESC, d.id ASC',
+                [$uid]
+            );
+            try {
+                while ($row = $r->fetch()) $rows[(string)$row['id']] = $row;
+            } finally {
+                $r->closeCursor();
+            }
+
+            $own = array_filter($rows, fn($d) => (string)$d['group_id'] === $id);
+            foreach (array_keys($keep) as $did) {
+                if (!isset($own[$did])) throw new OCSBadRequestException('Detection gehört nicht zur Quellgruppe');
+            }
+            $sourceIds = [];
+            $inScope = [];
+            $scoped = [];
+            $orphans = [];
+            foreach ($this->scopedDetections($uid, $gallery, $id) as $d) {
+                $did = (string)$d['id'];
+                $scoped[$did] = $d;
+                if (!isset($own[$did])) {
+                    // Shown in the gallery, but without a current comparable face (e.g. a changed file).
+                    if ($absent) $orphans[$did] = true;
+                    continue;
+                }
+                $inScope[$did] = true;
+                if ($absent || (!isset($keep[$did]) && (int)$own[$did]['manual'] !== 1)) $sourceIds[$did] = true;
+            }
+            if (count($sourceIds) > self::RESORT_MAX_FACES) {
+                throw new OCSBadRequestException('Zu viele Gesichter für eine Neusortierung (' . count($sourceIds) . ', maximal ' . self::RESORT_MAX_FACES . '). Trenne zuerst einen Teil ab.');
+            }
+
+            // References: the person's own remaining good or selected faces, and the good faces of
+            // every visible person that is named or has enough photos to be shown in the overview.
+            $eligible = [];
+            $good = [];
+            foreach ($rows as $did => $d) {
+                $eligible[$did] = self::qualityEligible($d, $filters);
+                if ($eligible[$did]) $good[(string)$d['group_id']][] = $d;
+            }
+            $anchorIds = [];
+            foreach ($own as $did => $d) {
+                if (!$absent && !isset($sourceIds[$did]) && ($eligible[$did] || isset($keep[$did]))) $anchorIds[$id][] = $did;
+            }
+            $minPhotos = (int)$filters['min_group_photos'];
+            foreach ($good as $gid => $dets) {
+                $gid = (string)$gid;
+                $meta = $groupMeta[$gid] ?? null;
+                if ($gid === $id || $meta === null || $meta['hidden']) continue;
+                if ($meta['label'] === null && self::photoCount($dets) < $minPhotos) continue;
+                foreach (array_slice($dets, 0, self::RESORT_ANCHORS_PER_GROUP) as $d) $anchorIds[$gid][] = (string)$d['id'];
+            }
+            $vectors = $this->detectionVectors($uid, array_merge(array_keys($sourceIds), ...array_values($anchorIds)));
+            $anchors = [];
+            foreach ($anchorIds as $gid => $ids) {
+                foreach ($ids as $did) if (isset($vectors[$did])) $anchors[$gid][] = $vectors[$did];
+            }
+            $sources = [];
+            foreach ($sourceIds as $did => $_) if (isset($vectors[$did])) $sources[$did] = $vectors[$did];
+
+            $forbidden = [];
+            foreach ($this->getCannotLinkMap($uid) as $did => $groups) {
+                if (isset($sources[$did])) $forbidden[$did] = $groups;
+            }
+            $plan = self::resortPlan($sources, $anchors, $eligible, $forbidden, $threshold);
+            $moves = [];
+            foreach ($plan['assign'] as $did => $gid) {
+                if ($gid !== $id) $moves[$did] = $gid;
+            }
+            $clusters = self::resortClusters(array_intersect_key($sources, array_flip($plan['rest'])), $eligible, min(0.95, $threshold + self::RESORT_NEW_MARGIN));
+            // An absent person keeps nothing here: faces that cannot be compared leave it one by one.
+            if ($absent) {
+                foreach (array_keys(array_diff_key($sourceIds, $sources)) as $did) $orphans[(string)$did] = true;
+                foreach (array_keys($orphans) as $did) $clusters[] = [(string)$did];
+            }
+
+            $photos = fn(array $ids) => self::photoCount(array_map(fn($did) => $rows[$did] ?? $scoped[$did], $ids));
+            $targets = [];
+            foreach ($moves as $did => $gid) $targets[$gid][] = $did;
+            $summary = [
+                'checked' => $photos(array_keys($sources)),
+                'stay' => $photos(array_keys(array_filter($plan['assign'], fn($gid) => $gid === $id))),
+                'rest' => $photos(array_merge($plan['rest'], array_map('strval', array_keys($orphans)))),
+                'new_people' => count(array_filter($clusters, fn($c) => count($c) >= $minPhotos)),
+                'new_groups' => count($clusters),
+                'kept' => $photos(array_keys(array_diff_key($inScope, $sourceIds))),
+                'targets' => [],
+            ];
+            foreach ($targets as $gid => $ids) {
+                $meta = $groupMeta[$gid];
+                $summary['targets'][] = [
+                    'id' => $gid,
+                    'label' => $meta['label'],
+                    'cover_id' => $meta['cover_id'] ?? ($anchorIds[$gid][0] ?? null),
+                    'photo_count' => $photos($ids),
+                ];
+            }
+            usort($summary['targets'], fn($a, $b) => [$b['photo_count'], (string)$a['label'], $a['id']] <=> [$a['photo_count'], (string)$b['label'], $b['id']]);
+
+            if ($dryRun) {
+                return ['dry_run' => true, 'rules_revision' => $acc['rules_revision'], 'summary' => $summary];
+            }
+
+            $moved = [];
+            $created = [];
+            $this->db->beginTransaction();
+            try {
+                $now = time();
+                if ($rest === 'new') {
+                    foreach ($clusters as $members) {
+                        $gid = bin2hex(random_bytes(16));
+                        $this->ensureGroup($uid, $gid);
+                        $created[] = $gid;
+                        foreach ($members as $did) $moves[$did] = $gid;
+                    }
+                }
+                foreach ($moves as $did => $gid) {
+                    if ($this->db->executeStatement(
+                        'UPDATE *PREFIX*nextgallery_face_detections SET group_id = ?, updated_at = ? WHERE user_id = ? AND id = ? AND group_id = ?',
+                        [$gid, $now, $uid, $did, $id]
+                    ) !== 1) continue;
+                    $moved[] = ['detection_id' => $did, 'target_id' => $gid];
+                    if ($absent) $this->db->executeStatement(
+                        'INSERT INTO *PREFIX*nextgallery_face_rules (user_id, kind, detection_id, group_id, created_at) VALUES (?, ?, ?, ?, ?)',
+                        [$uid, 'cannot_link', $did, $id, $now]
+                    );
+                }
+                // The person's row stays even when it is emptied, so undo keeps its name; cleanup removes empty groups.
+                $cover = $groupMeta[$id]['cover_id'];
+                if ($cover !== null && isset($moves[$cover])) {
+                    $this->db->executeStatement('UPDATE *PREFIX*nextgallery_faces_groups SET cover_id = NULL WHERE user_id = ? AND id = ?', [$uid, $id]);
+                }
+                $newRevision = $acc['rules_revision'] + 1;
+                $this->db->executeStatement(
+                    'UPDATE *PREFIX*nextgallery_faces_account SET rules_revision = ?, updated_at = ? WHERE user_id = ?',
+                    [$newRevision, $now, $uid]
+                );
+                $this->db->commit();
+            } catch (\Throwable $e) {
+                $this->db->rollBack();
+                throw $e;
+            }
+            $this->cleanupNativeSnapshots($uid);
+            return [
+                'success' => true,
+                'rules_revision' => $newRevision,
+                'summary' => $summary,
+                'moved' => $moved,
+                'created_ids' => $created,
+                'label' => $groupMeta[$id]['label'],
+                'cover_id' => $cover,
+            ];
+        } finally {
+            $this->unlock($uid);
+        }
+    }
+
+    /** Undo a re-sort: move the given faces back into the person and drop people it left empty. */
+    public function resortUndo(string $uid, string $id, array $detectionIds, int $rulesRevision = 0, ?string $label = null, ?string $coverId = null): array {
+        $this->ensureSchema();
+        if (!preg_match('/^[a-f0-9]{32}$/iD', $id)) {
+            throw new OCSBadRequestException('Ungültige Subjekt-ID');
+        }
+        $id = strtolower($id);
+        $clean = [];
+        foreach ($detectionIds as $did) {
+            if (!is_string($did) || !preg_match('/^[a-f0-9]{32}$/iD', $did)) {
+                throw new OCSBadRequestException('Ungültiges Detection-ID-Format');
+            }
+            $clean[strtolower($did)] = true;
+        }
+        $clean = array_keys($clean);
+        if (!$clean || count($clean) > self::RESORT_MAX_FACES) {
+            throw new OCSBadRequestException('Ungültige Anzahl Detections');
+        }
+        $this->lock($uid);
+        try {
+            $acc = $this->accountState($uid);
+            if ($rulesRevision !== $acc['rules_revision']) {
+                throw new FaceConflictException('Regelstand veraltet, bitte Ansicht aktualisieren');
+            }
+            $this->db->beginTransaction();
+            try {
+                $now = time();
+                $left = [];
+                foreach (array_chunk($clean, 500) as $chunk) {
+                    $q = $this->db->getQueryBuilder();
+                    $q->select('group_id')->from('nextgallery_face_detections')
+                      ->where($q->expr()->eq('user_id', $q->createNamedParameter($uid)))
+                      ->andWhere($q->expr()->in('id', $q->createNamedParameter($chunk, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_STR_ARRAY)));
+                    foreach ($q->executeQuery()->fetchAll(\PDO::FETCH_COLUMN) as $gid) $left[(string)$gid] = true;
+                }
+                unset($left[$id]);
+                $exists = $this->db->executeQuery('SELECT 1 FROM *PREFIX*nextgallery_faces_groups WHERE user_id = ? AND id = ?', [$uid, $id]);
+                $hadRow = (bool)$exists->fetchOne();
+                $exists->closeCursor();
+                $this->ensureGroup($uid, $id);
+                if (!$hadRow) {
+                    // Cleanup already removed the emptied person; bring back its name.
+                    $cleanLabel = is_string($label) ? trim(mb_substr(trim($label), 0, 120)) : '';
+                    $this->db->executeStatement(
+                        'UPDATE *PREFIX*nextgallery_faces_groups SET label = ?, cover_id = ? WHERE user_id = ? AND id = ?',
+                        [$cleanLabel !== '' ? $cleanLabel : null, $coverId !== null && preg_match('/^[a-f0-9]{32}$/iD', $coverId) ? strtolower($coverId) : null, $uid, $id]
+                    );
+                }
+                foreach (array_chunk($clean, 500) as $chunk) {
+                    // Faces returned to the person may join it again ("not in this gallery" forbade it).
+                    $d = $this->db->getQueryBuilder();
+                    $d->delete('nextgallery_face_rules')
+                      ->where($d->expr()->eq('user_id', $d->createNamedParameter($uid)))
+                      ->andWhere($d->expr()->eq('kind', $d->createNamedParameter('cannot_link')))
+                      ->andWhere($d->expr()->eq('group_id', $d->createNamedParameter($id)))
+                      ->andWhere($d->expr()->in('detection_id', $d->createNamedParameter($chunk, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_STR_ARRAY)));
+                    $d->executeStatement();
+                    $u = $this->db->getQueryBuilder();
+                    $u->update('nextgallery_face_detections')
+                      ->set('group_id', $u->createNamedParameter($id))
+                      ->set('updated_at', $u->createNamedParameter($now, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT))
+                      ->where($u->expr()->eq('user_id', $u->createNamedParameter($uid)))
+                      ->andWhere($u->expr()->in('id', $u->createNamedParameter($chunk, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_STR_ARRAY)));
+                    $u->executeStatement();
+                }
+                foreach (array_keys($left) as $gid) {
+                    $rem = $this->db->executeQuery('SELECT COUNT(*) FROM *PREFIX*nextgallery_face_detections WHERE user_id = ? AND group_id = ?', [$uid, $gid]);
+                    $empty = (int)$rem->fetchOne() === 0;
+                    $rem->closeCursor();
+                    if ($empty) $this->db->executeStatement('DELETE FROM *PREFIX*nextgallery_faces_groups WHERE user_id = ? AND id = ?', [$uid, $gid]);
+                }
+                $newRevision = $acc['rules_revision'] + 1;
+                $this->db->executeStatement(
+                    'UPDATE *PREFIX*nextgallery_faces_account SET rules_revision = ?, updated_at = ? WHERE user_id = ?',
+                    [$newRevision, $now, $uid]
+                );
+                $this->db->commit();
+            } catch (\Throwable $e) {
+                $this->db->rollBack();
+                throw $e;
+            }
+            $this->cleanupNativeSnapshots($uid);
+            return ['success' => true, 'rules_revision' => $newRevision];
+        } finally {
+            $this->unlock($uid);
+        }
+    }
+
+    /** @return array<string, float[]> normalized SFace vectors by detection ID */
+    private function detectionVectors(string $uid, array $ids): array {
+        $vectors = [];
+        foreach (array_chunk(array_values(array_unique($ids)), 500) as $chunk) {
+            $q = $this->db->getQueryBuilder();
+            $q->select('id', 'vector_data')->from('nextgallery_face_detections')
+              ->where($q->expr()->eq('user_id', $q->createNamedParameter($uid)))
+              ->andWhere($q->expr()->in('id', $q->createNamedParameter($chunk, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_STR_ARRAY)));
+            $r = $q->executeQuery();
+            try {
+                while ($row = $r->fetch()) {
+                    $raw = base64_decode((string)$row['vector_data'], true);
+                    if ($raw === false || strlen($raw) !== 512) continue;
+                    $vectors[(string)$row['id']] = array_values(unpack('g*', $raw));
+                }
+            } finally {
+                $r->closeCursor();
+            }
+        }
+        return $vectors;
+    }
+
+    private static function dot(array $a, array $b): float {
+        $s = 0.0;
+        for ($i = 0; $i < 128; $i++) $s += $a[$i] * $b[$i];
+        return $s;
+    }
+
+    /**
+     * The closest few similarities (ascending), merged into an earlier list. Their mean is more
+     * robust than the single closest face.
+     */
+    private static function closest(array $vector, array $members, array $best = []): array {
+        foreach ($members as $m) {
+            $s = self::dot($vector, $m);
+            if (count($best) < self::RESORT_CLOSEST) {
+                $best[] = $s;
+                sort($best);
+            } elseif ($s > $best[0]) {
+                $best[0] = $s;
+                sort($best);
+            }
+        }
+        return $best;
+    }
+
+    private static function mean(array $values): float {
+        return $values ? array_sum($values) / count($values) : -1.0;
+    }
+
+    private static function centroid(array $members): array {
+        $c = array_fill(0, 128, 0.0);
+        foreach ($members as $m) for ($i = 0; $i < 128; $i++) $c[$i] += $m[$i];
+        $n = sqrt(self::dot($c, $c));
+        return $n > 1e-9 ? array_map(fn($v) => $v / $n, $c) : $c;
+    }
+
+    /**
+     * Assign each source face to the group whose closest faces fit it best, when that score reaches
+     * $threshold and beats the runner-up by RESORT_MARGIN. Groups are pre-selected by centroid.
+     * Confident assignments of good faces become references for the next round; later rounds only
+     * compare the remaining faces with these new references.
+     *
+     * @param array<string, float[]> $sources detection ID => vector
+     * @param array<string, float[][]> $anchors group ID => reference vectors
+     * @param array<string, bool> $eligible detection ID => good enough to serve as reference
+     * @param array<string, array<string, bool>> $forbidden detection ID => groups it must not join
+     * @return array{assign: array<string, string>, rest: string[]}
+     */
+    public static function resortPlan(array $sources, array $anchors, array $eligible, array $forbidden, float $threshold): array {
+        $assign = [];
+        $pending = $sources;
+        $centroids = array_map(fn($members) => self::centroid($members), $anchors);
+        $top = [];
+        foreach ($pending as $did => $vec) {
+            $near = [];
+            foreach ($centroids as $gid => $c) {
+                if (!isset($forbidden[$did][$gid])) $near[$gid] = self::dot($vec, $c);
+            }
+            arsort($near);
+            foreach (array_slice($near, 0, self::RESORT_CANDIDATES, true) as $gid => $_) {
+                $top[$did][$gid] = self::closest($vec, $anchors[$gid]);
+            }
+        }
+        for ($round = 0; $round < self::RESORT_ROUNDS && $pending; $round++) {
+            $accepted = [];
+            foreach ($pending as $did => $_) {
+                $scores = array_map(fn($values) => self::mean($values), $top[$did] ?? []);
+                arsort($scores);
+                $ranked = array_values($scores);
+                if (!$ranked || $ranked[0] < $threshold || $ranked[0] - ($ranked[1] ?? -1.0) < self::RESORT_MARGIN) continue;
+                $accepted[$did] = (string)array_key_first($scores);
+            }
+            if (!$accepted) break;
+            $added = [];
+            foreach ($accepted as $did => $gid) {
+                $assign[$did] = $gid;
+                if (!empty($eligible[$did])) $added[$gid][] = $pending[$did];
+                unset($pending[$did]);
+            }
+            foreach ($pending as $did => $vec) {
+                foreach ($top[$did] ?? [] as $gid => $values) {
+                    if (isset($added[$gid])) $top[$did][$gid] = self::closest($vec, $added[$gid], $values);
+                }
+            }
+        }
+        return ['assign' => $assign, 'rest' => array_map('strval', array_keys($pending))];
+    }
+
+    /**
+     * Group the faces that fit no person into new people. A face joins the cluster whose closest
+     * good faces reach $threshold, among the clusters with the most similar average face; only good
+     * faces start clusters others can join.
+     *
+     * @param array<string, float[]> $sources detection ID => vector, best faces first
+     * @return string[][] detection IDs per new group
+     */
+    public static function resortClusters(array $sources, array $eligible, float $threshold): array {
+        $clusters = [];
+        $members = [];
+        $sums = [];
+        $norms = [];
+        uksort($sources, fn($a, $b) => (int)empty($eligible[$a]) <=> (int)empty($eligible[$b]));
+        foreach ($sources as $did => $vec) {
+            $near = [];
+            foreach ($sums as $i => $sum) $near[$i] = self::dot($vec, $sum) / $norms[$i];
+            arsort($near);
+            $best = -1;
+            $bestScore = $threshold;
+            foreach (array_slice($near, 0, self::RESORT_CANDIDATES, true) as $i => $_) {
+                $score = self::mean(self::closest($vec, $members[$i]));
+                if ($score >= $bestScore) {
+                    $best = $i;
+                    $bestScore = $score;
+                }
+            }
+            if ($best < 0) {
+                $best = count($clusters);
+                $clusters[$best] = [];
+            }
+            $clusters[$best][] = (string)$did;
+            if (!empty($eligible[$did]) && count($members[$best] ?? []) < self::RESORT_ANCHORS_PER_GROUP) {
+                $members[$best][] = $vec;
+                $sum = $sums[$best] ?? array_fill(0, 128, 0.0);
+                for ($i = 0; $i < 128; $i++) $sum[$i] += $vec[$i];
+                $sums[$best] = $sum;
+                $norms[$best] = max(1e-9, sqrt(self::dot($sum, $sum)));
+            }
+        }
+        return array_values($clusters);
+    }
+
+    /**
      * Live access, current path and file version within the requested gallery roots.
      * Without a home folder the scope cannot be proven, so nothing is returned.
      */
@@ -1721,6 +2204,19 @@ class Faces {
                 'best_similarity' => round($bestSimilarity, 3),
             ];
         }
+
+        // Named people come first in alphabetical order, then unnamed people with the most photos.
+        // Editing a person must not move it, so the last change only breaks ties.
+        $collator = class_exists(\Collator::class) ? new \Collator('de_DE') : null;
+        $position = array_flip(array_column($filtered, 'id'));
+        usort($filtered, function ($a, $b) use ($collator, $position) {
+            if (($a['label'] === null) !== ($b['label'] === null)) return $a['label'] === null ? 1 : -1;
+            if ($a['label'] !== null) {
+                $byName = $collator ? (int)$collator->compare($a['label'], $b['label']) : strnatcasecmp($a['label'], $b['label']);
+                if ($byName !== 0) return $byName;
+            }
+            return [$b['photo_count'], $position[$a['id']]] <=> [$a['photo_count'], $position[$b['id']]];
+        });
 
         // Lists that are worked through put people with open suggestions first, most similar first.
         if (in_array($filter, ['filtered', 'single', 'suggested'], true)) {

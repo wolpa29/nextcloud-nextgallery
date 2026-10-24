@@ -397,6 +397,7 @@ try {
     check(!beforeResume[kind].resume.disabled && !beforeResume[kind].resume.hidden, `${kind} Resume button initially visible and enabled`);
 
     // 1. Click Resume with held GET davor
+    const expectedResume = (await page.locator(`[data-user-action="resume"][data-kind="${kind}"]`).innerText()).includes('Fehler') ? 'retry' : 'resume';
     const getGate = GateManager.expectGet();
     await page.locator(`[data-user-action="resume"][data-kind="${kind}"]`).click();
     await getGate.waitForArrival();
@@ -411,7 +412,8 @@ try {
     const postGate = GateManager.expectPost(kind);
     getGate.release();
     const postData = await postGate.waitForArrival();
-    check(postData.action === 'resume' && postData.kind === kind, `${kind} POST control received resume action`);
+    // Lanes with failed files retry them in the same run; the others plainly resume.
+    check(postData.action === expectedResume && postData.kind === kind, `${kind} POST control received ${expectedResume} action`);
 
     // Verify UI during held POST
     const duringPost = await getButtonSnapshot(page);
@@ -557,13 +559,17 @@ try {
     setLane('not_started', true, false, 0, 8, 0);
     await refreshScenario();
     check(await primaryFor(kind).count() === 1 && await primaryFor(kind).innerText() === 'Lauf starten', `${kind}: first run offers only Start`);
+    // A fresh lane is initialized as "paused" but was never started.
+    setLane('paused', true, false, 0, 8, 0);
+    await refreshScenario();
+    check(await primaryFor(kind).innerText() === 'Lauf starten' && await cardFor(kind).locator('h3').getAttribute('data-state-label') === 'Noch nicht gestartet', `${kind}: never started lane does not offer Resume`);
     setLane('running', false, false, 3, 8, 2);
     await refreshScenario();
     check(await primaryFor(kind).innerText() === 'Pausieren' && !await primaryFor(kind).isDisabled(), `${kind}: running offers Pause in top field`);
     check(await cardFor(kind).locator('.mai-run-surface [data-user-action]').count() === 0, `${kind}: no controls remain below the progress`);
     setLane('idle', false, true, 3, 8, 2);
     await refreshScenario();
-    check(await primaryFor(kind).innerText() === 'Pausieren' && !await primaryFor(kind).isDisabled(), `${kind}: queued run can be paused`);
+    check(await primaryFor(kind).innerText() === 'Start abbrechen' && !await primaryFor(kind).isDisabled(), `${kind}: queued run can be cancelled`);
     await primaryFor(kind).focus();
     setLane('running', true, false, 3, 8, 2);
     await refreshScenario();
@@ -571,17 +577,24 @@ try {
     check(await cardFor(kind).locator('.mai-pipeline-controls').evaluate(field => field===document.activeElement), `${kind}: keyboard focus remains in field during pause`);
     check(!await cardFor(kind).locator('[data-user-action=retry]').isVisible(), `${kind}: Retry hidden until current file finishes`);
     setLane('paused', true, false, 3, 8, 2);
+    pipelineStates[kind].last_run = { processed: 3, seconds: 10 };
     await refreshScenario();
-    check(await primaryFor(kind).innerText() === 'Fortsetzen' && !await primaryFor(kind).isDisabled(), `${kind}: paused run offers Resume`);
+    check(await primaryFor(kind).innerText() === 'Fortsetzen und Fehler erneut versuchen' && !await primaryFor(kind).isDisabled(), `${kind}: paused run with errors offers combined Resume`);
     check(await primaryFor(kind).evaluate(button => button===document.activeElement), `${kind}: keyboard focus follows Resume after pause settles`);
-    check(await cardFor(kind).locator('.mai-pipeline-controls button:visible').count() === 2, `${kind}: paused errors share top field with Resume`);
-    // A Retry click retains the API action and pipeline, rather than dispatching Start.
+    check(await cardFor(kind).locator('.mai-pipeline-controls button:visible').count() === 1, `${kind}: pending and failed files share one button`);
+    // The combined Resume retries errors too, so it dispatches Retry for this pipeline.
     const retryResponse = page.waitForResponse(r => r.url().endsWith('/ai/account/control'));
-    await cardFor(kind).locator('[data-user-action=retry]').click();
+    await primaryFor(kind).click();
     await retryResponse;
     await primaryFor(kind).waitFor({state:'visible'});
     await page.waitForFunction(k => !document.querySelector(`[data-user-action=resume][data-kind="${k}"]`).disabled, kind);
-    check(postCalls.at(-1).action === 'retry' && postCalls.at(-1).kind === kind, `${kind}: unified Retry dispatches correct action`);
+    check(postCalls.at(-1).action === 'retry' && postCalls.at(-1).kind === kind, `${kind}: combined Resume dispatches Retry`);
+    setLane('paused', true, false, 3, 8, 0);
+    pipelineStates[kind].last_run = { processed: 3, seconds: 10 };
+    await refreshScenario();
+    check(await primaryFor(kind).innerText() === 'Fortsetzen' && await cardFor(kind).locator('.mai-pipeline-controls button:visible').count() === 1, `${kind}: paused run without errors offers plain Resume`);
+    setLane('paused', true, false, 3, 8, 2);
+    pipelineStates[kind].last_run = { processed: 3, seconds: 10 };
     for (const guard of ['offline', 'admin', 'reset', 'disabled']) {
       pipelineStates[kind].online = guard !== 'offline';
       pipelineStates[kind].admin_paused = guard === 'admin';
@@ -595,6 +608,19 @@ try {
     setLane('finished', false, false, 8, 0, 0);
     await refreshScenario();
     check(await primaryFor(kind).innerText() === 'Auswahl erneut prüfen' && await cardFor(kind).locator('.mai-pipeline-controls button:visible').count() === 1, `${kind}: completed run offers one action`);
+    setLane('finished', true, false, 8, 2, 0);
+    await refreshScenario();
+    check(await primaryFor(kind).innerText() === 'Neue Dateien verarbeiten' && await cardFor(kind).locator('h3').getAttribute('data-state-label') === 'Neue Dateien', `${kind}: files added after a finished run are not shown as paused`);
+    setLane('finished', true, false, 8, 2, 3);
+    await refreshScenario();
+    check(await primaryFor(kind).innerText() === 'Neue Dateien und Fehler verarbeiten' && await cardFor(kind).locator('.mai-pipeline-controls button:visible').count() === 1, `${kind}: new files and old errors share one button`);
+    const combinedResponse = page.waitForResponse(r => r.url().endsWith('/ai/account/control'));
+    await primaryFor(kind).click();
+    await combinedResponse;
+    check(postCalls.at(-1).action === 'retry' && postCalls.at(-1).kind === kind, `${kind}: combined new-files button dispatches Retry`);
+    setLane('finished', true, false, 8, 0, 3);
+    await refreshScenario();
+    check(await primaryFor(kind).innerText() === 'Fehler erneut versuchen' && await cardFor(kind).locator('.mai-pipeline-controls button:visible').count() === 1 && await cardFor(kind).locator('h3').getAttribute('data-state-label') === 'Abgeschlossen mit Fehlern', `${kind}: only failed files left makes Retry the main action`);
   }
   pipelineStates = savedStates;
   pipelineStates.embeddings = {online:true,state:'paused',control:{paused:true,requested:false},stats:{done:3,pending:8,error:2}};

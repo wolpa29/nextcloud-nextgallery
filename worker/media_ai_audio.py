@@ -93,6 +93,8 @@ def run(config, source, api, directory, observe, stop, retry_errors=False):
     db.row_factory = sqlite3.Row
     db.execute('CREATE TABLE IF NOT EXISTS files (key TEXT PRIMARY KEY,file_id INTEGER NOT NULL,etag TEXT NOT NULL,status TEXT NOT NULL,metadata TEXT,error TEXT)')
     try:
+        if retry_errors:
+            with db: db.execute("UPDATE files SET status='pending',error=NULL WHERE status='error'")
         items = [item for item in source.inventory() if item.mime.startswith('video/')]
         stats = {'done': 0, 'pending': 0, 'error': 0}; pending = []
         for item in items:

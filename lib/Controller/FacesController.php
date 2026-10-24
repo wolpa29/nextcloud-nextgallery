@@ -288,6 +288,41 @@ class FacesController extends Controller {
     }
 
     #[NoAdminRequired]
+    public function resort(string $id, string $gallery = '', ?array $keep_ids = null, string $rest = '', bool $dry_run = true, int $rules_revision = 0, bool $absent = false): DataResponse {
+        return $this->correction('Faces resort error', fn() => $this->faces->resort(
+            $this->uid(), $id,
+            $gallery !== '' ? $gallery : (string)$this->request->getParam('gallery', ''),
+            (array)($keep_ids ?? $this->request->getParam('keep_ids', [])),
+            $rest !== '' ? $rest : (string)$this->request->getParam('rest', 'stay'),
+            $dry_run, $rules_revision, $absent
+        ));
+    }
+
+    #[NoAdminRequired]
+    public function resortUndo(string $id, ?array $detection_ids = null, int $rules_revision = 0, ?string $label = null, ?string $cover_id = null): DataResponse {
+        return $this->correction('Faces resort undo error', fn() => $this->faces->resortUndo(
+            $this->uid(), $id, (array)($detection_ids ?? []), $rules_revision, $label, $cover_id
+        ));
+    }
+
+    private function correction(string $logMessage, callable $work): DataResponse {
+        try {
+            $response = new DataResponse($work());
+            $response->addHeader('Cache-Control', 'private, no-store');
+            return $response;
+        } catch (FaceConflictException $e) {
+            return new DataResponse(['error' => $e->getMessage()], 409);
+        } catch (OCSBadRequestException $e) {
+            return new DataResponse(['error' => $e->getMessage()], 400);
+        } catch (OCSNotFoundException $e) {
+            return new DataResponse(['error' => $e->getMessage()], 404);
+        } catch (\Throwable $e) {
+            $this->logger?->error($logMessage . ': ' . $e->getMessage(), ['exception' => $e]);
+            return new DataResponse(['error' => 'Interner Serverfehler'], 500);
+        }
+    }
+
+    #[NoAdminRequired]
     public function bulkAction(string $action = '', ?array $ids = null, int $rules_revision = 0, ?string $target_id = null): DataResponse {
         $uid = $this->uid();
         $actionName = $action !== '' ? $action : (string)$this->request->getParam('action', '');

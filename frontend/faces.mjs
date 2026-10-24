@@ -46,6 +46,27 @@ export function buildActionPayload({action, target_id, detection_ids, rules_revi
   return payload;
 }
 
+export function buildResortPayload({keep_ids, rest = 'stay', dry_run = true, rules_revision, absent = false}) {
+  if (!['stay', 'new'].includes(rest)) {
+    throw new Error(`Invalid rest "${rest}". Allowed: stay, new`);
+  }
+  if (typeof rules_revision !== 'number') {
+    throw new Error('rules_revision must be an integer');
+  }
+  // A person absent from the gallery keeps nothing here; its unclear photos always form new people.
+  if (absent) return { rest: 'new', dry_run: Boolean(dry_run), rules_revision, absent: true };
+  const payload = { rest, dry_run: Boolean(dry_run), rules_revision };
+  const keep = [...new Set((Array.isArray(keep_ids) ? keep_ids : []).filter(Boolean).map(String))];
+  if (keep.length > 0) payload.keep_ids = keep;
+  return payload;
+}
+
+// Photos a re-sort moves away from the person, from its summary.
+export function movedPhotos(summary, grouped = false) {
+  const targets = Array.isArray(summary?.targets) ? summary.targets : [];
+  return targets.reduce((n, t) => n + Number(t.photo_count || 0), 0) + (grouped ? Number(summary?.rest || 0) : 0);
+}
+
 export const BULK_ACTIONS = ['stranger', 'unstranger', 'hide', 'show'];
 
 export function buildBulkActionPayload({action, ids, rules_revision, target_id}) {
@@ -156,6 +177,7 @@ export function createPeopleController({
   let subjectCursor = null;
   let subjectMore = false;
   let selectedDetections = new Map(); // itemId => string[] (all detection IDs for that item)
+  let mediaAnchorId = null; // last photo clicked without Shift; Shift+click selects the range from here
   let currentGallery = getGallery();
   let activeGeneration = 0;
   let currentAbort = null;
@@ -168,6 +190,7 @@ export function createPeopleController({
   let lastUndoAction = null;
   let selectMode = false;
   let selectedSubjects = new Set(); // subject ids picked in the list for a bulk action
+  let subjectAnchorId = null; // last person card clicked without Shift
   let renderedFilter = null;
   let renderedGallery = null;
   let similarError = false;
@@ -175,6 +198,7 @@ export function createPeopleController({
   let mergeDialogGeneration = 0;
   let closeMergeDialog = null;
   let inspectGeneration = 0;
+  let listScrollTop = 0; // where the person list was scrolled to before a person was opened
 
   // Keep one correction in flight. A double click must not send the same revision twice.
   async function withMutation(work) {
@@ -205,6 +229,8 @@ export function createPeopleController({
   }
 
   function dismissSuggestion(...args) { return withMutation(() => executeDismissSuggestion(...args)); }
+
+  function strangerSuggestion(...args) { return withMutation(() => executeStrangerSuggestion(...args)); }
 
   function contextPreviewUrl(detectionId, person) {
     const u = personPreviewUrl(detectionId, person);
@@ -347,11 +373,16 @@ export function createPeopleController({
     clearError();
     updateFilterExplainer();
 
+    // A refresh of the same list reloads every person already shown, so returning
+    // from a person or correcting one does not drop the pages loaded with "Weitere Personen laden".
+    let keepLoaded = 0;
     if (reset) {
       selectedSubjects.clear();
       // A refresh keeps usable results visible, including when the request fails.
       // A different filter/gallery must never show the previous context's results.
-      if (renderedFilter !== filter || renderedGallery !== reqGallery) {
+      if (renderedFilter === filter && renderedGallery === reqGallery) {
+        keepLoaded = subjects.length;
+      } else {
         subjects = [];
         cursor = null;
         more = false;
@@ -367,21 +398,28 @@ export function createPeopleController({
     }
 
     try {
-      const query = buildSubjectsQuery({
-        gallery: reqGallery,
-        cursor: reset ? '' : cursor,
-        limit: 60,
-        filter
-      });
+      const newItems = [];
+      let nextCursor = reset ? '' : cursor;
+      let data;
+      do {
+        const query = buildSubjectsQuery({
+          gallery: reqGallery,
+          cursor: nextCursor,
+          // The server returns at most 100 people per page.
+          limit: Math.min(100, Math.max(60, keepLoaded - newItems.length)),
+          filter
+        });
 
-      const data = await api('subjects?' + query, { signal });
-      if (reqGen !== activeGeneration || reqGallery !== getGallery()) return;
+        data = await api('subjects?' + query, { signal });
+        if (reqGen !== activeGeneration || reqGallery !== getGallery()) return;
+        if (Array.isArray(data.items)) newItems.push(...data.items);
+        nextCursor = data.next ?? null;
+      } while (data.more && nextCursor !== null && newItems.length < keepLoaded);
 
-      const newItems = Array.isArray(data.items) ? data.items : [];
       renderedFilter = filter;
       renderedGallery = reqGallery;
       subjects = reset ? newItems : [...subjects, ...newItems];
-      cursor = data.next ?? null;
+      cursor = nextCursor;
       more = Boolean(data.more);
       if (data.filter_counts && typeof data.filter_counts === 'object') {
         filterCounts = data.filter_counts;
@@ -552,8 +590,9 @@ export function createPeopleController({
       const visibleName = [...badges, hasName ? subject.label.trim() : '', countStr].join('');
       card.setAttribute('aria-label', (hasName ? '' : subjectDisplayName(subject) + ' · ') + visibleName);
 
-      card.onclick = () => {
-        if (selectMode) toggleSelectSubject(subject);
+      card.onclick = (event) => {
+        if (selectMode && event?.shiftKey) selectSubjectRange(subject);
+        else if (selectMode) toggleSelectSubject(subject);
         else openSubject(subject);
       };
       grid.append(card);
@@ -576,6 +615,20 @@ export function createPeopleController({
     if (bulkLocked(subject)) return;
     if (selectedSubjects.has(subject.id)) selectedSubjects.delete(subject.id);
     else selectedSubjects.add(subject.id);
+    subjectAnchorId = subject.id;
+    renderSubjectsList();
+  }
+
+  // Shift+click: select every selectable card between the anchor and this one, like a file manager.
+  function selectSubjectRange(subject) {
+    const from = subjects.findIndex((s) => s.id === subjectAnchorId);
+    const to = subjects.findIndex((s) => s.id === subject.id);
+    if (selectedSubjects.size === 0 || from < 0 || to < 0) return toggleSelectSubject(subject);
+    globalThis.getSelection?.()?.removeAllRanges();
+    for (const s of subjects.slice(Math.min(from, to), Math.max(from, to) + 1)) {
+      if (!bulkLocked(s)) selectedSubjects.add(s.id);
+    }
+    subjectAnchorId = subject.id;
     renderSubjectsList();
   }
 
@@ -782,8 +835,10 @@ export function createPeopleController({
 
     const listWrap = $('ch-people-list-container');
     const detailWrap = $('ch-people-detail');
+    if (listWrap && !listWrap.hidden) listScrollTop = root.scrollTop;
     if (listWrap) listWrap.hidden = true;
     if (detailWrap) detailWrap.hidden = false;
+    root.scrollTop = 0;
 
     const renameBar = $('ch-people-rename-bar');
     if (renameBar) renameBar.hidden = true;
@@ -904,13 +959,24 @@ export function createPeopleController({
       dismiss.textContent = tr('Andere Person');
       dismiss.title = tr('Nicht mehr vorschlagen');
       dismiss.onclick = () => dismissSuggestion(other);
+      const buttons = [merge, dismiss];
+      // A named person is known; only unnamed suggestions can go to "Unbekannte Personen".
+      if (!other.label) {
+        const stranger = document.createElement('button');
+        stranger.type = 'button';
+        stranger.className = 'ch-button';
+        stranger.textContent = tr('Kenne ich nicht');
+        stranger.title = tr('Vorgeschlagene Person in den Sammelordner „Unbekannte Personen“ verschieben');
+        stranger.onclick = () => strangerSuggestion(other);
+        buttons.push(stranger);
+      }
       const inspect = document.createElement('button');
       inspect.type = 'button';
       inspect.className = 'ch-button ch-people-inspect-btn';
       inspect.textContent = tr('Fotos & Kontext');
       inspect.title = tr('Vollen Bildbereich mit markiertem Gesicht und alle Fotos dieser Person anschauen');
       inspect.onclick = () => openInspectDialog(other, { canMerge: true, onMerge: () => mergeSuggestion(other) });
-      actions.append(merge, dismiss, inspect);
+      actions.append(...buttons, inspect);
       item.append(actions);
       list.append(item);
     }
@@ -929,6 +995,17 @@ export function createPeopleController({
       if (err.status === 409) await loadSimilar();
       showError(err);
       return false;
+    }
+  }
+
+  async function executeStrangerSuggestion(other) {
+    if (!selectedSubject) return;
+    if (await suggestionAction(other.id, { action: 'stranger' })) {
+      similarItems = similarItems.filter((item) => item.id !== other.id);
+      renderSimilar();
+      showUndoBar({ subjectId: other.id, action: 'unstranger', text: tr('Person wurde in „Unbekannte Personen“ verschoben.') });
+    } else {
+      await loadSimilar();
     }
   }
 
@@ -969,7 +1046,8 @@ export function createPeopleController({
       if (reqGen !== activeGeneration || reqGallery !== getGallery() || selectedSubject?.id !== reqSubjectId) return;
 
       const newItems = Array.isArray(data.items) ? data.items : [];
-      subjectMedia = reset ? newItems : [...subjectMedia, ...newItems];
+      const loadedIds = new Set(subjectMedia.map((m) => m.id));
+      subjectMedia = reset ? newItems : [...subjectMedia, ...newItems.filter((m) => !loadedIds.has(m.id))];
       subjectCursor = data.next ?? null;
       subjectMore = Boolean(data.more);
       if (typeof data.rules_revision === 'number') rulesRevision = data.rules_revision;
@@ -991,6 +1069,22 @@ export function createPeopleController({
         setLoading(false);
       }
     }
+  }
+
+  // Photos moved away leave the loaded list in place: the rest moves up and the end is refilled,
+  // instead of reloading the first page and losing the pages and scroll position loaded so far.
+  async function dropMovedMedia(detectionIds) {
+    const moved = new Set(detectionIds);
+    const before = subjectMedia.length;
+    subjectMedia = subjectMedia.filter((m) => {
+      const ids = mediaDetectionIds(m);
+      return !(ids.length > 0 && ids.every((id) => moved.has(id)));
+    });
+    if (subjectMedia.length === before) return loadSubjectMedia(true);
+    renderSubjectMedia();
+    // The server pages by offset; the remaining loaded photos are still its first ones.
+    subjectCursor = subjectMedia.length;
+    if (subjectMore) await loadSubjectMedia(false);
   }
 
   async function setCoverDetection(detectionId) {
@@ -1039,7 +1133,8 @@ export function createPeopleController({
       check.setAttribute('aria-label', tr('Foto auswählen'));
       check.onclick = (e) => {
         e.stopPropagation();
-        toggleSelectMedia(item);
+        if (e.shiftKey) selectMediaRange(item);
+        else toggleSelectMedia(item);
       };
       tile.append(check);
 
@@ -1057,9 +1152,10 @@ export function createPeopleController({
         if (url && tile.isConnected) img.src = url;
       }).catch(() => {});
 
-      img.onclick = () => {
+      img.onclick = (e) => {
         if (selectedDetections.size > 0) {
-          toggleSelectMedia(item);
+          if (e?.shiftKey) selectMediaRange(item);
+          else toggleSelectMedia(item);
         } else {
           openViewer(item, subjectMedia);
         }
@@ -1141,14 +1237,18 @@ export function createPeopleController({
     }
   }
 
+  // Honest detection IDs: all detection IDs belonging to this file for this subject
+  function mediaDetectionIds(item) {
+    return Array.isArray(item.face_detection_ids)
+      ? item.face_detection_ids.filter(Boolean)
+      : (item.detection_id ? [item.detection_id] : []);
+  }
+
   function toggleSelectMedia(item) {
     if (selectedDetections.has(item.id)) {
       selectedDetections.delete(item.id);
     } else {
-      // Honest detection IDs: select all detection IDs belonging to this file for this subject
-      const detIds = Array.isArray(item.face_detection_ids)
-        ? item.face_detection_ids.filter(Boolean)
-        : (item.detection_id ? [item.detection_id] : []);
+      const detIds = mediaDetectionIds(item);
       if (detIds.length > 0) {
         selectedDetections.set(item.id, detIds);
       } else {
@@ -1157,6 +1257,22 @@ export function createPeopleController({
         return;
       }
     }
+    mediaAnchorId = item.id;
+    updateSelectionBar();
+    renderSubjectMedia();
+  }
+
+  // Shift+click: select every loaded photo between the anchor and this one, like a file manager.
+  function selectMediaRange(item) {
+    const from = subjectMedia.findIndex((m) => m.id === mediaAnchorId);
+    const to = subjectMedia.findIndex((m) => m.id === item.id);
+    if (selectedDetections.size === 0 || from < 0 || to < 0) return toggleSelectMedia(item);
+    globalThis.getSelection?.()?.removeAllRanges();
+    for (const m of subjectMedia.slice(Math.min(from, to), Math.max(from, to) + 1)) {
+      const detIds = mediaDetectionIds(m);
+      if (detIds.length > 0) selectedDetections.set(m.id, detIds);
+    }
+    mediaAnchorId = item.id;
     updateSelectionBar();
     renderSubjectMedia();
   }
@@ -1239,7 +1355,11 @@ export function createPeopleController({
 
       // After action, refresh view
       selectedDetections.clear();
-      if (['merge', 'hide', 'show', 'stranger', 'unstranger'].includes(action) || (action === 'resolve' && filter === 'filtered')) {
+      if (['split', 'remove'].includes(action) && Array.isArray(detection_ids)) {
+        updateSelectionBar();
+        await dropMovedMedia(detection_ids);
+        await loadSimilar();
+      } else if (['merge', 'hide', 'show', 'stranger', 'unstranger'].includes(action) || (action === 'resolve' && filter === 'filtered')) {
         await leaveSubject();
       } else if (action === 'rename') {
         selectedSubject.label = res?.label ?? (label ? label.trim() : null);
@@ -1272,6 +1392,12 @@ export function createPeopleController({
         const res = await api(`subjects/${encodeURIComponent(undo.subjectId)}/action`, {
           method: 'POST',
           body: JSON.stringify(buildActionPayload({ action: undo.action, rules_revision: rulesRevision }))
+        });
+        if (typeof res?.rules_revision === 'number') rulesRevision = res.rules_revision;
+      } else if (undo.resortId && Array.isArray(undo.detectionIds) && undo.detectionIds.length > 0) {
+        const res = await api(`subjects/${encodeURIComponent(undo.resortId)}/resort-undo`, {
+          method: 'POST',
+          body: JSON.stringify({ detection_ids: undo.detectionIds, rules_revision: rulesRevision, label: undo.label ?? null, cover_id: undo.coverId ?? null })
         });
         if (typeof res?.rules_revision === 'number') rulesRevision = res.rules_revision;
       } else if (undo.targetId && Array.isArray(undo.groups) && undo.groups.length > 0) {
@@ -1327,7 +1453,9 @@ export function createPeopleController({
     if (listWrap) listWrap.hidden = false;
     const filterNote = $('ch-people-detail-filter-note');
     if (filterNote) filterNote.hidden = true;
+    root.scrollTop = listScrollTop;
     await loadSubjects(true); // reset=true prevents stale groups and duplicates
+    if (!selectedSubject) root.scrollTop = listScrollTop;
   }
 
   function setFilter(nextFilter) {
@@ -1813,6 +1941,18 @@ export function createPeopleController({
             adoptBtn.className = 'ch-button ch-primary';
             adoptBtn.textContent = tr('Sortierung übernehmen');
             adoptBtn.onclick = async () => {
+              // Adoption replaces the caller's sorting on every shared photo, including own corrections.
+              const name = entry.display_name || entry.user_id;
+              const ok = await showActionConfirm(
+                tr('Sortierung von {name} übernehmen?', { name }),
+                tr('Deine bisherige Personensortierung wird auf {photos} vollständig durch die von {name} ersetzt – auch Namen und Zuordnungen, die du selbst korrigiert hast. Fotos, die nur du hast, bleiben unverändert. Das lässt sich nicht rückgängig machen.', {
+                  name,
+                  photos: formatPhotoCount(entry.shared_files || 0, tr, locale)
+                }),
+                tr('Überschreiben und übernehmen'),
+                true
+              );
+              if (!ok) return;
               adoptBtn.disabled = true;
               try {
                 const res = await api('subjects/shared-sorting', {
@@ -2311,7 +2451,9 @@ export function createPeopleController({
           }
           finish();
           selectedDetections.clear(); selectedSubjects.clear(); selectMode = false;
-          if (selectedSubject?.id === target.id || isMove) {
+          if (isMove && selectedSubject?.id === basePeople[0].id) {
+            updateSelectionBar(); await dropMovedMedia(detectionIds); await loadSimilar();
+          } else if (selectedSubject?.id === target.id || isMove) {
             await loadSubjectMedia(true); await loadSimilar();
           } else if (selectedSubject) await leaveSubject();
           else await loadSubjects(true);
@@ -2336,6 +2478,208 @@ export function createPeopleController({
     dialog.showModal();
     cancelBtn?.focus();
     await load(true);
+  }
+
+  // Re-sort one person: preview where its automatically assigned photos would go, then apply.
+  const resortBtn = $('ch-people-resort');
+  if (resortBtn) resortBtn.onclick = () => openResortDialog();
+
+  async function openResortDialog() {
+    if (mutationPending || !selectedSubject) return;
+    const dialog = $d('ch-people-resort-dialog');
+    const text = $d('ch-people-resort-text');
+    const summaryEl = $d('ch-people-resort-summary');
+    const newRow = $d('ch-people-resort-new-row');
+    const newInput = $d('ch-people-resort-new');
+    const newLabel = $d('ch-people-resort-new-label');
+    const newHint = $d('ch-people-resort-new-hint');
+    const absentInput = $d('ch-people-resort-absent');
+    const absentLabel = $d('ch-people-resort-absent-label');
+    const absentHint = $d('ch-people-resort-absent-hint');
+    const error = $d('ch-people-resort-error');
+    const okBtn = $d('ch-people-resort-ok');
+    const cancelBtn = $d('ch-people-resort-cancel');
+    if (!dialog || !summaryEl || !okBtn) return;
+    const subject = { ...selectedSubject };
+    const gallery = getGallery();
+    const keepIds = getSelectedDetectionIds();
+    const revision = rulesRevision;
+    const name = subjectDisplayName(subject);
+    let closed = false, busy = false, summary = null, preview = 0;
+    const absent = () => Boolean(absentInput?.checked);
+    const valid = () => !closed && gallery === getGallery() && selectedSubject?.id === subject.id;
+    const controls = () => [...dialog.querySelectorAll('button, input')];
+    const finish = () => {
+      if (closed) return;
+      closed = true;
+      if (dialog.open) dialog.close();
+    };
+    dialog.onclose = () => { if (!dialog.open) finish(); };
+    dialog.oncancel = (e) => { e.preventDefault(); if (!busy) finish(); };
+    if (cancelBtn) cancelBtn.onclick = () => { if (!busy) finish(); };
+    const dismiss = dialog.querySelector('.ch-dialog-close');
+    if (dismiss) dismiss.onclick = (e) => { e.preventDefault(); if (!busy) finish(); };
+    controls().forEach(el => { el.disabled = false; });
+    okBtn.disabled = true;
+    if (error) error.hidden = true;
+    if (newRow) newRow.hidden = true;
+    if (newInput) newInput.checked = false;
+    if (absentInput) absentInput.checked = false;
+    if (text) text.hidden = false;
+    if (absentLabel) absentLabel.textContent = tr('{name} ist in dieser Galerie nicht zu sehen', { name });
+    if (absentHint) absentHint.textContent = tr('Dann werden alle Fotos von {name} in dieser Galerie verteilt, auch selbst zugeordnete. Fotos ohne eindeutigen Treffer werden zu neuen, unbenannten Personen. {name} in anderen Galerien bleibt unverändert.', { name });
+    if (text) text.textContent = keepIds.length
+      ? tr('Die ausgewählten {count} bleiben bei {name}. Alle anderen automatisch zugeordneten Fotos in dieser Galerie werden erneut mit allen Personen verglichen und nur bei einem eindeutigen Treffer verschoben. Deine Auswahl und die Fotos, die du selbst zugeordnet hast, dienen dabei als Vergleich für {name}.', { count: formatPhotoCount(selectedDetections.size, tr, locale), name })
+      : tr('Alle automatisch zugeordneten Fotos von {name} in dieser Galerie werden erneut mit allen Personen verglichen und nur bei einem eindeutigen Treffer verschoben. Fotos, die du selbst zugeordnet oder bestätigt hast, bleiben und dienen als Vergleich. Tipp: Wähle vorher einige sicher richtige Fotos aus – sie bleiben ebenfalls bei {name} und verbessern den Vergleich.', { name });
+    const request = (dryRun) => api(`subjects/${encodeURIComponent(subject.id)}/resort`, {
+      method: 'POST',
+      body: JSON.stringify(buildResortPayload({ keep_ids: keepIds, rest: newInput?.checked ? 'new' : 'stay', dry_run: dryRun, rules_revision: revision, absent: absent() }))
+    });
+    const showDialogError = (err) => {
+      if (!error) return showError(err);
+      error.textContent = err?.message || tr('Die Anfrage konnte nicht abgeschlossen werden.');
+      error.hidden = false;
+    };
+
+    function row(person, label, count) {
+      const item = document.createElement('div');
+      item.className = 'ch-people-resort-row';
+      if (person?.cover_id) {
+        const img = document.createElement('img');
+        img.alt = '';
+        img.src = previewUrl(person.cover_id);
+        img.onerror = () => img.replaceWith(createGenericPersonIcon());
+        item.append(img);
+      } else {
+        item.append(createGenericPersonIcon());
+      }
+      const nameEl = document.createElement('span');
+      nameEl.className = 'ch-people-resort-name';
+      nameEl.textContent = label;
+      const countEl = document.createElement('strong');
+      countEl.textContent = formatPhotoCount(count, tr, locale);
+      item.append(nameEl, countEl);
+      return item;
+    }
+
+    function render() {
+      if (!summary) return;
+      const grouped = (absent() || Boolean(newInput?.checked)) && summary.rest > 0;
+      const targets = Array.isArray(summary.targets) ? summary.targets : [];
+      const parts = [];
+      const intro = document.createElement('p');
+      intro.textContent = tr('{count} werden verglichen.', { count: formatPhotoCount(summary.checked, tr, locale) });
+      parts.push(intro);
+      if (targets.length) {
+        const heading = document.createElement('p');
+        heading.textContent = tr('Eindeutig passend zu anderen Personen:');
+        const list = document.createElement('div');
+        list.className = 'ch-people-resort-list';
+        list.setAttribute('role', 'list');
+        for (const t of targets) {
+          const r = row(t, t.label ? '→ ' + t.label : '→ ' + tr('Unbenannte Person'), t.photo_count);
+          r.setAttribute('role', 'listitem');
+          list.append(r);
+        }
+        parts.push(heading, list);
+      } else {
+        const none = document.createElement('p');
+        none.textContent = tr('Kein Foto passt eindeutig zu einer anderen Person.');
+        parts.push(none);
+      }
+      if (grouped) {
+        parts.push(row(null, tr('→ Neue unbenannte Personen'), summary.rest));
+      }
+      const stay = Number(summary.stay || 0) + Number(summary.kept || 0) + (grouped ? 0 : Number(summary.rest || 0));
+      if (!absent() || stay > 0) parts.push(row(subject, tr('Bleiben bei {name}', { name }), stay));
+      summaryEl.replaceChildren(...parts);
+      if (newRow) newRow.hidden = absent() || !(summary.rest > 0);
+      if (newLabel) newLabel.textContent = tr('{count} ohne eindeutigen Treffer als neue, unbenannte Personen gruppieren', { count: formatPhotoCount(summary.rest, tr, locale) });
+      if (newHint) newHint.textContent = tr('Sonst bleiben sie bei {name}. Daraus entstehen {groups} neue Gruppen; kleine Gruppen erscheinen unter „Seltene Personen“.', { name, groups: summary.new_groups });
+      okBtn.disabled = busy || !(targets.length > 0 || grouped);
+    }
+    if (newInput) newInput.onchange = render;
+
+    async function loadPreview() {
+      const request_ = ++preview;
+      summary = null;
+      okBtn.disabled = true;
+      if (error) error.hidden = true;
+      if (newRow) newRow.hidden = true;
+      const pending = document.createElement('p');
+      pending.textContent = tr('Fotos werden verglichen … Bei vielen Fotos kann das bis zu einer Minute dauern.');
+      summaryEl.replaceChildren(pending);
+      try {
+        const res = await request(true);
+        if (!valid() || request_ !== preview) return;
+        summary = res?.summary || null;
+        render();
+      } catch (err) {
+        if (!valid() || request_ !== preview) return;
+        summaryEl.replaceChildren();
+        showDialogError(err);
+      }
+    }
+    // Leaving the person out changes which photos are compared, so the preview is computed again.
+    if (absentInput) absentInput.onchange = () => {
+      // The introduction describes what stays with the person, which no longer applies.
+      if (text) text.hidden = absent();
+      if (!busy) return loadPreview();
+    };
+
+    okBtn.onclick = async () => {
+      if (busy || !summary || !valid()) return;
+      busy = true;
+      controls().forEach(el => { el.disabled = true; });
+      if (error) error.hidden = true;
+      const leaving = absent();
+      const grouped = leaving || Boolean(newInput?.checked);
+      await withMutation(async () => {
+        try {
+          const res = await request(false);
+          finish();
+          if (gallery !== getGallery()) return res;
+          if (typeof res?.rules_revision === 'number') rulesRevision = res.rules_revision;
+          const moved = (Array.isArray(res?.moved) ? res.moved : []).map((m) => m.detection_id).filter(Boolean);
+          if (moved.length > 0) {
+            showUndoBar({
+              resortId: subject.id,
+              detectionIds: moved,
+              label: res.label ?? null,
+              coverId: res.cover_id ?? null,
+              text: tr('{name} wurde neu sortiert: {count} verschoben.', { name, count: formatPhotoCount(movedPhotos(res.summary, grouped), tr, locale) })
+            });
+          }
+          selectedDetections.clear();
+          updateSelectionBar();
+          if (selectedSubject?.id === subject.id) {
+            // A person absent from this gallery, or left without photos, has nothing more to show here.
+            if (!leaving) await dropMovedMedia(moved);
+            if (leaving || (subjectMedia.length === 0 && !subjectMore)) await backToList();
+            else await loadSimilar();
+          }
+          return res;
+        } catch (err) {
+          if (closed) return null;
+          showDialogError(err);
+          if (err.status === 409) {
+            finish();
+            if (selectedSubject) await loadSubjectMedia(true);
+            showError(err);
+          }
+          return null;
+        }
+      });
+      busy = false;
+      if (!closed) {
+        controls().forEach(el => { el.disabled = false; });
+        render();
+      }
+    };
+
+    dialog.showModal();
+    cancelBtn?.focus();
+    await loadPreview();
   }
 
   function getSelectedDetectionIds() {

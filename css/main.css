@@ -439,6 +439,14 @@
 #nextgallery .ch-people-share-available-section h3{font-size:14px;margin:14px 0 6px}
 #nextgallery .ch-people-share-list{display:flex;flex-direction:column;gap:8px;margin:8px 0 14px}
 #nextgallery .ch-people-share-item{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:10px 14px;border-radius:12px;border:1px solid var(--ng-line);background:var(--ng-surface)}
+#nextgallery .ch-people-resort-absent{margin:4px 0 12px}
+#nextgallery .ch-people-resort-summary{display:flex;flex-direction:column;gap:6px;margin:4px 0 14px}
+#nextgallery .ch-people-resort-row{display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:12px;border:1px solid var(--ng-line);background:var(--ng-surface)}
+#nextgallery .ch-people-resort-row img,#nextgallery .ch-people-resort-row .ch-person-placeholder{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;object-fit:cover;flex:none}
+#nextgallery .ch-people-resort-row .ch-person-placeholder svg{width:22px;height:22px}
+#nextgallery .ch-people-resort-name{flex:1;min-width:0;overflow-wrap:anywhere}
+#nextgallery .ch-people-resort-row strong{flex:none;font-variant-numeric:tabular-nums}
+#nextgallery .ch-people-resort-list{display:flex;flex-direction:column;gap:6px;max-height:min(40vh,320px);overflow:auto}
 #nextgallery .ch-people-share-info p{margin:2px 0 0;font-size:12.5px}
 
 /* People workspace: everyday browsing first, occasional management in a disclosure. */

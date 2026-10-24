@@ -352,7 +352,7 @@ def faces_cycle(api,config,directory,reporter,control):
     def stop():
         return _shutdown.is_set() or admin_paused(Path(config.get('_model_directory',directory)),kind) or read(lane_file(directory,'control.json',kind),{'paused':True}).get('paused',True)
     reporter.run_id=uuid.uuid4().hex
-    reporter.update(state='running',current=None,message='Personenerkennung läuft')
+    reporter.update(state='running',current={'stage':'preparing','started_at':time.time()},message='Personenerkennung läuft')
     started=time.monotonic()
     progress={'done':0,'pending':0,'error':0}
     def observe(event,**fields):
@@ -389,7 +389,7 @@ def audio_cycle(api,config,directory,reporter,control):
         return _shutdown.is_set() or admin_paused(Path(config.get('_model_directory',directory)),kind) or read(lane_file(directory,'control.json',kind),{'paused':True}).get('paused',True)
     reporter.run_id=uuid.uuid4().hex
     progress={'done':0,'pending':0,'error':0}; started=time.monotonic()
-    reporter.update(state='running',current=None,message='Videoton wird transkribiert')
+    reporter.update(state='running',current={'stage':'preparing','started_at':time.time()},message='Videoton wird transkribiert')
     def observe(event,**fields):
         if event=='audio_inventory':
             progress.update({key:fields.get(key,0) for key in progress})

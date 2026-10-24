@@ -1,6 +1,38 @@
 # Version history
 
 
+## 0.4.45 — 2026-10-24
+
+- After re-sorting a person that does not appear in the gallery, the view returns to the overview instead of showing the emptied person; the same happens when a re-sort leaves a person without photos.
+- A person marked as not appearing in the gallery also loses faces that are shown there but cannot be compared (for example after a file changed); each becomes its own new person.
+
+
+## 0.4.44 — 2026-10-24
+
+- Add „{Name} ist in dieser Galerie nicht zu sehen“ to re-sorting a person: every face of the person in the current gallery, including its own corrections and selected photos, is distributed without the person as a target; faces without a clear match become new unnamed people. The moved faces may not join the person again until the undo. The person in other galleries is unchanged.
+
+
+## 0.4.43 — 2026-10-24
+
+- Re-sorting a person accepts up to 10,000 faces instead of 3,000; the limit counts faces including small or blurry ones, which the photo count of a person does not show. Later rounds compare only with the newly added reference faces and new people are pre-selected by their average face, roughly halving the time for large people.
+- The re-sort dialog says that comparing many photos can take up to a minute, and the limit message names the number of faces.
+
+
+## 0.4.42 — 2026-10-24
+
+- Add **Neu sortieren** to a person's view: the automatically assigned photos of the person in this gallery are compared again with all other people and moved only on a clear match (mean of the three closest faces at the assignment threshold, 0.03 ahead of the next person). Own corrections, confirmed and selected photos stay as the reference. A preview lists where the photos would go; photos without a clear match stay or, on request, form new unnamed people. One undo returns everything.
+- Moving or separating selected photos of a person keeps the loaded photo list and scroll position: the remaining photos move up and the end is refilled, instead of reloading the first page.
+
+
+## 0.4.41 — 2026-10-23
+
+- Ask for confirmation before adopting another user's people sorting: the dialog names the source and the number of shared photos and warns that the own sorting on those photos, including manual corrections, is replaced completely.
+- Shift+click selects a range in People: photos of a person and person cards in selection mode, from the last clicked item to the Shift-clicked one.
+- Returning from a person to the People overview keeps every page loaded with "Weitere Personen laden" and the scroll position, instead of falling back to the first 60 people.
+- Sort People with named people first in alphabetical order, then unnamed people by photo count; editing a person no longer moves it to the top.
+- Add „Kenne ich nicht“ to unnamed suggestions in a person's view: it moves the suggested person to „Unbekannte Personen“ and can be undone.
+
+
 ## 0.4.40 — 2026-10-23
 
 - Add an optional fifth, independent video speech pipeline using local faster-whisper, with explicit folder opt-in, transcript timestamps, isolated controls and selective deletion.

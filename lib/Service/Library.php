@@ -52,7 +52,12 @@ class Library {
  private function lock(string $uid):void {$this->locks->acquireLock(hash('sha256','nextgallery:'.$uid),ILockingProvider::LOCK_EXCLUSIVE);}
  private function unlock(string $uid):void {$this->locks->releaseLock(hash('sha256','nextgallery:'.$uid),ILockingProvider::LOCK_EXCLUSIVE);}
  public function save(string $uid,array $settings):array {
-  $this->lock($uid);
+  // Only changes that can restart the index wait for a running scan step;
+  // switching or renaming a gallery and display preferences do not.
+  $settingsLock=hash('sha256','nextgallery-settings:'.$uid);$indexed=array_intersect_key($settings,['roots'=>1,'mode'=>1,'timezone'=>1])!==[];
+  $this->locks->acquireLock($settingsLock,ILockingProvider::LOCK_EXCLUSIVE);
+  try {if($indexed)$this->lock($uid);}
+  catch (\Throwable $e) {$this->locks->releaseLock($settingsLock,ILockingProvider::LOCK_EXCLUSIVE);throw $e;}
   try {
    $p=$this->settings($uid);$old=$this->indexSettings($uid);$home=$this->root->getUserFolder($uid);
    if(isset($settings['activeGallery'])) {
@@ -99,7 +104,7 @@ class Library {
     $this->start($uid,$index);
    }
    return $p;
-  } finally {$this->unlock($uid);}
+  } finally {if($indexed)$this->unlock($uid);$this->locks->releaseLock($settingsLock,ILockingProvider::LOCK_EXCLUSIVE);}
  }
  public function users():array {$q=$this->db->getQueryBuilder();return $q->select('user_id')->from('nextgallery_users')->executeQuery()->fetchAll(\PDO::FETCH_COLUMN);}
  public function forget(string $uid):void {

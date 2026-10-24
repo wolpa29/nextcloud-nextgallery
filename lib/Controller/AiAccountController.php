@@ -31,16 +31,22 @@ class AiAccountController extends Controller {
     public function saveConfig(array $config):DataResponse {
         $state=$this->account();$state->initializePipelines();$lock=fopen($state->directory().'/control.lock','c');
         if(!$lock||!flock($lock,LOCK_EX))throw new \RuntimeException('Verarbeitungseinstellungen konnten nicht gesperrt werden');
+        $blocked=[];
         try{
-            $status=$state->status();
-            if($status['state']==='running'||!empty($status['control']['requested'])||!empty($status['control']['reset_requested']))return new DataResponse(['error'=>'Bitte zuerst pausieren und das Ende der aktuellen Verarbeitung abwarten.'],409);
-            $uid=$this->uid();$home=$this->root->getUserFolder($uid);
-            $this->settings->saveAccount($uid,$config,function(array $candidate)use($home){
+            // Only a pipeline that is running or queued keeps its selection; the others stay editable.
+            $busy=array_values(array_filter(State::PIPELINES,function(string $lane)use($state){$laneStatus=$state->forPipeline($lane)->status();return $laneStatus['state']==='running'||!empty($laneStatus['control']['requested'])||!empty($laneStatus['control']['reset_requested']);}));
+            $uid=$this->uid();$home=$this->root->getUserFolder($uid);$current=$this->settings->forUser($uid)->get();
+            $this->settings->saveAccount($uid,$config,function(array $candidate)use($home,$busy,$current,&$blocked){
+                foreach($busy as $lane)if(Settings::laneSelection($current,$lane)!==Settings::laneSelection($candidate,$lane))$blocked[]=$lane;
+                if($blocked)throw new \OCP\AppFramework\OCS\OCSBadRequestException('busy');
                 foreach(array_merge($candidate['folders'],$candidate['exclude_folders']) as $path){$folder=$path==='/'?$home:$home->get(ltrim($path,'/'));if(!$folder instanceof Folder||!$folder->isReadable())throw new \OCP\AppFramework\OCS\OCSBadRequestException('Ein Ordner fehlt oder ist nicht lesbar.');}
             });
             $this->library->forUser($uid)->invalidate();
             return $this->config();
-        }catch(\OCP\AppFramework\OCS\OCSBadRequestException|\OCP\Files\NotFoundException|\OCP\Files\NotPermittedException $e){return new DataResponse(['error'=>'Ordnerauswahl oder Zeitplan ungültig. Bitte die Eingaben prüfen.'],400);}
+        }catch(\OCP\AppFramework\OCS\OCSBadRequestException|\OCP\Files\NotFoundException|\OCP\Files\NotPermittedException $e){
+            if($blocked)return new DataResponse(['error'=>'Diese Änderung betrifft eine laufende Verarbeitung. Bitte zuerst pausieren und das Ende der aktuellen Datei abwarten.','busy'=>$blocked],409);
+            return new DataResponse(['error'=>'Ordnerauswahl oder Zeitplan ungültig. Bitte die Eingaben prüfen.'],400);
+        }
         finally{flock($lock,LOCK_UN);fclose($lock);}
     }
     #[NoAdminRequired]

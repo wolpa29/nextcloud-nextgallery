@@ -144,6 +144,7 @@ $tr = static fn(string $text): string => $isGerman ? $text : ($english[$text] ??
       <button type="button" id="ch-people-inspect-self" class="ch-button" title="<?php p($tr('Volles Bild mit markiertem Gesichtsausschnitt ansehen')); ?>"><?php p($tr('Bildkontext')); ?></button>
       <button type="button" id="ch-people-toggle-stranger" class="ch-button" title="<?php p($tr('Person in den Sammelordner „Unbekannte Personen“ verschieben')); ?>"><?php p($tr('Kenne ich nicht')); ?></button>
       <button id="ch-people-toggle-hide" class="ch-button"><?php p($tr('Ausblenden')); ?></button>
+      <button type="button" id="ch-people-resort" class="ch-button" title="<?php p($tr('Fotos dieser Person erneut mit allen anderen Personen vergleichen und eindeutige Treffer dorthin verschieben')); ?>"><?php p($tr('Neu sortieren')); ?></button>
       <button id="ch-people-merge" class="ch-button ch-primary"><?php p($tr('Zusammenführen')); ?></button>
       <button id="ch-people-resolve" class="ch-button" hidden><?php p($tr('Überprüfung auflösen')); ?></button>
      </div>
@@ -271,6 +272,24 @@ $tr = static fn(string $text): string => $isGerman ? $text : ($english[$text] ??
    </div>
    <div class="ch-confirm-actions">
     <button type="button" id="ch-people-share-close"><?php p($tr('Schließen')); ?></button>
+   </div>
+  </dialog>
+  <dialog id="ch-people-resort-dialog" aria-labelledby="ch-people-resort-title">
+   <form method="dialog" class="ch-dialog-head"><h2 id="ch-people-resort-title"><?php p($tr('Person neu sortieren')); ?></h2><button aria-label="<?php p($tr('Schließen')); ?>" class="ch-dialog-close"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></form>
+   <p id="ch-people-resort-text" class="ch-hint"></p>
+   <label class="ch-people-share-toggle-row ch-people-resort-absent" for="ch-people-resort-absent">
+    <input type="checkbox" id="ch-people-resort-absent">
+    <span><strong id="ch-people-resort-absent-label"></strong><small id="ch-people-resort-absent-hint"></small></span>
+   </label>
+   <div id="ch-people-resort-summary" class="ch-people-resort-summary" role="status" aria-live="polite"></div>
+   <label id="ch-people-resort-new-row" class="ch-people-share-toggle-row" for="ch-people-resort-new" hidden>
+    <input type="checkbox" id="ch-people-resort-new">
+    <span><strong id="ch-people-resort-new-label"></strong><small id="ch-people-resort-new-hint"></small></span>
+   </label>
+   <p id="ch-people-resort-error" class="ch-error-banner" role="alert" hidden></p>
+   <div class="ch-confirm-actions">
+    <button type="button" id="ch-people-resort-cancel"><?php p($tr('Abbrechen')); ?></button>
+    <button type="button" id="ch-people-resort-ok" class="ch-primary" disabled><?php p($tr('Neu sortieren')); ?></button>
    </div>
   </dialog>
   <dialog id="ch-people-action-dialog" aria-labelledby="ch-people-action-title">

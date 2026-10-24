@@ -8,6 +8,8 @@ import {
   buildActionPayload,
   buildResetPayload,
   buildBulkActionPayload,
+  buildResortPayload,
+  movedPhotos,
   bulkActionsForFilter,
   coverBoxStyle,
   formatPhotoCount,
@@ -902,6 +904,69 @@ test('Real DOM: Back to list resets pagination so list refreshes cleanly', async
   await browser.close();
 });
 
+test('Real DOM: Back to list keeps every page loaded with "Weitere Personen laden"', async (t) => {
+  if (!chromium) {
+    t.skip('Playwright not available');
+    return;
+  }
+
+  const browser = await chromium.launch({
+    executablePath: process.env.PLAYWRIGHT_EXECUTABLE || undefined,
+    headless: true,
+    args: ['--no-sandbox']
+  });
+  const page = await (await browser.newContext()).newPage();
+  await page.route('**/faces.mjs', (route) => route.fulfill({ status: 200, contentType: 'application/javascript', body: facesMjsContent }));
+  await page.setContent(HTML_SHELL);
+
+  await page.evaluate(async (modUrl) => {
+    const { createPeopleController } = await import(modUrl);
+    const people = Array.from({ length: 150 }, (_, i) => ({ id: 'subj-' + i, photo_count: 1, cover_id: 'cov-' + i }));
+    window.subjectCalls = [];
+    window.controller = createPeopleController({
+      root: document.getElementById('ch-people-view'),
+      dialogRoot: document.getElementById('nextgallery'),
+      api: async (endpoint) => {
+        if (endpoint.startsWith('subjects?')) {
+          const q = new URLSearchParams(endpoint.slice('subjects?'.length));
+          window.subjectCalls.push({ cursor: q.get('cursor'), limit: q.get('limit') });
+          const from = Number(q.get('cursor') || 0), limit = Math.min(100, Number(q.get('limit')));
+          const items = people.slice(from, from + limit);
+          const more = from + items.length < people.length;
+          return { items, more, next: more ? from + items.length : null };
+        }
+        return { items: [] };
+      },
+      getGallery: () => 'default'
+    });
+    window.controller.refresh();
+  }, facesMjsDataUri);
+
+  await page.waitForFunction(() => document.querySelectorAll('#ch-people-grid .ch-person-card').length === 60);
+  await page.locator('#ch-people-more').click();
+  await page.waitForFunction(() => document.querySelectorAll('#ch-people-grid .ch-person-card').length === 120);
+  await page.locator('#ch-people-more').click();
+  await page.waitForFunction(() => document.querySelectorAll('#ch-people-grid .ch-person-card').length === 150);
+
+  await page.evaluate(() => { window.subjectCalls = []; });
+  await page.locator('#ch-people-grid .ch-person-card').nth(140).click();
+  await page.waitForFunction(() => !document.getElementById('ch-person-detail').hidden);
+  await page.locator('#ch-people-back').click();
+  await page.waitForFunction(() => document.getElementById('ch-person-detail').hidden && document.getElementById('ch-people-loading').hidden);
+  await page.waitForFunction(() => window.subjectCalls.length >= 2);
+
+  const result = await page.evaluate(() => ({
+    cards: document.querySelectorAll('#ch-people-grid .ch-person-card').length,
+    calls: window.subjectCalls,
+    moreHidden: document.getElementById('ch-people-more-wrap').hidden
+  }));
+  assert.equal(result.cards, 150, 'all loaded people stay in the list');
+  assert.deepEqual(result.calls, [{ cursor: null, limit: '100' }, { cursor: '100', limit: '60' }]);
+  assert.equal(result.moreHidden, true, 'nothing left to load');
+
+  await browser.close();
+});
+
 test('Real DOM: Multi-detection selection is honest and merge dialog renders human labels', async (t) => {
   if (!chromium) {
     t.skip('Playwright not available');
@@ -1000,6 +1065,69 @@ test('Real DOM: Multi-detection selection is honest and merge dialog renders hum
   // Close merge dialog
   await page.locator('#ch-people-merge-cancel').click();
   assert.equal(await page.evaluate(() => document.getElementById('ch-people-merge-dialog').open), false, 'Merge dialog closed');
+
+  await browser.close();
+});
+
+test('Real DOM: Shift+click selects a range of photos and of people cards', async (t) => {
+  if (!chromium) {
+    t.skip('Playwright not available');
+    return;
+  }
+
+  const browser = await chromium.launch({
+    executablePath: process.env.PLAYWRIGHT_EXECUTABLE || undefined,
+    headless: true,
+    args: ['--no-sandbox']
+  });
+  const page = await (await browser.newContext()).newPage();
+  await page.setContent(HTML_SHELL);
+
+  await page.evaluate(async (modUrl) => {
+    const { createPeopleController } = await import(modUrl);
+    window.actionCalls = [];
+    window.controller = createPeopleController({
+      root: document.getElementById('ch-people-view'),
+      dialogRoot: document.getElementById('nextgallery'),
+      api: async (endpoint, options = {}) => {
+        if (endpoint.includes('subjects?')) {
+          return { items: [1, 2, 3, 4].map(n => ({ id: 'subj-' + n, photo_count: 3, cover_id: 'c' + n })) };
+        }
+        if (endpoint.includes('/media?')) {
+          return { items: [1, 2, 3, 4, 5].map(n => ({ id: 300 + n, name: n + '.jpg', face_detection_ids: ['det-' + n] })) };
+        }
+        if (endpoint.includes('/action')) {
+          window.actionCalls.push(JSON.parse(options.body));
+          return { ok: true };
+        }
+        return { items: [] };
+      },
+      getGallery: () => 'default'
+    });
+    window.controller.refresh();
+  }, facesMjsDataUri);
+
+  // People cards: in select mode, Shift+click fills the range from the last clicked card
+  await page.waitForFunction(() => document.querySelectorAll('#ch-people-grid .ch-person-card').length === 4);
+  await page.locator('#ch-people-select-mode').click();
+  await page.locator('#ch-people-grid .ch-person-card[data-id="subj-1"]').click();
+  await page.locator('#ch-people-grid .ch-person-card[data-id="subj-3"]').click({ modifiers: ['Shift'] });
+  assert.ok((await page.locator('#ch-people-bulk-count').textContent()).includes('3 Personen'), 'Shift+click selects three people');
+  await page.locator('#ch-people-select-mode').click();
+
+  // Photos: first plain click sets the anchor, Shift+click selects everything in between
+  await page.locator('#ch-people-grid .ch-person-card[data-id="subj-1"]').click();
+  await page.waitForFunction(() => document.querySelectorAll('#ch-person-media-grid .ch-person-media-tile').length === 5);
+  await page.locator('#ch-person-media-grid .ch-person-media-tile[data-id="302"] input').click();
+  await page.locator('#ch-person-media-grid .ch-person-media-tile[data-id="305"] img').click({ modifiers: ['Shift'] });
+  assert.ok((await page.locator('#ch-people-selection-count').textContent()).includes('4 Fotos'), 'Shift+click selects four photos');
+
+  await page.locator('#ch-people-remove-selected').click();
+  await page.waitForFunction(() => document.getElementById('ch-people-action-dialog').open);
+  await page.locator('#ch-people-action-ok').click();
+  await page.waitForFunction(() => window.actionCalls.length === 1);
+  const action = await page.evaluate(() => window.actionCalls[0]);
+  assert.deepEqual([...action.detection_ids].sort(), ['det-2', 'det-3', 'det-4', 'det-5'], 'Range excludes photos before the anchor');
 
   await browser.close();
 });
@@ -1157,6 +1285,56 @@ test('DOM: Detail view offers suggestions, merges into the open person and dismi
   assert.deepEqual(JSON.parse(mergeCall.options.body), { action: 'merge', ids: ['other-2'], target_id: 'subj-1', rules_revision: 6 });
   assert.equal(section.hidden, true, 'panel hides when no suggestions remain');
   assert.equal(controller.getSelectedSubject().id, 'subj-1', 'the open person stays open');
+});
+
+test('DOM: "Kenne ich nicht" on a suggestion moves the suggested person to unknown people and can be undone', async () => {
+  const { root, elements, makeEl } = setupMockDOM();
+  makeEl('ch-people-similar');
+  makeEl('ch-people-similar-list');
+  makeEl('ch-people-undo-bar').hidden = true;
+  makeEl('ch-people-undo-text');
+  makeEl('ch-people-undo-btn');
+  const calls = [];
+  const controller = createPeopleController({
+    root,
+    dialogRoot: root,
+    api: async (endpoint, options = {}) => {
+      calls.push({ endpoint, options });
+      if (endpoint.includes('/similar?')) {
+        return {
+          items: [
+            { id: 'stranger-1', photo_count: 2, cover_id: 'c1', similarity: 0.7 },
+            { id: 'known-1', label: 'Max', photo_count: 9, cover_id: 'c2', similarity: 0.6 }
+          ],
+          rules_revision: 5
+        };
+      }
+      if (endpoint.endsWith('/action')) return { success: true, rules_revision: 6 };
+      return { items: [] };
+    },
+    getGallery: () => 'default'
+  });
+
+  controller.setFilter('all');
+  await controller.openSubject({ id: 'subj-1', photo_count: 3 });
+  const list = elements.get('ch-people-similar-list');
+  const labels = (card) => [...card.querySelector('.ch-people-similar-actions').children].map((b) => b.textContent);
+  assert.deepEqual(labels(list.children[0]), ['Zusammenführen', 'Andere Person', 'Kenne ich nicht', 'Fotos & Kontext']);
+  assert.deepEqual(labels(list.children[1]), ['Zusammenführen', 'Andere Person', 'Fotos & Kontext'], 'a named suggestion is known');
+
+  const stranger = [...list.children[0].querySelector('.ch-people-similar-actions').children].find((b) => b.textContent === 'Kenne ich nicht');
+  await stranger.onclick();
+  const strangerCall = calls.find((c) => c.endpoint.endsWith('/action'));
+  assert.equal(strangerCall.endpoint, 'subjects/stranger-1/action', 'the suggested person is moved, not the open one');
+  assert.deepEqual(JSON.parse(strangerCall.options.body), { action: 'stranger', rules_revision: 5 });
+  assert.deepEqual([...list.children].map((c) => c.dataset.id), ['known-1']);
+  assert.equal(controller.getSelectedSubject().id, 'subj-1', 'the open person stays open');
+  assert.equal(elements.get('ch-people-undo-bar').hidden, false, 'undo is offered');
+
+  await elements.get('ch-people-undo-btn').onclick();
+  const undoCall = calls.filter((c) => c.endpoint.endsWith('/action')).at(-1);
+  assert.equal(undoCall.endpoint, 'subjects/stranger-1/action');
+  assert.equal(JSON.parse(undoCall.options.body).action, 'unstranger');
 });
 
 test('DOM: Suggestions are not requested for review, hidden or known filtered groups', async () => {
@@ -1920,8 +2098,20 @@ test('Real DOM: Shared sorting dialog opens, toggles share_sorting, and adopts s
   assert.equal(body.mode, 'share');
   assert.equal(body.enabled, true);
 
-  // Click adopt button for Alice (executes adoption)
-  await page.locator('#ch-people-share-list button:has-text("Sortierung übernehmen")').click();
+  // Adopting asks for confirmation first; cancelling sends nothing
+  const adoptBtn = page.locator('#ch-people-share-list button:has-text("Sortierung übernehmen")');
+  await adoptBtn.click();
+  await page.waitForFunction(() => document.getElementById('ch-people-action-dialog').open);
+  const confirmText = await page.locator('#ch-people-action-text').textContent();
+  assert.ok(confirmText.includes('Alice') && confirmText.includes('15 Fotos'), 'Confirmation names source and photo count');
+  await page.locator('#ch-people-action-cancel').click();
+  await page.waitForFunction(() => !document.getElementById('ch-people-action-dialog').open);
+  assert.equal(await page.evaluate(() => window.sharedCalls.filter(c => c.options.method === 'POST').length), 1, 'Cancelled adoption sends no request');
+
+  // Confirming executes the adoption
+  await adoptBtn.click();
+  await page.waitForFunction(() => document.getElementById('ch-people-action-dialog').open);
+  await page.locator('#ch-people-action-ok').click();
   await page.waitForFunction(() => window.sharedCalls.filter(c => c.options.method === 'POST').length >= 2);
 
   const adoptCall = await page.evaluate(() => window.sharedCalls.filter(c => c.options.method === 'POST')[1]);
@@ -2279,4 +2469,133 @@ test('DOM: A correction finishing after a gallery switch cannot overwrite the ne
   assert.equal(controller.getSelectedSubject(),null);
   assert.notEqual(controller.getRulesRevision(),99);
   assert.equal(elements.get('ch-person-detail').hidden,true);
+});
+
+test('buildResortPayload validates rest and keeps only distinct selected faces', () => {
+  assert.deepEqual(buildResortPayload({ rules_revision: 4 }), { rest: 'stay', dry_run: true, rules_revision: 4 });
+  assert.deepEqual(buildResortPayload({ keep_ids: ['a', 'a', '', 'b'], rest: 'new', dry_run: false, rules_revision: 5 }),
+    { rest: 'new', dry_run: false, rules_revision: 5, keep_ids: ['a', 'b'] });
+  assert.throws(() => buildResortPayload({ rest: 'delete', rules_revision: 1 }), /Invalid rest/);
+  assert.throws(() => buildResortPayload({ rules_revision: '1' }), /rules_revision/);
+  assert.deepEqual(buildResortPayload({ keep_ids: ['a'], rest: 'stay', absent: true, rules_revision: 2 }), { rest: 'new', dry_run: true, rules_revision: 2, absent: true });
+  assert.equal(movedPhotos({ targets: [{ photo_count: 3 }, { photo_count: 2 }], rest: 4 }), 5);
+  assert.equal(movedPhotos({ targets: [{ photo_count: 3 }], rest: 4 }, true), 7);
+});
+
+test('DOM: Re-sorting a person previews the moves, applies the chosen rest and can be undone', async () => {
+  const { root, elements, makeEl } = setupMockDOM();
+  for (const id of ['ch-people-resort', 'ch-people-resort-dialog', 'ch-people-resort-text', 'ch-people-resort-summary',
+    'ch-people-resort-new-row', 'ch-people-resort-new-label', 'ch-people-resort-new-hint', 'ch-people-resort-error',
+    'ch-people-resort-ok', 'ch-people-resort-cancel', 'ch-people-undo-bar', 'ch-people-undo-text', 'ch-people-undo-btn']) makeEl(id);
+  makeEl('ch-people-resort-new', 'input');
+  const calls = [];
+  const summary = { checked: 11, stay: 1, kept: 1, rest: 5, new_groups: 4, new_people: 1,
+    targets: [{ id: 'lena', label: 'Lena', cover_id: 'c1', photo_count: 3 }, { id: 'max', label: null, cover_id: null, photo_count: 2 }] };
+  const controller = createPeopleController({ root, dialogRoot: root, api: async (endpoint, options = {}) => {
+    const body = options.body ? JSON.parse(options.body) : null;
+    calls.push({ endpoint, body });
+    if (endpoint === 'subjects/vale/resort') return body.dry_run
+      ? { dry_run: true, rules_revision: 7, summary }
+      : { success: true, rules_revision: 8, summary, moved: [{ detection_id: 'd1', target_id: 'lena' }, { detection_id: 'd2', target_id: 'new' }], label: 'Valentina', cover_id: 'c0' };
+    if (endpoint === 'subjects/vale/resort-undo') return { success: true, rules_revision: 9 };
+    return { items: [], rules_revision: 7 };
+  } });
+  await controller.openSubject({ id: 'vale', label: 'Valentina', photo_count: 12 });
+  await elements.get('ch-people-resort').onclick();
+  const dialog = elements.get('ch-people-resort-dialog');
+  const ok = elements.get('ch-people-resort-ok');
+  assert.equal(dialog.open, true);
+  assert.deepEqual(calls.find(c => c.endpoint === 'subjects/vale/resort').body, { rest: 'stay', dry_run: true, rules_revision: 7 });
+  const texts = () => JSON.stringify(elements.get('ch-people-resort-summary').children.map(function flat(n) { return [n.textContent, ...(n.children || []).map(flat)]; }));
+  assert.match(texts(), /→ Lena/);
+  assert.match(texts(), /Unbenannte Person/);
+  assert.match(texts(), /Bleiben bei Valentina.*7 Fotos/, 'unclear photos stay by default');
+  assert.equal(elements.get('ch-people-resort-new-row').hidden, false);
+  assert.equal(ok.disabled, false);
+
+  const rest = elements.get('ch-people-resort-new');
+  rest.checked = true; rest.onchange();
+  assert.match(texts(), /Neue unbenannte Personen.*5 Fotos/);
+  assert.match(texts(), /Bleiben bei Valentina.*2 Fotos/);
+
+  await ok.onclick();
+  const apply = calls.filter(c => c.endpoint === 'subjects/vale/resort').at(-1).body;
+  assert.deepEqual(apply, { rest: 'new', dry_run: false, rules_revision: 7 });
+  assert.equal(dialog.open, false);
+  assert.equal(elements.get('ch-people-undo-bar').hidden, false);
+  assert.match(elements.get('ch-people-undo-text').textContent, /Valentina wurde neu sortiert: 10 Fotos verschoben/);
+
+  await elements.get('ch-people-undo-btn').onclick();
+  const undo = calls.find(c => c.endpoint === 'subjects/vale/resort-undo');
+  assert.deepEqual(undo.body.detection_ids, ['d1', 'd2']);
+  assert.equal(undo.body.label, 'Valentina');
+});
+
+test('DOM: Moving selected photos away keeps the loaded pages; the rest moves up and the end is refilled', async () => {
+  const { root, elements } = setupMockDOM();
+  let photos = Array.from({ length: 150 }, (_, i) => ({ id: i + 1, name: `p${i + 1}`, face_detection_ids: [`d${i + 1}`] }));
+  const mediaCalls = [];
+  const controller = createPeopleController({ root, dialogRoot: root, api: async (endpoint, options = {}) => {
+    if (endpoint.includes('/media?')) {
+      const cursor = Number(new URLSearchParams(endpoint.split('?')[1]).get('cursor') || 0);
+      mediaCalls.push(cursor);
+      const items = photos.slice(cursor, cursor + 60);
+      return { items, next: cursor + items.length, more: cursor + items.length < photos.length, rules_revision: 3 };
+    }
+    if (endpoint.endsWith('/action')) {
+      const moved = new Set(JSON.parse(options.body).detection_ids);
+      photos = photos.filter((p) => !moved.has(p.face_detection_ids[0]));
+      return { success: true, rules_revision: 4, target_id: 'other' };
+    }
+    return { items: [] };
+  } });
+  await controller.openSubject({ id: 'person', photo_count: 150 });
+  await elements.get('ch-people-media-more').onclick();
+  await new Promise((r) => setTimeout(r, 0));
+  const tiles = () => elements.get('ch-person-media-grid').children.map((t) => Number(t.dataset.id));
+  assert.equal(tiles().length, 120);
+  // Select the first ten photos and split them off.
+  for (const tile of elements.get('ch-person-media-grid').children.slice(0, 10)) tile.children[0].onclick({ stopPropagation() {} });
+  mediaCalls.length = 0;
+  await elements.get('ch-people-split-selected').onclick();
+  assert.deepEqual(mediaCalls, [110], 'only the next page after the remaining photos is requested');
+  assert.equal(tiles().length, 140);
+  assert.deepEqual(tiles().slice(0, 3), [11, 12, 13], 'the remaining photos move up');
+  assert.equal(new Set(tiles()).size, tiles().length, 'no photo appears twice');
+});
+
+test('DOM: A person absent from the gallery is left out of the re-sort and its unclear photos become new people', async () => {
+  const { root, elements, makeEl } = setupMockDOM();
+  for (const id of ['ch-people-resort', 'ch-people-resort-dialog', 'ch-people-resort-text', 'ch-people-resort-summary',
+    'ch-people-resort-new-row', 'ch-people-resort-new-label', 'ch-people-resort-new-hint', 'ch-people-resort-error',
+    'ch-people-resort-ok', 'ch-people-resort-cancel', 'ch-people-resort-absent-label', 'ch-people-resort-absent-hint']) makeEl(id);
+  makeEl('ch-people-resort-new', 'input');
+  makeEl('ch-people-resort-absent', 'input');
+  const bodies = [];
+  const controller = createPeopleController({ root, dialogRoot: root, api: async (endpoint, options = {}) => {
+    if (endpoint === 'subjects/vale/resort') {
+      const body = JSON.parse(options.body);
+      bodies.push(body);
+      const summary = body.absent
+        ? { checked: 12, stay: 0, kept: 0, rest: 7, new_groups: 4, new_people: 1, targets: [{ id: 'lena', label: 'Lena', photo_count: 3 }] }
+        : { checked: 11, stay: 1, kept: 1, rest: 5, new_groups: 4, new_people: 1, targets: [{ id: 'lena', label: 'Lena', photo_count: 3 }] };
+      return body.dry_run ? { dry_run: true, rules_revision: 7, summary } : { success: true, rules_revision: 8, summary, moved: [] };
+    }
+    return { items: [], rules_revision: 7 };
+  } });
+  await controller.openSubject({ id: 'vale', label: 'Valentina', photo_count: 12 });
+  // A selection must not leak into the absent request.
+  await elements.get('ch-people-resort').onclick();
+  assert.match(elements.get('ch-people-resort-absent-label').textContent, /Valentina ist in dieser Galerie nicht zu sehen/);
+  const absent = elements.get('ch-people-resort-absent');
+  absent.checked = true;
+  await absent.onchange();
+  assert.deepEqual(bodies.at(-1), { rest: 'new', dry_run: true, rules_revision: 7, absent: true });
+  const texts = JSON.stringify(elements.get('ch-people-resort-summary').children.map(function flat(n) { return [n.textContent, ...(n.children || []).map(flat)]; }));
+  assert.match(texts, /Neue unbenannte Personen.*7 Fotos/);
+  assert.doesNotMatch(texts, /Bleiben bei/);
+  assert.equal(elements.get('ch-people-resort-new-row').hidden, true, 'the rest choice is fixed for an absent person');
+  await elements.get('ch-people-resort-ok').onclick();
+  assert.deepEqual(bodies.at(-1), { rest: 'new', dry_run: false, rules_revision: 7, absent: true });
+  assert.equal(controller.getSelectedSubject(), null, 'the view returns to the overview');
 });

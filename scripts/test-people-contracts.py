@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Isolated People integration test suite running all 8 real People database and controller contracts.
+"""Isolated People integration test suite running all 10 real People database and controller contracts.
 Uses isolated disposable containers with unique names/ports and synthetic media only.
 """
 import argparse, json, os, shutil, subprocess, sys, time, urllib.request, urllib.error, struct, zlib
@@ -74,6 +74,8 @@ def main():
         'faces-account-scope-contract.php',
         'faces-contract.php',
         'faces-quality-contract.php',
+        'faces-order-contract.php',
+        'faces-resort-contract.php',
         'faces-shared-contract.php',
         'faces-suggestions-contract.php',
         'faces-user-features-contract.php',

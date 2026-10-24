@@ -53,6 +53,17 @@ check(Settings::stagesFor($selection,'/Photos/Screens/b.png')===['ocr'],'Most sp
 check(Settings::stagesFor($selection,'/Photos/Screenshots/c.png')===['descriptions'],'Prefix without separator matched a sibling');
 check(Settings::stagesFor(['folders'=>['/Photos'],'folder_stages'=>[]],'/Other/d.jpg')===[],'Unselected path received pipelines');
 
+// A running pipeline only blocks selection changes that alter where it applies.
+$running=['folders'=>['/Camera','/Family'],'exclude_folders'=>[],'folder_stages'=>['/Camera'=>$all,'/Family'=>$all],'faces_filters'=>[]];
+$withAudio=array_replace_recursive($running,['folder_stages'=>['/Family'=>[...$all,'audio']]]);
+check(Settings::laneSelection($running,'descriptions')===Settings::laneSelection($withAudio,'descriptions'),'Audio choice blocked the description run');
+check(Settings::laneSelection($running,'audio')!==Settings::laneSelection($withAudio,'audio'),'Audio choice not seen by the audio run');
+$nested=$running;$nested['folders'][]='/Camera/Old';$nested['folder_stages']['/Camera/Old']=['descriptions','audio'];
+check(Settings::laneSelection($running,'descriptions')===Settings::laneSelection($nested,'descriptions'),'Nested folder repeating the description choice blocked the run');
+check(Settings::laneSelection($running,'ocr')!==Settings::laneSelection($nested,'ocr'),'Nested folder dropping OCR not seen by the OCR run');
+$excluded=$running;$excluded['exclude_folders']=['/Camera/Private'];
+check(Settings::laneSelection($running,'descriptions')!==Settings::laneSelection($excluded,'descriptions')&&Settings::laneSelection($running,'audio')===Settings::laneSelection($excluded,'audio'),'Exclusion not limited to pipelines that use the folders');
+
 // Worker inventory: each pipeline receives only files of folders that run it.
 class Cache {public function getNumericStorageId(){return 1;}}
 class Storage {public function getCache(){return new Cache();}}

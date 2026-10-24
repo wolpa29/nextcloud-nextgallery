@@ -220,6 +220,17 @@ class Settings {
         $result=[];foreach($folders as $folder)$result[$folder]=$chosen[$folder]??self::DEFAULT_STAGES;
         return $result;
     }
+    /** Where one pipeline applies; a folder that only repeats its parent's choice changes nothing for that pipeline. */
+    public static function laneSelection(array $config,string $lane):array {
+        $folders=$config['folders'];sort($folders);$choices=[];
+        foreach($folders as $folder){
+            $parent=null;foreach($folders as $other)if($other!==$folder&&($other==='/'||str_starts_with($folder,$other.'/'))&&($parent===null||strlen($other)>strlen($parent)))$parent=$other;
+            $own=in_array($lane,$config['folder_stages'][$folder]??self::DEFAULT_STAGES,true);
+            if($own!==($parent!==null&&in_array($lane,$config['folder_stages'][$parent]??self::DEFAULT_STAGES,true)))$choices[$folder]=$own;
+        }
+        $excluded=$config['exclude_folders'];sort($excluded);
+        return ['folders'=>$choices,'exclude_folders'=>$choices?$excluded:[]]+($lane==='faces'?['faces_filters'=>$config['faces_filters']??[]]:[]);
+    }
     /** Pipelines for a path below the home folder: the most specific selected folder decides. */
     public static function stagesFor(array $config,string $path):array {
         $path='/'.ltrim($path,'/');$best=null;

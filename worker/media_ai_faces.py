@@ -226,6 +226,10 @@ class FaceStore:
         cur = self.conn.execute("SELECT 1 FROM files WHERE file_id = ? AND etag = ? AND status = 'error'", (file_id, etag))
         return cur.fetchone() is not None
 
+    def requeue_errors(self):
+        with self.conn:
+            self.conn.execute("UPDATE files SET status = 'pending', error = NULL WHERE status = 'error'")
+
     def record_file(self, file_id: int, etag: str, status: str, face_count: int = 0, error: str = ''):
         with self.conn:
             self.conn.execute(
@@ -935,6 +939,9 @@ def run(
     }
 
     store = FaceStore(directory / 'faces.sqlite3')
+    if retry_errors:
+        # Show retried files as pending right away; the backend sync and inventory can take minutes.
+        store.requeue_errors()
     cluster_index = FaceClusterIndex(cosine_threshold=cosine_thresh)
     detector = None
 

@@ -18,7 +18,9 @@
    const routes={gallery:'/gallery',account:'/processing',admin:'/ai'};
    const base=location.pathname.replace(/\/(?:ai|processing)\/?$/,'');
    const page=Object.keys(routes).find(page=>target.pathname===base+routes[page]);
-   if(page){event.preventDefault();event.stopImmediatePropagation();window.parent.postMessage({type:'nextgallery-ai-navigation',page},location.origin);}
+   if(page){event.preventDefault();event.stopImmediatePropagation();window.parent.postMessage({type:'nextgallery-ai-navigation',page},location.origin);return;}
+   // Other Nextcloud pages (e.g. /f/<id> file links) must not load the full Nextcloud UI inside the embedded frame.
+   if(target.pathname!==location.pathname&&/^https?:$/.test(target.protocol)&&!link.hasAttribute('download')){event.preventDefault();event.stopImmediatePropagation();window.open(target.href,'_blank','noopener');}
   },true);
  }
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();

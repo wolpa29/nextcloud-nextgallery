@@ -29,7 +29,7 @@ async function start(){
  try{hintDismissed=localStorage.getItem(hintKey)==='hidden';}catch{}
  $('ch-ai-hint-dismiss')?.addEventListener('click',()=>{hintDismissed=true;$('ch-ai-feature').hidden=true;try{localStorage.setItem(hintKey,'hidden');}catch{}});
  let loadGeneration=0,displayContext=null,viewerPager=null,viewerGeneration=0,viewerBusy=false;
- let scanning=false,pinning=false,pinCancel=false,mapHandle=null,currentItem=null,viewerList=[],folderPath='/',draftRoots=[...settings.roots];
+ let scanning=false,persisting=0,pinning=false,pinCancel=false,mapHandle=null,currentItem=null,viewerList=[],folderPath='/',draftRoots=[...settings.roots];
  const peopleController=createPeopleController({root:$('ch-people-view'),dialogRoot:root,api:async(endpoint,options={})=>{const rootUrl=(window.NextGallerySession||window.OC)?.generateUrl?(window.NextGallerySession||window.OC).generateUrl('/apps/nextgallery/api/v1/'):(base+'/api/v1/');const url=rootUrl.replace(/\/+$/,'')+'/'+endpoint.replace(/^\/+/,'');const r=await fetch(url,{credentials:'same-origin',signal:options.signal,...options,headers:{'Content-Type':'application/json',requesttoken:(window.NextGallerySession||window.OC)?.requestToken||'',...options.headers}});if(r.redirected||r.status===401||r.status===403)throw new Error(tr('Die Sitzung ist abgelaufen. Bitte Nextcloud erneut öffnen.'));let data;try{data=await r.json();}catch{throw new Error(tr('Keine Verbindung zu Nextcloud.'));}if(!r.ok){const error=new Error(data.error||tr`Anfrage fehlgeschlagen (${r.status}).`);error.status=r.status;error.retryable=r.status===409;throw error;}return data;},base,getGallery:()=>settings.activeGallery||'default',tr,locale,openViewer:(item,list)=>openViewer(item,list),imageURL:item=>imageURL(item),previewUrl:detectionId=>{const rootUrl=(window.NextGallerySession||window.OC)?.generateUrl?(window.NextGallerySession||window.OC).generateUrl('/apps/nextgallery/api/v1/'):(base+'/api/v1/');return rootUrl.replace(/\/+$/,'')+'/subjects/preview/'+encodeURIComponent(detectionId)+'?gallery='+encodeURIComponent(settings.activeGallery||'default');}});
  const scroll=$('ch-scroll'),canvas=$('ch-canvas'),rail=$('ch-rail');
  function message(text,retry=null){
@@ -46,7 +46,7 @@ async function start(){
   const r=await fetch(base+'/api/'+path,{credentials:'same-origin',...options,headers:{'Content-Type':'application/json',requesttoken:(window.NextGallerySession||window.OC)?.requestToken||'',...options.headers}});
   if(r.redirected||r.status===401||r.status===403)throw new Error(tr('Die Sitzung ist abgelaufen. Bitte Nextcloud erneut öffnen.'));
   let data;try{data=await r.json();}catch{throw new Error(tr('Keine Verbindung zu Nextcloud.'));}
-  if(!r.ok){const error=new Error(data.error||tr`Anfrage fehlgeschlagen (${r.status}).`);error.retryable=r.status===409&&data.retryable===true;throw error;}return data;
+  if(!r.ok){const error=new Error(data.error||tr`Anfrage fehlgeschlagen (${r.status}).`);error.status=r.status;error.retryable=r.status===409&&data.retryable===true;throw error;}return data;
  }
  function label(key){const [y,m,d]=key.split('-').map(Number);if(!m)return String(y);return new Intl.DateTimeFormat(locale,{year:'numeric',month:'long',...(d?{day:'numeric'}:{}),timeZone:'UTC'}).format(new Date(Date.UTC(y,m-1,d||1)));}
  function count(n){return new Intl.NumberFormat(locale).format(n);}
@@ -94,7 +94,8 @@ async function start(){
  }
  async function persist(patch){
   if(offlineMode){settings={...settings,...patch};await load();return;}
-  let r;for(let attempt=0;attempt<10;attempt++){try{r=await api('settings',{method:'PUT',body:JSON.stringify({settings:patch})});break;}catch(error){if(!error.retryable||attempt===9)throw error;await new Promise(resolve=>setTimeout(resolve,Math.min(750,150*(attempt+1))));}}
+  // The scan loop pauses while settings are saved so folder changes can take the index lock.
+  let r;persisting++;try{for(let attempt=0;attempt<10;attempt++){try{r=await api('settings',{method:'PUT',body:JSON.stringify({settings:patch})});break;}catch(error){if(!error.retryable||attempt===9)throw error;await new Promise(resolve=>setTimeout(resolve,Math.min(750,150*(attempt+1))));}}}finally{persisting--;}
   settings=r.settings;settingsRevision++;
   if(displayContext&&displayContext!==galleryContext()){clearPresentation();summary=null;geometry=null;displayContext=null;}
   if(cacheKey!==r.cacheKey){if(db){db.close();db=null;}releaseUrls();cacheKey=r.cacheKey;await clearOld();await storage();}
@@ -221,7 +222,7 @@ async function start(){
   if(!aiFrame){
    aiFrame=document.createElement('iframe');aiFrame.id='ch-ai-frame';aiFrame.title=tr('KI-Verarbeitung');
    aiFrame.addEventListener('load',()=>{
-    try{const doc=aiFrame.contentDocument;if(!doc||doc.URL==='about:blank')return;const shell=doc.querySelector('.mai-shell');if(shell)shell.dataset.appearance=settings.appearance||'system';else message(tr('Die Sitzung ist abgelaufen. Bitte Nextcloud erneut öffnen.'));}catch{handleError(new Error(tr('Keine Verbindung zu Nextcloud.')));}
+    try{const doc=aiFrame.contentDocument;if(!doc||doc.URL==='about:blank')return;const shell=doc.querySelector('.mai-shell');if(shell)shell.dataset.appearance=settings.appearance||'system';else if(!/\/login(?:\/|$)/.test(new URL(doc.URL).pathname)&&![new URL(ctx.aiUrl,location.href).pathname,base+'/processing'].includes(new URL(doc.URL).pathname))aiFrame.contentWindow.history.back();else message(tr('Die Sitzung ist abgelaufen. Bitte Nextcloud erneut öffnen.'));}catch{handleError(new Error(tr('Keine Verbindung zu Nextcloud.')));}
    });
    $('ch-ai-view').append(aiFrame);
   }
@@ -257,10 +258,10 @@ async function start(){
  function galleryName(){const g=settings.galleries?.find(g=>g.id===settings.activeGallery);return g?.name==='Galerie'?tr('Galerie'):g?.name||tr('Galerie');}
  async function switchGallery(id){
   if(switching||pinning)return;if(id===settings.activeGallery){$('ch-galleries-dialog').close();return;}
-  searchToken=null;switching=true;positions.set(settings.activeGallery,scroll.scrollTop);clearPresentation();summary=null;geometry=null;displayContext=null;searchGeneration++;searchRunner.cancel();peopleController?.onGalleryChange(id);
+  searchToken=null;switching=true;positions.set(settings.activeGallery,scroll.scrollTop);clearPresentation();summary=null;geometry=null;displayContext=null;searchGeneration++;searchRunner.cancel();
   if(mapHandle){mapViews.set(settings.activeGallery,mapHandle.position());mapHandle.remove();mapHandle=null;}
   closeViewer();$('ch-galleries-dialog').close();message('');
-  try{if(offlineMode){const g=settings.galleries.find(g=>g.id===id);if(!g)return;settings={...settings,activeGallery:id,roots:g.roots};if(db)db.close();db=null;releaseUrls();cacheKey=g.cacheKey;await storage();}else await persist({activeGallery:id});await load();if(view==='people')peopleController?.refresh();$('ch-search-results').replaceChildren();$('ch-search-status').textContent='';if($('ch-search-pages'))$('ch-search-pages').hidden=true;}
+  try{if(offlineMode){const g=settings.galleries.find(g=>g.id===id);if(!g)return;settings={...settings,activeGallery:id,roots:g.roots};if(db)db.close();db=null;releaseUrls();cacheKey=g.cacheKey;await storage();}else await persist({activeGallery:id});peopleController?.onGalleryChange(id);await load();$('ch-search-results').replaceChildren();$('ch-search-status').textContent='';if($('ch-search-pages'))$('ch-search-pages').hidden=true;}
   finally{switching=false;}
  }
  function galleryMenu(){
@@ -296,8 +297,8 @@ async function start(){
  async function folders(path){folderPath=path;const r=await api('folders?path='+encodeURIComponent(path));$('ch-folder-path').textContent=path;$('ch-select-folder').disabled=path==='/';$('ch-folder-up').disabled=path==='/';const list=$('ch-folder-list');list.replaceChildren();for(const f of r.folders){const b=document.createElement('button');b.innerHTML=icon('folder');b.append(document.createTextNode(f.name));b.onclick=()=>folders(f.path).catch(handleError);list.append(b);}if(!r.folders.length){const p=document.createElement('p');p.textContent=tr('Keine weiteren Unterordner.');list.append(p);}}
  on('ch-add-root','click',async()=>{await folders('/');$('ch-folder-dialog').showModal();});on('ch-folder-up','click',()=>folders(folderPath.substring(0,folderPath.lastIndexOf('/'))||'/'));on('ch-select-folder','click',()=>{if(!draftRoots.includes(folderPath))draftRoots.push(folderPath);renderRoots();$('ch-folder-dialog').close();});
  async function scan(restart){if(scanning||offlineMode)return;scanning=true;$('ch-refresh').classList.add('ch-spinning');try{let first=true,s;
-  do{s=await api('scan',{method:'POST',body:JSON.stringify({restart:first&&restart})});first=false;indexState(s);message(s.running?tr`${count(s.seen)} Medien erfasst · Indexierung läuft …`:'');if(s.running)await new Promise(resolve=>setTimeout(resolve,80));}while(s.running&&!offlineMode);
-  await load();if(s.errors)message(tr`${s.errors} Dateien oder Ordner konnten nicht eingelesen werden.`);
+  do{while(persisting)await new Promise(resolve=>setTimeout(resolve,100));try{s=await api('scan',{method:'POST',body:JSON.stringify({restart:first&&restart})});}catch(error){if(error.status!==409)throw error;await new Promise(resolve=>setTimeout(resolve,1000));continue;}first=false;indexState(s);message(s.running?tr`${count(s.seen)} Medien erfasst · Indexierung läuft …`:'');if(s.running)await new Promise(resolve=>setTimeout(resolve,80));}while((!s||s.running)&&!offlineMode);
+  await load();if(s?.errors)message(tr`${s.errors} Dateien oder Ordner konnten nicht eingelesen werden.`);
  }finally{scanning=false;$('ch-refresh').classList.remove('ch-spinning');}}
  on('ch-refresh','click',()=>scan(true));on('ch-reindex','click',()=>scan(true));
  on('ch-show-saved','click',async()=>{if(!offlineMeta)return;offlineMode=true;settings={...offlineMeta.settings};await load();await changeView('timeline');message(tr('Gespeicherte Vorschauen · auf diesem Gerät verfügbar.'));});

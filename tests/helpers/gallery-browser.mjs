@@ -81,7 +81,7 @@ export async function galleryFixture(t,{total=9,width=1100,height=850,items=null
    const items=state.items.filter(item=>!period||item.date.period.startsWith(period)).sort((a,b)=>b.date.sort.localeCompare(a.date.sort)||b.id-a.id);
    return route.fulfill({json:{items:items.slice(offset,offset+limit),more:offset+limit<items.length,next:offset+limit<items.length?offset+limit:null}});
   }
-  if(url.pathname.endsWith('/api/scan'))return route.fulfill({json:{running:false,completed:1,seen:state.items.length}});
+  if(url.pathname.endsWith('/api/scan')){const next=state.scanResponses?.shift();if(next)return route.fulfill(next);return route.fulfill({json:{running:false,completed:1,seen:state.items.length}});}
   if(url.pathname.endsWith('/api/map')){
    if(state.holdMap)await state.holdMap();
    const offset=Number(url.searchParams.get('offset')||0),items=state.items.filter(item=>item.metadata.gps),limit=200;

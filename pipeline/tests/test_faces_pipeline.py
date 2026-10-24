@@ -1,6 +1,7 @@
 """Unit tests for media_ai_faces pipeline execution."""
 import io
 from pathlib import Path
+import sqlite3
 import tempfile
 import unittest
 import urllib.error
@@ -274,6 +275,32 @@ class FacesPipelineTests(unittest.TestCase):
                 res_retry = faces.run(config, source, api, d, lambda *a, **kw: None, lambda: False, retry_errors=True)
                 self.assertEqual(res_retry['stats']['done'], 1)
                 mock_detector.process_image.assert_called_once()
+
+    def test_retry_requeues_errors_before_inventory(self):
+        with tempfile.TemporaryDirectory() as temp:
+            d = Path(temp)
+            models_dir = d / 'faces-local' / 'models'
+            models_dir.mkdir(parents=True)
+            (models_dir / 'face_detection_yunet_2023mar.onnx').touch()
+            (models_dir / 'face_recognition_sface_2021dec.onnx').touch()
+            config = {'faces': {'enabled': True}, '_model_directory': str(d), '_inference_directory': str(d)}
+            store = faces.FaceStore(d / 'faces.sqlite3')
+            store.set_meta('epoch', 'epoch-test-1')
+            store.set_meta('generation', '1')
+            store.set_meta('model_space', faces.MODEL_SPACE)
+            store.record_file(10, 'etag-10', 'error', error='corrupt image')
+            store.close()
+
+            # The library reads faces.sqlite3 while the run prepares, so retried files must already count as pending.
+            seen = []
+            class SlowSource(MockSource):
+                def inventory(self):
+                    db = sqlite3.connect(d / 'faces.sqlite3')
+                    seen.append(db.execute('SELECT status, error FROM files WHERE file_id = 10').fetchone())
+                    db.close()
+                    return []
+            faces.run(config, SlowSource([], self.raw_image), MockAPI(), d, lambda *a, **kw: None, lambda: False, retry_errors=True)
+            self.assertEqual(seen, [('pending', None)])
 
     def test_http_409_numeric_rules_revision_retries_without_reinference(self):
         with tempfile.TemporaryDirectory() as temp:

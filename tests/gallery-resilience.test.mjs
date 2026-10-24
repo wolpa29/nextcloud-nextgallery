@@ -156,3 +156,24 @@ test('The map stops downloading pages when hidden and resumes without duplicate 
  await page.waitForFunction(()=>document.getElementById('ch-map-count').textContent.includes('500'));
  assert.deepEqual(state.requests.filter(path=>path.includes('/api/map?')).map(path=>new URL('https://gallery.test'+path).searchParams.get('offset')),['0','200','400']);
 });
+
+test('Switching galleries in the people view loads only the new gallery and survives a busy index',async t=>{
+ const f=await galleryFixture(t);if(!f)return;const{page,state}=f;
+ await page.locator('nav [data-view="people"]').click();
+ await page.waitForFunction(()=>!document.getElementById('ch-people-view').hidden);
+ const switchedAt=state.requests.length;
+ await page.locator('#ch-gallery-switch').click();
+ await page.locator('#ch-gallery-list .ch-gallery-select').filter({hasText:'Andere Galerie'}).click();
+ await page.waitForFunction(()=>document.getElementById('ch-gallery-name').textContent==='Andere Galerie');
+ await page.waitForFunction(()=>!document.getElementById('ch-people-view').querySelector('[aria-busy="true"]'));
+ const subjects=state.requests.slice(switchedAt).filter(path=>path.includes('/api/v1/subjects'));
+ assert.ok(subjects.length>0,'New gallery loads its people');
+ assert.ok(subjects.every(path=>new URLSearchParams(path.split('?')[1]).get('gallery')==='other'),subjects.join('\n'));
+ // The background job holds the index lock for one step; the scan waits for it instead of stopping.
+ state.scanResponses=[{status:409,json:{error:'Indexierung läuft bereits.'}},{json:{running:true,seen:514}},{json:{running:false,completed:1,seen:600}}];
+ await page.locator('nav [data-view="timeline"]').click();
+ await page.locator('#ch-refresh').click();
+ await page.waitForFunction(()=>!document.getElementById('ch-refresh').classList.contains('ch-spinning'),null,{timeout:5000});
+ assert.equal(state.scanResponses.length,0);
+ assert.doesNotMatch(await page.locator('#ch-message').innerText(),/läuft bereits/);
+});

@@ -130,6 +130,18 @@ class FacesOcsController extends OCSController {
 
     #[NoAdminRequired]
     #[NoCSRFRequired]
+    public function resort(string $id, string $gallery = '', ?array $keep_ids = null, string $rest = 'stay', bool $dry_run = true, int $rules_revision = 0, bool $absent = false): DataResponse {
+        return $this->response($this->faces->resort($this->uid(), $id, $gallery, (array)($keep_ids ?? []), $rest, $dry_run, $rules_revision, $absent));
+    }
+
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
+    public function resortUndo(string $id, ?array $detection_ids = null, int $rules_revision = 0, ?string $label = null, ?string $cover_id = null): DataResponse {
+        return $this->response($this->faces->resortUndo($this->uid(), $id, (array)($detection_ids ?? []), $rules_revision, $label, $cover_id));
+    }
+
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function bulkAction(string $action = '', ?array $ids = null, int $rules_revision = 0, ?string $target_id = null): DataResponse {
         $uid = $this->uid();
         $actionName = $action !== '' ? $action : (string)$this->request->getParam('action', '');

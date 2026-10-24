@@ -75,6 +75,8 @@ return ['routes' => [
  ['name'=>'faces#previewPeople', 'url'=>'/api/v1/people/preview/{detectionId}', 'verb'=>'GET'],
  ['name'=>'faces#action', 'url'=>'/api/v1/subjects/{id}/action', 'verb'=>'POST'],
  ['name'=>'faces#bulkAction', 'url'=>'/api/v1/subjects/bulk-action', 'verb'=>'POST'],
+ ['name'=>'faces#resort', 'url'=>'/api/v1/subjects/{id}/resort', 'verb'=>'POST'],
+ ['name'=>'faces#resortUndo', 'url'=>'/api/v1/subjects/{id}/resort-undo', 'verb'=>'POST'],
  ['name'=>'faces#reset', 'url'=>'/api/v1/subjects/reset', 'verb'=>'POST'],
 ], 'ocs'=>[
  ['name'=>'native_search#search', 'url'=>'/api/v1/search', 'verb'=>'POST'],
@@ -92,5 +94,7 @@ return ['routes' => [
  ['name'=>'faces_ocs#similar', 'url'=>'/api/v1/subjects/{id}/similar', 'verb'=>'GET'],
  ['name'=>'faces_ocs#action', 'url'=>'/api/v1/subjects/{id}/action', 'verb'=>'POST'],
  ['name'=>'faces_ocs#bulkAction', 'url'=>'/api/v1/subjects/bulk-action', 'verb'=>'POST'],
+ ['name'=>'faces_ocs#resort', 'url'=>'/api/v1/subjects/{id}/resort', 'verb'=>'POST'],
+ ['name'=>'faces_ocs#resortUndo', 'url'=>'/api/v1/subjects/{id}/resort-undo', 'verb'=>'POST'],
  ['name'=>'faces_ocs#reset', 'url'=>'/api/v1/subjects/reset', 'verb'=>'POST'],
 ]];

@@ -505,6 +505,7 @@ assert.equal(pauseCall.kind, 'audio', 'Kind must be audio');
 
 // Transition to paused with pending
 audioState.state = 'paused';
+audioState.last_run = { processed: 3, seconds: 12 };
 audioState.control.paused = false;
 audioState.stats.pending = 4;
 audioState.stats.done = 3;
