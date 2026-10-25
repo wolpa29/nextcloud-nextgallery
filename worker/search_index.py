@@ -360,13 +360,22 @@ class SearchIndex:
             os.chmod(session_path,0o600)
             conn.execute('PRAGMA session_store.journal_mode=WAL')
         conn.execute("CREATE TABLE IF NOT EXISTS session_store.search_sessions(token TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, created_at INTEGER NOT NULL, total INTEGER NOT NULL, mode TEXT NOT NULL, state TEXT NOT NULL, space TEXT)")
-        conn.execute("CREATE TABLE IF NOT EXISTS session_store.search_results(token TEXT NOT NULL, position INTEGER NOT NULL, file_id INTEGER NOT NULL, path TEXT NOT NULL, etag TEXT NOT NULL, sources TEXT NOT NULL, PRIMARY KEY(token,position))")
+        conn.execute("CREATE TABLE IF NOT EXISTS session_store.search_results(token TEXT NOT NULL, position INTEGER NOT NULL, file_id INTEGER NOT NULL, path TEXT NOT NULL, etag TEXT NOT NULL, sources TEXT NOT NULL, similarity REAL, PRIMARY KEY(token,position))")
+        # Session stores created before similarity scores keep working after an update.
+        if 'similarity' not in {row[1] for row in conn.execute("PRAGMA session_store.table_info(search_results)")}:
+            conn.execute("ALTER TABLE session_store.search_results ADD COLUMN similarity REAL")
 
     @staticmethod
     def _page_session(conn, token, query, offset, limit):
         header = conn.execute("SELECT * FROM session_store.search_sessions WHERE token=?", (token,)).fetchone()
-        rows = conn.execute("SELECT file_id,path,etag,sources FROM session_store.search_results WHERE token=? AND position>=? ORDER BY position LIMIT ?", (token,offset,limit))
-        items = [{"file_id":row["file_id"],"path":row["path"],"etag":row["etag"],"search_match":{"query":query.strip(),"sources":json.loads(row["sources"])}} for row in rows]
+        rows = conn.execute("SELECT file_id,path,etag,sources,similarity FROM session_store.search_results WHERE token=? AND position>=? ORDER BY position LIMIT ?", (token,offset,limit))
+        def match(row):
+            value = {"query":query.strip(),"sources":json.loads(row["sources"])}
+            # Cosine similarity of the closest frame to the query; only vector hits carry one.
+            if row["similarity"] is not None and "embedding" in value["sources"]:
+                value["similarity"] = row["similarity"]
+            return value
+        items = [{"file_id":row["file_id"],"path":row["path"],"etag":row["etag"],"search_match":match(row)} for row in rows]
         cursor = offset + len(items)
         return {"items":items,"next":cursor if cursor<header["total"] else None,"more":cursor<header["total"],"total":header["total"],"mode":header["mode"],"embedding_state":header["state"],"embedding_space":header["space"],"search_token":token}
 
@@ -808,6 +817,7 @@ class SearchIndex:
 
         # 5. Embedding state & Vector search execution
         vector_ids: list[int] = []
+        similarities: dict[int, float] = {}
         embedding_state: str = 'disabled'
         search_mode: str = 'lexical'
 
@@ -849,6 +859,7 @@ class SearchIndex:
                     for v_row in v_rows:
                         fid = int(v_row['file_id'])
                         vector_ids.append(fid)
+                        similarities[fid] = round(1.0 - float(v_row['min_dist']), 4)
                         if fid not in doc_cache:
                             doc_cache[fid] = {'file_id': fid, 'path': v_row['path'], 'etag': v_row['etag']}
                         sources_map.setdefault(fid, set()).add('embedding')
@@ -884,8 +895,8 @@ class SearchIndex:
         token = uuid.uuid4().hex
         conn.execute("INSERT INTO session_store.search_sessions VALUES(?,?,?,?,?,?,?)",(token,fingerprint,int(time.time()),len(final_ids),search_mode,embedding_state,space))
         order = ('name','path','metadata','description','tags','objects','ocr','audio','embedding')
-        records = ((token,position,fid,doc_cache[fid]['path'],doc_cache[fid]['etag'],json.dumps([source for source in order if source in sources_map.get(fid,set())])) for position,fid in enumerate(final_ids))
-        conn.executemany("INSERT INTO session_store.search_results VALUES(?,?,?,?,?,?)",records)
+        records = ((token,position,fid,doc_cache[fid]['path'],doc_cache[fid]['etag'],json.dumps([source for source in order if source in sources_map.get(fid,set())]),similarities.get(fid)) for position,fid in enumerate(final_ids))
+        conn.executemany("INSERT INTO session_store.search_results(token,position,file_id,path,etag,sources,similarity) VALUES(?,?,?,?,?,?,?)",records)
         return self._page_session(conn,token,raw_query,offset,limit)
 
 

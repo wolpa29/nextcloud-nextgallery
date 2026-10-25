@@ -1,6 +1,10 @@
 # Version history
 
 
+## 0.4.46 — 2026-10-25
+
+- Online search results from the vector index report the embedding similarity (`search_match.similarity`, cosine similarity of the closest frame, rounded to four decimals) for every hit whose sources include `embedding`. Text-only hits carry no value. Existing search session stores gain the column automatically.
+
 ## 0.4.45 — 2026-10-24
 
 - After re-sorting a person that does not appear in the gallery, the view returns to the overview instead of showing the emptied person; the same happens when a re-sort leaves a person without photos.

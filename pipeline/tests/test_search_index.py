@@ -309,6 +309,11 @@ class TestSearchIndex(unittest.TestCase):
         self.assertNotIn(300, ids)
         # Check that 'embedding' is in sources
         self.assertEqual(res_hybrid['items'][0]['search_match']['sources'], ['embedding'])
+        # The closest frame decides the similarity: identical direction 1.0, 45 degrees about 0.7071.
+        self.assertAlmostEqual(res_hybrid['items'][0]['search_match']['similarity'], 1.0, places=3)
+        self.assertAlmostEqual(res_hybrid['items'][1]['search_match']['similarity'], 0.7071, places=3)
+        # Text-only results carry no similarity.
+        self.assertNotIn('similarity', res_text['items'][0]['search_match'] if res_text['items'] else {})
 
         # Hybrid query with a space where no vectors exist, but vectors in scope exist -> model_changed
         res_changed = self.index.query({

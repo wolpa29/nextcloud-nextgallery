@@ -93,6 +93,7 @@ class NativeSearch {
     }));
     if(!$hit['search_match']['sources'])continue;
     $hit['search_match']['sources']=array_values(array_filter(['name','path','metadata','description','tags','objects','ocr','audio','embedding'],fn($source)=>in_array($source,$hit['search_match']['sources'],true)));
+    if(!in_array('embedding',$hit['search_match']['sources'],true)||!is_float($hit['search_match']['similarity']??null))unset($hit['search_match']['similarity']);
     $item=['id'=>$file->getId(),'name'=>$file->getName(),'path'=>$path,'kind'=>str_starts_with($file->getMimeType(),'image/')?'image':'video','etag'=>$file->getEtag(),'mtime'=>$file->getMTime(),'size'=>$file->getSize(),'metadata'=>$meta,'search_match'=>$hit['search_match']];
     $size=strlen(json_encode($item,JSON_THROW_ON_ERROR|JSON_INVALID_UTF8_SUBSTITUTE));
     if($items&&$bytes+$size>2*1024*1024){$cursor=$position;break 2;}
