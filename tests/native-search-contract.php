@@ -44,9 +44,9 @@ try{
  nativeCheck(!$service->search($uid,'native',['/NativeOnly'],'',0,60,'text','2023-07','metadata','UTC')['items'],'UTC filter ignored capture timestamp offset');
  $r=$service->search($uid,'ZX314',['/NativeOnly'],'',0,60,'text');nativeCheck(count($r['items'])===1&&$r['items'][0]['metadata']['mediaAi']['analysis']['vision']['description']==='Segelboot am See'&&$r['items'][0]['search_match']===['query'=>'ZX314','sources'=>['ocr']],'Current AI metadata missing in response');
  $rSem=$service->search($uid,'unrelated semantic query',['/NativeOnly']);
- nativeCheck($rSem['mode']==='hybrid'&&array_column($rSem['items'],'id')===[$files[0]->getId()]&&$rSem['items'][0]['search_match']===['query'=>'unrelated semantic query','sources'=>['embedding']],'Vector-only/current etag/frame maximum failed');
+ nativeCheck($rSem['mode']==='hybrid'&&array_column($rSem['items'],'id')===[$files[0]->getId()]&&$rSem['items'][0]['search_match']===['query'=>'unrelated semantic query','sources'=>['embedding'],'similarity'=>1.0],'Vector-only/current etag/frame maximum failed');
  $rHybText=$service->search($uid,'ZX314',['/NativeOnly'],'',0,60,'hybrid');
- nativeCheck(count($rHybText['items'])===1&&$rHybText['items'][0]['search_match']===['query'=>'ZX314','sources'=>['ocr','embedding']],'Hybrid ocr+embedding combination mismatch');
+ nativeCheck(count($rHybText['items'])===1&&$rHybText['items'][0]['search_match']===['query'=>'ZX314','sources'=>['ocr','embedding'],'similarity'=>1.0],'Hybrid ocr+embedding combination mismatch');
  $client->fail=true;$r=$service->search($uid,'ZX314',['/NativeOnly']);nativeCheck($r['embedding_state']==='unavailable'&&count($r['items'])===1&&$r['items'][0]['search_match']===['query'=>'ZX314','sources'=>['ocr']],'Model outage lost text results');$client->fail=false;
  $changed=$config;$changed['embedding']['max_edge']=1024;$settings->save($changed);$r=$service->search($uid,'ZX314',['/NativeOnly']);nativeCheck($r['embedding_state']==='model_changed'&&count($r['items'])===1&&$r['items'][0]['search_match']===['query'=>'ZX314','sources'=>['ocr']],'Incompatible vector space was used');$settings->save($config);
  $rOldEtag=$service->search($uid,'native-001',['/NativeOnly']);

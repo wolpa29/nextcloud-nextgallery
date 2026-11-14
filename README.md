@@ -11,7 +11,7 @@ No import, no copies: NextGallery shows the folders you already have.
 
 [![Nextcloud 32–35](https://img.shields.io/badge/Nextcloud-32%E2%80%9335-0082c9?logo=nextcloud&logoColor=white)](docs/ADMINISTRATION.md#build-and-install) [![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-2d6a4f)](LICENSE) [![Android app](https://img.shields.io/badge/Android-app-2d6a4f?logo=android&logoColor=white)](https://github.com/wolpa29/app-nextgallery)
 
-[Install](docs/ADMINISTRATION.md#build-and-install) · [Android app](https://github.com/wolpa29/app-nextgallery) · [Deutsch](docs/README.de.md) · [Feedback & issues](https://github.com/wolpa29/nextcloud-nextgallery/issues)
+[Install](docs/ADMINISTRATION.md#install-from-github) · [Download](https://github.com/wolpa29/nextcloud-nextgallery/releases/latest) · [Android app](https://github.com/wolpa29/app-nextgallery) · [Deutsch](docs/README.de.md) · [Feedback & issues](https://github.com/wolpa29/nextcloud-nextgallery/issues)
 
 <br>
 
@@ -76,7 +76,7 @@ You choose processing folders and schedules, with separate start/pause controls 
 
 ## Get started
 
-1. **Ask your administrator to install NextGallery Server.** [Installation guide →](docs/ADMINISTRATION.md#build-and-install)
+1. **Ask your administrator to install NextGallery Server.** [Installation guide →](docs/ADMINISTRATION.md#install-from-github)
 2. **Open NextGallery → Settings → Manage galleries.** Give your gallery a name and choose its folders.
 3. **Start exploring.** Browse the timeline, try Search, or open Map.
 

@@ -11,7 +11,7 @@ Kein Import, keine Kopien: NextGallery zeigt die Ordner, die du schon hast.
 
 [![Nextcloud 32–35](https://img.shields.io/badge/Nextcloud-32%E2%80%9335-0082c9?logo=nextcloud&logoColor=white)](ADMINISTRATION.md#build-and-install) [![Lizenz: AGPL-3.0-or-later](https://img.shields.io/badge/Lizenz-AGPL--3.0--or--later-2d6a4f)](../LICENSE) [![Android-App](https://img.shields.io/badge/Android-App-2d6a4f?logo=android&logoColor=white)](https://github.com/wolpa29/app-nextgallery)
 
-[Installation](ADMINISTRATION.md#build-and-install) · [Android-App](https://github.com/wolpa29/app-nextgallery) · [English](../README.md) · [Feedback & Probleme](https://github.com/wolpa29/nextcloud-nextgallery/issues)
+[Installation](#installation-auf-dem-nextcloud-server) · [Download](https://github.com/wolpa29/nextcloud-nextgallery/releases/latest) · [Android-App](https://github.com/wolpa29/app-nextgallery) · [English](../README.md) · [Feedback & Probleme](https://github.com/wolpa29/nextcloud-nextgallery/issues)
 
 <br>
 
@@ -76,11 +76,19 @@ Du wählst Verarbeitungsordner und Zeitpläne und kannst jede KI-Funktion getren
 
 ## So geht’s los
 
-1. **Lass deinen Administrator NextGallery Server installieren.** [Zur Installationsanleitung →](ADMINISTRATION.md#build-and-install)
+1. **Lass deinen Administrator NextGallery Server installieren.** [Zur Installationsanleitung →](#installation-auf-dem-nextcloud-server)
 2. **Öffne NextGallery → Einstellungen → Galerien verwalten.** Gib deiner Galerie einen Namen und wähle ihre Ordner.
 3. **Entdecke deine Bilder.** Stöbere in der Zeitleiste, probiere die Suche oder öffne die Karte.
 
 **Voraussetzungen:** Nextcloud 32–35, unterstütztes PHP (8.2+), funktionierende Vorschauen und Cron. KI benötigt zusätzlich einen Worker und Modelldienste.
+
+### Installation auf dem Nextcloud-Server
+
+1. Lade unter [GitHub Releases](https://github.com/wolpa29/nextcloud-nextgallery/releases/latest) `nextgallery.tar.gz` herunter. Das ist die fertige Server-App inklusive Frontend; die automatisch angebotenen Quellcode-Archive sind für Entwickler.
+2. Entpacke das Archiv in das für eigene Apps konfigurierte Verzeichnis deiner Nextcloud, meist `custom_apps`. Danach muss dort `nextgallery/appinfo/info.xml` liegen. Bei Docker oder AIO ist das Verzeichnis in der Nextcloud-Installation bzw. ihrem eingebundenen Volume gemeint.
+3. Führe im Nextcloud-Hauptverzeichnis `sudo -u www-data php occ app:enable nextgallery` aus. Passe den Befehl bei Bedarf an den Webserver-Benutzer und die Installationsart an. Öffne in Nextcloud **NextGallery Server → Galerie** und wähle deine Fotoordner.
+
+Für die Galerie brauchst du keinen KI-Worker. Die Serversuche benötigt zusätzlich [Python 3 mit SQLite FTS5 und Prozessausführung](SQL_SEARCH.md). Hinweise zur [Installation und zu Updates](ADMINISTRATION.md#install-from-github) findest du im Admin-Handbuch.
 
 ## Deine Dateien, deine Entscheidungen
 

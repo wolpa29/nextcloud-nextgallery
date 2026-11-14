@@ -52,8 +52,37 @@ jobs:
         run: |
           mkdir -p dist
           python3 scripts/package-app.py dist
+
+      - name: Sign packaged app files for the App Store
+        id: app-signing
+        if: github.event_name == 'release' && !github.event.release.prerelease && env.APPSTORE_TOKEN != ''
+        env:
+          APPSTORE_TOKEN: ${{ secrets.APPSTORE_TOKEN }}
+          APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+          APP_PUBLIC_CRT: ${{ secrets.APP_PUBLIC_CRT }}
+        run: |
+          : "${APP_PRIVATE_KEY:?Missing APP_PRIVATE_KEY}" "${APP_PUBLIC_CRT:?Missing APP_PUBLIC_CRT}"
+          umask 077
+          signing_dir=$(mktemp -d)
+          trap 'rm -r -- "$signing_dir"' EXIT
+          printf '%s\n' "$APP_PRIVATE_KEY" > "$signing_dir/nextgallery.key"
+          printf '%s\n' "$APP_PUBLIC_CRT" > "$signing_dir/nextgallery.crt"
+          VERSION=$(node -p "require('./package.json').version")
+          bash scripts/sign-app-archive.sh "dist/nextgallery-${VERSION}.tar.gz" \
+            "$signing_dir/nextgallery.key" "$signing_dir/nextgallery.crt"
+
+      - name: Verify app archive and finalize checksum
+        run: |
           VERSION=$(node -p "JSON.parse(require('fs').readFileSync('package.json')).version")
           python3 scripts/verify-worker-package.py "dist/nextgallery-${VERSION}.tar.gz"
+          python3 - "dist/nextgallery-${VERSION}.tar.gz" <<'PY'
+          import hashlib, json, sys
+          from pathlib import Path
+          archive = Path(sys.argv[1])
+          manifest = [{'file': archive.name, 'bytes': archive.stat().st_size,
+                       'sha256': hashlib.sha256(archive.read_bytes()).hexdigest()}]
+          archive.with_name('manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
+          PY
           cp "dist/nextgallery-${VERSION}.tar.gz" dist/nextgallery.tar.gz
 
       - name: Package corresponding source archive
@@ -77,18 +106,19 @@ jobs:
             "dist/nextgallery-${VERSION}.tar.gz" \
             "dist/nextgallery.tar.gz" \
             "dist/nextgallery-source-${VERSION}.tar.gz" \
-            dist/manifest.json \
-            --clobber
+            dist/manifest.json
 
       - name: Publish to Nextcloud App Store
-        if: github.event_name == 'release' && env.APPSTORE_TOKEN != '' && env.APP_PRIVATE_KEY != ''
-        uses: R0Wi/nextcloud-appstore-push-action@v1
-        with:
-          app_name: nextgallery
-          appstore_token: ${{ secrets.APPSTORE_TOKEN }}
-          download_url: https://github.com/${{ github.repository }}/releases/download/${{ github.event.release.tag_name }}/nextgallery.tar.gz
-          app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
-          nightly: ${{ github.event.release.prerelease }}
+        if: steps.app-signing.outcome == 'success'
         env:
           APPSTORE_TOKEN: ${{ secrets.APPSTORE_TOKEN }}
           APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+          DOWNLOAD_URL: https://github.com/${{ github.repository }}/releases/download/${{ github.event.release.tag_name }}/nextgallery.tar.gz
+        run: |
+          signature=$(openssl dgst -sha512 -sign <(printf '%s\n' "$APP_PRIVATE_KEY") dist/nextgallery.tar.gz | openssl base64 -A)
+          jq -n --arg download "$DOWNLOAD_URL" --arg signature "$signature" \
+            '{download: $download, signature: $signature, nightly: false}' |
+            curl --silent --show-error --fail-with-body \
+              --header "Authorization: Token ${APPSTORE_TOKEN}" \
+              --header 'Content-Type: application/json' --data-binary @- \
+              https://apps.nextcloud.com/api/v1/apps/releases
