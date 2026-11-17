@@ -440,8 +440,11 @@ try {
     $p1aFile = $files['p1-a'];
     $p1aId = $p1aFile->getId();
     $oldFileEtag = $p1aFile->getEtag();
+    // Local storage can reuse same-second ETags. Advance mtime and read it through a fresh node.
+    $targetMtime = $p1aFile->getMTime() + 5;
     $p1aFile->putContent('new modified content ' . time());
-    $newFileEtag = $p1aFile->getEtag();
+    $p1aFile->touch($targetMtime);
+    $newFileEtag = $p1aFile->getParent()->get($p1aFile->getName())->getEtag();
     peopleCheck($oldFileEtag !== $newFileEtag, 'file etag has changed on disk');
 
     // NativeSearch should now exclude p1-a because its live ETag does not match the detection face_etag:
