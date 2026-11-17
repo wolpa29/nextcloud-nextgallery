@@ -1,5 +1,9 @@
 # Version history
 
+## 0.4.47 — 2026-11-18
+
+- Publish the first signed Nextcloud App Store release.
+- Limit the JavaScript heap of the optional LM Studio SDK subprocess to 256 MiB per request. LM Studio SDK still depends on Zod 3, so the upstream advisory remains open for this transport.
 
 ## 0.4.46 — 2026-10-25
 
