@@ -76,8 +76,11 @@ def open_sdk_stream(url, method, body, headers, timeout, ca_file=None):
         environment = dict(os.environ)
         if ca_file:
             environment['NODE_EXTRA_CA_CERTS'] = str(ca_file)
+        # Contain JavaScript allocations from model-server response validation
+        # inside the per-request SDK process.
+        worker_script = Path(__file__).with_name('lmstudio') / 'stream.mjs'
         try:
-            process = subprocess.Popen(['node', str(Path(__file__).with_name('lmstudio') / 'stream.mjs')],
+            process = subprocess.Popen(['node', '--max-old-space-size=256', str(worker_script)],
                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=environment)
         except FileNotFoundError:
             raise PipelineError('LM Studio SDK transport requires Node.js and npm ci in worker/lmstudio') from None

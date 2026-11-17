@@ -74,9 +74,19 @@ People also reuses inference, through a separate cache keyed by Nextcloud file I
 
 For an external PC, see the [step-by-step installation guide](EXTERNAL_EMBEDDING_SERVER.md) and [installer](../scripts/install-embedding-server.py). The installer starts a separate Gemma embedding service with Docker; LM Studio can continue serving descriptions alongside it. See [embedding architecture](EMBEDDINGS.md).
 
-## Build and install
+## Install from GitHub
 
 Requires Nextcloud 32–35, PHP 8.2+ and its supported PHP version, its configured image/video preview providers, and a working Nextcloud cron. Server search also needs Python 3 with SQLite FTS5 trigram support and subprocess execution. The app bundles sqlite-vec 0.1.9 for Linux x86_64 and aarch64; it creates and updates each account’s search index automatically. See [SQL search setup and data preservation](SQL_SEARCH.md). Optional local FFprobe enriches video metadata.
+
+1. Download `nextgallery.tar.gz` from the [latest GitHub release](https://github.com/wolpa29/nextcloud-nextgallery/releases/latest). The app archive already contains the built frontend; the generated GitHub source archives are for development.
+2. Extract the archive into one of the app directories configured for your Nextcloud instance (usually `custom_apps`), so it contains `nextgallery/appinfo/info.xml`. For Docker or AIO, use the app directory inside the Nextcloud installation or its mounted volume. Ensure the files are readable by the Nextcloud web server.
+3. From the Nextcloud root run `sudo -u www-data php occ app:enable nextgallery`, using your installation's web server user and `occ` invocation if different. Open **NextGallery Server → Gallery** in Nextcloud and choose your photo folders.
+
+The gallery works without AI. To upgrade a manual installation, back up Nextcloud, replace the complete `nextgallery` app directory with the new archive and run `occ upgrade` from the Nextcloud root. Keep the database and Nextcloud data directory in place. Follow the [migration guide](MERGE.md) if upgrading from Chronicle or Media AI.
+
+## Build and install
+
+To build from source:
 
 ```sh
 npm ci --ignore-scripts
