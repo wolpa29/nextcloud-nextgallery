@@ -27,6 +27,8 @@ No import, no copies: NextGallery shows the folders you already have.
 | **📴 Offline** | **🔎 Search** | **🌗 Every screen** |
 | Save previews on your device or download a portable offline collection. | Search file names and, with optional AI, descriptions, tags and text in images. | Desktop and mobile, light and dark, English and German. |
 
+<a name="quick-tour"></a>
+
 ## A quick tour
 
 ### Your whole library, in order
