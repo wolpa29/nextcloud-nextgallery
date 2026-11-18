@@ -1,5 +1,9 @@
 # Version history
 
+## 0.4.48 — 2026-11-18
+
+- Add German and English App Store descriptions, screenshots of the server gallery, and links to the Android app and documentation.
+
 ## 0.4.47 — 2026-11-18
 
 - Publish the first signed Nextcloud App Store release.
